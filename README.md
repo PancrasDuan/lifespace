@@ -2,6 +2,8 @@
 
 个人每日首页：Google 搜索、本地与海外时间、Open-Meteo 当天天气、Supabase 今日待办及本地黄历。采用已确认的浅色 A 布局，卡片与详情均为只读。
 
+线上地址：[LifeSpace](https://lifespace.dpqkindle.workers.dev/)。
+
 ## 本地运行
 
 使用 Node.js 22.12、24 或 26 及更新版本。
