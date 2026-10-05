@@ -24,4 +24,5 @@ test-results/
 playwright-report/
 
 # 临时工作文件
+.cache/
 work/

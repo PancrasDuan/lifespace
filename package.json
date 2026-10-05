@@ -4,16 +4,16 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "WRANGLER_LOG_PATH=./work/wrangler.log MINIFLARE_REGISTRY_PATH=./work/registry vite --host 127.0.0.1 --port 5174 --strictPort",
-    "prototype": "vite --mode prototype --host 127.0.0.1 --port 5173 --strictPort",
-    "types": "WRANGLER_LOG_PATH=./work/wrangler.log wrangler types --env-interface CloudflareEnv --include-runtime false",
+    "dev": "WRANGLER_LOG_PATH=./.cache/wrangler.log MINIFLARE_REGISTRY_PATH=./.cache/registry vite --host 127.0.0.1 --port 5174 --strictPort",
+    "types": "WRANGLER_LOG_PATH=./.cache/wrangler.log wrangler types --env-interface CloudflareEnv --include-runtime false",
     "typecheck": "tsc --noEmit",
-    "build": "npm run typecheck && WRANGLER_LOG_PATH=./work/wrangler.log vite build",
+    "build": "npm run typecheck && WRANGLER_LOG_PATH=./.cache/wrangler.log vite build",
     "test:api": "vitest run",
     "test:browser": "PLAYWRIGHT_BROWSERS_PATH=/private/tmp/lifespace-playwright playwright test",
     "test": "npm run test:api && npm run test:browser",
-    "deploy": "WRANGLER_LOG_PATH=./work/wrangler.log wrangler deploy --config dist/lifespace/wrangler.json",
-    "setup:supabase": "bash scripts/configure-supabase.sh"
+    "deploy": "WRANGLER_LOG_PATH=./.cache/wrangler.log wrangler deploy --config dist/lifespace/wrangler.json",
+    "setup:supabase": "bash scripts/configure-supabase.sh",
+    "clean": "node --input-type=module -e \"import {rm} from 'node:fs/promises'; for (const path of ['dist','.cache','test-results','playwright-report']) await rm(path,{recursive:true,force:true});\""
   },
   "dependencies": {
     "@js-temporal/polyfill": "0.5.1",

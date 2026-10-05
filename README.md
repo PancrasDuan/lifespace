@@ -1,6 +1,6 @@
 # LifeSpace
 
-个人每日首页：Google 搜索、本地与海外时间、Open-Meteo 当天天气、Supabase 今日待办及本地黄历。采用已确认的浅色 A 布局，卡片与详情均为只读。
+个人每日首页：Google 搜索、本地与海外时间、Open-Meteo 当天天气、Supabase 今日待办及本地黄历。采用已确认的浅色布局，卡片与详情均为只读。
 
 线上地址：[LifeSpace](https://lifespace.dpqkindle.workers.dev/)。
 
@@ -47,12 +47,24 @@ npm run deploy -- --secrets-file .dev.vars
 
 发布前完成真实任务读取与常用网络验收。Worker 兼容日期采用当前安装的本地运行时支持的 `2026-10-01`。
 
-## 接口与原型
+## 项目结构
+
+| 目录 | 用途 |
+|---|---|
+| `src/home/` | 首页、信息卡片与设置 |
+| `src/shared/` | 前后端数据契约 |
+| `worker/` | Hono 接口与数据来源接入 |
+| `tests/api/`、`tests/browser/` | HTTP 与浏览器验收测试 |
+| `scripts/` | 本地配置工具 |
+| `docs/` | 本期需求与项目约定 |
+
+运行缓存、日志和测试报告统一放在 Git 忽略的 `.cache/`。停止开发服务后，可运行 `npm run clean` 清理缓存和构建产物，依赖及本地密钥配置保留。
+
+## 接口
 
 - `GET /api/tasks/today?timeZone=<IANA 时区>`：今日待办。
 - `GET /api/weather/locations?q=<城市关键词>`：城市搜索。
 - `GET /api/weather?latitude=<纬度>&longitude=<经度>`：城市当地当天天气。
 - 天气来源：[Open-Meteo](https://open-meteo.com/)；日期与黄历使用 `tyme4ts` 本地生成。
-- `npm run prototype`：在 `http://127.0.0.1:5173/prototype/home?variant=A` 查看原型。原型的示例数据与方案切换仅用于视觉比较。
 
 本期范围与验收标准见 [本期需求](docs/requirements.md)。

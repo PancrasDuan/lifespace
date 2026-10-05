@@ -25,11 +25,11 @@ export function Home() {
     queryFn: ({ signal }) => { if (!city) throw new Error('请选择天气城市'); return api.weather(city, signal) }, staleTime: 300000 })
   const updated = (value?: string) => value ? `更新 ${clock(new Date(value), localZone)}` : '尚未获取'
   const save = (value: Settings) => { persistSettings(value); setSettings(value) }
-  return <div className="lifespace-app theme-a"><aside className="sidebar" aria-label="主导航">
+  return <div className="lifespace-app theme-light"><aside className="sidebar" aria-label="主导航">
     <a className="brand-mark" href="/" aria-label="LifeSpace 首页">L<span>s</span></a><nav><button className="nav-item active" aria-current="page"><House size={20} /><span>首页</span></button>
     {[{ title: '任务管理', icon: ListTodo }, { title: '个人目标', icon: Target }, { title: '财务', icon: Wallet }, { title: '股票行情', icon: ChartNoAxesCombined }].map(({ title, icon: Icon }) => <button className="nav-item" disabled key={title}><Icon size={20} /><span>{title}</span></button>)}</nav>
     <button className="nav-settings" aria-label="打开设置" onClick={() => setSettingsOpen(true)}><Settings2 size={20} /><span>设置</span></button>
-  </aside><main><div className="variant-a"><header className="masthead">
+  </aside><main><div className="home-page"><header className="masthead">
     <div className="page-kicker"><span className="live-dot" />我的每日空间</div><button className="top-settings" aria-label="首页设置" onClick={() => setSettingsOpen(true)}><Settings2 size={18} /></button>
     <h1 className="wordmark">Life<span>Space</span><i /></h1><p className="header-date">把今天放在眼前</p>
     <form className="search-box" role="search" action="https://www.google.com/search" method="get" target="_blank" rel="noopener noreferrer" onSubmit={event => { if (!search.trim()) event.preventDefault() }}><span className="google-mark" aria-hidden="true">G</span><input name="q" aria-label="Google 搜索" placeholder="搜索一下，找到你想知道的" value={search} onChange={event => setSearch(event.target.value)} /><span className="search-hint">Google</span><button aria-label="搜索"><Search size={20} /></button></form>
