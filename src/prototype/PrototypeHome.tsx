@@ -33,7 +33,11 @@ const localZone = Intl.DateTimeFormat().resolvedOptions().timeZone
 const clock = (date: Date, zone = localZone) => new Intl.DateTimeFormat('zh-CN', { timeZone: zone, hour: '2-digit', minute: '2-digit', hour12: false }).format(date)
 const dayText = (date: Date, zone = localZone) => new Intl.DateTimeFormat('zh-CN', { timeZone: zone, month: 'long', day: 'numeric', weekday: 'long' }).format(date)
 const dateKey = (date: Date, zone = localZone) => new Intl.DateTimeFormat('sv-SE', { timeZone: zone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(date)
-const zoneName = (id: string) => zones.find(zone => zone.id === id)?.name ?? id
+const utcOffset = (date: Date, zone: string) => {
+  const offset = new Intl.DateTimeFormat('en-US', { timeZone: zone, timeZoneName: 'shortOffset' }).formatToParts(date).find(part => part.type === 'timeZoneName')?.value ?? 'GMT'
+  return offset === 'GMT' ? 'UTC+0' : offset.replace('GMT', 'UTC')
+}
+const zoneName = (id: string) => zones.find(zone => zone.id === id)?.name ?? (id === 'Asia/Shanghai' ? '上海' : id.split('/').at(-1)?.replaceAll('_', ' ') ?? id)
 const initialVariant = (): Variant => {
   const value = new URLSearchParams(location.search).get('variant')
   return value === 'B' || value === 'C' ? value : 'A'
@@ -80,28 +84,28 @@ function Masthead({ date, onSettings, variant }: { date: Date; onSettings: () =>
     <div className="page-kicker"><span className="live-dot" />我的每日空间<span className="demo-badge">原型 · 示例数据</span></div>
     <button className="top-settings" onClick={onSettings} aria-label="首页设置"><Settings2 size={18} /></button>
     <h1 className="wordmark">life<span>Space</span><i /></h1>
-    <p className="header-date">{dayText(date)}<span>把今天放在眼前</span></p>
+    <p className="header-date">把今天放在眼前</p>
     <SearchBox />
     {variant === 'B' && <div className="edition-line"><span>每日一页</span><span>{dateKey(date).replaceAll('-', ' / ')}</span><span>今日 · 只读</span></div>}
   </header>
 }
 
-function Panel({ kind, title, marker, children, footer, open, refresh, loading }: { kind: CardKind; title: string; marker?: string; children: ReactNode; footer: ReactNode; open: (kind: CardKind) => void; refresh?: () => void; loading?: boolean }) {
+function Panel({ kind, title, marker, children, footer, open, refresh, loading }: { kind: CardKind; title: string; marker?: string; children: ReactNode; footer?: ReactNode; open: (kind: CardKind) => void; refresh?: () => void; loading?: boolean }) {
   const icons = { time: Clock3, weather: CloudSun, tasks: ListTodo, calendar: CalendarDays }
   const Icon = icons[kind]
   return <article className={`info-panel panel-${kind}`}>
     <div className="panel-heading"><span><Icon size={17} /><h2>{title}</h2></span><span className="panel-marker">{marker}<ChevronRight size={15} /></span></div>
     <button className="panel-open" aria-label={`查看${title}详情`} onClick={() => open(kind)}>{children}</button>
-    <div className="panel-footer"><span>{footer}</span>{refresh && <button onClick={refresh} aria-label={`刷新${title}`} disabled={loading}><RotateCw size={14} className={loading ? 'spinning' : ''} /></button>}</div>
+    {(footer || refresh) && <div className="panel-footer"><span>{footer}</span>{refresh && <button onClick={refresh} aria-label={`刷新${title}`} disabled={loading}><RotateCw size={14} className={loading ? 'spinning' : ''} /></button>}</div>}
   </article>
 }
 
 function TimeContent({ now, settings }: { now: Date; settings: Settings }) {
   return <div className="time-content">
-    <div className="local-clock"><span className="eyebrow">本地时间</span><strong>{clock(now)}</strong><p>{dayText(now)}</p></div>
+    <div className="local-clock"><div className="clock-label"><MapPin size={14} /><span>{zoneName(localZone)}</span><small className="clock-zone">{utcOffset(now, localZone)}</small></div><p>{dayText(now)}</p><strong>{clock(now)}</strong></div>
     <div className="world-clocks">{settings.overseas.length ? settings.overseas.slice(0, 2).map(id => <div className="world-clock" key={id}>
-      <div><Globe2 size={14} /><span>{zoneName(id)}</span><small>{dateKey(now, id) === dateKey(now) ? '今日' : dateKey(now, id) < dateKey(now) ? '昨日' : '明日'}</small></div>
-      <strong>{clock(now, id)}</strong><p>{dayText(now, id)}</p>
+      <div className="clock-label"><Globe2 size={14} /><span>{zoneName(id)}</span><small className="clock-zone">{utcOffset(now, id)}</small></div>
+      <p>{dayText(now, id)}</p><strong>{clock(now, id)}</strong>
     </div>) : <span className="quiet">在设置中添加海外时区</span>}{settings.overseas.length > 2 && <span className="world-more">另有 {settings.overseas.length - 2} 个时区，详情查看</span>}</div>
   </div>
 }
@@ -121,7 +125,7 @@ function TaskContent({ tasks, loading, failed }: { tasks: Task[] | undefined; lo
   if (!tasks) return <div className="data-message">{loading ? '正在读取示例待办…' : '待办获取失败，请刷新重试'}</div>
   if (!tasks.length) return <div className="empty-tasks"><Sun size={36} strokeWidth={1.1} /><strong>{failed ? '待办更新失败' : '今天没有待办'}</strong><span>{failed ? '上次读取时没有待办，请刷新重试' : '给自己留一点自由时间'}</span></div>
   return <div className="task-content"><div className="task-count"><strong>{tasks.length.toString().padStart(2, '0')}</strong><span>件事，慢慢做好</span></div>
-    <div className="task-list">{tasks.map((task, index) => <div className="task-row" key={task.id}>
+    <div className="task-list">{tasks.slice(0, 3).map((task, index) => <div className="task-row" key={task.id}>
       <span className="task-number">0{index + 1}</span><div><strong>{task.title}</strong><span>{task.planned}<i />{task.area}{task.due && <small>截止 {task.due}</small>}</span></div><ChevronRight size={15} />
     </div>)}</div>{failed && <p className="inline-error">更新失败 · 正在显示上次结果</p>}
   </div>
@@ -190,7 +194,7 @@ export function PrototypeHome() {
   const tasks = taskQuery.data?.value
   const updated = (value?: string) => value ? `更新 ${clock(new Date(value))}` : '读取中'
   const panels: Record<CardKind, ReactNode> = {
-    time: <Panel kind="time" title="世界时间" marker="此刻" open={setActiveCard} footer={localZone}><TimeContent now={now} settings={settings} /></Panel>,
+    time: <Panel kind="time" title="世界时间" marker="此刻" open={setActiveCard}><TimeContent now={now} settings={settings} /></Panel>,
     weather: <Panel kind="weather" title="今日天气" marker="示例" open={setActiveCard} refresh={() => { void weatherQuery.refetch() }} loading={weatherQuery.isFetching} footer={`示例数据 · ${updated(weatherQuery.data?.fetchedAt)}`}><WeatherContent city={settings.city} weather={weather} loading={weatherQuery.isFetching} failed={weatherQuery.isError} /></Panel>,
     tasks: <Panel kind="tasks" title="今日待办" marker="示例 · 只读" open={setActiveCard} refresh={() => { void taskQuery.refetch() }} loading={taskQuery.isFetching} footer={`示例数据 · ${updated(taskQuery.data?.fetchedAt)}`}><TaskContent tasks={tasks} loading={taskQuery.isFetching} failed={taskQuery.isError} /></Panel>,
     calendar: <Panel kind="calendar" title="日期与黄历" marker="今日" open={setActiveCard} footer="tyme4ts · 本地生成"><CalendarContent now={now} /></Panel>,
@@ -204,7 +208,7 @@ export function PrototypeHome() {
     <main>{variant === 'A' ? <VariantA {...props} /> : variant === 'B' ? <VariantB {...props} /> : <VariantC {...props} />}</main>
     {activeCard && <Modal title={{ time: '世界时间', weather: '今天天气', tasks: '今日待办', calendar: '今日黄历' }[activeCard]} close={() => setActiveCard(null)}>
       <div className="detail-content"><span className="detail-date">{dayText(now)} · 只读详情</span>
-        {activeCard === 'time' && <><div className="detail-local"><span>本地 · {localZone}</span><strong>{clock(now)}</strong></div><div className="detail-zones">{settings.overseas.map(id => <div key={id}><div><strong>{zoneName(id)}</strong><small>{id}</small></div><div><strong>{clock(now, id)}</strong><small>{dayText(now, id)}</small></div></div>)}</div></>}
+        {activeCard === 'time' && <><div className="detail-local"><span>{zoneName(localZone)} · {utcOffset(now, localZone)}</span><strong>{clock(now)}</strong></div><div className="detail-zones">{settings.overseas.map(id => <div key={id}><div><strong>{zoneName(id)}</strong><small>{utcOffset(now, id)}</small></div><div><strong>{clock(now, id)}</strong><small>{dayText(now, id)}</small></div></div>)}</div></>}
         {activeCard === 'weather' && <><div className="detail-weather"><span>{settings.city} · 示例数据</span><strong>{weather?.temp ?? '—'}°</strong><p>{weather?.condition ?? '正在读取'}</p></div><div className="detail-stats"><div><span>今日最低</span><strong>{weather?.low ?? '—'}°</strong></div><div><span>今日最高</span><strong>{weather?.high ?? '—'}°</strong></div><div><span>降雨概率</span><strong>{weather?.rain ?? '—'}%</strong></div></div><p className="detail-note">本期天气详情查看当天信息。</p></>}
         {activeCard === 'tasks' && <><p className="detail-note">示例待办，状态均为 todo。任务详情保持只读。</p>{tasks?.length ? <ol className="detail-task-list">{tasks.map(task => <li key={task.id}><strong>{task.title}</strong><p>计划 · 今日 {task.planned}{task.due && `　截止 · 今日 ${task.due}`}</p><span>{task.area} · 待办</span></li>)}</ol> : <p className="data-message">{taskQuery.isError ? '任务获取失败' : '今天没有待办'}</p>}</>}
         {activeCard === 'calendar' && <><div className="detail-calendar"><strong>{String(now.getDate()).padStart(2, '0')}</strong><span>{lunar.toString()}</span></div><div className="almanac-block good"><b>宜</b><p>{lunar.getRecommends().map(item => item.getName()).join(' · ') || '—'}</p></div><div className="almanac-block avoid"><b>忌</b><p>{lunar.getAvoids().map(item => item.getName()).join(' · ') || '—'}</p></div><p className="detail-note">tyme4ts · 按本地当天日期生成</p></>}
