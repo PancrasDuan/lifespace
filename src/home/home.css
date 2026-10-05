@@ -94,3 +94,6 @@
   .theme-a .world-clock>strong{font-size:30px}
   .theme-a .world-more{grid-row:auto}
 }
+
+.modal{scrollbar-width:none}
+.modal::-webkit-scrollbar{display:none}
