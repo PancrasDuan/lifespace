@@ -19,7 +19,7 @@ const zones = [
 ]
 const sampleTasks: Task[] = [
   { id: 'DEMO-1', title: '整理本周阅读笔记', area: '学习', planned: '09:30', due: null },
-  { id: 'DEMO-2', title: '为 lifeSpace 选择首页布局', area: '工作', planned: '14:00', due: '22:00' },
+  { id: 'DEMO-2', title: '为 LifeSpace 选择首页布局', area: '工作', planned: '14:00', due: '22:00' },
   { id: 'DEMO-3', title: '去户外散步二十分钟', area: '生活', planned: '18:30', due: null },
 ]
 const sampleWeather = {
@@ -55,7 +55,7 @@ const initialSettings = (): Settings => {
 
 function Sidebar({ onSettings }: { onSettings: () => void }) {
   return <aside className="sidebar" aria-label="主导航">
-    <a className="brand-mark" href="/prototype/home" aria-label="lifeSpace 首页">l<span>s</span></a>
+    <a className="brand-mark" href="/prototype/home" aria-label="LifeSpace 首页">L<span>s</span></a>
     <nav>
       <button className="nav-item active" aria-current="page"><House size={20} /><span>首页</span></button>
       <button className="nav-item" disabled><ListTodo size={20} /><span>任务管理</span></button>
@@ -83,7 +83,7 @@ function Masthead({ date, onSettings, variant }: { date: Date; onSettings: () =>
   return <header className="masthead">
     <div className="page-kicker"><span className="live-dot" />我的每日空间<span className="demo-badge">原型 · 示例数据</span></div>
     <button className="top-settings" onClick={onSettings} aria-label="首页设置"><Settings2 size={18} /></button>
-    <h1 className="wordmark">life<span>Space</span><i /></h1>
+    <h1 className="wordmark">Life<span>Space</span><i /></h1>
     <p className="header-date">把今天放在眼前</p>
     <SearchBox />
     {variant === 'B' && <div className="edition-line"><span>每日一页</span><span>{dateKey(date).replaceAll('-', ' / ')}</span><span>今日 · 只读</span></div>}
@@ -151,7 +151,7 @@ export function VariantC({ now, onSettings, panels }: LayoutProps) {
 
 function Modal({ title, children, close }: { title: string; children: ReactNode; close: () => void }) {
   useEffect(() => { const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') close() }; document.addEventListener('keydown', onKey); return () => document.removeEventListener('keydown', onKey) }, [close])
-  return <div className="modal-backdrop" onClick={close}><section className="modal" role="dialog" aria-modal="true" aria-label={title} onClick={event => event.stopPropagation()}><header><div><span className="eyebrow">lifeSpace</span><h2>{title}</h2></div><button aria-label="关闭详情" onClick={close}><X size={22} /></button></header>{children}</section></div>
+  return <div className="modal-backdrop" onClick={close}><section className="modal" role="dialog" aria-modal="true" aria-label={title} onClick={event => event.stopPropagation()}><header><div><span className="eyebrow">LifeSpace</span><h2>{title}</h2></div><button aria-label="关闭详情" onClick={close}><X size={22} /></button></header>{children}</section></div>
 }
 
 function SettingsDialog({ settings, save, close }: { settings: Settings; save: (value: Settings) => void; close: () => void }) {
@@ -202,7 +202,7 @@ export function PrototypeHome() {
   const props: LayoutProps = { now, settings, panels, onSettings: () => setSettingsOpen(true) }
   const lunar = SolarDay.fromYmd(now.getFullYear(), now.getMonth() + 1, now.getDate()).getLunarDay()
   const state = { question: '首页结构与只读交互是否顺手？', variant: `${variant} ${variants[variant]}`, settings, localTimeZone: localZone, day: dateKey(now), activeCard, settingsOpen, taskScenario, weatherScenario, taskStatus: taskQuery.status, weatherStatus: weatherQuery.status, taskCount: tasks?.length ?? 0, taskFetching: taskQuery.isFetching, weatherFetching: weatherQuery.isFetching }
-  useEffect(() => { if (import.meta.env.DEV) console.info('[lifeSpace prototype state]', state) }, [variant, settings, activeCard, settingsOpen, taskScenario, weatherScenario, taskQuery.status, weatherQuery.status])
+  useEffect(() => { if (import.meta.env.DEV) console.info('[LifeSpace prototype state]', state) }, [variant, settings, activeCard, settingsOpen, taskScenario, weatherScenario, taskQuery.status, weatherQuery.status])
   return <div className={`prototype-app theme-${variant.toLowerCase()}`}>
     <Sidebar onSettings={() => setSettingsOpen(true)} />
     <main>{variant === 'A' ? <VariantA {...props} /> : variant === 'B' ? <VariantB {...props} /> : <VariantC {...props} />}</main>

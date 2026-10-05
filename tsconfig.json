@@ -9,7 +9,7 @@
     "noEmit": true,
     "skipLibCheck": true,
     "allowImportingTsExtensions": true,
-    "types": ["vite/client"]
+    "types": ["vite/client", "node", "@cloudflare/workers-types"]
   },
-  "include": ["src"]
+  "include": ["src", "worker", "tests", "*.ts", "worker-configuration.d.ts"]
 }

@@ -7,6 +7,9 @@ Thumbs.db
 .env
 .env.*
 !.env.example
+.dev.vars
+.dev.vars.*
+!.dev.vars.example
 *.pem
 *.key
 
@@ -17,6 +20,8 @@ build/
 coverage/
 .vite/
 .wrangler/
+test-results/
+playwright-report/
 
 # 临时工作文件
 work/

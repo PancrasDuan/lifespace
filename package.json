@@ -1,24 +1,41 @@
 {
-  "name": "lifespace-home-prototype",
+  "name": "lifespace",
   "private": true,
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "prototype": "vite --host 127.0.0.1 --port 5173 --strictPort",
-    "build": "tsc --noEmit && vite build"
+    "dev": "WRANGLER_LOG_PATH=./work/wrangler.log MINIFLARE_REGISTRY_PATH=./work/registry vite --host 127.0.0.1 --port 5174 --strictPort",
+    "prototype": "vite --mode prototype --host 127.0.0.1 --port 5173 --strictPort",
+    "types": "WRANGLER_LOG_PATH=./work/wrangler.log wrangler types --env-interface CloudflareEnv --include-runtime false",
+    "typecheck": "tsc --noEmit",
+    "build": "npm run typecheck && WRANGLER_LOG_PATH=./work/wrangler.log vite build",
+    "test:api": "vitest run",
+    "test:browser": "PLAYWRIGHT_BROWSERS_PATH=/private/tmp/lifespace-playwright playwright test",
+    "test": "npm run test:api && npm run test:browser",
+    "deploy": "WRANGLER_LOG_PATH=./work/wrangler.log wrangler deploy --config dist/lifespace/wrangler.json",
+    "setup:supabase": "bash scripts/configure-supabase.sh"
   },
   "dependencies": {
+    "@js-temporal/polyfill": "0.5.1",
     "@tanstack/react-query": "5.104.1",
+    "hono": "4.13.13",
     "lucide-react": "1.52.0",
     "react": "19.3.0",
     "react-dom": "19.3.0",
-    "tyme4ts": "1.5.3"
+    "tyme4ts": "1.5.3",
+    "zod": "4.6.5"
   },
   "devDependencies": {
+    "@cloudflare/vite-plugin": "1.62.5",
+    "@cloudflare/workers-types": "5.20261005.1",
+    "@playwright/test": "1.63.0",
+    "@types/node": "26.6.4",
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
     "@vitejs/plugin-react": "6.1.2",
     "typescript": "7.0.2",
-    "vite": "8.3.2"
+    "vite": "8.3.2",
+    "vitest": "5.0.3",
+    "wrangler": "4.147.0"
   }
 }
