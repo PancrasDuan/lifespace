@@ -1,0 +1,22 @@
+# 本地文件
+.DS_Store
+Thumbs.db
+*.log
+
+# 环境变量与凭据
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# 依赖与构建产物
+node_modules/
+dist/
+build/
+coverage/
+.vite/
+.wrangler/
+
+# 临时工作文件
+work/
