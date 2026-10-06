@@ -4,10 +4,10 @@
 
 ## 检查结果
 
-- 对全部 118 个历史文件版本和 GitHub 文本，以本机三项业务密钥进行精确比对：未发现匹配。真实密钥没有写入报告。
+- 对既有历史的 118 个文件版本和 GitHub 文本，以本机三项业务密钥进行精确比对：未发现匹配。真实密钥没有写入报告。
 - Gitleaks 默认规则与 DNSHE 专用规则扫描全部可达 Git 历史和当前 Git 文件：通过。空值 `.dev.vars.example` 的跨行误报采用精确匹配规则豁免；安全回归假密钥仅在指定脚本中豁免。
-- GitHub 全部 3 条 Issue/PR 列表项、6 条 Issue 评论、1 个 PR 正文：未发现密钥。PR review 与代码评论均为空；正文无上传附件。
-- GitHub Actions 运行记录、Actions artifacts 和 Releases 均为 0，无相应日志、产物或附件需要检查。
+- GitHub 全部 3 个 Issue、2 个 PR 正文和 6 条 Issue 评论：未发现密钥。PR review、代码与提交评论均为空；正文无上传附件。Wiki 与 Discussions 未启用。
+- PR #5 的首次 `validate` 在 Linux 上全部通过，其 CI 日志经精确密钥比对与 Gitleaks 扫描通过。Actions artifacts 与 Releases 均为 0，无相应产物或附件需要检查。
 - `.dev.vars`、环境配置、私钥、缓存和构建资源均被 Git 忽略。前端资源与公开接口的密钥隔离由现有 `build:ci` 安全回归验证。
 - 提交钩子与全量扫描的负例验证通过：固定假密钥会阻止提交，删除文件仍会阻止历史扫描，输出不包含假密钥原文。
 
