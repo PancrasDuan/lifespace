@@ -13,7 +13,20 @@ export function Panel({ kind, children, footer, open, refresh, loading }: { kind
 }
 export function Modal({ title, children, close }: { title: string; children: ReactNode; close: () => void }) {
   const ref = useRef<HTMLDialogElement>(null)
-  useEffect(() => { if (!ref.current?.open) ref.current?.showModal() }, [])
+  useEffect(() => {
+    const dialog = ref.current
+    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    const position = { left: window.scrollX, top: window.scrollY }
+    const pagePath = window.location.pathname
+    if (!dialog?.open) dialog?.showModal()
+    return () => {
+      dialog?.close()
+      if (opener?.isConnected && window.location.pathname === pagePath) {
+        opener.focus({ preventScroll: true })
+        window.scrollTo({ ...position, behavior: 'instant' })
+      }
+    }
+  }, [])
   return <dialog className="modal" ref={ref} aria-label={title} onClose={close} onClick={event => {
     if (event.target !== event.currentTarget) return
     const box = event.currentTarget.getBoundingClientRect()
