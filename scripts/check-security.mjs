@@ -63,7 +63,7 @@ async function files(directory) {
 }
 let devServer, runtime
 try {
-  for (const path of ['src', 'worker', 'index.html', 'package.json', 'vite.config.ts', 'wrangler.jsonc']) {
+  for (const path of ['src', 'worker', 'public', 'index.html', 'package.json', 'vite.config.ts', 'wrangler.jsonc']) {
     await cp(resolve(root, path), resolve(fixture, path), { recursive: true })
   }
   await symlink(resolve(root, 'node_modules'), resolve(fixture, 'node_modules'), 'dir')

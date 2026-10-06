@@ -1,4 +1,4 @@
-import { Newspaper, RotateCw } from 'lucide-react'
+import { RotateCw } from 'lucide-react'
 import type { UseQueryResult } from '@tanstack/react-query'
 import type { NewsResult } from '../shared/news-contracts'
 import type { NewsSource } from '../shared/news-sources'
@@ -11,7 +11,7 @@ export function NewsCard({ source, query }: { source: NewsSource; query: UseQuer
   const data = query.data
   return <article className="news-card" aria-label={source.label} aria-busy={query.isFetching}>
     <header className="news-card-heading">
-      <div><Newspaper size={17} /><h2>{source.label}</h2></div>
+      <div><img className="news-source-icon" src={'/news-icons/' + source.id.split('-')[0] + '.png'} alt="" width={24} height={24} /><h2>{source.label}</h2></div>
       <button aria-label={'刷新' + source.label} onClick={() => { void query.refetch() }} disabled={query.isFetching}>
         <RotateCw size={15} className={query.isFetching ? 'spinning' : ''} />
       </button>
