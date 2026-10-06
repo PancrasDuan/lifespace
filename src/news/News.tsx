@@ -10,6 +10,7 @@ import { createNewsReader } from './read-news'
 
 function freshness(query: Query<NewsResult>) {
   const data = query.state.data
+  if (data?.stale) return 0
   return data ? Math.max(0, newsFreshMs - Math.max(0, query.state.dataUpdatedAt - Date.parse(data.fetchedAt))) : newsFreshMs
 }
 
