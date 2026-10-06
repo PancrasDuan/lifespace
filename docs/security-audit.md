@@ -27,7 +27,7 @@
 | 浏览器回归 | 14 项通过 |
 | 构建及 `git diff --check` | 通过 |
 
-最近一次机器检查结果保存于 `.cache/security-report.json`。真实读取初核结果保存于 `.cache/dnshe-live-check.json`：本地凭据权限为 `600` 且被 Git 忽略，接口返回 1 个域名，展示字段与 DNSHE 原始只读查询一致；实际接口响应及前端构建资源未检出本地已配置的密钥。页面已核对名称、已注册状态及到期日期。复验命令：
+最近一次机器检查结果保存于 `.cache/security-report.json`。真实读取初核结果保存于 `.cache/dnshe-live-check.json`：本地凭据权限为 `600` 且被 Git 忽略，接口返回 1 个域名，展示字段与 DNSHE 原始只读查询一致。生产发布核验结果保存于 `.cache/production-release-check.json`：线上页面、静态资源、接口与凭据文件访问隔离检查通过；响应与公开资源未检出本地配置的密钥。页面已核对名称、已注册状态及到期日期。复验命令：
 
 ```bash
 npm run build
@@ -40,10 +40,10 @@ git diff --check
 
 ## 验收边界
 
-这是本地实现及真实只读接口初核，线上配置尚未验证。Git 格式扫描不覆盖所有可能的密钥格式或历史提交。
+已完成本地实现检查、Workers Builds 云端构建与生产站点核验。Git 格式扫描不覆盖所有可能的密钥格式或历史提交。
 
 最终页返回前未再次检查总耗时，同步解析或字段处理可能跨过 12 秒预算。该 P3 边界已获用户接受，本期保留现有实现。
 
 边缘缓存与限流按 Cloudflare 节点生效，限流具有最终一致性，不能作为严格的全球总请求配额。依据：[Cache API](https://developers.cloudflare.com/workers/runtime-apis/cache/)、[Rate Limiting](https://developers.cloudflare.com/workers/runtime-apis/bindings/rate-limit/)。
 
-当前来源核对使用 DNSHE 原始 API 响应，尚未逐项核对控制台 UI。发布后需复验公开资源、响应和实际运行日志。
+来源核对使用 DNSHE 原始 API 响应，尚未逐项核对控制台 UI。本次生产公开资源、响应及云端构建结果已核验；日后密钥或发布配置变化时重新执行对应检查。
