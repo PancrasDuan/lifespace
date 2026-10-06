@@ -6,7 +6,7 @@ import './app.css'
 export function AppLayout({ page, children, openSettings }: { page: 'home' | 'news'; children: ReactNode; openSettings?: () => void }) {
   return <div className="lifespace-app theme-light">
     <aside className="sidebar" aria-label="主导航">
-      <PageLink className="brand-mark" href="/" aria-label="LifeSpace 首页">L<span>s</span></PageLink>
+      <PageLink className="brand-mark" href="/" aria-label="LifeSpace 首页"><img src="/favicon.svg" alt="" width={38} height={38} /></PageLink>
       <nav>
         <PageLink className={page === 'home' ? 'nav-item active' : 'nav-item'} href="/" aria-current={page === 'home' ? 'page' : undefined}><House size={20} /><span>首页</span></PageLink>
         <PageLink className={page === 'news' ? 'nav-item active' : 'nav-item'} href="/news" aria-current={page === 'news' ? 'page' : undefined}><Newspaper size={20} /><span>新闻</span></PageLink>
