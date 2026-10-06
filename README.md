@@ -2,7 +2,7 @@
 
 个人每日首页：Google 搜索、本地与海外时间、Open-Meteo 当天天气、Supabase 今日待办及本地黄历。采用已确认的浅色布局，卡片与详情均为只读。
 
-线上地址：[LifeSpace](https://lifespace.dpqkindle.workers.dev/)。
+线上地址：[LifeSpace](https://onepeace.cc.cd/)。
 
 ## 本地运行
 
