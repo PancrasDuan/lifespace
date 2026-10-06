@@ -3,6 +3,15 @@
 .news-page h1{margin:19px 0 8px;font-weight:500;font-size:40px;letter-spacing:3px}
 .news-page .masthead>p{font-size:12px;color:var(--quiet)}
 .news-toolbar{display:flex;justify-content:space-between;align-items:center;gap:16px;margin:0 0 20px;font-size:12px;color:var(--quiet)}
+.news-toolbar-actions{display:flex;gap:8px}
+.news-source-options{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.news-source-options label{display:flex;gap:8px;align-items:center;padding:12px 10px;border:1px solid var(--line);border-radius:12px;background:white;font-size:11px;cursor:pointer;min-width:0}
+.news-source-options label>span{flex:1;overflow-wrap:anywhere}
+.news-source-options input{appearance:none;width:32px;height:19px;flex-shrink:0;margin:0;border-radius:20px;background:#dce5d7;position:relative;cursor:pointer}
+.news-source-options input:before{content:'';position:absolute;width:13px;height:13px;border-radius:50%;background:white;top:3px;left:3px;transition:transform .15s}
+.news-source-options input:checked{background:var(--accent)}
+.news-source-options input:checked:before{transform:translateX(13px)}
+@media(max-width:480px){.news-source-options{grid-template-columns:minmax(0,1fr)}.news-toolbar{flex-wrap:wrap}}
 .news-toolbar button,.news-card-heading button,.news-page-state button{display:inline-flex;gap:7px;align-items:center;background:white;color:var(--accent);border:1px solid var(--line);border-radius:10px;padding:9px 13px}
 .news-toolbar button:disabled{opacity:.6}
 .news-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px;align-items:start}
