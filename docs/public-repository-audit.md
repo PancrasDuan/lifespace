@@ -9,6 +9,7 @@
 - GitHub 全部 3 个 Issue、2 个 PR 正文和 6 条 Issue 评论：未发现密钥。PR review、代码与提交评论均为空；正文无上传附件。Wiki 与 Discussions 未启用。
 - PR #5 的首次 `validate` 在 Linux 上全部通过，其 CI 日志经精确密钥比对与 Gitleaks 扫描通过。Actions artifacts 与 Releases 均为 0，无相应产物或附件需要检查。
 - `.dev.vars`、环境配置、私钥、缓存和构建资源均被 Git 忽略。前端资源与公开接口的密钥隔离由现有 `build:ci` 安全回归验证。
+- GitHub 原生扫描的一项 Supabase 告警经精确核对为安全回归固定假值，位置仅在测试脚本及其精确 allowlist；不匹配业务密钥。告警已按 `used_in_tests` 归档。
 - 提交钩子与全量扫描的负例验证通过：固定假密钥会阻止提交，删除文件仍会阻止历史扫描，输出不包含假密钥原文。
 
 ## 公开边界与持续门禁
