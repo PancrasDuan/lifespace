@@ -23,6 +23,7 @@
 | 隔离构建、开发与运行时输出 | 未出现虚构凭据 |
 | Git 已跟踪文件 | 未跟踪凭据文件，未发现检查规则覆盖的常见密钥格式 |
 | API 自动测试 | 27 项通过，覆盖限流、缓存、凭据轮换、重定向、异常日志、分页超时及实际 `Registered` 状态 |
+| 临时目录跨平台回归 | 模拟 Linux 不存在 `/private/tmp`，完整安全检查通过；使用系统临时目录并规范化软链接路径 |
 | 浏览器回归 | 14 项通过 |
 | 构建及 `git diff --check` | 通过 |
 
@@ -32,6 +33,7 @@
 npm run build
 npm run test:api
 npm run test:security
+npm run test:security:portable
 npm run test:browser
 git diff --check
 ```

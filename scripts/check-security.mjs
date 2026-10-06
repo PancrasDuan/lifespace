@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict'
-import { cp, mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from 'node:fs/promises'
+import { cp, mkdir, mkdtemp, readFile, readdir, realpath, rm, symlink, writeFile } from 'node:fs/promises'
 import { execFileSync, spawnSync } from 'node:child_process'
 import { resolve, dirname, basename } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { tmpdir } from 'node:os'
 import { createBuilder, createServer, createLogger } from 'vite'
 import { Miniflare, Response as RuntimeResponse, convertV4MiniflareOptions } from 'miniflare'
 
@@ -31,7 +32,7 @@ if (process.env.LIFESPACE_SECURITY_CHILD !== '1') {
   console.log(output.split('\n').filter(line => line.startsWith('通过：')).join('\n'))
   process.exit(0)
 }
-const fixture = await mkdtemp('/private/tmp/lifespace-security-')
+const fixture = await mkdtemp(resolve(await realpath(tmpdir()), 'lifespace-security-'))
 const originalCwd = process.cwd()
 const checks = []
 const logs = []
