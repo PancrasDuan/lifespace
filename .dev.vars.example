@@ -1,0 +1,2 @@
+# 仅用于 Worker 服务端；从 Supabase 项目设置获取可读取 tasks 的服务端密钥。
+SUPABASE_SECRET_KEY=""
