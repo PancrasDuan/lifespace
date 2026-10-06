@@ -100,9 +100,9 @@ npm run test:browser
 
 - `GET /api/news/sources`：27 个受控来源的名称、默认启用标记和固定顺序。
 - `GET /api/news/source?id=<source_id>`：Worker 用已验证的官方 MCP UA 只读访问 NewsNow，返回规范化榜单及获取、上游报告时间；网页仅访问同源接口。
-- 成功快照内部保留最多 24 小时，前 5 分钟新鲜命中保留原获取时间。超过新鲜期重新读取，失败返回稳定错误且不覆盖快照；页面保留已有结果并提示失败。缓存是节点本地的，可能被提前清理。
+- 成功快照内部保留最多 24 小时，前 5 分钟新鲜命中保留原获取时间。超过新鲜期重新读取，失败时若有未满 24 小时的有效快照，返回带警告的“上次成功结果”；不覆盖快照、不续期，保留原时间。没有可用快照时返回稳定错误。缓存是节点本地的，可能被提前清理。
 - `NEWS_READ_LIMITER` 在 `wrangler.jsonc` 配置每节点每分钟 30 次上游尝试；新鲜缓存与元数据免计数。保护不可用时停止读取，公开接口保持 `no-store`。
 
-当前交付范围见 [默认五源新闻页 #7](https://github.com/PancrasDuan/lifespace/issues/7)，完整规格见 [新闻页规格 #6](https://github.com/PancrasDuan/lifespace/issues/6)。
+当前交付范围见 [默认五源新闻页 #7](https://github.com/PancrasDuan/lifespace/issues/7) 与 [Worker 失败回退 #8](https://github.com/PancrasDuan/lifespace/issues/8)，完整规格见 [新闻页规格 #6](https://github.com/PancrasDuan/lifespace/issues/6)。
 
 本期范围与验收标准见 [本期需求](docs/requirements.md)。

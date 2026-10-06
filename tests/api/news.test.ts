@@ -69,25 +69,126 @@ test('缓存故障、限流拒绝和保护缺失均不能放开上游，错误�
   expect(fetch).not.toHaveBeenCalled()
 })
 
-test('过新鲜期失败保留快照但返回稳定错误，失败计入限流且不续期', async () => {
+test('过新鲜期失败回退原榜单，失败计入限流且不续期', async () => {
   vi.useFakeTimers(); vi.setSystemTime(new Date('2026-10-06T08:00:00Z'))
   const entries = edgeCache()
   const limit = vi.fn(async () => ({ success: true }))
   const fetch = vi.fn(async () => Response.json(upstreamList([{ title: '热点', url: 'https://example.com/story' }])))
   vi.stubGlobal('fetch', fetch)
   const env = { NEWS_READ_LIMITER: { limit } }
-  await app.request('/api/news/source?id=baidu', {}, env)
+  const original = newsResultSchema.parse(await (await app.request('/api/news/source?id=baidu', {}, env)).json())
   const snapshot = [...entries.values()][0]
   vi.setSystemTime(new Date('2026-10-06T08:05:00Z'))
   fetch.mockImplementation(async () => { throw new Error('private-detail') })
   for (let i = 0; i < 2; i++) {
     const response = await app.request('/api/news/source?id=baidu', {}, env)
-    expect(response.status).toBe(502)
-    expect(await response.text()).not.toContain('private-detail')
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({ ...original, cacheHit: true, stale: true, warning: { code: 'SOURCE_UNAVAILABLE', message: '数据源暂时不可用，请稍后刷新' } })
   }
   expect([...entries.values()][0]).toBe(snapshot)
   expect(snapshot.expiresAt).toBe(Date.parse('2026-10-07T08:00:00Z'))
   expect(limit).toHaveBeenCalledTimes(3)
+})
+
+test.each([
+  ['拒绝', async () => new Response('private-detail', { status: 403 }), 'SOURCE_CONNECTION_INVALID'],
+  ['上游限流', async () => new Response('private-detail', { status: 429 }), 'SOURCE_UNAVAILABLE'],
+  ['超时', async () => { throw new DOMException('private-detail', 'TimeoutError') }, 'SOURCE_TIMEOUT'],
+  ['非 JSON', async () => new Response('private-detail'), 'SOURCE_INVALID_RESPONSE'],
+  ['无效榜单', async () => Response.json(upstreamList([{ title: '无链接' }])), 'SOURCE_INVALID_RESPONSE'],
+])('旧快照在%s时返回脱敏警告且保持原榜单时间', async (_name, failure, code) => {
+  vi.useFakeTimers(); vi.setSystemTime(new Date('2026-10-06T08:00:00Z'))
+  const entries = edgeCache()
+  vi.stubGlobal('fetch', async () => Response.json({ ...upstreamList([{ title: '热点', url: 'https://example.com/story' }]), updatedTime: '2026-10-06T07:00:00Z' }))
+  const original = newsResultSchema.parse(await (await app.request('/api/news/source?id=baidu', {}, permitted)).json())
+  const snapshot = [...entries.values()][0]
+  vi.setSystemTime(new Date('2026-10-06T08:06:00Z'))
+  vi.stubGlobal('fetch', failure)
+  const response = await app.request('/api/news/source?id=baidu', {}, permitted)
+  expect(response.status).toBe(200)
+  const body = newsResultSchema.parse(await response.json())
+  expect(body).toMatchObject({ ...original, cacheHit: true, stale: true, warning: { code } })
+  expect(JSON.stringify(body)).not.toContain('private-detail')
+  expect(response.headers.get('Cache-Control')).toBe('no-store')
+  expect([...entries.values()][0]).toBe(snapshot)
+})
+
+test('保护拒绝、绑定异常或缺失时仅回退，不发起上游请求', async () => {
+  vi.useFakeTimers(); vi.setSystemTime(new Date('2026-10-06T08:00:00Z'))
+  edgeCache()
+  const fetch = vi.fn(async () => Response.json(upstreamList([]))); vi.stubGlobal('fetch', fetch)
+  await app.request('/api/news/source?id=baidu', {}, permitted)
+  fetch.mockClear()
+  vi.setSystemTime(new Date('2026-10-06T08:06:00Z'))
+  for (const [env, code] of [
+    [{}, 'NEWS_NOT_CONFIGURED'],
+    [{ NEWS_READ_LIMITER: { limit: async () => ({ success: false }) } }, 'SOURCE_RATE_LIMITED'],
+    [{ NEWS_READ_LIMITER: { limit: async () => { throw new Error('private-detail') } } }, 'NEWS_PROTECTION_UNAVAILABLE'],
+  ] as const) {
+    const response = await app.request('/api/news/source?id=baidu', {}, env)
+    expect(response.status).toBe(200)
+    expect(await response.json()).toMatchObject({ stale: true, cacheHit: true, items: [], warning: { code } })
+  }
+  expect(fetch).not.toHaveBeenCalled()
+})
+
+test('连续失败不延长保留期，24 小时边界及请求过程中跨界后不能回退', async () => {
+  vi.useFakeTimers(); vi.setSystemTime(new Date('2026-10-06T08:00:00Z'))
+  const entries = edgeCache()
+  vi.stubGlobal('fetch', async () => Response.json(upstreamList([{ title: '旧热点', url: 'https://example.com/old' }])))
+  await app.request('/api/news/source?id=baidu', {}, permitted)
+  // 模拟设施仍提供该条目：接口须独立检查原成功时间。
+  const snapshot = [...entries.values()][0]
+  snapshot.expiresAt += 600000
+  vi.stubGlobal('fetch', async () => { throw new Error('private-detail') })
+  for (const [time, status] of [['2026-10-07T07:59:59Z', 200], ['2026-10-07T08:00:00Z', 502], ['2026-10-07T08:01:00Z', 502]] as const) {
+    vi.setSystemTime(new Date(time))
+    expect((await app.request('/api/news/source?id=baidu', {}, permitted)).status).toBe(status)
+  }
+  vi.setSystemTime(new Date('2026-10-07T07:59:59Z'))
+  vi.stubGlobal('fetch', async () => { vi.setSystemTime(new Date('2026-10-07T08:00:01Z')); throw new Error('private-detail') })
+  expect((await app.request('/api/news/source?id=baidu', {}, permitted)).status).toBe(502)
+  expect([...entries.values()][0]).toBe(snapshot)
+})
+
+test('恢复读取及合法空榜单更新成功快照，清除回退状态并重新计时', async () => {
+  vi.useFakeTimers(); vi.setSystemTime(new Date('2026-10-06T08:00:00Z'))
+  const entries = edgeCache()
+  const fetch = vi.fn(async () => Response.json(upstreamList([{ title: '旧热点', url: 'https://example.com/old' }])))
+  vi.stubGlobal('fetch', fetch)
+  await app.request('/api/news/source?id=baidu', {}, permitted)
+  vi.setSystemTime(new Date('2026-10-06T08:10:00Z'))
+  fetch.mockImplementation(async () => new Response('denied', { status: 403 }))
+  expect(await (await app.request('/api/news/source?id=baidu', {}, permitted)).json()).toMatchObject({ stale: true })
+  vi.setSystemTime(new Date('2026-10-06T08:11:00Z'))
+  fetch.mockImplementation(async () => Response.json(upstreamList([])))
+  const body = newsResultSchema.parse(await (await app.request('/api/news/source?id=baidu', {}, permitted)).json())
+  expect(body).toMatchObject({ items: [], fetchedAt: '2026-10-06T08:11:00.000Z', stale: false, warning: null, cacheHit: false })
+  expect([...entries.values()][0].expiresAt).toBe(Date.parse('2026-10-07T08:11:00Z'))
+  expect(await (await app.request('/api/news/source?id=baidu', {}, {})).json()).toMatchObject({ ...body, cacheHit: true })
+})
+
+test.each([
+  ['损坏 JSON', 'not-json'],
+  ['错误来源', { sourceId: 'zhihu' }],
+  ['未来获取时间', { fetchedAt: '2026-10-06T09:00:00.000Z' }],
+  ['回退响应', { stale: true, warning: { code: 'SOURCE_UNAVAILABLE', message: '失败' } }],
+  ['不是原始成功快照', { cacheHit: true }],
+  ['非法条目', { items: [{ id: '1', title: '', url: 'javascript:bad', rank: 1 }] }],
+])('不使用%s进行失败回退', async (_name, patch) => {
+  vi.useFakeTimers(); vi.setSystemTime(new Date('2026-10-06T08:10:00Z'))
+  const original = {
+    sourceId: 'baidu', fetchedAt: '2026-10-06T08:00:00.000Z', sourceUpdatedAt: null,
+    upstreamStatus: 'success', cacheHit: false, stale: false, warning: null,
+    items: [{ id: '1', title: '热点', url: 'https://example.com/story', rank: 1 }],
+  }
+  vi.stubGlobal('caches', { open: async () => ({
+    match: async () => typeof patch === 'string' ? new Response(patch) : Response.json({ ...original, ...patch }),
+  }) })
+  vi.stubGlobal('fetch', async () => { throw new Error('private-detail') })
+  const response = await app.request('/api/news/source?id=baidu', {}, permitted)
+  expect(response.status).toBe(502)
+  expect(await response.json()).toMatchObject({ error: { code: 'SOURCE_UNAVAILABLE' } })
 })
 
 test.each([302, 401, 403, 429, 500])('新闻上游 HTTP %s 映射为脱敏错误，不跟随重定向', async status => {

@@ -9,6 +9,7 @@ function time(value: string) {
 
 export function NewsCard({ source, query }: { source: NewsSource; query: UseQueryResult<NewsResult, Error> }) {
   const data = query.data
+  const failure = query.isError ? query.error.message : data?.stale ? data.warning?.message ?? '来源暂时不可用，请稍后刷新' : null
   return <article className="news-card" aria-label={source.label} aria-busy={query.isFetching}>
     <header className="news-card-heading">
       <div><img className="news-source-icon" src={'/news-icons/' + source.id.split('-')[0] + '.png'} alt="" width={24} height={24} /><h2>{source.label}</h2></div>
@@ -16,7 +17,7 @@ export function NewsCard({ source, query }: { source: NewsSource; query: UseQuer
         <RotateCw size={15} className={query.isFetching ? 'spinning' : ''} />
       </button>
     </header>
-    {query.isError && <p role="alert" className="news-error">{data ? '上次成功结果 · 本次刷新失败：' : ''}{query.error.message}</p>}
+    {failure && <p role="alert" className="news-error">{data ? '上次成功结果 · ' + (query.isError ? '本次刷新失败：' : '') : ''}{failure}</p>}
     <div className="news-list" tabIndex={0} aria-label={source.label + '榜单'}>
       {data?.items.length ? <ol>{data.items.map(item => <li key={item.rank + ':' + item.id}>
         <span className="news-rank">{item.rank}</span><a href={item.url} target="_blank" rel="noopener noreferrer">{item.title}</a>

@@ -152,6 +152,49 @@ test('同源榜单链接无效时显示统一内容错误，不展示底层英�
   await expect(page.getByRole('article', { name: '百度热搜', exact: true }).getByRole('alert')).toHaveText('服务返回了无效内容，请刷新重试')
 })
 
+test('新开新闻页收到回退结果时提示旧榜单与原时间，刷新恢复后清除提示', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-10-06T08:10:00Z') })
+  await sourceMetadata(page)
+  let restored = false
+  await page.route('**/api/news/source?**', route => {
+    const id = new URL(route.request().url()).searchParams.get('id')!
+    return route.fulfill({ json: id === 'baidu' && !restored ? {
+      ...result(id), cacheHit: true, stale: true, warning: { code: 'SOURCE_UNAVAILABLE', message: '数据源暂时不可用，请稍后刷新' },
+    } : { ...result(id), fetchedAt: '2026-10-06T08:10:00.000Z' } })
+  })
+  await page.goto('/news')
+  const card = page.getByRole('article', { name: '百度热搜', exact: true })
+  await expect(card.getByRole('alert')).toContainText('上次成功结果')
+  await expect(card.getByRole('alert')).toContainText('数据源暂时不可用')
+  await expect(card).toContainText('获取时间 10/06 16:00')
+  await expect(card.getByRole('link', { name: '示例标题-baidu' })).toBeVisible()
+  await expect(page.getByRole('article', { name: '知乎', exact: true }).getByRole('alert')).toHaveCount(0)
+  restored = true
+  await card.getByRole('button', { name: '刷新百度热搜', exact: true }).click()
+  await expect(card).toContainText('获取时间 10/06 16:10')
+  await expect(card.getByRole('alert')).toHaveCount(0)
+})
+
+test('回退标记不受客户端时钟影响，返回新闻页立即重新检查', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-10-06T08:00:00Z') })
+  await page.route('**/api/**', route => route.fulfill({ status: 503, json: { error: { code: 'SOURCE_UNAVAILABLE', message: '来源不可用' } } }))
+  await sourceMetadata(page)
+  let reads = 0
+  await page.route('**/api/news/source?**', route => {
+    const id = new URL(route.request().url()).searchParams.get('id')!
+    if (id === 'baidu') reads++
+    return route.fulfill({ json: id === 'baidu' && reads === 1 ? {
+      ...result(id), cacheHit: true, stale: true, warning: { code: 'SOURCE_UNAVAILABLE', message: '数据源暂时不可用' },
+    } : result(id) })
+  })
+  await page.goto('/news')
+  await expect(page.getByRole('article', { name: '百度热搜', exact: true }).getByRole('alert')).toBeVisible()
+  await page.getByRole('link', { name: '首页', exact: true }).click()
+  await page.getByRole('link', { name: '新闻', exact: true }).click()
+  await expect.poll(() => reads).toBe(2)
+  await expect(page.getByRole('article', { name: '百度热搜', exact: true }).getByRole('alert')).toHaveCount(0)
+})
+
 test('全部刷新同样限制三个并发，完成后继续排队来源', async ({ page }) => {
   await sourceMetadata(page)
   let refreshing = false
