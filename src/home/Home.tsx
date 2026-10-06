@@ -10,6 +10,7 @@ import { api } from './api'
 import { dateKey, clock } from './time'
 import { TaskContent, TaskDetail } from './TaskContent'
 import { WeatherContent, WeatherDetail } from './WeatherContent'
+import { DomainContent, DomainDetail, DNSHELoginLink } from './DomainContent'
 
 export function Home() {
   const [settings, setSettings] = useState(loadSettings)
@@ -20,6 +21,7 @@ export function Home() {
   useEffect(() => { const timer = setInterval(() => setNow(new Date()), 1000); return () => clearInterval(timer) }, [])
   const localZone = Intl.DateTimeFormat().resolvedOptions().timeZone
   const taskQuery = useQuery({ queryKey: ['tasks', localZone, dateKey(now, localZone)], queryFn: ({ signal }) => api.todayTasks(localZone, signal) })
+  const domainQuery = useQuery({ queryKey: ['domains'], queryFn: ({ signal }) => api.domains(signal), staleTime: 300000, refetchOnWindowFocus: false })
   const city = settings.city
   const weatherQuery = useQuery({ queryKey: ['weather', city?.latitude, city?.longitude, city && dateKey(now, city.timeZone)], enabled: !!city,
     queryFn: ({ signal }) => { if (!city) throw new Error('请选择天气城市'); return api.weather(city, signal) }, staleTime: 300000 })
@@ -36,11 +38,13 @@ export function Home() {
   </header><section className="glass-grid" aria-label="每日信息"><Panel kind="time" open={() => setActiveCard('time')}><TimeContent now={now} localZone={localZone} overseas={settings.overseas} /></Panel>
   <Panel kind="weather" open={() => setActiveCard('weather')} footer={<><a href="https://open-meteo.com/" target="_blank" rel="noopener noreferrer">Open-Meteo</a> · {updated(weatherQuery.data?.fetchedAt)}</>} refresh={city ? () => { void weatherQuery.refetch() } : undefined} loading={weatherQuery.isFetching}><WeatherContent query={weatherQuery} city={city} /></Panel>
   <Panel kind="tasks" open={() => setActiveCard('tasks')} footer={`Supabase · ${updated(taskQuery.data?.fetchedAt)}`} refresh={() => { void taskQuery.refetch() }} loading={taskQuery.isFetching}><TaskContent query={taskQuery} localZone={localZone} /></Panel>
-  <Panel kind="calendar" open={() => setActiveCard('calendar')} footer="tyme4ts · 本地生成"><CalendarContent now={now} /></Panel></section><p className="page-note">生活有自己的节奏，今天也一样。</p></div></main>
+  <Panel kind="calendar" open={() => setActiveCard('calendar')} footer="tyme4ts · 本地生成"><CalendarContent now={now} /></Panel>
+  <Panel kind="domains" open={() => setActiveCard('domains')} footer={<><DNSHELoginLink /> · {updated(domainQuery.data?.fetchedAt)}</>} refresh={() => { void domainQuery.refetch() }} loading={domainQuery.isFetching}><DomainContent query={domainQuery} now={now} localZone={localZone} /></Panel></section><p className="page-note">生活有自己的节奏，今天也一样。</p></div></main>
     {activeCard === 'time' && <Modal title="世界时间" close={() => setActiveCard(null)}><div className="detail-content"><TimeDetail now={now} localZone={localZone} overseas={settings.overseas} /></div></Modal>}
     {activeCard === 'calendar' && <Modal title="今日黄历" close={() => setActiveCard(null)}><div className="detail-content"><CalendarDetail now={now} /></div></Modal>}
     {activeCard === 'tasks' && <Modal title="今日待办" close={() => setActiveCard(null)}><div className="detail-content"><TaskDetail query={taskQuery} localZone={localZone} /></div></Modal>}
     {activeCard === 'weather' && <Modal title="今日天气" close={() => setActiveCard(null)}><div className="detail-content"><WeatherDetail query={weatherQuery} city={city} /></div></Modal>}
+    {activeCard === 'domains' && <Modal title="DNSHE 域名" close={() => setActiveCard(null)}><div className="detail-content"><DomainDetail query={domainQuery} now={now} localZone={localZone} /></div></Modal>}
     {settingsOpen && <SettingsDialog settings={settings} save={save} close={() => setSettingsOpen(false)} />}
   </div>
 }

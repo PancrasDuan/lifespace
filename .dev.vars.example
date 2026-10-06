@@ -1,2 +1,5 @@
 # 仅用于 Worker 服务端；从 Supabase 项目设置获取可读取 tasks 的服务端密钥。
 SUPABASE_SECRET_KEY=""
+# DNSHE 官方控制台 → 免费域名管理 → API 管理；仅在服务端使用。
+DNSHE_API_KEY=""
+DNSHE_API_SECRET=""

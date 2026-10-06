@@ -1,13 +1,15 @@
 import { z } from 'zod'
 
 export class ApiError extends Error {
-  constructor(readonly code: string, message: string, readonly status: 400 | 502 | 503 | 504) { super(message) }
+  constructor(readonly code: string, message: string, readonly status: 400 | 429 | 502 | 503 | 504) { super(message) }
 }
 
 // 第三方响应限制体积与读取时间；原始响应及凭据不进入用户错误信息。
 export async function upstream<T>(url: URL, schema: z.ZodType<T>, init: RequestInit = {}): Promise<T> {
   try {
-    const response = await fetch(url, { ...init, signal: AbortSignal.timeout(10000) })
+    const signal = init.signal ? AbortSignal.any([init.signal, AbortSignal.timeout(10000)]) : AbortSignal.timeout(10000)
+    if (signal.aborted) throw signal.reason
+    const response = await fetch(url, { redirect: 'manual', ...init, signal })
     if (!response.ok) {
       if (response.status === 401 || response.status === 403) throw new ApiError('SOURCE_CONNECTION_INVALID', '数据源连接失效，请检查服务端配置', 502)
       throw new ApiError('SOURCE_UNAVAILABLE', '数据源暂时不可用，请稍后刷新', 502)

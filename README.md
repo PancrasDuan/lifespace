@@ -1,6 +1,6 @@
 # LifeSpace
 
-个人每日首页：Google 搜索、本地与海外时间、Open-Meteo 当天天气、Supabase 今日待办及本地黄历。采用已确认的浅色布局，卡片与详情均为只读。
+个人每日首页：Google 搜索、本地与海外时间、Open-Meteo 当天天气、Supabase 今日待办、本地黄历及 DNSHE 域名信息。采用已确认的浅色布局，卡片与详情均为只读。
 
 线上地址：[LifeSpace](https://lifespace.onepeace.cc.cd/)。
 
@@ -27,12 +27,31 @@ npm run setup:supabase
 
 今日待办筛选设备本地当天 `planned_at`、`status=todo`、`is_deleted=false`，按计划时间排序。首页最多显示三条，详情展示全部。时间字段使用 Unix 秒，接口仅执行读取。
 
+## 接入 DNSHE
+
+在本项目终端运行配置向导：
+
+```bash
+npm run setup:dnshe
+```
+
+向导打开 [DNSHE 控制台](https://my.dnshe.com/index.php?m=domain_hub)，按免费域名管理 → API 管理获取 API Key 和 API Secret。两项输入均隐藏，只写入本地 `.dev.vars` 的 `DNSHE_API_KEY`、`DNSHE_API_SECRET`，权限为 `600`；保留现有其他配置。配置完成后重新启动开发服务器。模板见 [.dev.vars.example](.dev.vars.example)，凭据仅用于 Worker，不进入网页或 Git。
+
+首页展示 DNSHE 账户内全部域名的数量、名称、状态和剩余天数，点击查看全部域名及到期日期，[DNSHE 登录页](https://my.dnshe.com/clientarea.php) 在新标签页打开。永久有效、到期日期未知、未接入和空列表分别显示。来源日期不含时区，剩余天数仅按本地当天与来源到期日期计算。域名状态采用 DNSHE 返回值。
+
+首页免登录，域名展示字段允许公开。数量是账户内注册域名去重后的数量；`lifespace.onepeace.cc.cd` 等自行创建的 DNS 记录不计作独立注册域名。凭据仅留在服务端，公开响应不包含账户标识、DNS 记录或其他上游字段。接口仅查询，不执行续期或修改解析。上线前需在 Worker 配置同名 secrets，并完成真实只读联调。
+
+接口依据 [DNSHE 官方 API V2.0 文档](https://api005.dnshe.com/knowledgebase/13/DNSHE-Free-Domain-API-User-Guide-V2.0.html)，使用请求头认证，按页读取全部域名，仅返回域名、状态、到期日期和永久标记。
+
+DNSHE 成功结果在边缘缓存 5 分钟；手动刷新可能复用缓存，更新时间保留来源读取时间。缓存未命中时，读取限流目标为每个 Cloudflare 节点每 60 秒一次，超限返回 `429`。缓存故障仍受限流保护，缺少限流配置时停止读取。查询参数不能绕过缓存或指定上游地址。读取采用 12 秒网络超时与分页起点预算检查，最多 10 页、每页 100 条；最终页同步处理可能跨过预算。已检测到的超时、超页或任一页失败时返回错误，不缓存部分列表。
+
 ## 验证与发布
 
 ```bash
 npm run types
 npm run build
 npm run test:api
+npm run test:security
 PLAYWRIGHT_BROWSERS_PATH=/private/tmp/lifespace-playwright npx playwright install chromium
 npm run test:browser
 ```
@@ -63,6 +82,7 @@ npm run deploy -- --secrets-file .dev.vars
 ## 接口
 
 - `GET /api/tasks/today?timeZone=<IANA 时区>`：今日待办。
+- `GET /api/domains`：DNSHE 账户内全部域名的展示信息。
 - `GET /api/weather/locations?q=<城市关键词>`：城市搜索。
 - `GET /api/weather?latitude=<纬度>&longitude=<经度>`：城市当地当天天气。
 - 天气来源：[Open-Meteo](https://open-meteo.com/)；日期与黄历使用 `tyme4ts` 本地生成。

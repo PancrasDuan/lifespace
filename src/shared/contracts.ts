@@ -7,6 +7,15 @@ export type WeatherResult = {
   temperatureMin: number | null; temperatureMax: number | null; precipitationProbability: number | null;
 }
 export type LocationsResult = { locations: City[] }
+export type DomainInfo = { name: string; status: 'registered' | 'active' | 'suspended' | 'expired' | 'unknown'; expiresOn: string | null; neverExpires: boolean }
+export type DomainsResult = { fetchedAt: string; domains: DomainInfo[] }
+
+export const domainsResultSchema: z.ZodType<DomainsResult> = z.object({
+  fetchedAt: z.string().datetime(), domains: z.array(z.object({
+    name: z.string(), status: z.enum(['registered', 'active', 'suspended', 'expired', 'unknown']),
+    expiresOn: z.iso.date().nullable(), neverExpires: z.boolean(),
+  })),
+})
 
 const citySchema = z.object({ id: z.string(), name: z.string(), region: z.string(), latitude: z.number().min(-90).max(90), longitude: z.number().min(-180).max(180), timeZone: z.string() })
 const metric = z.number().finite().nullable()

@@ -5,14 +5,16 @@
   "type": "module",
   "scripts": {
     "dev": "WRANGLER_LOG_PATH=./.cache/wrangler.log MINIFLARE_REGISTRY_PATH=./.cache/registry vite --host 127.0.0.1 --port 5174 --strictPort",
-    "types": "WRANGLER_LOG_PATH=./.cache/wrangler.log wrangler types --env-interface CloudflareEnv --include-runtime false",
+    "types": "WRANGLER_LOG_PATH=./.cache/wrangler.log wrangler types --env-interface CloudflareEnv --include-runtime false --strict-vars false",
     "typecheck": "tsc --noEmit",
     "build": "npm run typecheck && WRANGLER_LOG_PATH=./.cache/wrangler.log vite build",
     "test:api": "vitest run",
     "test:browser": "PLAYWRIGHT_BROWSERS_PATH=/private/tmp/lifespace-playwright playwright test",
+    "test:security": "WRANGLER_LOG_PATH=./.cache/wrangler-security.log MINIFLARE_REGISTRY_PATH=./.cache/security-registry node scripts/check-security.mjs",
     "test": "npm run test:api && npm run test:browser",
     "deploy": "WRANGLER_LOG_PATH=./.cache/wrangler.log wrangler deploy --config dist/lifespace/wrangler.json",
     "setup:supabase": "bash scripts/configure-supabase.sh",
+    "setup:dnshe": "bash scripts/configure-dnshe.sh",
     "clean": "node --input-type=module -e \"import {rm} from 'node:fs/promises'; for (const path of ['dist','.cache','test-results','playwright-report']) await rm(path,{recursive:true,force:true});\""
   },
   "dependencies": {
@@ -33,6 +35,7 @@
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
     "@vitejs/plugin-react": "6.1.2",
+    "miniflare": "5.20261001.0-alpha",
     "typescript": "7.0.2",
     "vite": "8.3.2",
     "vitest": "5.0.3",
