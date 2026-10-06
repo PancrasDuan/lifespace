@@ -56,15 +56,21 @@ PLAYWRIGHT_BROWSERS_PATH=/private/tmp/lifespace-playwright npx playwright instal
 npm run test:browser
 ```
 
-部署到当前 Cloudflare 账户，使用 Workers Static Assets 与同项目 Worker：
+使用 Workers Builds 连接现有 `lifespace` Worker 与 `PancrasDuan/lifespace` 仓库：
 
-```bash
-npx wrangler login
-npm run build
-npm run deploy -- --secrets-file .dev.vars
-```
+| 设置 | 值 |
+|---|---|
+| 生产分支 | `main` |
+| 根目录 | `/` |
+| 构建命令 | `npm run build:ci` |
+| 部署命令 | `npm run deploy` |
+| Node.js | `.node-version` 固定为 `24.18.0` |
 
-发布前完成真实任务读取与常用网络验收。Worker 兼容日期采用当前安装的本地运行时支持的 `2026-10-01`。
+推送到 `main` 后，Cloudflare 安装锁文件中的依赖，执行接口测试、安全检查和构建，再发布 `dist/lifespace/wrangler.json` 指定的 Worker 与 `dist/client` 静态资源。非生产分支预览按实际需求在 Cloudflare 配置。
+
+部署身份由 Workers Builds 的部署 token 提供；`SUPABASE_SECRET_KEY`、`DNSHE_API_KEY`、`DNSHE_API_SECRET` 保存于 Worker 的运行时 secrets，不加入 Git 或构建环境变量。发布会保留已配置的运行时 secrets。
+
+发布后核对 DNSHE、任务、天气、登录入口与公开资源的密钥隔离。Worker 兼容日期采用 `2026-10-01`。
 
 ## 项目结构
 

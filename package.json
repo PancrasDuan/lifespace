@@ -3,11 +3,13 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "engines": {"node": "^22.12.0 || >=24.0.0"},
   "scripts": {
     "dev": "WRANGLER_LOG_PATH=./.cache/wrangler.log MINIFLARE_REGISTRY_PATH=./.cache/registry vite --host 127.0.0.1 --port 5174 --strictPort",
     "types": "WRANGLER_LOG_PATH=./.cache/wrangler.log wrangler types --env-interface CloudflareEnv --include-runtime false --strict-vars false",
     "typecheck": "tsc --noEmit",
     "build": "npm run typecheck && WRANGLER_LOG_PATH=./.cache/wrangler.log vite build",
+    "build:ci": "npm run test:api && npm run test:security && npm run build",
     "test:api": "vitest run",
     "test:browser": "PLAYWRIGHT_BROWSERS_PATH=/private/tmp/lifespace-playwright playwright test",
     "test:security": "WRANGLER_LOG_PATH=./.cache/wrangler-security.log MINIFLARE_REGISTRY_PATH=./.cache/security-registry node scripts/check-security.mjs",
