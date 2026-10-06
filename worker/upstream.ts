@@ -31,6 +31,7 @@ export async function upstream<T>(url: URL, schema: z.ZodType<T>, init: RequestI
     return decoded.data
   } catch (error) {
     if (error instanceof ApiError) throw error
+    if (error instanceof SyntaxError) throw new ApiError('SOURCE_INVALID_RESPONSE', '数据源返回了无效内容', 502)
     if (error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError')) throw new ApiError('SOURCE_TIMEOUT', '数据源请求超时，请稍后刷新', 504)
     throw new ApiError('SOURCE_UNAVAILABLE', '数据源暂时不可用，请稍后刷新', 502)
   }

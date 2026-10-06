@@ -63,7 +63,7 @@ async function files(directory) {
 }
 let devServer, runtime
 try {
-  for (const path of ['src', 'worker', 'index.html', 'package.json', 'vite.config.ts', 'wrangler.jsonc']) {
+  for (const path of ['src', 'worker', 'public', 'index.html', 'package.json', 'vite.config.ts', 'wrangler.jsonc']) {
     await cp(resolve(root, path), resolve(fixture, path), { recursive: true })
   }
   await symlink(resolve(root, 'node_modules'), resolve(fixture, 'node_modules'), 'dir')
@@ -81,14 +81,27 @@ try {
   }
   checks.push({ name: '前端构建目录与虚构密钥隔离', passed: true, fileCount: publicFiles.length })
   let upstreamCalls = 0
+  let newsCalls = 0
   runtime = new Miniflare(convertV4MiniflareOptions({ workers: [{
     name: generated.name, modules: true, scriptPath: resolve(fixture, 'dist/lifespace/index.js'),
     compatibilityDate: generated.compatibility_date, compatibilityFlags: generated.compatibility_flags,
     bindings: { ...generated.vars, ...markers },
-    ratelimits: { DNSHE_READ_LIMITER: generated.ratelimits.find(binding => binding.name === 'DNSHE_READ_LIMITER') },
+    ratelimits: Object.fromEntries(generated.ratelimits.map(binding => [binding.name, binding])),
     assets: { directory: publicDir, binding: 'ASSETS', run_worker_first: generated.assets.run_worker_first,
       routerConfig: { has_user_worker: true }, assetConfig: { not_found_handling: 'single-page-application' } },
     outboundService: async request => {
+      if (new URL(request.url).origin === 'https://newsnow.busiyi.world') {
+        assert.equal(new URL(request.url).pathname, '/api/s')
+        assert.equal(new URL(request.url).search, '?id=baidu')
+        assert.equal(request.method, 'GET')
+        assert.equal(request.headers.get('User-Agent'), 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36')
+        assert(!request.headers.has('Cookie') && !request.headers.has('Authorization'))
+        assertClean(request.url + JSON.stringify([...request.headers]), '新闻上游请求')
+        newsCalls++
+        return new RuntimeResponse(JSON.stringify({ id: 'baidu', status: 'cache', items: [
+          { title: '安全测试榜单', url: 'https://example.com/news', extra: markers },
+        ], info: markers }), { headers: { 'Content-Type': 'application/json' } })
+      }
       assert.equal(new URL(request.url).origin, 'https://api005.dnshe.com')
       assert.equal(request.method, 'GET')
       upstreamCalls++
@@ -97,7 +110,11 @@ try {
   }] }))
   const runtimeBindings = await runtime.getBindings()
   assert((await runtimeBindings.DNSHE_READ_LIMITER.limit({ key: 'security-probe' })).success, '运行时读取限流绑定不可用')
-  for (const path of ['/', '/.dev.vars', '/.env.private', '/dist/lifespace/.dev.vars', '/.git/config', '/__private-cache/domains-v1/test']) {
+  assert((await runtimeBindings.NEWS_READ_LIMITER.limit({ key: 'security-probe' })).success, '新闻读取限流绑定不可用')
+  const newsProtection = generated.ratelimits.find(binding => binding.name === 'NEWS_READ_LIMITER')
+  assert.equal(newsProtection.simple.limit, 30)
+  assert.equal(newsProtection.simple.period, 60)
+  for (const path of ['/', '/news', '/.dev.vars', '/.env.private', '/dist/lifespace/.dev.vars', '/.git/config', '/__private-cache/domains-v1/test', '/__private-cache/news-v1/baidu']) {
     const response = await runtime.dispatchFetch(`https://lifespace.onepeace.cc.cd${path}`)
     assertClean(await response.text(), '生产静态资源响应')
   }
@@ -108,6 +125,21 @@ try {
     assertClean(body, '生产域名接口响应')
   }
   assert.equal(upstreamCalls, 1, '生产运行时未复用边缘缓存')
+  let firstNewsTime
+  for (const [index, path] of ['/api/news/source?id=baidu', '/api/news/source?id=baidu&refresh=force'].entries()) {
+    const response = await runtime.dispatchFetch('https://lifespace.onepeace.cc.cd' + path)
+    assert.equal(response.status, 200, '生产新闻接口不可用')
+    assert.equal(response.headers.get('Cache-Control'), 'no-store')
+    const body = await response.text()
+    assertClean(body, '生产新闻接口响应')
+    const result = JSON.parse(body)
+    assert.equal(result.cacheHit, index === 1)
+    assert.equal(result.stale, false)
+    assert.equal(result.items[0].title, '安全测试榜单')
+    if (index === 0) firstNewsTime = result.fetchedAt
+    else assert.equal(result.fetchedAt, firstNewsTime)
+  }
+  assert.equal(newsCalls, 1, '生产运行时新闻缓存未命中')
   checks.push({ name: '生产运行时公开路径、接口与边缘缓存', passed: true })
   await runtime.dispose(); runtime = undefined
   devServer = await createServer({ configFile: resolve(fixture, 'vite.config.ts'), customLogger: logger,
