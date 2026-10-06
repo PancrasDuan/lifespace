@@ -77,6 +77,7 @@ npm run test:browser
 | 目录 | 用途 |
 |---|---|
 | `src/home/` | 首页、信息卡片与设置 |
+| `src/app/`、`src/news/` | 共享导航、新闻页与请求队列 |
 | `src/shared/` | 前后端数据契约 |
 | `worker/` | Hono 接口与数据来源接入 |
 | `tests/api/`、`tests/browser/` | HTTP 与浏览器验收测试 |
@@ -92,5 +93,16 @@ npm run test:browser
 - `GET /api/weather/locations?q=<城市关键词>`：城市搜索。
 - `GET /api/weather?latitude=<纬度>&longitude=<经度>`：城市当地当天天气。
 - 天气来源：[Open-Meteo](https://open-meteo.com/)；日期与黄历使用 `tyme4ts` 本地生成。
+
+## 新闻页
+
+侧边导航进入 `/news`，默认展示百度热搜、财联社热门、腾讯新闻综合早报、今日头条和知乎。标题打开来源链接，支持单卡与全部刷新；浏览器最多三个并发，无轮询、焦点刷新或自动重试。
+
+- `GET /api/news/sources`：27 个受控来源的名称、默认启用标记和固定顺序。
+- `GET /api/news/source?id=<source_id>`：Worker 用已验证的官方 MCP UA 只读访问 NewsNow，返回规范化榜单及获取、上游报告时间；网页仅访问同源接口。
+- 成功快照内部保留最多 24 小时，前 5 分钟新鲜命中保留原获取时间。超过新鲜期重新读取，失败返回稳定错误且不覆盖快照；页面保留已有结果并提示失败。缓存是节点本地的，可能被提前清理。
+- `NEWS_READ_LIMITER` 在 `wrangler.jsonc` 配置每节点每分钟 30 次上游尝试；新鲜缓存与元数据免计数。保护不可用时停止读取，公开接口保持 `no-store`。
+
+当前交付范围见 [默认五源新闻页 #7](https://github.com/PancrasDuan/lifespace/issues/7)，完整规格见 [新闻页规格 #6](https://github.com/PancrasDuan/lifespace/issues/6)。
 
 本期范围与验收标准见 [本期需求](docs/requirements.md)。

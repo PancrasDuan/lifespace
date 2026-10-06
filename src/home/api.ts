@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { domainsResultSchema, locationsResultSchema, tasksResultSchema, weatherResultSchema, type City } from '../shared/contracts'
+import { newsResultSchema, newsSourcesResultSchema } from '../shared/news-contracts'
 
 export class ClientError extends Error {
   constructor(readonly code: string, message: string) { super(message) }
@@ -25,6 +26,8 @@ async function request<T>(path: string, schema: z.ZodType<T>, signal: AbortSigna
   return decoded.data
 }
 export const api = {
+  newsSources: (signal: AbortSignal) => request('/api/news/sources', newsSourcesResultSchema, signal),
+  newsSource: (id: string, signal: AbortSignal) => request('/api/news/source?' + new URLSearchParams({ id }), newsResultSchema.refine(result => result.sourceId === id), signal),
   domains: (signal: AbortSignal) => request('/api/domains', domainsResultSchema, signal),
   todayTasks: (timeZone: string, signal: AbortSignal) => request(`/api/tasks/today?${new URLSearchParams({ timeZone })}`, tasksResultSchema, signal),
   weather: (city: City, signal: AbortSignal) => request(`/api/weather?${new URLSearchParams({ latitude: String(city.latitude), longitude: String(city.longitude) })}`, weatherResultSchema, signal),
