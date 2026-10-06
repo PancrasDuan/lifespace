@@ -1,0 +1,30 @@
+title = "LifeSpace secret checks"
+
+[extend]
+useDefault = true
+
+# 仅豁免已核对的空值示例；不能豁免整个示例文件。
+[[allowlists]]
+condition = "AND"
+paths = ['''^\.dev\.vars\.example$''']
+regexTarget = "match"
+regexes = ['''^DNSHE_API_KEY=""\nDNSHE_API_SECRET="$''']
+
+# 安全回归的固定假密钥，只允许出现在该测试脚本中。
+[[allowlists]]
+condition = "AND"
+paths = ['''^scripts/check-security\.mjs$''']
+regexTarget = "secret"
+regexes = ['''^(cfsd_SECURITY_TEST_KEY_20261006|SECURITY_TEST_DNSHE_SECRET_20261006|sb_secret_SECURITY_TEST_SUPABASE_20261006)$''']
+
+[[rules]]
+id = "dnshe-api-key"
+description = "DNSHE API key"
+regex = '''\b(cfsd_[A-Za-z0-9_-]{20,})\b'''
+secretGroup = 1
+
+[[rules]]
+id = "business-secret-assignment"
+description = "Business runtime secret assignment"
+regex = '''(?i)(?:DNSHE_API_KEY|DNSHE_API_SECRET|SUPABASE_SECRET_KEY)\s*=\s*["']?([A-Za-z0-9_./+=-]{20,})'''
+secretGroup = 1

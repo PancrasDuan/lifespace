@@ -11,3 +11,7 @@
 ### 领域文档
 
 使用根目录 `CONTEXT.md` 和 `docs/adr/`，见 `docs/agents/domain.md`。
+
+### 开发与交付
+
+开始开发、提交代码、创建或合并 PR、部署验收时，先读 `docs/agents/git-workflow.md`；密钥扫描是提交和 CI 的首项检查。

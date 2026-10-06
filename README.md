@@ -52,7 +52,7 @@ npm run types
 npm run build
 npm run test:api
 npm run test:security
-PLAYWRIGHT_BROWSERS_PATH=/private/tmp/lifespace-playwright npx playwright install chromium
+npm run setup:browser
 npm run test:browser
 ```
 
@@ -66,7 +66,7 @@ npm run test:browser
 | 部署命令 | `npm run deploy` |
 | Node.js | `.node-version` 固定为 `24.18.0` |
 
-推送到 `main` 后，Cloudflare 安装锁文件中的依赖，执行接口测试、安全检查和构建，再发布 `dist/lifespace/wrangler.json` 指定的 Worker 与 `dist/client` 静态资源。非生产分支预览按实际需求在 Cloudflare 配置。
+推送到 `main` 后，Cloudflare 安装锁文件中的依赖，执行接口测试、安全检查和构建，再发布 `dist/lifespace/wrangler.json` 指定的 Worker 与 `dist/client` 静态资源。非生产分支预览关闭。日常开发通过功能分支和 PR，main 合并门禁与交付流程见 [开发与交付](docs/agents/git-workflow.md)。
 
 部署身份由 Workers Builds 的部署 token 提供；`SUPABASE_SECRET_KEY`、`DNSHE_API_KEY`、`DNSHE_API_SECRET` 保存于 Worker 的运行时 secrets，不加入 Git 或构建环境变量。发布会保留已配置的运行时 secrets。
 
