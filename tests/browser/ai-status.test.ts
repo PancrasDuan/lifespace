@@ -8,12 +8,12 @@ const abnormal = { ...normal, status: 'abnormal', providers: [{ ...normal.provid
   { id: 'login', title: '登录异常', status: 'investigating', description: '原因待公布', affectedServices: [], updatedAt: checkedAt, updates: [] },
 ] }, xai] }
 
-test('说明位于主标题下，详情展示 OpenAI 五个官网分组和 xAI 子服务状态', async ({ page }) => {
+test('首页卡片没有说明，详情标题下保留说明并展示两家子状态', async ({ page }) => {
   const groups = ['APIs', 'ChatGPT', 'Codex', 'FedRAMP', 'Ads Platform'].map(name => ({ id: name, name, status: name === 'ChatGPT' ? 'abnormal' : 'normal', statusLabel: name === 'ChatGPT' ? '存在异常' : '可用', components: [] }))
   await page.route('**/api/**', route => route.fulfill({ status: 503, json: { error: { code: 'NOT_CONFIGURED', message: '未配置' } } }))
   await page.route('**/api/ai-status', route => route.fulfill({ json: { ...normal, providers: [{ ...normal.providers[0], subStatuses: groups }, { ...xai, subStatuses: [{ id: 'Grok', name: 'Grok', status: 'abnormal', statusLabel: '异常', components: [{ id: 'grok-com', name: 'grok.com', status: 'normal', statusLabel: '可用' }, { id: 'voice', name: 'Voice', status: 'abnormal', statusLabel: '异常' }] }] }] } }))
   await page.goto('/')
-  await expect(page.locator('.panel-ai > .panel-description')).toContainText('官方状态为汇总信息')
+  await expect(page.locator('.panel-ai > .panel-description')).toHaveCount(0)
   await page.getByRole('button', { name: '查看AI 服务状态详情' }).click()
   const dialog = page.getByRole('dialog')
   await expect(dialog.locator('header')).toContainText('官方状态为汇总信息')
