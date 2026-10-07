@@ -46,9 +46,9 @@ test('选择城市后天气切换，浏览器刷新保留城市设置', async ({
   await page.route('**/api/weather/locations?**', route => route.fulfill({ json: { locations: [{ id: 'beijing', name: '北京', region: '北京市 · 中国', latitude: 39.9, longitude: 116.4, timeZone: 'Asia/Shanghai' }] } }))
   await page.goto('/')
   await page.getByRole('button', { name: '首页设置', exact: true }).click()
-  await page.getByLabel('天气城市', { exact: true }).fill('北京')
+  await page.getByLabel('地区', { exact: true }).fill('北京')
   await page.clock.runFor(400)
-  await page.getByRole('button', { name: '选择北京 北京市 · 中国' }).click()
+  await page.getByRole('option', { name: '选择北京 北京市 · 中国' }).click()
   await page.getByRole('button', { name: '保存设置', exact: true }).click()
   await expect(page.getByRole('button', { name: '查看今日天气详情' })).toContainText('北京')
   await expect(page.getByRole('button', { name: '查看今日天气详情' })).toContainText('18')
@@ -56,7 +56,7 @@ test('选择城市后天气切换，浏览器刷新保留城市设置', async ({
   await expect(page.getByRole('button', { name: '查看今日天气详情' })).toContainText('北京')
 })
 
-test('任务按设备本地跨日刷新，天气按所选城市的日期独立刷新', async ({ page }) => {
+test('任务与天气按所选地区日期同步跨日刷新', async ({ page }) => {
   await page.clock.install({ time: new Date('2026-10-05T15:59:00Z') })
   let taskDate = '2026-10-05'; let weatherDate = '2026-10-05'; let cityTemperature = 10
   await page.route('**/api/tasks/today?**', route => route.fulfill({ json: { date: taskDate, timeZone: 'Asia/Shanghai', fetchedAt: '2026-10-05T15:59:00Z', tasks: [{ ...tasks[0], title: `任务日期 ${taskDate}` }] } }))
@@ -64,9 +64,9 @@ test('任务按设备本地跨日刷新，天气按所选城市的日期独立�
   await page.route('**/api/weather/locations?**', route => route.fulfill({ json: { locations: [{ id: 'newyork', name: '纽约', region: '纽约州 · 美国', latitude: 40.71, longitude: -74, timeZone: 'America/New_York' }] } }))
   await page.goto('/')
   await page.getByRole('button', { name: '首页设置', exact: true }).click()
-  await page.getByLabel('天气城市', { exact: true }).fill('纽约')
+  await page.getByLabel('地区', { exact: true }).fill('纽约')
   await page.clock.runFor(400)
-  await page.getByRole('button', { name: '选择纽约 纽约州 · 美国' }).click()
+  await page.getByRole('option', { name: '选择纽约 纽约州 · 美国' }).click()
   await page.getByRole('button', { name: '保存设置', exact: true }).click()
   const weatherCard = page.getByRole('button', { name: '查看今日天气详情' })
   const tasksCard = page.getByRole('button', { name: '查看今日待办详情' })
@@ -74,11 +74,12 @@ test('任务按设备本地跨日刷新，天气按所选城市的日期独立�
   await expect(tasksCard).toContainText('任务日期 2026-10-05')
   taskDate = '2026-10-06'; cityTemperature = 18
   await page.clock.fastForward(120000)
-  await expect(tasksCard).toContainText('任务日期 2026-10-06')
+  await expect(tasksCard).toContainText('任务日期 2026-10-05')
   await expect(weatherCard).toContainText('10°')
   weatherDate = '2026-10-06'
   await page.clock.fastForward(11 * 3600000 + 59 * 60000)
   await expect(weatherCard).toContainText('18°')
+  await expect(tasksCard).toContainText('任务日期 2026-10-06')
   await weatherCard.click()
   await expect(page.getByRole('dialog')).toContainText('2026-10-06')
 })
