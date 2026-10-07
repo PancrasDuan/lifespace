@@ -32,6 +32,6 @@ export const api = {
   newsSource: (id: string, signal: AbortSignal) => request('/api/news/source?' + new URLSearchParams({ id }), newsResultSchema.refine(result => result.sourceId === id), signal),
   domains: (signal: AbortSignal) => request('/api/domains', domainsResultSchema, signal),
   todayTasks: (timeZone: string, signal: AbortSignal) => request(`/api/tasks/today?${new URLSearchParams({ timeZone })}`, tasksResultSchema, signal),
-  weather: (city: City, signal: AbortSignal) => request(`/api/weather?${new URLSearchParams({ latitude: String(city.latitude), longitude: String(city.longitude) })}`, weatherResultSchema, signal),
+  weather: (city: City, signal: AbortSignal) => request(`/api/weather?${new URLSearchParams({ latitude: String(city.latitude), longitude: String(city.longitude), timeZone: city.timeZone })}`, weatherResultSchema.refine(result => result.timeZone === city.timeZone), signal),
   locations: (query: string, signal: AbortSignal) => request(`/api/weather/locations?${new URLSearchParams({ q: query })}`, locationsResultSchema, signal),
 }

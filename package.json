@@ -28,6 +28,7 @@
   },
   "dependencies": {
     "@js-temporal/polyfill": "0.5.1",
+    "@photostructure/tz-lookup": "11.7.0",
     "@tanstack/react-query": "5.104.1",
     "fast-xml-parser": "5.11.2",
     "hono": "4.13.13",
