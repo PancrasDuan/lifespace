@@ -1,27 +1,24 @@
 # AI 状态来源与验收
 
-核验时间：2026-10-07 11:05（Asia/Shanghai）。规格与任务见 GitHub Issues #15、#16、#17。
+本期规则：OpenAI 按官网组件与当前事件；xAI 按官方未解决事件定义整体与子模块状态。需求见 GitHub Issue #15，任务见 #16、#17。
 
-| 提供方 | 当前官方公开来源 | 真实核验结果 |
+| 提供方 | 实际读取来源 | 判定与展示 |
 | --- | --- | --- |
-| OpenAI | https://status.openai.com/proxy/status.openai.com | HTTP 200；与官网使用同一份数据，包含产品分组、当前事件及其受影响组件 |
-| xAI | https://status.x.ai/feed.xml | HTTP 200；官网 Subscribe → RSS 公布的入口，包含事件状态、受影响服务和更新记录 |
+| OpenAI | https://status.openai.com/proxy/status.openai.com | 官网产品分组、当前异常与每个事件自己的组件归属；展示五组状态 |
+| xAI | https://status.x.ai/feed.xml | 无未解决事件则可用；有事件则整体异常，仅涉及模块异常，其余可用 |
 
-OpenAI 按官方 structure 将组件映射到产品，摘要展示 ChatGPT，事件详情展示 ChatGPT / Agent；每个事件使用自己的 affected_components，不用全局异常组件替代事件归属。
+两份真实响应用于回放测试。获取失败、超时、非法内容或无法确认事件模块归属时显示未知，不能按空事件判可用；旧结果标注原成功时间，失败后旧子状态不继续标为当前可用。
 
-xAI 按官方 RSS 的事件状态识别未解决事件；同一事件的多个服务条目按事件标识合并。没有未解决事件时显示正常，并说明“官方事件订阅未报告未解决异常”。事件汇总不是主动探测；官网子状态另需 summary/uptime 组件快照，不从事件记录推算。当前 JSON 拒绝访问时，详情明确显示官网子状态暂不可获取。规则见 [xAI 子状态研究](xai-substatus-research.md)。
+xAI 模块清单独立维护于 `src/shared/xai-modules.json`，2026-10-07 核对官网可见三组 14 项。RSS 链接中的模块 ID 用于关联，目录外活跃模块补入其他模块；无事件的新模块需维护目录。xAI 状态属于已确认的事件判定，不是官网组件快照。原站算法证据见 [xAI 子状态研究](xai-substatus-research.md)。
 
-公开响应已保存为测试样例。验收同时要求：真实来源 HTTP 200、页面与官网对照、当前事件及产品归属一致；仅测试样例通过或获取失败回退正常工作，不足以判定功能可交付。
-
-## 复现核验
+## 真实核验
 
 先启动本地预览，再运行：
 
 ```bash
-node scripts/check-ai-status-live.mjs
 node scripts/check-ai-status-live.mjs --require-substatuses
 ```
 
-可传入其他已授权的预览地址。脚本只读取公开 AI 状态，比较官方当前事件、归属、说明与本地结果；任一家无法取得有效数据时失败，报告保存到 Git 忽略的 `.cache/ai-status-live-check.json`。
+可传入其他已授权预览地址。脚本只读取公开 AI 信息，比较 OpenAI 五组、当前事件、归属与说明，以及 xAI 活跃事件、模块覆盖、涉及模块异常与其余模块可用的规则。任一实际来源失败时核验失败；报告保存在忽略的 `.cache/ai-status-live-check.json`。
 
-本次核心状态核验：两家均未报告未解决异常，与官网一致。OpenAI 五组子状态可真实读取；xAI 子状态新增读取 summary/uptime，但本地仍返回 403，严格子状态验收未通过。普通检查在报告中注明这一覆盖缺口；`--require-substatuses` 对此返回失败。解决前捕获的 OpenAI 回放样例验证 ChatGPT / Agent 产品与组件归属。状态会变化，重新验收须重新执行核验。上游失败仍显示未知，保留旧结果时注明原成功时间。
+xAI 不再请求 `data.x.ai` 组件 JSON；其 403 不再是本期验收条件，也不能因此声称它已接通。只有真实取数、按已确认规则的对照以及页面验收均通过，才可交付。

@@ -7,7 +7,7 @@ import officialPageSummary from '../fixtures/ai-status/openai-page-summary.json'
 const officialFeed = readFileSync(new URL('../fixtures/ai-status/xai-feed.xml', import.meta.url), 'utf8')
 const normalOpenAI = { summary: { ...officialPageSummary.summary, affected_components: [], ongoing_incidents: [] } }
 const feed = (items: string) => `<rss version="2.0"><channel><title>SpaceXAI System Status</title><link>https://status.x.ai</link>${items}</channel></rss>`
-const item = (id: string, service: string, title: string, status = 'investigating') => `<item><title>[${service}] ${title}</title><guid>${id}</guid><pubDate>Wed, 07 Oct 2026 02:00:00 GMT</pubDate><category>outage</category><category>${status}</category><description><![CDATA[<h3>Status: ${status.toUpperCase()}</h3><h4>Updates:</h4><div><p><strong>Wed, 07 Oct 2026 02:10:00 GMT</strong></p><h3>Investigating</h3><p>We are investigating this incident.</p></div>]]></description></item>`
+const item = (id: string, service: string, title: string, status = 'investigating') => `<item><title>[${service}] ${title}</title><link>https://status.x.ai/${({'grok.com':'grok-com','Global API':'api-global',Voice:'voice'} as Record<string,string>)[service] ?? service.toLowerCase().replace(/[^a-z0-9]+/g,'-')}/${encodeURIComponent(id)}</link><guid>${id}</guid><pubDate>Wed, 07 Oct 2026 02:00:00 GMT</pubDate><category>outage</category><category>${status}</category><description><![CDATA[<h3>Status: ${status.toUpperCase()}</h3><h4>Updates:</h4><div><p><strong>Wed, 07 Oct 2026 02:10:00 GMT</strong></p><h3>Investigating</h3><p>We are investigating this incident.</p></div>]]></description></item>`
 const activeFeed = feed(item('grok', 'grok.com', 'Grok outage'))
 const result = async () => aiStatusResultSchema.parse(await (await app.request('/api/ai-status', {}, {})).json())
 const sources = (openai: unknown = normalOpenAI, xai = officialFeed) => {
@@ -35,8 +35,8 @@ test('真实 xAI 官方 RSS 回放：成功取得已解决事件，当前状态�
   const urls = sources(officialPageSummary)
   const data = await result()
   expect(data.providers[1]).toMatchObject({ status: 'normal', incidents: [], error: null })
-  expect(data.providers[1].description).toBe('官方事件订阅未报告未解决异常')
-  expect(urls).toEqual(expect.arrayContaining(['https://status.openai.com/proxy/status.openai.com', 'https://status.x.ai/feed.xml', 'https://data.x.ai/status/summary.json', 'https://data.x.ai/status/uptime.json']))
+  expect(data.providers[1].description).toBe('无未解决官方事件，按事件规则可用')
+  expect(urls).toEqual(['https://status.openai.com/proxy/status.openai.com', 'https://status.x.ai/feed.xml'])
 })
 
 test('两家正常时合并状态正常，保留各家官方链接和真实检查时间', async () => {
@@ -114,43 +114,57 @@ test('RSS 含外部实体或无法识别的事件状态时报告未知', async (
   }
 })
 
-test('xAI 官网子状态取组件快照，组状态取最严重已知状态，未知不伪装为正常', async () => {
-  vi.stubGlobal('fetch', async (input: URL | string | Request) => {
-    const url = String(input)
-    if (url.includes('openai.com')) return Response.json(normalOpenAI)
-    if (url.endsWith('/feed.xml')) return new Response(officialFeed)
-    if (url.endsWith('/summary.json')) return Response.json({ components: [
-      { id: 'grok-com', name: 'grok.com', status: 'available' }, { id: 'voice', name: 'Voice', status: 'disruption' },
-      { id: 'api-global', name: 'Global (api.x.ai)', status: 'no_data' }, { id: 'api-us', name: 'US (us.api.x.ai)', status: 'available' },
-    ] })
-    return Response.json({ components: [{ id: 'not-in-summary' }], groups: [{ name: 'Grok', components: ['grok-com', 'voice'] }, { name: 'API', components: ['api-global', 'api-us'] }, { name: 'Missing', components: ['not-in-summary'] }] })
-  })
-  const provider = (await result()).providers[1]
-  expect(provider).toMatchObject({ subStatusError: null, subStatuses: [
-    { name: 'Grok', status: 'abnormal', statusLabel: '服务受影响', components: [{ name: 'grok.com', status: 'normal' }, { name: 'Voice', status: 'abnormal' }] },
-    { name: 'API', status: 'normal', components: [{ status: 'unknown' }, { status: 'normal' }] },
-    { name: 'Missing', status: 'unknown' },
-  ] })
-})
-
-test('xAI RSS 成功但官网组件快照被拒绝时明确子状态未知，不用事件推算组件', async () => {
-  sources()
+test('xAI 无未解决事件则三组14个子模块均可用，只请求RSS不依赖组件JSON', async () => {
+  const urls = sources()
   const provider = (await result()).providers[1]
   expect(provider.status).toBe('normal')
-  expect(provider.subStatuses).toEqual([])
-  expect(provider.subStatusError).toContain('官网子状态暂不可获取')
+  expect(provider.subStatuses.map(group => group.name)).toEqual(['Grok', 'API', 'Services'])
+  const modules = provider.subStatuses.flatMap(group => group.components)
+  expect(modules).toHaveLength(14)
+  expect(modules.every(module => module.status === 'normal' && module.statusLabel === '可用')).toBe(true)
+  expect(urls).toEqual(['https://status.openai.com/proxy/status.openai.com', 'https://status.x.ai/feed.xml'])
 })
 
-test('xAI 自有组件状态未知且无异常时整体未知，不以可用组件覆盖未知事实', async () => {
-  vi.stubGlobal('fetch', async (input: URL | string | Request) => {
-    const url = String(input)
-    if (url.includes('openai.com')) return Response.json(normalOpenAI)
-    if (url.endsWith('/feed.xml')) return new Response(officialFeed)
-    if (url.endsWith('/summary.json')) return Response.json({ components: [{ id: 'api-global', name: 'Global API', status: 'no_data' }, { id: 'api-us', name: 'US API', status: 'available' }] })
-    return Response.json({ components: [], groups: [{ name: 'API', components: ['api-global', 'api-us'] }] })
-  })
-  const data = await result()
-  expect(data.providers[1].subStatuses[0].status).toBe('normal')
-  expect(data.providers[1].status).toBe('unknown')
-  expect(data.status).toBe('unknown')
+test('xAI 有未解决事件只标记涉及模块异常，其余模块可用，其他分组不受影响', async () => {
+  sources(normalOpenAI, activeFeed)
+  const provider = (await result()).providers[1]
+  const groups = provider.subStatuses
+  const modules = groups.flatMap(group => group.components)
+  expect(provider.status).toBe('abnormal')
+  expect(provider.statusBasis).toBe('official-events')
+  expect(groups.map(group => group.status)).toEqual(['abnormal', 'normal', 'normal'])
+  expect(modules.filter(module => module.status === 'abnormal').map(module => module.id)).toEqual(['grok-com'])
+  expect(modules.find(module => module.id === 'voice')?.status).toBe('normal')
+  expect(modules.find(module => module.id === 'api-global')?.status).toBe('normal')
+})
+
+test('同一模块多个事件全部保留，部分解决仍异常，全部解决才恢复可用', async () => {
+  for (const [states, expected] of [[['investigating', 'monitoring'], 'abnormal'], [['resolved', 'monitoring'], 'abnormal'], [['resolved', 'resolved'], 'normal']] as const) {
+    sources(normalOpenAI, feed(item('a', 'Voice', 'Voice degraded', states[0]) + item('b', 'Voice', 'Voice error', states[1])))
+    const provider = (await result()).providers[1]
+    expect(provider.subStatuses.flatMap(group => group.components).find(module => module.id === 'voice')?.status).toBe(expected)
+    expect(provider.incidents).toHaveLength(states.filter(state => state !== 'resolved').length)
+  }
+})
+
+test('目录外的新模块出现事件时加入其他模块，不遗漏异常', async () => {
+  sources(normalOpenAI, feed(item('new', 'Future Module', 'New service incident')))
+  const provider = (await result()).providers[1]
+  expect(provider.subStatuses[3]).toMatchObject({ name: '其他模块', status: 'abnormal', components: [{ id: 'future-module', name: 'Future Module', status: 'abnormal' }] })
+})
+
+test('RSS 获取失败时整体及已维护的14个子模块全部未知，不能按空事件判为可用', async () => {
+  vi.stubGlobal('fetch', async () => new Response('denied', { status: 403 }))
+  const provider = (await result()).providers[1]
+  expect(provider.status).toBe('unknown')
+  expect(provider.subStatuses.flatMap(group => group.components)).toHaveLength(14)
+  expect(provider.subStatuses.flatMap(group => group.components).every(module => module.status === 'unknown')).toBe(true)
+})
+
+test('同一事件多服务条目保留最新官方说明而非只保留第一条', async () => {
+  const later = item('same', 'Global API', 'Shared incident').replace('02:10:00', '02:20:00').replace('We are investigating this incident.', 'We are monitoring the recovery.')
+  sources(normalOpenAI, feed(item('same', 'grok.com', 'Shared incident') + later))
+  const provider = (await result()).providers[1]
+  expect(provider.incidents[0].description).toBe('We are monitoring the recovery.')
+  expect(provider.incidents[0].updatedAt).toBe('2026-10-07T02:20:00.000Z')
 })

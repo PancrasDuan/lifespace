@@ -1,6 +1,7 @@
 import { ApiError } from './upstream'
 import { readOpenAI } from './openai-status'
 import { readXAI } from './xai-status'
+import { xaiEventSubStatuses } from './xai-event-substatuses'
 import type { AiProvider, AiStatusResult } from '../src/shared/ai-status-contracts'
 
 const providers = [
@@ -12,7 +13,7 @@ async function readProvider(provider: typeof providers[number]): Promise<AiProvi
   try { return { ...provider, ...await (provider.id === 'openai' ? readOpenAI() : readXAI()) } }
   catch (error) {
     const message = error instanceof ApiError && error.code === 'SOURCE_CONNECTION_INVALID' ? '官方状态来源拒绝访问，请查看官方状态页' : '官方状态获取失败，请刷新重试或查看官方状态页'
-    return { ...provider, checkedAt: new Date().toISOString(), status: 'unknown', description: '状态未知', incidents: [], affectedServices: [], error: message, subStatuses: [], subStatusError: '官网子状态暂不可获取' }
+    return { ...provider, statusBasis: provider.id === 'xai' ? 'official-events' : 'official-components', checkedAt: new Date().toISOString(), status: 'unknown', description: '状态未知', incidents: [], affectedServices: [], error: message, subStatuses: provider.id === 'xai' ? xaiEventSubStatuses(null) : [], subStatusError: provider.id === 'xai' ? null : '官网子状态暂不可获取' }
   }
 }
 

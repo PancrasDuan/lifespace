@@ -13,6 +13,7 @@ export const aiIncidentSchema = z.object({
 })
 export const aiProviderSchema = z.object({
   id: z.enum(['openai', 'xai']), name: z.string(), status: aiStateSchema,
+  statusBasis: z.enum(['official-components', 'official-events']).default('official-components'),
   statusUrl: z.enum(['https://status.openai.com/', 'https://status.x.ai/']),
   checkedAt: instant, description: z.string(), incidents: z.array(aiIncidentSchema),
   affectedServices: z.array(z.string()), error: z.string().nullable(),

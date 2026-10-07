@@ -2,11 +2,11 @@ import { XMLParser, XMLValidator } from 'fast-xml-parser'
 import { z } from 'zod'
 import { ApiError, upstreamText } from './upstream'
 import type { AiProvider } from '../src/shared/ai-status-contracts'
-import { readXaiSubStatuses } from './xai-substatuses'
+import { xaiEventSubStatuses } from './xai-event-substatuses'
 
 const feedSchema = z.object({ rss: z.object({ channel: z.object({
   title: z.literal('SpaceXAI System Status'), link: z.string(),
-  item: z.array(z.object({ title: z.string(), guid: z.string(), description: z.string(), pubDate: z.string(), category: z.array(z.string()) })).default([]),
+  item: z.array(z.object({ title: z.string(), link: z.string(), guid: z.string(), description: z.string(), pubDate: z.string(), category: z.array(z.string()) })).default([]),
 }) }) })
 
 function plainText(value: string): string {
@@ -19,15 +19,13 @@ function plainText(value: string): string {
 }
 
 export async function readXAI(): Promise<Omit<AiProvider, 'id' | 'name' | 'statusUrl'>> {
-  const [xml, subStatusResult] = await Promise.all([
-    upstreamText(new URL('https://status.x.ai/feed.xml')),
-    readXaiSubStatuses().then(subStatuses => ({ subStatuses, subStatusError: null })).catch(() => ({ subStatuses: [], subStatusError: '官网子状态暂不可获取，尚未取得官方组件快照；事件订阅不代表所有子服务正常' })),
-  ])
+  const xml = await upstreamText(new URL('https://status.x.ai/feed.xml'))
   if (/<!DOCTYPE|<!ENTITY/i.test(xml) || XMLValidator.validate(xml) !== true) throw new ApiError('SOURCE_INVALID_RESPONSE', '官方事件订阅内容无效', 502)
   const parsed: unknown = new XMLParser({ processEntities: false, parseTagValue: false, isArray: name => name === 'item' || name === 'category' }).parse(xml)
   const decoded = feedSchema.safeParse(parsed)
   if (!decoded.success || !['https://status.x.ai', 'https://status.x.ai/'].includes(decoded.data.rss.channel.link)) throw new ApiError('SOURCE_INVALID_RESPONSE', '官方事件订阅内容无效', 502)
   const incidents = new Map<string, AiProvider['incidents'][number]>()
+  const affectedModules = new Map<string, string>()
   for (const item of decoded.data.rss.channel.item) {
     const state = item.category.find(category => ['investigating', 'identified', 'monitoring', 'resolved'].includes(category))
     if (!state) throw new ApiError('SOURCE_INVALID_RESPONSE', '官方事件订阅状态无效', 502)
@@ -35,6 +33,10 @@ export async function readXAI(): Promise<Omit<AiProvider, 'id' | 'name' | 'statu
     const title = plainText(item.title).match(/^\[([^\]]+)\]\s*(.*)$/)
     const created = Date.parse(item.pubDate)
     if (!title || !Number.isFinite(created)) throw new ApiError('SOURCE_INVALID_RESPONSE', '官方事件订阅内容无效', 502)
+    const link = new URL(item.link)
+    const parts = link.pathname.split('/').filter(Boolean).map(decodeURIComponent)
+    if (link.origin !== 'https://status.x.ai' || link.username || link.password || parts.length !== 2 || !/^[a-z0-9-]+$/.test(parts[0]) || parts[1] !== item.guid) throw new ApiError('SOURCE_INVALID_RESPONSE', '官方事件模块归属无效', 502)
+    affectedModules.set(parts[0], title[1])
     const updates = [...item.description.matchAll(/<div>([\s\S]*?)<\/div>/gi)].map(match => {
       const date = match[1].match(/<strong>([^<]+)<\/strong>/i)?.[1]
       const at = date ? Date.parse(date) : NaN
@@ -44,13 +46,15 @@ export async function readXAI(): Promise<Omit<AiProvider, 'id' | 'name' | 'statu
     }).sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
     const service = title[1]
     const existing = incidents.get(item.guid)
-    if (existing) { if (!existing.affectedServices.includes(service)) existing.affectedServices.push(service); continue }
+    if (existing) {
+      if (!existing.affectedServices.includes(service)) existing.affectedServices.push(service)
+      existing.updates = [...new Map([...existing.updates, ...updates].map(update => [JSON.stringify([update.createdAt, update.body]), update])).values()].sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
+      existing.description = existing.updates.find(update => update.body.trim())?.body ?? '原因待公布'
+      existing.updatedAt = existing.updates[0]?.createdAt ?? existing.updatedAt
+      continue
+    }
     incidents.set(item.guid, { id: item.guid, title: title[2] || service, status: state, description: updates.find(update => update.body.trim())?.body ?? '原因待公布', affectedServices: [service], updatedAt: updates[0]?.createdAt ?? new Date(created).toISOString(), updates })
   }
   const events = [...incidents.values()]
-  const ownComponents = subStatusResult.subStatuses.filter(group => group.name !== 'Third-party Services').flatMap(group => group.components)
-  const componentAffected = ownComponents.filter(component => component.status === 'abnormal').map(component => component.name)
-  const componentAbnormal = componentAffected.length > 0
-  const componentUnknown = ownComponents.some(component => component.status === 'unknown')
-  return { checkedAt: new Date().toISOString(), status: events.length || componentAbnormal ? 'abnormal' : componentUnknown ? 'unknown' : 'normal', description: componentAbnormal ? '官网组件快照报告子服务异常' : events.length ? '官方事件订阅报告未解决异常' : componentUnknown ? '官网部分子服务状态未知' : '官方事件订阅未报告未解决异常', incidents: events, affectedServices: [...new Set([...events.flatMap(event => event.affectedServices), ...componentAffected])], error: null, ...subStatusResult }
+  return { statusBasis: 'official-events', checkedAt: new Date().toISOString(), status: events.length ? 'abnormal' : 'normal', description: events.length ? '存在未解决官方事件，涉及的子模块标为异常' : '无未解决官方事件，按事件规则可用', incidents: events, affectedServices: [...new Set(events.flatMap(event => event.affectedServices))], error: null, subStatuses: xaiEventSubStatuses(affectedModules), subStatusError: null }
 }

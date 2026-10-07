@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { mkdir, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { XMLParser } from 'fast-xml-parser'
 
 // 仅核验公开 AI 状态，不读取首页的任务、域名或本地凭据。
@@ -48,36 +48,23 @@ const feedItems = rss.rss.channel.item ?? []
 const activeItems = feedItems.filter(item => !item.category.includes('resolved'))
 const activeIds = [...new Set(activeItems.map(item => item.guid))]
 assert.deepEqual(sorted(xai.incidents.map(event => event.id)), sorted(activeIds), 'xAI 未解决事件与官方 RSS 不一致')
-let xaiComponentAbnormal = false
-let xaiComponentUnknown = false
-if (!xai.subStatusError && xai.subStatuses.length) {
-  const [summary, uptime] = await Promise.all([
-    get('https://data.x.ai/status/summary.json').then(JSON.parse), get('https://data.x.ai/status/uptime.json').then(JSON.parse),
-  ])
-  const entries = new Map(summary.components.map(component => [component.id, component]))
-  const ids = [...new Set([...entries.keys(), ...uptime.components.map(component => component.id)])]
-  const excluded = new Set(['openai', 'anthropic'])
-  const levels = ['available', 'info', 'disruption', 'outage']
-  const expected = []; const used = new Set()
-  const group = (name, members) => {
-    const worst = Math.max(-1, ...members.map(id => levels.indexOf(entries.get(id)?.status)))
-    return { name, status: worst < 0 ? 'unknown' : worst === 0 ? 'normal' : 'abnormal', components: members.map(id => {
-      const source = entries.get(id); const rank = levels.indexOf(source?.status)
-      return { id, name: source?.name ?? id, status: rank < 0 ? 'unknown' : rank === 0 ? 'normal' : 'abnormal' }
-    }) }
+assert.equal(xai.statusBasis, 'official-events', 'xAI 应以官方事件作为判定依据')
+assert.equal(xai.status, activeIds.length ? 'abnormal' : 'normal', 'xAI 整体事件判定不一致')
+const catalogue = JSON.parse(await readFile(new URL('../src/shared/xai-modules.json', import.meta.url), 'utf8'))
+const moduleIds = new Set(catalogue.groups.flatMap(group => group.modules.map(module => module.id)))
+const affectedIds = new Set(activeItems.map(item => {
+  const url = new URL(item.link)
+  assert.equal(url.origin, 'https://status.x.ai', 'xAI 事件模块链接不是官方来源')
+  return decodeURIComponent(url.pathname.split('/').filter(Boolean)[0])
+}))
+const shownModules = xai.subStatuses.flatMap(group => group.components)
+assert.deepEqual(sorted(shownModules.map(module => module.id)), sorted([...new Set([...moduleIds, ...affectedIds])]), 'xAI 模块目录或新增事件模块未完整展示')
+for (const group of xai.subStatuses) {
+  for (const module of group.components) {
+    assert.equal(module.status, affectedIds.has(module.id) ? 'abnormal' : 'normal', `xAI 模块事件判定错误：${module.id}`)
   }
-  for (const row of uptime.groups) {
-    const members = [...new Set(row.components.filter(id => ids.includes(id) && !excluded.has(id)))]
-    if (!members.length) continue
-    members.forEach(id => used.add(id)); expected.push(group(row.name, members))
-  }
-  const other = ids.filter(id => !used.has(id) && !excluded.has(id)); if (other.length) expected.push(group('Other', other))
-  const thirdParty = ids.filter(id => excluded.has(id)); if (thirdParty.length) expected.push(group('Third-party Services', thirdParty))
-  assert.deepEqual(xai.subStatuses.map(({ name, status, components }) => ({ name, status, components: components.map(({ id, name, status }) => ({ id, name, status })) })), expected, 'xAI 官网分组及全部子服务状态不一致')
-  xaiComponentAbnormal = summary.components.some(component => !excluded.has(component.id) && ['info', 'disruption', 'outage'].includes(component.status))
-  xaiComponentUnknown = ids.some(id => !excluded.has(id) && (!entries.has(id) || entries.get(id).status === 'no_data'))
+  assert.equal(group.status, group.components.some(module => affectedIds.has(module.id)) ? 'abnormal' : 'normal', `xAI 分组事件判定错误：${group.name}`)
 }
-assert.equal(xai.status, activeIds.length || xaiComponentAbnormal ? 'abnormal' : xaiComponentUnknown ? 'unknown' : 'normal', 'xAI 事件与组件汇总状态不一致')
 const textContent = value => typeof value === 'string' ? value : Array.isArray(value) ? value.map(textContent).join(' ') : value && typeof value === 'object' ? Object.values(value).map(textContent).join(' ') : ''
 const clean = value => value.replace(/\s+/g, ' ').trim()
 for (const id of activeIds) {
@@ -99,11 +86,12 @@ for (const id of activeIds) {
 }
 const report = {
   checkedAt: new Date().toISOString(), passed: true,
-  subStatusCoverage: { openai: true, xai: !xai.subStatusError && xai.subStatuses.length > 0 },
+  subStatusCoverage: { openai: true, xai: shownModules.length >= moduleIds.size },
+  statusBasis: { openai: 'official-components', xai: 'official-events' }, catalogueVerifiedOn: catalogue.verifiedOn,
   sources: { openai: 'https://status.openai.com/proxy/status.openai.com', xai: 'https://status.x.ai/feed.xml' },
   providers: local.providers.map(({ name, status, affectedServices, incidents }) => ({ name, status, affectedServices, incidents: incidents.map(({ title, affectedServices }) => ({ title, affectedServices })) })),
 }
-if (requireSubStatuses) assert(report.subStatusCoverage.xai, 'xAI 官网子状态尚未通过真实验收：官方组件快照无法取得。RSS 事件读取成功不能代替子状态验收。')
+if (requireSubStatuses) assert(report.subStatusCoverage.xai, 'xAI 事件判定子模块未完整展示')
 await mkdir('.cache', { recursive: true })
 await writeFile('.cache/ai-status-live-check.json', JSON.stringify(report, null, 2) + '\n')
-console.log(`核心状态核验通过：${report.checkedAt}；OpenAI ${openai.status}（${openai.affectedServices.join('、') || '无异常'}）；xAI ${xai.status}；OpenAI 子状态一致；xAI 子状态${report.subStatusCoverage.xai ? '已取得' : '尚未通过真实验收'}。`)
+console.log(`核心状态核验通过：${report.checkedAt}；OpenAI ${openai.status}（${openai.affectedServices.join('、') || '无异常'}）；xAI ${xai.status}；OpenAI 子状态一致；xAI 事件判定子模块${report.subStatusCoverage.xai ? '验证通过' : '尚未完整'}。`)

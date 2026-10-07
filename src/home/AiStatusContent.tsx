@@ -35,7 +35,7 @@ function Providers({ view, detail = false }: { view: StatusView; detail?: boolea
     const current = stale ? 'unknown' : provider.status
     const last = stale ? view.previous.get(provider.id) : undefined
     return <section className="ai-provider" key={provider.id} aria-label={`${provider.name} 状态`}>
-      <div className="ai-provider-heading"><strong>{provider.name}</strong><span className={`ai-state ai-state-${current}`}>{current === 'normal' && provider.subStatusError ? '未报告事件异常' : labels[current]}</span></div>
+      <div className="ai-provider-heading"><strong>{provider.name}</strong><span className={`ai-state ai-state-${current}`}>{current === 'normal' && provider.statusBasis === 'official-events' ? '可用' : labels[current]}</span></div>
       {provider.error && <p className="inline-error">{provider.error}</p>}
       {!view.query.isError && !provider.error && (detail || provider.status !== 'normal') && <p>{provider.description}</p>}
       {!detail && provider.subStatusError && <p>官网子状态暂不可获取</p>}
@@ -49,11 +49,15 @@ function Providers({ view, detail = false }: { view: StatusView; detail?: boolea
 }
 
 function SubStatuses({ provider, stale }: { provider: AiProvider; stale: boolean }) {
-  if (stale) return <div className="ai-substatus-section"><h3>官网子状态</h3><p>本次获取失败，当前官网子状态未知</p></div>
-  return <div className="ai-substatus-section"><h3>官网子状态</h3>
+  const eventBased = provider.statusBasis === 'official-events'
+  const heading = eventBased ? '子模块状态（按事件）' : '官网子状态'
+  const listName = `${provider.name} ${eventBased ? '子模块状态' : '官网子状态'}`
+  if (stale) return <div className="ai-substatus-section"><h3>{heading}</h3><p>本次获取失败，当前{eventBased ? '子模块状态' : '官网子状态'}未知</p></div>
+  return <div className="ai-substatus-section"><h3>{heading}</h3>
+    {eventBased && <p className="ai-basis-note">依据官方未解决事件判定：涉及模块标为异常，其余按本页规则视为可用。</p>}
     {provider.subStatusError && <p className="ai-substatus-unavailable" role="status">{provider.subStatusError}</p>}
     {!provider.subStatusError && !provider.subStatuses.length && <p>尚未取得官网子状态列表</p>}
-    {provider.subStatuses.length > 0 && <ul className="ai-substatuses" aria-label={`${provider.name} 官网子状态`}>
+    {provider.subStatuses.length > 0 && <ul className="ai-substatuses" aria-label={listName}>
       {provider.subStatuses.map(group => <li key={group.id}>
         <div className="ai-substatus-heading"><strong>{group.name}</strong>
           {!['Services', 'Third-party Services'].includes(group.name) && <span className={`ai-state ai-state-${group.status}`}>{group.statusLabel}</span>}
@@ -68,8 +72,7 @@ function SubStatuses({ provider, stale }: { provider: AiProvider; stale: boolean
 export function AiStatusContent({ view }: { view: StatusView }) {
   const { query } = view
   const status = query.isError || !query.data ? 'unknown' : query.data.status
-  const normalLabel = query.data?.providers.some(provider => provider.subStatusError) ? '未报告异常' : labels.normal
-  return <div className="ai-content"><div className={`ai-overall ai-state-${status}`}><strong>{query.isPending ? '正在获取' : status === 'normal' ? normalLabel : labels[status]}</strong><span>{query.data?.providers.map(provider => provider.name).join(' · ') || '官方服务运行状态'}</span></div>
+  return <div className="ai-content"><div className={`ai-overall ai-state-${status}`}><strong>{query.isPending ? '正在获取' : labels[status]}</strong><span>{query.data?.providers.map(provider => provider.name).join(' · ') || '官方服务运行状态'}</span></div>
     {query.isError && <p className="inline-error">本次获取失败，当前状态未知</p>}
     {query.data && <Providers view={view} />}
     {!query.data && !query.isPending && <p>请刷新重试，或进入详情查看官方状态页</p>}

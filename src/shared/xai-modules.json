@@ -1,0 +1,80 @@
+{
+  "verifiedOn": "2026-10-07",
+  "source": "https://status.x.ai/",
+  "groups": [
+    {
+      "id": "grok",
+      "name": "Grok",
+      "modules": [
+        {
+          "id": "grok-com",
+          "name": "grok.com"
+        },
+        {
+          "id": "ios-app",
+          "name": "iOS"
+        },
+        {
+          "id": "android-app",
+          "name": "Android"
+        },
+        {
+          "id": "grok-in-x",
+          "name": "Grok in X"
+        },
+        {
+          "id": "imagine",
+          "name": "Imagine"
+        },
+        {
+          "id": "voice",
+          "name": "Voice"
+        }
+      ]
+    },
+    {
+      "id": "api",
+      "name": "API",
+      "modules": [
+        {
+          "id": "api-global",
+          "name": "Global (api.x.ai)"
+        },
+        {
+          "id": "api-us",
+          "name": "US (us.api.x.ai)"
+        },
+        {
+          "id": "api-eu-west-1",
+          "name": "EU (eu-west-1.api.x.ai)"
+        }
+      ]
+    },
+    {
+      "id": "services",
+      "name": "Services",
+      "modules": [
+        {
+          "id": "api-console",
+          "name": "Console"
+        },
+        {
+          "id": "api-docs",
+          "name": "Docs"
+        },
+        {
+          "id": "x-ai",
+          "name": "x.ai"
+        },
+        {
+          "id": "single-sign-on",
+          "name": "Single Sign-On"
+        },
+        {
+          "id": "admin-apis",
+          "name": "Admin APIs"
+        }
+      ]
+    }
+  ]
+}

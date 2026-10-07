@@ -39,5 +39,5 @@ export async function readOpenAI(): Promise<Omit<AiProvider, 'id' | 'name' | 'st
     const abnormal = item.group.components.some(component => impacted.has(component.component_id))
     return [{ id: item.group.id, name: item.group.name, status: abnormal ? 'abnormal' : 'normal', statusLabel: abnormal ? '存在异常' : '可用', components: [] }]
   })
-  return { checkedAt: new Date().toISOString(), status: abnormal ? 'abnormal' : 'normal', description: abnormal ? '官方报告存在服务异常' : '官方未报告服务异常', incidents, affectedServices, error: null, subStatuses, subStatusError: null }
+  return { statusBasis: 'official-components', checkedAt: new Date().toISOString(), status: abnormal ? 'abnormal' : 'normal', description: abnormal ? '官方报告存在服务异常' : '官方未报告服务异常', incidents, affectedServices, error: null, subStatuses, subStatusError: null }
 }
