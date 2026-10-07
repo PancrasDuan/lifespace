@@ -1,10 +1,10 @@
 import { useEffect, useRef, type ReactNode } from 'react'
-import { CalendarDays, ChevronRight, Clock3, CloudSun, Globe, ListTodo, RotateCw, X } from 'lucide-react'
+import { Activity, CalendarDays, ChevronRight, Clock3, CloudSun, Globe, ListTodo, RotateCw, X } from 'lucide-react'
 
-export type CardKind = 'time' | 'weather' | 'tasks' | 'calendar' | 'domains'
-const titles = { time: '世界时间', weather: '今日天气', tasks: '今日待办', calendar: '日期与黄历', domains: 'DNSHE 域名' }
+export type CardKind = 'time' | 'weather' | 'tasks' | 'calendar' | 'domains' | 'ai'
+const titles = { time: '世界时间', weather: '今日天气', tasks: '今日待办', calendar: '日期与黄历', domains: 'DNSHE 域名', ai: 'AI 服务状态' }
 export function Panel({ kind, children, footer, open, refresh, loading }: { kind: CardKind; children: ReactNode; footer?: ReactNode; open: () => void; refresh?: () => void; loading?: boolean }) {
-  const Icon = { time: Clock3, weather: CloudSun, tasks: ListTodo, calendar: CalendarDays, domains: Globe }[kind]
+  const Icon = { time: Clock3, weather: CloudSun, tasks: ListTodo, calendar: CalendarDays, domains: Globe, ai: Activity }[kind]
   return <article className={`info-panel panel-${kind}`}>
     <div className="panel-heading"><span><Icon size={17} /><h2>{titles[kind]}</h2></span><ChevronRight size={15} /></div>
     <button className="panel-open" aria-label={`查看${titles[kind]}详情`} onClick={open}>{children}</button>
