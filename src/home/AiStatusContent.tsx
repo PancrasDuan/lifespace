@@ -57,6 +57,6 @@ export function AiStatusContent({ view }: { view: StatusView }) {
 export function AiStatusDetail({ view }: { view: StatusView }) {
   return <><p className="detail-note">官方状态为汇总信息，具体是否影响工作请结合受影响服务自行判断。</p>
     {view.query.isError && <p className="inline-error">本次获取失败，当前状态未知</p>}
-    {view.query.data ? <Providers view={view} detail /> : <p>状态尚未获取。<a href="https://status.openai.com/" target="_blank" rel="noopener noreferrer">OpenAI 官方状态页</a></p>}
+    {view.query.data ? <Providers view={view} detail /> : <p>状态尚未获取。<a href="https://status.openai.com/" target="_blank" rel="noopener noreferrer">OpenAI 官方状态页</a> · <a href="https://status.x.ai/" target="_blank" rel="noopener noreferrer">xAI 官方状态页</a></p>}
   </>
 }
