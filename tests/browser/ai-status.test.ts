@@ -8,6 +8,57 @@ const abnormal = { ...normal, status: 'abnormal', providers: [{ ...normal.provid
   { id: 'login', title: '登录异常', status: 'investigating', description: '原因待公布', affectedServices: [], updatedAt: checkedAt, updates: [] },
 ] }, xai] }
 
+test('说明位于主标题下，详情展示 OpenAI 五个官网分组和 xAI 子服务状态', async ({ page }) => {
+  const groups = ['APIs', 'ChatGPT', 'Codex', 'FedRAMP', 'Ads Platform'].map(name => ({ id: name, name, status: name === 'ChatGPT' ? 'abnormal' : 'normal', statusLabel: name === 'ChatGPT' ? '存在异常' : '可用', components: [] }))
+  await page.route('**/api/**', route => route.fulfill({ status: 503, json: { error: { code: 'NOT_CONFIGURED', message: '未配置' } } }))
+  await page.route('**/api/ai-status', route => route.fulfill({ json: { ...normal, providers: [{ ...normal.providers[0], subStatuses: groups }, { ...xai, subStatuses: [{ id: 'Grok', name: 'Grok', status: 'abnormal', statusLabel: '服务中断', components: [{ id: 'grok-com', name: 'grok.com', status: 'normal', statusLabel: '可用' }, { id: 'voice', name: 'Voice', status: 'abnormal', statusLabel: '服务中断' }] }] }] } }))
+  await page.goto('/')
+  await expect(page.locator('.panel-ai > .panel-description')).toContainText('官方状态为汇总信息')
+  await page.getByRole('button', { name: '查看AI 服务状态详情' }).click()
+  const dialog = page.getByRole('dialog')
+  await expect(dialog.locator('header')).toContainText('官方状态为汇总信息')
+  await expect(dialog.locator('.detail-content > .detail-note')).toHaveCount(0)
+  const openai = dialog.getByRole('list', { name: 'OpenAI 官网子状态' })
+  await expect(openai.getByRole('listitem')).toHaveCount(5)
+  await expect(openai).toContainText('ChatGPT')
+  await expect(openai).toContainText('存在异常')
+  await expect(dialog.getByRole('region', { name: 'xAI 状态' })).toContainText('grok.com')
+  await expect(dialog.getByRole('region', { name: 'xAI 状态' })).toContainText('Voice')
+  await expect(dialog.getByRole('region', { name: 'xAI 状态' })).toContainText('服务中断')
+})
+
+test('xAI 官网组件快照未取得时明确缺失，不从 RSS 假设所有子服务可用', async ({ page }) => {
+  await page.route('**/api/**', route => route.fulfill({ status: 503, json: { error: { code: 'NOT_CONFIGURED', message: '未配置' } } }))
+  await page.route('**/api/ai-status', route => route.fulfill({ json: { ...normal, providers: [normal.providers[0], { ...xai, subStatusError: '官网子状态暂不可获取，尚未取得官方组件快照；事件订阅不代表所有子服务正常' }] } }))
+  await page.goto('/')
+  await page.getByRole('button', { name: '查看AI 服务状态详情' }).click()
+  const provider = page.getByRole('dialog').getByRole('region', { name: 'xAI 状态' })
+  await expect(provider).toContainText('官网子状态暂不可获取')
+  await expect(provider).toContainText('未报告事件异常')
+  await expect(provider.getByRole('list', { name: 'xAI 官网子状态' })).toHaveCount(0)
+  await expect(provider).not.toContainText('grok.com 可用')
+})
+
+test('请求失败后隐藏旧子状态的可用标记，明确当前官网子状态未知', async ({ page }) => {
+  const data = { ...normal, providers: [{ ...normal.providers[0], subStatuses: ['APIs', 'ChatGPT', 'Codex', 'FedRAMP', 'Ads Platform'].map(name => ({ id: name, name, status: 'normal', statusLabel: '可用', components: [] })) }, xai] }
+  await page.route('**/api/**', route => route.fulfill({ status: 503, json: { error: { code: 'NOT_CONFIGURED', message: '未配置' } } }))
+  let failed = false
+  await page.route('**/api/ai-status', route => route.fulfill(failed ? { status: 502, json: { error: { code: 'FAILED', message: '获取失败' } } } : { json: data }))
+  await page.goto('/')
+  await page.getByRole('button', { name: '查看AI 服务状态详情' }).click()
+  await expect(page.getByRole('dialog').getByRole('list', { name: 'OpenAI 官网子状态' })).toContainText('可用')
+  await page.getByRole('button', { name: '关闭详情' }).click()
+  failed = true
+  await page.getByRole('button', { name: '刷新AI 服务状态' }).click()
+  await expect(page.getByRole('button', { name: '查看AI 服务状态详情' })).toContainText('状态未知')
+  await page.getByRole('button', { name: '查看AI 服务状态详情' }).click()
+  const provider = page.getByRole('dialog').getByRole('region', { name: 'OpenAI 状态' })
+  await expect(provider).toContainText('当前官网子状态未知')
+  await expect(provider).toContainText('上次成功检查')
+  await expect(provider.getByRole('list', { name: 'OpenAI 官网子状态' })).toHaveCount(0)
+  await expect(provider).not.toContainText('可用')
+})
+
 test('全部异常及受影响服务在卡片和详情展示，旧异常不能冒充当前状态', async ({ page }) => {
   await page.route('**/api/**', route => route.fulfill({ status: 503, json: { error: { code: 'NOT_CONFIGURED', message: '未配置' } } }))
   let failed = false

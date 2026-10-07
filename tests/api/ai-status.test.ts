@@ -36,7 +36,7 @@ test('真实 xAI 官方 RSS 回放：成功取得已解决事件，当前状态�
   const data = await result()
   expect(data.providers[1]).toMatchObject({ status: 'normal', incidents: [], error: null })
   expect(data.providers[1].description).toBe('官方事件订阅未报告未解决异常')
-  expect(urls).toEqual(['https://status.openai.com/proxy/status.openai.com', 'https://status.x.ai/feed.xml'])
+  expect(urls).toEqual(expect.arrayContaining(['https://status.openai.com/proxy/status.openai.com', 'https://status.x.ai/feed.xml', 'https://data.x.ai/status/summary.json', 'https://data.x.ai/status/uptime.json']))
 })
 
 test('两家正常时合并状态正常，保留各家官方链接和真实检查时间', async () => {
@@ -46,6 +46,15 @@ test('两家正常时合并状态正常，保留各家官方链接和真实检�
   expect(data.status).toBe('normal')
   expect(data.providers.map(provider => provider.statusUrl)).toEqual(['https://status.openai.com/', 'https://status.x.ai/'])
   expect(data.providers.map(provider => provider.checkedAt)).toEqual(['2026-10-07T02:00:00.000Z', '2026-10-07T02:00:00.000Z'])
+})
+
+test('OpenAI 官网五个分组独立计算子状态，只有包含异常组件的 ChatGPT 异常', async () => {
+  sources(officialPageSummary)
+  const data = await result()
+  expect(data.providers[0]).toMatchObject({ subStatuses: [
+    { name: 'APIs', status: 'normal' }, { name: 'ChatGPT', status: 'abnormal' },
+    { name: 'Codex', status: 'normal' }, { name: 'FedRAMP', status: 'normal' }, { name: 'Ads Platform', status: 'normal' },
+  ] })
 })
 
 test('OpenAI 每个事件独立关联产品，多个异常全保留，已解决事件移除', async () => {
@@ -103,4 +112,45 @@ test('RSS 含外部实体或无法识别的事件状态时报告未知', async (
     sources(normalOpenAI, xml)
     expect((await result()).providers[1].status).toBe('unknown')
   }
+})
+
+test('xAI 官网子状态取组件快照，组状态取最严重已知状态，未知不伪装为正常', async () => {
+  vi.stubGlobal('fetch', async (input: URL | string | Request) => {
+    const url = String(input)
+    if (url.includes('openai.com')) return Response.json(normalOpenAI)
+    if (url.endsWith('/feed.xml')) return new Response(officialFeed)
+    if (url.endsWith('/summary.json')) return Response.json({ components: [
+      { id: 'grok-com', name: 'grok.com', status: 'available' }, { id: 'voice', name: 'Voice', status: 'disruption' },
+      { id: 'api-global', name: 'Global (api.x.ai)', status: 'no_data' }, { id: 'api-us', name: 'US (us.api.x.ai)', status: 'available' },
+    ] })
+    return Response.json({ components: [{ id: 'not-in-summary' }], groups: [{ name: 'Grok', components: ['grok-com', 'voice'] }, { name: 'API', components: ['api-global', 'api-us'] }, { name: 'Missing', components: ['not-in-summary'] }] })
+  })
+  const provider = (await result()).providers[1]
+  expect(provider).toMatchObject({ subStatusError: null, subStatuses: [
+    { name: 'Grok', status: 'abnormal', statusLabel: '服务受影响', components: [{ name: 'grok.com', status: 'normal' }, { name: 'Voice', status: 'abnormal' }] },
+    { name: 'API', status: 'normal', components: [{ status: 'unknown' }, { status: 'normal' }] },
+    { name: 'Missing', status: 'unknown' },
+  ] })
+})
+
+test('xAI RSS 成功但官网组件快照被拒绝时明确子状态未知，不用事件推算组件', async () => {
+  sources()
+  const provider = (await result()).providers[1]
+  expect(provider.status).toBe('normal')
+  expect(provider.subStatuses).toEqual([])
+  expect(provider.subStatusError).toContain('官网子状态暂不可获取')
+})
+
+test('xAI 自有组件状态未知且无异常时整体未知，不以可用组件覆盖未知事实', async () => {
+  vi.stubGlobal('fetch', async (input: URL | string | Request) => {
+    const url = String(input)
+    if (url.includes('openai.com')) return Response.json(normalOpenAI)
+    if (url.endsWith('/feed.xml')) return new Response(officialFeed)
+    if (url.endsWith('/summary.json')) return Response.json({ components: [{ id: 'api-global', name: 'Global API', status: 'no_data' }, { id: 'api-us', name: 'US API', status: 'available' }] })
+    return Response.json({ components: [], groups: [{ name: 'API', components: ['api-global', 'api-us'] }] })
+  })
+  const data = await result()
+  expect(data.providers[1].subStatuses[0].status).toBe('normal')
+  expect(data.providers[1].status).toBe('unknown')
+  expect(data.status).toBe('unknown')
 })
