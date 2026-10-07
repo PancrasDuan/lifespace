@@ -1,3 +1,4 @@
+import { AiStatusContent, AiStatusDetail, aiStatusDescription, useAiStatus } from './AiStatusContent'
 import { useEffect, useState } from 'react'
 import { Search, Settings2 } from 'lucide-react'
 import { AppLayout } from '../app/AppLayout'
@@ -19,6 +20,7 @@ export function Home() {
   const [activeCard, setActiveCard] = useState<CardKind | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [search, setSearch] = useState('')
+  const aiStatus = useAiStatus()
   useEffect(() => { const timer = setInterval(() => setNow(new Date()), 1000); return () => clearInterval(timer) }, [])
   const localZone = Intl.DateTimeFormat().resolvedOptions().timeZone
   const taskQuery = useQuery({ queryKey: ['tasks', localZone, dateKey(now, localZone)], queryFn: ({ signal }) => api.todayTasks(localZone, signal) })
@@ -36,7 +38,8 @@ export function Home() {
   <Panel kind="weather" open={() => setActiveCard('weather')} footer={<><a href="https://open-meteo.com/" target="_blank" rel="noopener noreferrer">Open-Meteo</a> · {updated(weatherQuery.data?.fetchedAt)}</>} refresh={city ? () => { void weatherQuery.refetch() } : undefined} loading={weatherQuery.isFetching}><WeatherContent query={weatherQuery} city={city} /></Panel>
   <Panel kind="tasks" open={() => setActiveCard('tasks')} footer={`Supabase · ${updated(taskQuery.data?.fetchedAt)}`} refresh={() => { void taskQuery.refetch() }} loading={taskQuery.isFetching}><TaskContent query={taskQuery} localZone={localZone} /></Panel>
   <Panel kind="calendar" open={() => setActiveCard('calendar')} footer="tyme4ts · 本地生成"><CalendarContent now={now} /></Panel>
-  <Panel kind="domains" open={() => setActiveCard('domains')} footer={<><DNSHELoginLink /> · {updated(domainQuery.data?.fetchedAt)}</>} refresh={() => { void domainQuery.refetch() }} loading={domainQuery.isFetching}><DomainContent query={domainQuery} now={now} localZone={localZone} /></Panel></section><p className="page-note">生活有自己的节奏，今天也一样。</p></div>
+  <Panel kind="domains" open={() => setActiveCard('domains')} footer={<><DNSHELoginLink /> · {updated(domainQuery.data?.fetchedAt)}</>} refresh={() => { void domainQuery.refetch() }} loading={domainQuery.isFetching}><DomainContent query={domainQuery} now={now} localZone={localZone} /></Panel><Panel kind="ai" open={() => setActiveCard('ai')} footer={aiStatus.query.data ? `检查 ${clock(new Date(aiStatus.query.data.checkedAt), localZone)}` : '尚未获取'} refresh={() => { void aiStatus.query.refetch() }} loading={aiStatus.query.isFetching}><AiStatusContent view={aiStatus} /></Panel></section><p className="page-note">生活有自己的节奏，今天也一样。</p></div>
+    {activeCard === 'ai' && <Modal title="AI 服务状态" description={aiStatusDescription} close={() => setActiveCard(null)}><div className="detail-content"><AiStatusDetail view={aiStatus} /></div></Modal>}
     {activeCard === 'time' && <Modal title="世界时间" close={() => setActiveCard(null)}><div className="detail-content"><TimeDetail now={now} localZone={localZone} overseas={settings.overseas} /></div></Modal>}
     {activeCard === 'calendar' && <Modal title="今日黄历" close={() => setActiveCard(null)}><div className="detail-content"><CalendarDetail now={now} /></div></Modal>}
     {activeCard === 'tasks' && <Modal title="今日待办" close={() => setActiveCard(null)}><div className="detail-content"><TaskDetail query={taskQuery} localZone={localZone} /></div></Modal>}

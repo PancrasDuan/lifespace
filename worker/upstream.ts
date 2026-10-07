@@ -5,7 +5,7 @@ export class ApiError extends Error {
 }
 
 // 第三方响应限制体积与读取时间；原始响应及凭据不进入用户错误信息。
-export async function upstream<T>(url: URL, schema: z.ZodType<T>, init: RequestInit = {}): Promise<T> {
+async function readUpstream<T>(url: URL, decode: (text: string) => T, init: RequestInit): Promise<T> {
   try {
     const signal = init.signal ? AbortSignal.any([init.signal, AbortSignal.timeout(10000)]) : AbortSignal.timeout(10000)
     if (signal.aborted) throw signal.reason
@@ -26,13 +26,23 @@ export async function upstream<T>(url: URL, schema: z.ZodType<T>, init: RequestI
     }
     const bytes = new Uint8Array(size); let offset = 0
     for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength }
-    const decoded = schema.safeParse(JSON.parse(new TextDecoder().decode(bytes)))
-    if (!decoded.success) throw new ApiError('SOURCE_INVALID_RESPONSE', '数据源返回了无效内容', 502)
-    return decoded.data
+    return decode(new TextDecoder().decode(bytes))
   } catch (error) {
     if (error instanceof ApiError) throw error
     if (error instanceof SyntaxError) throw new ApiError('SOURCE_INVALID_RESPONSE', '数据源返回了无效内容', 502)
     if (error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError')) throw new ApiError('SOURCE_TIMEOUT', '数据源请求超时，请稍后刷新', 504)
     throw new ApiError('SOURCE_UNAVAILABLE', '数据源暂时不可用，请稍后刷新', 502)
   }
+}
+
+export function upstream<T>(url: URL, schema: z.ZodType<T>, init: RequestInit = {}): Promise<T> {
+  return readUpstream(url, text => {
+    const decoded = schema.safeParse(JSON.parse(text))
+    if (!decoded.success) throw new ApiError('SOURCE_INVALID_RESPONSE', '数据源返回了无效内容', 502)
+    return decoded.data
+  }, init)
+}
+
+export function upstreamText(url: URL, init: RequestInit = {}): Promise<string> {
+  return readUpstream(url, text => text, init)
 }

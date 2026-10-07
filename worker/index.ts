@@ -5,11 +5,13 @@ import { readWeather, searchLocations } from './weather'
 import { readDomainCard } from './domain-card'
 import { newsSources } from '../src/shared/news-sources'
 import { readNews } from './news'
+import { readAiStatus } from './ai-status'
 
 const app = new Hono<{ Bindings: Partial<CloudflareEnv> }>()
 app.use('/api/*', async (c, next) => { c.header('Cache-Control', 'no-store'); await next() })
 app.get('/api/tasks/today', async c => c.json(await readTasks(c.env, c.req.query('timeZone'))))
 app.get('/api/domains', async c => c.json(await readDomainCard(c.env)))
+app.get('/api/ai-status', async c => c.json(await readAiStatus()))
 app.get('/api/news/sources', c => c.json({ sources: newsSources }))
 app.get('/api/news/source', async c => c.json(await readNews(c.env, c.req.query('id'))))
 app.get('/api/weather', async c => c.json(await readWeather(c.req.query('latitude'), c.req.query('longitude'))))

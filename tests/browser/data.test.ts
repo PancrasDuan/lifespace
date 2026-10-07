@@ -1,5 +1,9 @@
 import { expect, test } from '@playwright/test'
 
+test.beforeEach(async ({ page }) => {
+  await page.route('**/api/ai-status', route => route.fulfill({ status: 503, json: { error: { code: 'SOURCE_UNAVAILABLE', message: '测试中不访问官方状态来源' } } }))
+})
+
 const tasks = [1, 2, 3, 4].map(id => ({ id: String(id), title: `待办 ${id}`, area: '学习', plannedAt: 1791244800 + id * 3600, dueAt: null }))
 const weather = { date: '2026-10-06', timeZone: 'Asia/Shanghai', fetchedAt: '2026-10-05T16:10:00Z', temperature: 23, weatherCode: 3, temperatureMin: 19, temperatureMax: 26, precipitationProbability: 65 }
 
