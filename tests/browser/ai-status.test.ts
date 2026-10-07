@@ -107,9 +107,9 @@ test('两家全部异常在首页及详情按提供方分组，电脑和手机�
     expect(size.content).toBeLessThanOrEqual(size.width)
     await card.click()
     await expect(page.getByRole('dialog').getByRole('region', { name: 'xAI 状态' })).toContainText('受影响服务：Global API')
-    if (width === 1440) await page.screenshot({ path: '/private/tmp/lifespace-ai-status-detail.png' })
+    if (width === 1440) await page.screenshot({ path: '.cache/ai-status-detail.png' })
     await page.getByRole('button', { name: '关闭详情' }).click()
-    if (width === 1440) await page.screenshot({ path: '/private/tmp/lifespace-ai-status-card.png', fullPage: true })
+    if (width === 1440) await page.screenshot({ path: '.cache/ai-status-card.png', fullPage: true })
   }
 })
 
