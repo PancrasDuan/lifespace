@@ -35,7 +35,8 @@ function Providers({ view, detail = false }: { view: StatusView; detail?: boolea
     return <section className="ai-provider" key={provider.id} aria-label={`${provider.name} 状态`}>
       <div className="ai-provider-heading"><strong>{provider.name}</strong><span className={`ai-state ai-state-${current}`}>{labels[current]}</span></div>
       {provider.error && <p className="inline-error">{provider.error}</p>}
-      {!stale && provider.status === 'abnormal' && <><p>{provider.description}</p><Incidents provider={provider} detail={detail} />
+      {!stale && (detail || provider.status === 'abnormal') && <p>{provider.description}</p>}
+      {!stale && provider.status === 'abnormal' && <><Incidents provider={provider} detail={detail} />
         {provider.affectedServices.length > 0 && <p>受影响服务：{provider.affectedServices.join('、')}</p>}
         {provider.incidents.length === 0 && <p>原因待公布</p>}</>}
       {last && <div className="ai-stale"><small>上次结果 · {time(last.checkedAt)} · {labels[last.status]}，当前状态未确认</small><Incidents provider={last} detail={detail} /></div>}

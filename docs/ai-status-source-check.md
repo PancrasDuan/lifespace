@@ -1,17 +1,26 @@
-# AI 状态来源核验
+# AI 状态来源与验收
 
-核验日期：2026-10-07。需求与任务见 GitHub Issues #15、#16、#17。
+核验时间：2026-10-07 11:05（Asia/Shanghai）。规格与任务见 GitHub Issues #15、#16、#17。
 
-| 提供方 | 官方公开来源 | 本地核验 |
+| 提供方 | 当前官方公开来源 | 真实核验结果 |
 | --- | --- | --- |
-| OpenAI | https://status.openai.com/api/v2/summary.json | HTTP 200，包含整体状态、组件和事件；已保存公开响应作为测试样例 |
-| xAI | https://data.x.ai/status/summary.json 与 https://data.x.ai/status/incidents.json | 状态页公开代码引用这两个地址；本地服务端直接访问返回 HTTP 403 |
+| OpenAI | https://status.openai.com/proxy/status.openai.com | HTTP 200；与官网使用同一份数据，包含产品分组、当前事件及其受影响组件 |
+| xAI | https://status.x.ai/feed.xml | HTTP 200；官网 Subscribe → RSS 公布的入口，包含事件状态、受影响服务和更新记录 |
 
-xAI 数据结构依据官方状态页公开脚本：
+OpenAI 按官方 structure 将组件映射到产品，摘要展示 ChatGPT，事件详情展示 ChatGPT / Agent；每个事件使用自己的 affected_components，不用全局异常组件替代事件归属。
 
-- [状态来源及组件结构](https://status.x.ai/_next/static/chunks/2tjiokuxddsh_.js)：summary 包含 status 与 components；组件状态为 available、info、disruption、outage、no_data。
-- [事件结构及活动事件判断](https://status.x.ai/_next/static/chunks/0g69z6yc2n2lr.js)：incidents 包含事件数组；事件包含 name、status、impact、更新时间、incident_updates 和组件名称/slug；resolved 为已解决。
+xAI 按官方 RSS 的事件状态识别未解决事件；同一事件的多个服务条目按事件标识合并。没有未解决事件时显示正常，并说明“官方事件订阅未报告未解决异常”。这是官方已发布事件的汇总，不是主动探测服务可用性，也不提供独立的组件快照。
 
-这些脚本地址是核验时快照，日后可能变化。测试中的 xAI 数据按已核实结构构造，不声称是实际接口响应。实际运行始终使用固定官方 JSON 地址，解析或访问失败时显示未知；浏览器能打开官方页面不等于服务端能取得数据。
+公开响应已保存为测试样例。验收同时要求：真实来源 HTTP 200、页面与官网对照、当前事件及产品归属一致；仅测试样例通过或获取失败回退正常工作，不足以判定功能可交付。
 
-上线验收须从实际 Worker 环境核实两家获取情况，尤其是 xAI；获取失败应如实显示并提供官方跳转，不把失败解释为服务故障。
+## 复现核验
+
+先启动本地预览，再运行：
+
+```bash
+node scripts/check-ai-status-live.mjs
+```
+
+可传入其他已授权的预览地址。脚本只读取公开 AI 状态，比较官方当前事件、归属、说明与本地结果；任一家无法取得有效数据时失败，报告保存到 Git 忽略的 `.cache/ai-status-live-check.json`。
+
+本次核验：两家均未报告未解决异常，与官网一致。解决前捕获的 OpenAI 回放样例验证 ChatGPT / Agent 产品与组件归属。状态会变化，重新验收须重新执行核验。上游失败仍显示未知，保留旧结果时注明原成功时间。

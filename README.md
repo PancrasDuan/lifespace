@@ -99,7 +99,7 @@ npm run test:browser
 
 首页一张卡片汇总 OpenAI 与 xAI 的官方状态；多个当前异常按提供方分组，点击查看各家状态、异常说明、受影响服务、检查时间和官方链接。打开或返回主页时刷新，支持手动刷新；页面保持打开时每小时刷新，恢复可见时更新。
 
-获取失败显示未知，保留的旧结果标注原成功时间。官方未提供说明时显示“原因待公布”。公开来源无需账户凭据；xAI 本地取数曾返回 403，实际 Worker 连通性需上线验收，失败时保留官方跳转。来源核验见 [AI 状态来源核验](docs/ai-status-source-check.md)，规格见 [Issue #15](https://github.com/PancrasDuan/lifespace/issues/15)。
+获取失败显示未知，保留的旧结果标注原成功时间。官方未提供说明时显示“原因待公布”。公开来源无需账户凭据；OpenAI 使用官网的产品分组与事件数据，xAI 使用官网公开 RSS 未解决事件。xAI 正常表示官方事件订阅未报告未解决异常，不是主动探测或独立组件快照。交付前执行 `node scripts/check-ai-status-live.mjs` 核对真实取数及官网一致性；失败时显示未知并保留官方跳转。来源核验见 [AI 状态来源核验](docs/ai-status-source-check.md)，规格见 [Issue #15](https://github.com/PancrasDuan/lifespace/issues/15)。
 
 ## 新闻页
 

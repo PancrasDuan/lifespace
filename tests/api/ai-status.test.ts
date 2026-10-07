@@ -1,72 +1,70 @@
 import { afterEach, expect, test, vi } from 'vitest'
+import { readFileSync } from 'node:fs'
 import app from '../../worker/index'
 import { aiStatusResultSchema } from '../../src/shared/ai-status-contracts'
-import officialSummary from '../fixtures/ai-status/openai-summary.json'
+import officialPageSummary from '../fixtures/ai-status/openai-page-summary.json'
 
-afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers() })
-
-const normal = { status: { indicator: 'none', description: 'All Systems Operational' }, components: [{ id: 'chat', name: 'ChatGPT', status: 'operational' }], incidents: [] }
-const xaiNormal = { status: { indicator: 'none', description: 'All Systems Operational' }, components: [{ id: 'grok-com', name: 'grok.com', status: 'available' }] }
-
-test('两家正常时合并状态正常，xAI 使用官方公开来源并提供独立链接', async () => {
+const officialFeed = readFileSync(new URL('../fixtures/ai-status/xai-feed.xml', import.meta.url), 'utf8')
+const normalOpenAI = { summary: { ...officialPageSummary.summary, affected_components: [], ongoing_incidents: [] } }
+const feed = (items: string) => `<rss version="2.0"><channel><title>SpaceXAI System Status</title><link>https://status.x.ai</link>${items}</channel></rss>`
+const item = (id: string, service: string, title: string, status = 'investigating') => `<item><title>[${service}] ${title}</title><guid>${id}</guid><pubDate>Wed, 07 Oct 2026 02:00:00 GMT</pubDate><category>outage</category><category>${status}</category><description><![CDATA[<h3>Status: ${status.toUpperCase()}</h3><h4>Updates:</h4><div><p><strong>Wed, 07 Oct 2026 02:10:00 GMT</strong></p><h3>Investigating</h3><p>We are investigating this incident.</p></div>]]></description></item>`
+const activeFeed = feed(item('grok', 'grok.com', 'Grok outage'))
+const result = async () => aiStatusResultSchema.parse(await (await app.request('/api/ai-status', {}, {})).json())
+const sources = (openai: unknown = normalOpenAI, xai = officialFeed) => {
   const urls: string[] = []
   vi.stubGlobal('fetch', async (input: URL | string | Request) => {
     const url = String(input); urls.push(url)
-    return Response.json(url.includes('openai') ? normal : url.endsWith('/summary.json') ? xaiNormal : { incidents: [] })
+    if (url === 'https://status.openai.com/proxy/status.openai.com') return Response.json(openai)
+    if (url === 'https://status.x.ai/feed.xml') return new Response(xai)
+    return new Response('Unexpected upstream', { status: 404 })
   })
-  const result = aiStatusResultSchema.parse(await (await app.request('/api/ai-status', {}, {})).json())
-  expect(result.status).toBe('normal')
-  expect(result.providers.map(provider => provider.id)).toEqual(['openai', 'xai'])
-  expect(result.providers[1]).toMatchObject({ name: 'xAI', statusUrl: 'https://status.x.ai/', status: 'normal' })
-  expect(urls).toEqual(expect.arrayContaining(['https://data.x.ai/status/summary.json', 'https://data.x.ai/status/incidents.json']))
+  return urls
+}
+afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers() })
+
+test('真实官网数据回放：Agent 异常归属 ChatGPT，事件同时显示 ChatGPT 与 Agent', async () => {
+  sources(officialPageSummary)
+  const data = await result()
+  expect(data.status).toBe('abnormal')
+  expect(data.providers[0].affectedServices).toEqual(['ChatGPT'])
+  expect(data.providers[0].incidents[0].affectedServices).toEqual(['ChatGPT / Agent'])
+  expect(data.providers[0].incidents[0].description).toBe('We have applied the mitigation and are monitoring the recovery.')
 })
 
-test('AI 状态接口从 OpenAI 官方来源获取正常状态并提供官方链接', async () => {
+test('真实 xAI 官方 RSS 回放：成功取得已解决事件，当前状态无官方异常', async () => {
+  const urls = sources(officialPageSummary)
+  const data = await result()
+  expect(data.providers[1]).toMatchObject({ status: 'normal', incidents: [], error: null })
+  expect(data.providers[1].description).toBe('官方事件订阅未报告未解决异常')
+  expect(urls).toEqual(['https://status.openai.com/proxy/status.openai.com', 'https://status.x.ai/feed.xml'])
+})
+
+test('两家正常时合并状态正常，保留各家官方链接和真实检查时间', async () => {
   vi.useFakeTimers(); vi.setSystemTime(new Date('2026-10-07T02:00:00Z'))
-  vi.stubGlobal('fetch', async (input: URL | string | Request) => {
-    return Response.json(String(input).includes('openai') ? normal : String(input).endsWith('/summary.json') ? xaiNormal : { incidents: [] })
-  })
-  const response = await app.request('/api/ai-status', {}, {})
-  expect(response.status).toBe(200)
-  expect(await response.json()).toMatchObject({ status: 'normal', providers: expect.arrayContaining([expect.objectContaining({ id: 'openai', name: 'OpenAI', status: 'normal', statusUrl: 'https://status.openai.com/', checkedAt: '2026-10-07T02:00:00.000Z', incidents: [] })]) })
+  sources()
+  const data = await result()
+  expect(data.status).toBe('normal')
+  expect(data.providers.map(provider => provider.statusUrl)).toEqual(['https://status.openai.com/', 'https://status.x.ai/'])
+  expect(data.providers.map(provider => provider.checkedAt)).toEqual(['2026-10-07T02:00:00.000Z', '2026-10-07T02:00:00.000Z'])
 })
 
-test('OpenAI 多个当前异常全部保留，已解决事件移除，官方未公布说明时明确提示', async () => {
-  const event = { ...officialSummary.incidents[0], components: [{ name: 'ChatGPT' }] }
-  vi.stubGlobal('fetch', async (input: URL | string | Request) => Response.json(String(input).includes('openai') ? { ...officialSummary, incidents: [event, { ...event, id: 'second', name: 'Login unavailable', incident_updates: [] }, { ...event, id: 'resolved', status: 'resolved' }] } : String(input).endsWith('/summary.json') ? xaiNormal : { incidents: [] }))
-  const body = aiStatusResultSchema.parse(await (await app.request('/api/ai-status', {}, {})).json())
-  expect(body.status).toBe('abnormal')
-  expect(body.providers[0].incidents).toHaveLength(2)
-  expect(body.providers[0].incidents[0]).toMatchObject({ title: 'Workspace Agents Degraded and Responses Impacted', affectedServices: ['ChatGPT'] })
-  expect(body.providers[0].incidents[1]).toMatchObject({ description: '原因待公布' })
+test('OpenAI 每个事件独立关联产品，多个异常全保留，已解决事件移除', async () => {
+  const original = officialPageSummary.summary.ongoing_incidents[0]
+  const data = { summary: { ...officialPageSummary.summary, ongoing_incidents: [original, { ...original, id: 'second', name: 'Login unavailable', updates: [], affected_components: [{ component_id: '01JMXBRMFE6N2NNT7DG6XZQ6PW', status: 'partial_outage' }] }, { ...original, id: 'resolved', status: 'resolved' }] } }
+  sources(data)
+  const provider = (await result()).providers[0]
+  expect(provider.incidents).toHaveLength(2)
+  expect(provider.incidents[0].affectedServices).toEqual(['ChatGPT / Agent'])
+  expect(provider.incidents[1]).toMatchObject({ description: '原因待公布', affectedServices: ['APIs / Chat Completions'] })
 })
 
-test.each([403, 500])('官方状态获取失败返回未知而非官方故障，且不暴露来源原文：%s', async status => {
-  vi.stubGlobal('fetch', async () => new Response('private-detail', { status }))
-  const response = await app.request('/api/ai-status', {}, {})
-  expect(response.status).toBe(200)
-  const body = aiStatusResultSchema.parse(await response.json())
-  expect(body.status).toBe('unknown')
-  expect(body.providers[0].status).toBe('unknown')
-  expect(JSON.stringify(body)).not.toContain('private-detail')
-})
-
-test('未知官方状态或不完整响应不伪装为正常', async () => {
-  for (const data of [{}, { ...normal, status: { indicator: 'new-state', description: 'Unknown' } }]) {
-    vi.stubGlobal('fetch', async () => Response.json(data))
-    expect(aiStatusResultSchema.parse(await (await app.request('/api/ai-status', {}, {})).json()).status).toBe('unknown')
-  }
-})
-
-test('xAI 多个异常独立保留受影响服务，已解决事件不列为当前异常', async () => {
-  const event = { id: 'grok', name: 'Grok outage', status: 'investigating', impact: 'major', created_at: '2026-10-07T02:00:00Z', updated_at: '2026-10-07T02:00:00Z', resolved_at: null, components: [{ slug: 'grok-com', name: 'grok.com' }], incident_updates: [] }
-  vi.stubGlobal('fetch', async (input: URL | string | Request) => Response.json(String(input).includes('openai') ? normal : String(input).endsWith('/summary.json') ? xaiNormal : { incidents: [event, { ...event, id: 'api', name: 'API degraded', components: [{ slug: 'api-global', name: 'Global API' }] }, { ...event, id: 'past', status: 'resolved' }] }))
-  const result = aiStatusResultSchema.parse(await (await app.request('/api/ai-status', {}, {})).json())
-  expect(result.status).toBe('abnormal')
-  expect(result.providers[0].incidents).toEqual([])
-  expect(result.providers[1].incidents).toHaveLength(2)
-  expect(result.providers[1].incidents[0]).toMatchObject({ affectedServices: ['grok.com'], description: '原因待公布' })
-  expect(result.providers[1].incidents[1]).toMatchObject({ affectedServices: ['Global API'] })
+test('xAI 多个当前异常全部保留，同一事件的多服务条目合并，已解决事件移除', async () => {
+  sources(normalOpenAI, feed(item('grok', 'grok.com', 'Grok outage') + item('grok', 'Global API', 'Grok outage') + item('voice', 'Voice', 'Voice degraded') + item('old', 'grok.com', 'Past outage', 'resolved')))
+  const provider = (await result()).providers[1]
+  expect(provider.status).toBe('abnormal')
+  expect(provider.incidents).toHaveLength(2)
+  expect(provider.incidents[0]).toMatchObject({ title: 'Grok outage', affectedServices: ['grok.com', 'Global API'], description: 'We are investigating this incident.', updatedAt: '2026-10-07T02:10:00.000Z' })
+  expect(provider.incidents[1].affectedServices).toEqual(['Voice'])
 })
 
 test.each([
@@ -75,20 +73,34 @@ test.each([
   ['abnormal', 'unknown', 'abnormal'], ['unknown', 'abnormal', 'abnormal'], ['abnormal', 'abnormal', 'abnormal'],
 ])('两家组合状态 %s 与 %s 合并为 %s', async (openaiState, xaiState, expected) => {
   vi.stubGlobal('fetch', async (input: URL | string | Request) => {
-    const url = String(input); const state = url.includes('openai') ? openaiState : xaiState
+    const openai = String(input).includes('openai.com'); const state = openai ? openaiState : xaiState
     if (state === 'unknown') return new Response('blocked-private-detail', { status: 403 })
-    if (url.includes('openai')) return Response.json({ ...normal, status: { indicator: state === 'abnormal' ? 'minor' : 'none', description: 'Official description' } })
-    return Response.json(url.endsWith('/summary.json') ? { ...xaiNormal, components: [{ id: 'grok-com', name: 'grok.com', status: state === 'abnormal' ? 'disruption' : 'available' }] } : { incidents: [] })
+    return openai ? Response.json(state === 'abnormal' ? officialPageSummary : normalOpenAI) : new Response(state === 'abnormal' ? activeFeed : officialFeed)
   })
-  const result = aiStatusResultSchema.parse(await (await app.request('/api/ai-status', {}, {})).json())
-  expect(result.status).toBe(expected)
-  expect(result.providers.map(provider => provider.status)).toEqual([openaiState, xaiState])
-  expect(JSON.stringify(result)).not.toContain('blocked-private-detail')
+  const data = await result()
+  expect(data.status).toBe(expected)
+  expect(data.providers.map(provider => provider.status)).toEqual([openaiState, xaiState])
+  expect(JSON.stringify(data)).not.toContain('blocked-private-detail')
 })
 
-test('xAI 组件没有数据时显示未知，而非正常', async () => {
-  vi.stubGlobal('fetch', async (input: URL | string | Request) => Response.json(String(input).includes('openai') ? normal : String(input).endsWith('/summary.json') ? { ...xaiNormal, components: [{ id: 'grok-com', name: 'grok.com', status: 'no_data' }] } : { incidents: [] }))
-  const result = aiStatusResultSchema.parse(await (await app.request('/api/ai-status', {}, {})).json())
-  expect(result.status).toBe('unknown')
-  expect(result.providers[1].error).toContain('未知')
+test.each([403, 500])('来源获取失败显示未知，且不暴露来源响应：%s', async status => {
+  vi.stubGlobal('fetch', async () => new Response('private-detail', { status }))
+  const data = await result()
+  expect(data.status).toBe('unknown')
+  expect(data.providers.map(provider => provider.status)).toEqual(['unknown', 'unknown'])
+  expect(JSON.stringify(data)).not.toContain('private-detail')
+})
+
+test('来源字段变化不伪装为正常，HTML 错误页不作为有效 RSS', async () => {
+  sources({}, '<html><body>Blocked</body></html>')
+  const data = await result()
+  expect(data.status).toBe('unknown')
+  expect(data.providers.map(provider => provider.status)).toEqual(['unknown', 'unknown'])
+})
+
+test('RSS 含外部实体或无法识别的事件状态时报告未知', async () => {
+  for (const xml of ['<!DOCTYPE rss [<!ENTITY x SYSTEM "file:///etc/passwd">]>' + officialFeed, feed(item('new', 'Grok', 'Unknown status', 'new-status'))]) {
+    sources(normalOpenAI, xml)
+    expect((await result()).providers[1].status).toBe('unknown')
+  }
 })
