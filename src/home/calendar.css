@@ -89,3 +89,6 @@
 .calendar-picker-options button:hover{background:#e6efdf;color:var(--accent)}
 .calendar-picker-options button[aria-pressed=true]{background:var(--accent);color:#fff}
 @media(max-width:760px){.calendar-controls .calendar-year{padding:0 6px;gap:4px}.calendar-controls .calendar-month-select{min-width:61px;padding:0 7px;gap:4px}}
+
+.calendar-controls .calendar-month-select input{width:30px;cursor:text}
+.calendar-controls .calendar-year input{cursor:text}

@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
 
 async function selectMonth(page: Page, month: number) {
-  await page.getByRole('button', { name: '月份', exact: true }).click()
+  await page.getByRole('combobox', { name: '月份', exact: true }).click()
   await page.getByRole('dialog', { name: '月份选择', exact: true }).getByRole('button', { name: `${month} 月`, exact: true }).click()
 }
 
@@ -47,7 +47,7 @@ test('年月、周起始日、相邻月与回到今天保持日期和详情一�
   await dialog.getByLabel('年份', { exact: true }).press('Enter')
   await selectMonth(page, 10)
   await dialog.getByRole('button', { name: /2026-11-01 万圣节/ }).click()
-  await expect(dialog.getByRole('button', { name: '月份', exact: true })).toContainText('11')
+  await expect(dialog.getByRole('combobox', { name: '月份', exact: true })).toHaveValue('11')
   await expect(detail).toContainText('2026-11-01')
   await dialog.getByRole('button', { name: '今', exact: true }).click()
   await expect(detail).toContainText('2026-10-09')
@@ -144,7 +144,7 @@ test('打开、翻页和取消年月面板保持当前日期，明确选择才�
   await years.getByRole('button', { name: '2027 年', exact: true }).click()
   await expect(detail).toContainText('2027-01-01')
   await page.getByRole('button', { name: '今', exact: true }).click()
-  await page.getByRole('button', { name: '月份', exact: true }).click()
+  await page.getByRole('combobox', { name: '月份', exact: true }).click()
   const months = page.getByRole('dialog', { name: '月份选择', exact: true })
   await expect(months.getByRole('button', { name: /^([1-9]|1[0-2]) 月$/ })).toHaveCount(12)
   await months.getByRole('button', { name: '月份面板下一年' }).click()
@@ -163,10 +163,43 @@ test('年月网格支持键盘，手机弹出面板保持在日历框内', async
   await page.keyboard.press('ArrowRight')
   await page.keyboard.press('Enter')
   await expect(page.getByRole('region', { name: '所选日期详情' })).toContainText('2027-01-01')
-  await page.getByRole('button', { name: '月份', exact: true }).click()
+  await page.getByRole('combobox', { name: '月份', exact: true }).click()
   const box = await page.getByRole('dialog', { name: '月份选择', exact: true }).boundingBox()
   expect(box!.x).toBeGreaterThanOrEqual(0)
   expect(box!.x + box!.width).toBeLessThanOrEqual(390)
   await page.keyboard.press('Escape')
   await expect(page.getByRole('dialog', { name: '月份选择', exact: true })).toHaveCount(0)
+})
+
+
+test('月份可输入或网格选择，非法值和取消不会修改日期', async ({ page }) => {
+  const month = page.getByRole('combobox', { name: '月份', exact: true })
+  const detail = page.getByRole('region', { name: '所选日期详情' })
+  await month.fill('2')
+  await expect(detail).toContainText('2026-10-09')
+  await month.press('Enter')
+  await expect(detail).toContainText('2026-02-01')
+  await expect(month).toHaveValue('02')
+  await selectMonth(page, 10)
+  await expect(detail).toContainText('2026-10-01')
+  await page.getByRole('button', { name: '今', exact: true }).click()
+  await month.click()
+  await page.getByRole('button', { name: '月份面板下一年' }).click()
+  await month.press('Escape')
+  await month.press('Enter')
+  await expect(detail).toContainText('2026-10-09')
+  await expect(month).toHaveValue('10')
+  for (const value of ['0', '13', 'abc', '2.5', '']) {
+    await month.fill(value)
+    await month.press('Enter')
+    await expect(detail).toContainText('2026-10-09')
+    await expect(month).toHaveValue('10')
+  }
+  await month.fill('12')
+  await month.press('Escape')
+  await expect(month).toHaveValue('10')
+  await expect(detail).toContainText('2026-10-09')
+  await month.fill('10')
+  await month.press('Enter')
+  await expect(detail).toContainText('2026-10-09')
 })

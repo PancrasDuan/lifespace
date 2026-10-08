@@ -8,21 +8,23 @@ const monthNames = ['一月', '二月', '三月', '四月', '五月', '六月', 
 export function CalendarPicker({ kind, year, month, select }: { kind: PickerKind; year: number; month: number; select: (year: number, month: number) => void }) {
   const isYear = kind === 'year'
   const label = isYear ? '年份' : '月份'
+  const displayedValue = isYear ? String(year) : String(month).padStart(2, '0')
   const [open, setOpen] = useState(false)
   const [panelYear, setPanelYear] = useState(year)
-  const [draft, setDraft] = useState(String(year))
+  const [draft, setDraft] = useState(displayedValue)
   const root = useRef<HTMLDivElement>(null)
-  const trigger = useRef<HTMLInputElement | HTMLButtonElement>(null)
+  const trigger = useRef<HTMLInputElement>(null)
   const options = useRef<(HTMLButtonElement | null)[]>([])
   const startYear = Math.floor(panelYear / 10) * 10
   const values = isYear ? Array.from({ length: 10 }, (_, index) => startYear + index) : Array.from({ length: 12 }, (_, index) => index + 1)
   const close = (restoreFocus = false) => {
     setOpen(false)
-    setDraft(String(year))
+    setPanelYear(year)
+    setDraft(displayedValue)
     if (restoreFocus) trigger.current?.focus()
   }
-  const show = () => { if (!open) { setPanelYear(year); setDraft(String(year)); setOpen(true) } }
-  useEffect(() => { setDraft(String(year)) }, [year])
+  const show = () => { if (!open) { setPanelYear(year); setDraft(displayedValue); setOpen(true) } }
+  useEffect(() => { setDraft(displayedValue) }, [displayedValue])
   useEffect(() => {
     if (!open) return
     const outside = (event: PointerEvent) => {
@@ -32,9 +34,11 @@ export function CalendarPicker({ kind, year, month, select }: { kind: PickerKind
     return () => document.removeEventListener('pointerdown', outside)
   })
   const choose = (value: number) => {
-    const changed = isYear ? value !== year : panelYear !== year || value !== month
-    if (changed) select(isYear ? value : panelYear, isYear ? 1 : value)
+    const targetYear = isYear ? value : open ? panelYear : year
+    const changed = targetYear !== year || (!isYear && value !== month)
+    if (changed) select(targetYear, isYear ? 1 : value)
     setOpen(false)
+    setDraft(isYear ? String(value) : String(value).padStart(2, '0'))
     trigger.current?.focus()
   }
   const triggerKey = (event: KeyboardEvent) => {
@@ -47,11 +51,12 @@ export function CalendarPicker({ kind, year, month, select }: { kind: PickerKind
         active?.focus()
       }
     }
-    if (isYear && event.key === 'Enter') {
+    if (event.key === 'Enter') {
       event.preventDefault()
       const value = Number(draft)
-      if (draft !== String(year) && Number.isInteger(value) && value >= calendarYearRange.min && value <= calendarYearRange.max) choose(value)
-      else show()
+      const valid = /^\d+$/.test(draft.trim()) && Number.isInteger(value) && (isYear ? value >= calendarYearRange.min && value <= calendarYearRange.max : value >= 1 && value <= 12)
+      if (valid) choose(value)
+      else close()
     }
   }
   const optionKey = (event: KeyboardEvent, index: number) => {
@@ -67,8 +72,7 @@ export function CalendarPicker({ kind, year, month, select }: { kind: PickerKind
   return <div className="calendar-picker" ref={root} onKeyDown={event => {
     if (event.key === 'Escape' && open) { event.preventDefault(); event.stopPropagation(); close(true) }
   }}>
-    {isYear ? <label className="calendar-year"><CalendarDays size={15} /><input ref={element => { trigger.current = element }} aria-label="年份" role="combobox" aria-haspopup="dialog" aria-expanded={open} aria-controls="calendar-year-picker" inputMode="numeric" value={draft} onClick={show} onChange={event => { setDraft(event.target.value); setOpen(true) }} onKeyDown={triggerKey} /></label>
-      : <button className="calendar-month-select" ref={element => { trigger.current = element }} aria-label="月份" aria-haspopup="dialog" aria-expanded={open} aria-controls="calendar-month-picker" onClick={() => open ? close() : show()} onKeyDown={triggerKey}><CalendarDays size={15} /><span>{String(month).padStart(2, '0')}</span></button>}
+    <label className={isYear ? 'calendar-year' : 'calendar-month-select'}><CalendarDays size={15} /><input ref={trigger} aria-label={label} role="combobox" aria-haspopup="dialog" aria-expanded={open} aria-controls={`calendar-${kind}-picker`} inputMode="numeric" value={draft} onClick={show} onChange={event => { if (!open) setPanelYear(year); setDraft(event.target.value); setOpen(true) }} onKeyDown={triggerKey} /></label>
     {open && <div className="calendar-picker-popover" id={`calendar-${kind}-picker`} role="dialog" aria-label={`${label}选择`}>
       <div className="calendar-picker-header">
         <button aria-label={isYear ? '前十年' : '月份面板上一年'} disabled={isYear ? startYear <= calendarYearRange.min : panelYear <= calendarYearRange.min} onClick={() => setPanelYear(value => Math.max(calendarYearRange.min, value - pageDelta))}><ChevronsLeft size={17} /></button>
