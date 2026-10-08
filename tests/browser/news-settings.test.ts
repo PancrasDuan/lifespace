@@ -20,14 +20,14 @@ async function fixture(page: Page) {
   return reads
 }
 
-test('新闻设置默认隐藏，27 个独立开关默认仅启用五源，即时控制对应卡片', async ({ page }) => {
+test('新闻设置默认隐藏，28 个独立开关默认仅启用五源，即时控制对应卡片', async ({ page }) => {
   const reads = await fixture(page)
   await page.goto('/news')
   await expect(page.getByRole('link', { name: '来源标题-zhihu' })).toBeVisible()
   await expect(page.getByRole('dialog')).toHaveCount(0)
   await page.getByRole('button', { name: '新闻来源设置', exact: true }).click()
   const settings = page.getByRole('dialog', { name: '新闻来源设置', exact: true })
-  await expect(settings.getByRole('switch')).toHaveCount(27)
+  await expect(settings.getByRole('switch')).toHaveCount(28)
   for (const name of ['百度热搜', '财联社热门', '腾讯新闻综合早报', '今日头条', '知乎']) await expect(settings.getByRole('switch', { name, exact: true })).toBeChecked()
   await expect(settings.getByRole('switch', { name: '哔哩哔哩热搜', exact: true })).not.toBeChecked()
   await settings.getByRole('switch', { name: '哔哩哔哩热搜', exact: true }).check()
@@ -192,7 +192,7 @@ test('关闭排队与正在读取的来源后停止取数，晚到响应不重�
   await expect(page.getByRole('article', { name: '百度热搜', exact: true })).toHaveCount(0)
 })
 
-test('全部 27 源逐个启用后保持固定顺序，加载与全部刷新均最多三个并发', async ({ page }) => {
+test('全部 28 源逐个启用后保持固定顺序，加载与全部刷新均最多三个并发', async ({ page }) => {
   test.setTimeout(30000)
   const reads = await fixture(page)
   let hold = false
@@ -224,21 +224,21 @@ test('全部 27 源逐个启用后保持固定顺序，加载与全部刷新均�
   await expect.poll(() => waiting.length).toBe(3)
   expect(reads.length).toBe(8)
   await page.keyboard.press('Escape')
-  await expect(page.getByRole('article')).toHaveCount(27)
+  await expect(page.getByRole('article')).toHaveCount(28)
   await expect(page.getByRole('article').getByRole('heading')).toHaveText([
     '百度热搜', '财联社热门', '腾讯新闻综合早报', '今日头条', '知乎', '哔哩哔哩热搜', '虫部落最热',
     '酷安今日最热', '豆瓣热门电影', '抖音', 'Freebuf 网络安全', 'GitHub Today', 'Hacker News',
     '虎扑主干道热帖', '凤凰网热点资讯', '爱奇艺热播榜', '稀土掘金', '牛客', 'Product Hunt',
     '腾讯视频热搜榜', '少数派', 'Steam 在线人数', '澎湃新闻热榜', '百度贴吧热议',
-    '华尔街见闻最热', '微博实时热搜', '雪球热门股票',
+    '华尔街见闻最热', '微博实时热搜', '雪球热门股票', 'AIHOT 热点榜',
   ])
-  await finish(27)
-  expect(new Set(reads).size).toBe(27)
+  await finish(28)
+  expect(new Set(reads).size).toBe(28)
   expect(await page.locator('.news-card .news-source-icon').evaluateAll(images => images.every(image => (image as HTMLImageElement).complete && (image as HTMLImageElement).naturalWidth > 0))).toBe(true)
   await page.getByRole('button', { name: '刷新全部新闻', exact: true }).click()
   await expect.poll(() => waiting.length).toBe(3)
-  expect(reads.length).toBe(30)
-  await finish(54)
+  expect(reads.length).toBe(31)
+  await finish(56)
   for (const id of new Set(reads)) expect(reads.filter(value => value === id)).toHaveLength(2)
 })
 
@@ -269,4 +269,33 @@ test('离线时启用后又关闭的来源，不会在网络恢复后发起暂�
   await page.clock.runFor(100)
   expect(reads).not.toContain('bilibili-hot-search')
   await expect(page.getByRole('article')).toHaveCount(5)
+})
+
+test('AIHOT 默认关闭且不读取，开启显示来源图标与事件链接，刷新保留选择', async ({ page }) => {
+  const reads = await fixture(page)
+  await page.route('**/api/news/source?id=aihot', route => {
+    reads.push('aihot')
+    return route.fulfill({ json: { ...result('aihot'), items: [{ id: 'event', title: 'AIHOT 事件标题', rank: 1, url: 'https://aihot.news/story/event' }] } })
+  })
+  await page.goto('/news')
+  await expect(page.getByRole('link', { name: '来源标题-zhihu' })).toBeVisible()
+  expect(reads).not.toContain('aihot')
+  await page.getByRole('button', { name: '新闻来源设置', exact: true }).click()
+  const toggle = page.getByRole('switch', { name: 'AIHOT 热点榜', exact: true })
+  await expect(toggle).not.toBeChecked()
+  expect(await toggle.locator('..').locator('img').evaluate(image => (image as HTMLImageElement).complete && (image as HTMLImageElement).naturalWidth > 0)).toBe(true)
+  await toggle.check()
+  await page.keyboard.press('Escape')
+  const card = page.getByRole('article', { name: 'AIHOT 热点榜', exact: true })
+  await expect(card.getByRole('link')).toHaveAttribute('href', 'https://aihot.news/story/event')
+  await expect(card.getByRole('link')).toHaveAttribute('target', '_blank')
+  expect(await card.locator('img').evaluate(image => (image as HTMLImageElement).naturalWidth > 0)).toBe(true)
+  await page.reload()
+  await expect(card).toBeVisible()
+  await page.getByRole('button', { name: '新闻来源设置', exact: true }).click()
+  await expect(toggle).toBeChecked()
+  await toggle.uncheck()
+  await page.keyboard.press('Escape')
+  await page.reload()
+  await expect(card).toHaveCount(0)
 })

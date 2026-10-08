@@ -26,6 +26,42 @@ function sourceTime(value: unknown): string | null {
   return Number.isFinite(date.valueOf()) ? date.toISOString() : null
 }
 
+function aihotLink(value: unknown): string | null {
+  if (typeof value !== 'string') return null
+  try {
+    const url = new URL(value)
+    if (url.protocol !== 'https:' || url.username || url.password || url.port || !['aihot.news', 'aihot.virxact.com'].includes(url.hostname)) return null
+    url.hostname = 'aihot.news'
+    return url.href
+  } catch { return null }
+}
+
+async function readAihot() {
+  const result = await upstream(new URL('https://aihot.news/api/v1/hot-topics'),
+    z.object({ schemaVersion: z.literal(1), items: z.array(z.unknown()) }),
+    { method: 'GET', headers: { 'User-Agent': 'aihot-api/2.0.0' } })
+  const items = result.items.slice(0, 10).flatMap(value => {
+    if (typeof value !== 'object' || value === null || Array.isArray(value)) return []
+    const item = value as Record<string, unknown>
+    if (typeof item.rank !== 'number' || !Number.isInteger(item.rank) || item.rank < 1 || typeof item.links !== 'object' || item.links === null) return []
+    const links = item.links as Record<string, unknown>
+    const url = aihotLink(links.story) ?? aihotLink(links.aihot)
+    return url ? normalizeItem({ id: item.id, title: item.title, url }, 'aihot', item.rank) : []
+  })
+  if (result.items.length && !items.length) throw new ApiError('SOURCE_INVALID_RESPONSE', '新闻源返回了无效榜单，请稍后重试', 502)
+  return { items, sourceUpdatedAt: null, upstreamStatus: 'success' as const }
+}
+
+async function readNewsNow(id: string) {
+  const url = new URL('https://newsnow.busiyi.world/api/s')
+  url.searchParams.set('id', id)
+  const schema = z.object({ id: z.literal(id), status: z.enum(['success', 'cache']), updatedTime: z.unknown().optional(), items: z.array(z.unknown()) })
+  const result = await upstream(url, schema, { method: 'GET', headers: { 'User-Agent': userAgent } })
+  const items = result.items.slice(0, 30).flatMap((item, index) => normalizeItem(item, id, index + 1))
+  if (result.items.length && !items.length) throw new ApiError('SOURCE_INVALID_RESPONSE', '新闻源返回了无效榜单，请稍后重试', 502)
+  return { items, sourceUpdatedAt: sourceTime(result.updatedTime), upstreamStatus: result.status }
+}
+
 export async function readNews(env: Partial<CloudflareEnv>, id: string | undefined): Promise<NewsResult> {
   const source = newsSources.find(source => source.id === id)
   if (!source) throw new ApiError('NEWS_SOURCE_INVALID', '新闻来源无效，请选择可用来源', 400)
@@ -52,15 +88,10 @@ export async function readNews(env: Partial<CloudflareEnv>, id: string | undefin
     try { allowed = (await env.NEWS_READ_LIMITER.limit({ key: 'lifespace:news:read' })).success }
     catch { throw new ApiError('NEWS_PROTECTION_UNAVAILABLE', '新闻读取保护暂时不可用，请稍后重试', 503) }
     if (!allowed) throw new ApiError('SOURCE_RATE_LIMITED', '新闻读取过于频繁，请稍后刷新', 429)
-    const url = new URL('https://newsnow.busiyi.world/api/s')
-    url.searchParams.set('id', source.id)
-    const schema = z.object({ id: z.literal(source.id), status: z.enum(['success', 'cache']), updatedTime: z.unknown().optional(), items: z.array(z.unknown()) })
-    const result = await upstream(url, schema, { method: 'GET', headers: { 'User-Agent': userAgent } })
-    const items = result.items.slice(0, 30).flatMap((item, index) => normalizeItem(item, source.id, index + 1))
-    if (result.items.length && !items.length) throw new ApiError('SOURCE_INVALID_RESPONSE', '新闻源返回了无效榜单，请稍后重试', 502)
+    const result = source.id === 'aihot' ? await readAihot() : await readNewsNow(source.id)
     const normalized: NewsResult = {
-      sourceId: source.id, fetchedAt: new Date().toISOString(), sourceUpdatedAt: sourceTime(result.updatedTime),
-      upstreamStatus: result.status, cacheHit: false, stale: false, warning: null, items,
+      sourceId: source.id, fetchedAt: new Date().toISOString(), sourceUpdatedAt: result.sourceUpdatedAt,
+      upstreamStatus: result.upstreamStatus, cacheHit: false, stale: false, warning: null, items: result.items,
     }
     try { await cache?.put(key, Response.json(normalized, { headers: { 'Cache-Control': 'public, max-age=86400' } })) }
     catch { /* 保存失败不影响本次经过校验的成功读取。 */ }
