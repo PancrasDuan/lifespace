@@ -1,0 +1,28 @@
+{
+  "checkedAt": "2026-10-08T16:14:09.753Z",
+  "source": "https://go.itab.link/assets/vendor-tyme4ts-D81ry8hI.js",
+  "sourceSha256": "bfb1fd16f0674bbc23afd69f8314ccbbec89bef2e14a777c3f50d7e96e24d07b",
+  "localVersion": "1.5.3",
+  "localLicense": "MIT",
+  "compareConstants": {
+    "LegalHoliday": {
+      "dataEqual": true,
+      "namesEqual": true
+    },
+    "SolarFestival": {
+      "dataEqual": true,
+      "namesEqual": true
+    },
+    "LunarFestival": {
+      "dataEqual": true,
+      "namesEqual": true
+    },
+    "EventManager": {
+      "dataEqual": true,
+      "namesEqual": true
+    }
+  },
+  "days": 365,
+  "differenceCount": 0,
+  "differences": []
+}
