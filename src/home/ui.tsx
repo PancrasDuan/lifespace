@@ -1,5 +1,5 @@
-import { useEffect, useId, useRef, type ReactNode } from 'react'
-import { Activity, CalendarDays, ChevronRight, Clock3, CloudSun, Globe, ListTodo, RotateCw, X } from 'lucide-react'
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
+import { Activity, CalendarDays, ChevronRight, Clock3, CloudSun, Globe, ListTodo, Maximize2, Minimize2, RotateCw, X } from 'lucide-react'
 
 export type CardKind = 'time' | 'weather' | 'tasks' | 'calendar' | 'domains' | 'ai'
 const titles = { time: '世界时间', weather: '今日天气', tasks: '今日待办', calendar: '日期与黄历', domains: 'DNSHE 域名', ai: 'AI 服务状态' }
@@ -11,7 +11,8 @@ export function Panel({ kind, children, footer, open, refresh, loading }: { kind
     {footer && <div className="panel-footer"><span>{footer}</span>{refresh && <button onClick={refresh} aria-label={`刷新${titles[kind]}`} disabled={loading}><RotateCw size={14} className={loading ? 'spinning' : ''} /></button>}</div>}
   </article>
 }
-export function Modal({ title, children, close, description }: { title: string; children: ReactNode; close: () => void; description?: string }) {
+export function Modal({ title, children, close, description, className = '', expandable = false }: { title: string; children: ReactNode; close: () => void; description?: string; className?: string; expandable?: boolean }) {
+  const [expanded, setExpanded] = useState(false)
   const ref = useRef<HTMLDialogElement>(null)
   const descriptionId = useId()
   useEffect(() => {
@@ -28,9 +29,9 @@ export function Modal({ title, children, close, description }: { title: string; 
       }
     }
   }, [])
-  return <dialog className="modal" ref={ref} aria-label={title} aria-describedby={description ? descriptionId : undefined} onClose={close} onClick={event => {
+  return <dialog className={`modal ${className}${expanded ? ' expanded' : ''}`} ref={ref} aria-label={title} aria-describedby={description ? descriptionId : undefined} onClose={close} onClick={event => {
     if (event.target !== event.currentTarget) return
     const box = event.currentTarget.getBoundingClientRect()
     if (event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom) close()
-  }}><header><div><span className="eyebrow">LifeSpace</span><h2>{title}</h2>{description && <p className="modal-description" id={descriptionId}>{description}</p>}</div><button aria-label="关闭详情" onClick={close}><X size={22} /></button></header>{children}</dialog>
+  }}><header><div><span className="eyebrow">LifeSpace</span><h2>{title}</h2>{description && <p className="modal-description" id={descriptionId}>{description}</p>}</div><div className="modal-actions">{expandable && <button aria-label={expanded ? '恢复日历窗口' : '展开日历窗口'} onClick={() => setExpanded(value => !value)}>{expanded ? <Minimize2 size={20} /> : <Maximize2 size={20} />}</button>}<button aria-label="关闭详情" onClick={close}><X size={22} /></button></div></header>{children}</dialog>
 }
