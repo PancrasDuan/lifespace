@@ -75,3 +75,17 @@
   .calendar-month-heading{margin-top:17px}.calendar-weekdays{font-size:12px}
   .calendar-almanac{padding:18px}.calendar-selected-summary>p:last-child{margin-bottom:15px}
 }
+/* 年份和月份采用与 iTab 同类的四列弹出网格，打开面板不改变日期。 */
+.calendar-controls{position:relative}
+.calendar-picker{display:contents}
+.calendar-controls .calendar-year{display:flex;align-items:center;gap:7px;height:34px;padding:0 9px;border:1px solid var(--line);border-radius:10px;background:rgba(138,164,139,.08);color:var(--quiet)}
+.calendar-controls .calendar-year input{cursor:pointer}
+.calendar-controls .calendar-month-select{display:flex;align-items:center;justify-content:center;height:34px;border:1px solid var(--line);border-radius:10px;background:rgba(138,164,139,.08);color:var(--quiet);gap:7px;padding:0 10px;min-width:76px}
+.calendar-picker-popover{position:absolute;top:42px;left:0;z-index:5;width:300px;max-width:100%;padding:12px;border:1px solid var(--line);border-radius:12px;background:#f9fcf6;box-shadow:0 8px 28px rgba(37,62,40,.16);color:var(--ink)}
+.calendar-picker-header{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:2px 0 12px;font-size:14px}
+.calendar-picker-header button{display:grid;place-items:center;padding:6px;border:0;background:none;color:var(--quiet)}
+.calendar-picker-options{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px 3px;padding:4px 0 8px}
+.calendar-picker-options button{border:0;border-radius:18px;background:none;color:var(--quiet);font-size:12px;padding:10px 2px}
+.calendar-picker-options button:hover{background:#e6efdf;color:var(--accent)}
+.calendar-picker-options button[aria-pressed=true]{background:var(--accent);color:#fff}
+@media(max-width:760px){.calendar-controls .calendar-year{padding:0 6px;gap:4px}.calendar-controls .calendar-month-select{min-width:61px;padding:0 7px;gap:4px}}

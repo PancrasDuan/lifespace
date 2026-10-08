@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { CalendarDays, ChevronLeft, ChevronRight } from 'lucide-react'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { calendarDetail, calendarMonth, calendarYearRange, changeCalendarMonth, solarFromKey, solarKey, type WeekStart } from './calendar'
 import { dateKey } from './time'
+import { CalendarPicker } from './CalendarPicker'
 import './calendar.css'
 
 const weekPreferenceKey = 'lifespace-calendar-week-start'
@@ -22,11 +23,9 @@ export function CalendarDetail({ now, timeZone }: { now: Date; timeZone: string 
   const selected = useMemo(() => solarFromKey(selectedKey), [selectedKey])
   const cells = useMemo(() => calendarMonth(selected, weekStart), [selected, weekStart])
   const detail = useMemo(() => calendarDetail(selected, weekStart, today), [selected, weekStart, today])
-  const [yearDraft, setYearDraft] = useState(String(selected.getYear()))
   const gridRef = useRef<HTMLDivElement>(null)
   const scrollTime = useRef(-Infinity)
   const year = selected.getYear(), month = selected.getMonth()
-  useEffect(() => { setYearDraft(String(year)) }, [year])
   const choose = (key: string) => setSelection(key === todayKey ? null : key)
   const moveMonth = (amount: number) => {
     if ((year === calendarYearRange.min && month === 1 && amount < 0) || (year === calendarYearRange.max && month === 12 && amount > 0)) return
@@ -47,11 +46,6 @@ export function CalendarDetail({ now, timeZone }: { now: Date; timeZone: string 
     grid.addEventListener('wheel', wheel, { passive: false })
     return () => grid.removeEventListener('wheel', wheel)
   })
-  const commitYear = () => {
-    const value = Number(yearDraft)
-    if (Number.isInteger(value) && value >= calendarYearRange.min && value <= calendarYearRange.max) choose(solarKey(changeCalendarMonth(value, 1)))
-    else setYearDraft(String(year))
-  }
   const switchWeek = () => {
     const value = weekStart === 1 ? 0 : 1
     setWeekStart(value)
@@ -61,11 +55,11 @@ export function CalendarDetail({ now, timeZone }: { now: Date; timeZone: string 
   return <div className="calendar-detail-layout">
     <section className="calendar-month-panel" aria-label="月历">
       <div className="calendar-controls">
-        <label className="calendar-year"><CalendarDays size={15} /><input aria-label="年份" type="number" min={calendarYearRange.min} max={calendarYearRange.max} value={yearDraft} onChange={event => setYearDraft(event.target.value)} onBlur={commitYear} onKeyDown={event => { if (event.key === 'Enter') event.currentTarget.blur() }} /></label>
+        <CalendarPicker kind="year" year={year} month={month} select={(nextYear, nextMonth) => choose(solarKey(changeCalendarMonth(nextYear, nextMonth)))} />
         <button aria-label="上个月" onClick={() => moveMonth(-1)} disabled={year === calendarYearRange.min && month === 1}><ChevronLeft size={18} /></button>
-        <label className="calendar-month-select"><CalendarDays size={15} /><select aria-label="月份" value={month} onChange={event => choose(solarKey(changeCalendarMonth(year, Number(event.target.value))))}>{Array.from({ length: 12 }, (_, index) => <option key={index + 1} value={index + 1}>{index + 1} 月</option>)}</select></label>
+        <CalendarPicker kind="month" year={year} month={month} select={(nextYear, nextMonth) => choose(solarKey(changeCalendarMonth(nextYear, nextMonth)))} />
         <button aria-label="下个月" onClick={() => moveMonth(1)} disabled={year === calendarYearRange.max && month === 12}><ChevronRight size={18} /></button>
-        <button className="calendar-today-button" onClick={() => { setSelection(null); setYearDraft(String(today.getYear())) }}>今</button>
+        <button className="calendar-today-button" onClick={() => setSelection(null)}>今</button>
         <button className="calendar-week-switch" role="switch" aria-label="一周从周一开始" aria-checked={weekStart === 1} title={`一周从周${weekStart === 1 ? '一' : '日'}开始`} onClick={switchWeek}><span />{weekStart === 1 ? '一' : '日'}</button>
       </div>
       <h3 className="calendar-month-heading">{year} 年 {month} 月</h3>
