@@ -248,13 +248,13 @@ test('新闻来源接口给出完整清单和默认五源，不读取新闻上�
     'bilibili-hot-search', 'chongbuluo-hot', 'coolapk', 'douban', 'douyin', 'freebuf',
     'github-trending-today', 'hackernews', 'hupu', 'ifeng', 'iqiyi-hot-ranklist', 'juejin',
     'nowcoder', 'producthunt', 'qqvideo-tv-hotsearch', 'sspai', 'steam', 'thepaper', 'tieba',
-    'wallstreetcn-hot', 'weibo', 'xueqiu-hotstock',
+    'wallstreetcn-hot', 'weibo', 'xueqiu-hotstock', 'aihot',
   ])
   expect(body.sources.filter(source => source.defaultEnabled).map(source => [source.id, source.label])).toEqual([
     ['baidu', '百度热搜'], ['cls-hot', '财联社热门'], ['tencent-hot', '腾讯新闻综合早报'],
     ['toutiao', '今日头条'], ['zhihu', '知乎'],
   ])
-  expect(body.sources.map(source => source.order)).toEqual(Array.from({ length: 27 }, (_, index) => index + 1))
+  expect(body.sources.map(source => source.order)).toEqual(Array.from({ length: 28 }, (_, index) => index + 1))
   expect(response.headers.get('Cache-Control')).toBe('no-store')
   expect(fetch).not.toHaveBeenCalled()
 })

@@ -12,6 +12,7 @@ const entries = [
   ['sspai', '少数派'], ['steam', 'Steam 在线人数'], ['thepaper', '澎湃新闻热榜'],
   ['tieba', '百度贴吧热议'], ['wallstreetcn-hot', '华尔街见闻最热'],
   ['weibo', '微博实时热搜'], ['xueqiu-hotstock', '雪球热门股票'],
+  ['aihot', 'AIHOT 热点榜'],
 ] as const
 
 export const newsSources: readonly NewsSource[] = entries.map(([id, label], index) => ({

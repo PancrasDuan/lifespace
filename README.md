@@ -105,15 +105,15 @@ xAI 模块目录独立维护于 `src/shared/xai-modules.json`，2026-10-07 从�
 
 ## 新闻页
 
-侧边导航进入 `/news`，默认展示百度热搜、财联社热门、腾讯新闻综合早报、今日头条和知乎。[来源设置 #9](https://github.com/PancrasDuan/lifespace/issues/9) 默认隐藏，页面与侧栏设置入口可打开全部 27 源的独立开关；即时生效，关闭来源会停止其排队与后续刷新。标题打开来源链接，支持单卡与全部刷新；浏览器最多三个并发，无轮询、焦点刷新或自动重试。
+侧边导航进入 `/news`，默认展示百度热搜、财联社热门、腾讯新闻综合早报、今日头条和知乎。[来源设置 #9](https://github.com/PancrasDuan/lifespace/issues/9) 默认隐藏，页面与侧栏设置入口可打开全部 28 源的独立开关；即时生效，关闭来源会停止其排队与后续刷新。新增 AIHOT 热点榜默认关闭，开启后展示 Top 10，使用官网来源图标。AIHOT 由 Worker 读取官方热点 API，标题优先打开事件详情，缺失时打开 AIHOT 阅读页；已有选择不迁移。标题打开来源链接，支持单卡与全部刷新；浏览器最多三个并发，无轮询、焦点刷新或自动重试。
 
 来源选择独立保存在当前浏览器的 `lifespace.news-sources.v1`，不修改首页城市、时区设置。明确保存的空选择保持为空；缺失或损坏配置恢复默认五源，已移除的来源 ID 忽略。存储拒绝保存时当前页面仍应用选择，并显示“未保存”；设置可用键盘操作，关闭后恢复入口焦点与阅读位置。
 
-- `GET /api/news/sources`：27 个受控来源的名称、默认启用标记和固定顺序。
-- `GET /api/news/source?id=<source_id>`：Worker 用已验证的官方 MCP UA 只读访问 NewsNow，返回规范化榜单及获取、上游报告时间；网页仅访问同源接口。
+- `GET /api/news/sources`：28 个受控来源的名称、默认启用标记和固定顺序。
+- `GET /api/news/source?id=<source_id>`：Worker 只读访问 NewsNow 或 AIHOT 官方热点 API，返回规范化榜单及获取、上游报告时间；网页仅访问同源接口。AIHOT 未提供榜单更新时间，显示“上游未报告时间”。
 - 成功快照内部保留最多 24 小时，前 5 分钟新鲜命中保留原获取时间。超过新鲜期重新读取，失败时若有未满 24 小时的有效快照，返回带警告的“上次成功结果”；不覆盖快照、不续期，保留原时间。没有可用快照时返回稳定错误。缓存是节点本地的，可能被提前清理。
 - `NEWS_READ_LIMITER` 在 `wrangler.jsonc` 配置每节点每分钟 30 次上游尝试；新鲜缓存与元数据免计数。保护不可用时停止读取，公开接口保持 `no-store`。
 
-当前交付范围见 [默认五源新闻页 #7](https://github.com/PancrasDuan/lifespace/issues/7) 与 [Worker 失败回退 #8](https://github.com/PancrasDuan/lifespace/issues/8)，完整规格见 [新闻页规格 #6](https://github.com/PancrasDuan/lifespace/issues/6)。
+当前交付范围见 [默认五源新闻页 #7](https://github.com/PancrasDuan/lifespace/issues/7) 与 [Worker 失败回退 #8](https://github.com/PancrasDuan/lifespace/issues/8)，AIHOT 接入见 [热点榜 #21](https://github.com/PancrasDuan/lifespace/issues/21)，完整规格见 [新闻页规格 #6](https://github.com/PancrasDuan/lifespace/issues/6)。
 
 本期范围与验收标准见 [本期需求](docs/requirements.md)。
