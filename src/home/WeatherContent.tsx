@@ -2,7 +2,7 @@ import type { UseQueryResult } from '@tanstack/react-query'
 import { Cloud, CloudFog, CloudLightning, CloudRain, CloudSun, MapPin, Snowflake, Sun } from 'lucide-react'
 import type { City, WeatherResult } from '../shared/contracts'
 
-function weatherCondition(code: number | null) {
+export function weatherCondition(code: number | null) {
   if (code === 0) return { text: '晴', icon: Sun }
   if (code === 1 || code === 2) return { text: '晴间多云', icon: CloudSun }
   if (code === 3) return { text: '多云', icon: Cloud }
@@ -12,7 +12,7 @@ function weatherCondition(code: number | null) {
   if (code !== null && code >= 51 && code <= 82) return { text: '有雨', icon: CloudRain }
   return { text: '暂无天气状态', icon: CloudSun }
 }
-const temperature = (value: number | null) => value === null ? '—' : String(Math.round(value))
+export const temperature = (value: number | null) => value === null ? '—' : String(Math.round(value))
 
 export function WeatherContent({ query, city }: { query: UseQueryResult<WeatherResult, Error>; city: City | null }) {
   if (!city) return <div className="data-message" role="status">请在设置中选择天气城市</div>
@@ -24,11 +24,4 @@ export function WeatherContent({ query, city }: { query: UseQueryResult<WeatherR
     <div className="rain-note"><CloudRain size={15} /><span>今日降雨概率</span><strong>{data.precipitationProbability === null ? '暂无数据' : `${data.precipitationProbability}%`}</strong></div>
     {query.isError && <p className="inline-error">更新失败 · 正在显示上次结果</p>}
   </div>
-}
-export function WeatherDetail({ query, city }: { query: UseQueryResult<WeatherResult, Error>; city: City | null }) {
-  if (!query.data || !city) return <WeatherContent query={query} city={city} />
-  const data = query.data
-  return <><div className="detail-weather"><span>{city.name} · {data.date}</span><strong>{temperature(data.temperature)}°</strong><p>{weatherCondition(data.weatherCode).text}</p></div>
-    <div className="detail-stats"><div><span>今日最低</span><strong>{temperature(data.temperatureMin)}°</strong></div><div><span>今日最高</span><strong>{temperature(data.temperatureMax)}°</strong></div><div><span>降雨概率</span><strong>{data.precipitationProbability === null ? '—' : `${data.precipitationProbability}%`}</strong></div></div>
-    {query.isError && <p className="inline-error">更新失败 · 正在显示上次结果</p>}<p className="detail-note">Open-Meteo · 城市当地当天</p></>
 }

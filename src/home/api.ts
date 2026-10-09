@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { weatherDetailSchema, airQualitySchema } from '../shared/weather-contracts'
 import { aiStatusResultSchema } from '../shared/ai-status-contracts'
 import { domainsResultSchema, locationsResultSchema, tasksResultSchema, weatherResultSchema, type City } from '../shared/contracts'
 import { newsResultSchema, newsSourcesResultSchema } from '../shared/news-contracts'
@@ -33,5 +34,7 @@ export const api = {
   domains: (signal: AbortSignal) => request('/api/domains', domainsResultSchema, signal),
   todayTasks: (timeZone: string, signal: AbortSignal) => request(`/api/tasks/today?${new URLSearchParams({ timeZone })}`, tasksResultSchema, signal),
   weather: (city: City, signal: AbortSignal) => request(`/api/weather?${new URLSearchParams({ latitude: String(city.latitude), longitude: String(city.longitude), timeZone: city.timeZone })}`, weatherResultSchema.refine(result => result.timeZone === city.timeZone), signal),
+  weatherDetail: (city: City, signal: AbortSignal) => request(`/api/weather/detail?${new URLSearchParams({ latitude: String(city.latitude), longitude: String(city.longitude), timeZone: city.timeZone })}`, weatherDetailSchema.refine(result => result.timeZone === city.timeZone), signal),
+  airQuality: (city: City, signal: AbortSignal) => request(`/api/weather/air-quality?${new URLSearchParams({ latitude: String(city.latitude), longitude: String(city.longitude), timeZone: city.timeZone })}`, airQualitySchema.refine(result => result.timeZone === city.timeZone), signal),
   locations: (query: string, signal: AbortSignal) => request(`/api/weather/locations?${new URLSearchParams({ q: query })}`, locationsResultSchema, signal),
 }
