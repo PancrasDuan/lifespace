@@ -39,7 +39,7 @@ function HourlyForecast({ data }: { data: WeatherDetailResult }) {
     <div className="hourly-rain">{hours.map(hour => <span key={hour.time}><span className="sr-only">{localTime(hour.time, data.timeZone)} 温度 {temperature(hour.temperature)}°，降雨概率 </span><Droplets size={12} aria-hidden="true" />{metric(hour.precipitationProbability, '%')}</span>)}</div>
   </div></div>
 }
-export function WeatherDetail({ query, city, now, chooseCity, cityError }: { query: UseQueryResult<WeatherDetailResult, Error>; city: City; now: Date; chooseCity: (city: City) => void; cityError: string }) {
+export function WeatherDetail({ query, city, now, chooseCity, cityError, location }: { query: UseQueryResult<WeatherDetailResult, Error>; city: City; now: Date; chooseCity: (city: City | null) => void; cityError: string; location: { source: string; pending: boolean; error: string } }) {
   const data = query.data
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
   const air = useQuery({ queryKey: ['air-quality', city.latitude, city.longitude, city.timeZone, dateKey(now, city.timeZone)], queryFn: ({ signal }) => api.airQuality(city, signal), staleTime: 300000 })
@@ -48,7 +48,10 @@ export function WeatherDetail({ query, city, now, chooseCity, cityError }: { que
   const refresh = () => { void query.refetch(); void air.refetch() }
   return <div className="weather-detail">
     <div className="weather-toolbar"><div className="weather-place"><MapPin size={16} /><strong>{city.name}</strong><span>{city.region}</span></div><div className="weather-tools"><WeatherCityPicker choose={chooseCity} /><button className="weather-refresh" aria-label="刷新天气详情" disabled={query.isFetching || air.isFetching} onClick={refresh}><RotateCw size={16} className={query.isFetching || air.isFetching ? 'spinning' : ''} /></button></div></div>
-    <p className="weather-city-note">天气城市独立保存，仅影响首页天气和此详情。</p>
+    <p className="weather-city-note">天气城市独立保存，仅影响首页天气和此详情。{location.source === '自动定位' ? ' · 自动定位' : ''}</p>
+    {location.pending && <p className="weather-location-status" role="status">正在定位，暂时显示北京天气</p>}
+    {location.error && <p className="weather-location-status" role="status">{location.error}；可再次选择“使用当前位置”重试。</p>}
+    <p className="weather-city-note">选择“使用当前位置”会请求浏览器定位；坐标保留两位小数发送给 Open-Meteo，不保存定位坐标。</p>
     {cityError && <p role="alert" className="inline-error">{cityError}</p>}
     {!data ? <div className="weather-empty" role="status">{query.isPending ? '正在获取天气…' : query.error?.message ?? '天气获取失败，请刷新重试'}</div> : <>
       <section className="weather-current" aria-label="当前天气"><div className="weather-now"><strong>{temperature(data.temperature)}<sup>°</sup></strong><div><WeatherIcon code={data.weatherCode} isDay={data.isDay} size={60} /><span>{weatherCondition(data.weatherCode).text}</span></div></div><div className="weather-current-meta"><p>{data.date} · {city.timeZone}</p><p>体感 {metric(data.apparentTemperature, '°')} · 今日 {temperature(data.temperatureMin)}°～{temperature(data.temperatureMax)}°</p><p>天气数据时间 {localTime(data.currentTime, city.timeZone)}</p></div></section>

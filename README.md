@@ -13,7 +13,7 @@ npm ci
 npm run dev
 ```
 
-打开 `http://127.0.0.1:5174/`。首页地区与海外时区在首页设置中配置；天气城市在天气详情中独立选择，两张天气卡片共用该城市，互不影响其他模块。设置保存在当前浏览器；天气默认北京，海外时间默认纽约和伦敦。任务来源尚未配置时显示明确提示，其他卡片正常使用。
+打开 `http://127.0.0.1:5174/`。首页地区与海外时区在首页设置中配置；天气城市在天气详情中独立选择，两张天气卡片共用该城市，互不影响其他模块。设置保存在当前浏览器；天气默认北京；可在天气详情切回自动定位，定位模式独立保存、每次进入页面重新定位，定位坐标不写入存储。海外时间默认纽约和伦敦。任务来源尚未配置时显示明确提示，其他卡片正常使用。
 
 ## 接入任务来源
 
@@ -95,7 +95,7 @@ npm run test:browser
 - `GET /api/weather?latitude=<纬度>&longitude=<经度>&timeZone=<IANA 时区>`：城市当地当天天气。
 - `GET /api/weather/detail?latitude=<纬度>&longitude=<经度>&timeZone=<IANA 时区>`：当前天气、未来 24 小时与七日预报。
 - `GET /api/weather/air-quality?latitude=<纬度>&longitude=<经度>&timeZone=<IANA 时区>`：美制 AQI、PM2.5 与 PM10。
-- 天气详情支持城市搜索、刷新、展开、选择预报日期和移动端横向浏览；空气质量独立加载，失败不阻断天气。预报按天气城市时区显示，缺失指标显示暂无数据。
+- 天气详情支持城市搜索、选择“使用当前位置”、刷新、选择预报日期和移动端横向浏览；空气质量独立加载，失败不阻断天气。预报按天气城市时区显示，缺失指标显示暂无数据。
 - 空气质量来源：[Open-Meteo](https://open-meteo.com/en/docs/air-quality-api) 与 [CAMS](https://atmosphere.copernicus.eu/)，采用美制 AQI，属于模型估计。
 - 天气来源：[Open-Meteo](https://open-meteo.com/)；日期与黄历使用 `tyme4ts` 本地生成。
 

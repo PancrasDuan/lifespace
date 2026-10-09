@@ -14,7 +14,7 @@ export function weatherCondition(code: number | null) {
 }
 export const temperature = (value: number | null) => value === null ? '—' : String(Math.round(value))
 
-export function WeatherContent({ query, city }: { query: UseQueryResult<WeatherResult, Error>; city: City | null }) {
+export function WeatherContent({ query, city, locationStatus }: { locationStatus?: string; query: UseQueryResult<WeatherResult, Error>; city: City | null }) {
   if (!city) return <div className="data-message" role="status">请在设置中选择天气城市</div>
   if (!query.data) return <div className="data-message" role="status">{query.isPending ? '正在获取当天天气…' : query.error?.message ?? '天气获取失败'}</div>
   const data = query.data; const condition = weatherCondition(data.weatherCode); const Icon = condition.icon
@@ -22,6 +22,7 @@ export function WeatherContent({ query, city }: { query: UseQueryResult<WeatherR
     <div className="weather-hero"><strong>{temperature(data.temperature)}<sup>°</sup></strong><div className="weather-symbol"><Icon size={68} strokeWidth={1.3} /></div></div>
     <div className="weather-range"><span>最低 {temperature(data.temperatureMin)}°</span><i /><span>最高 {temperature(data.temperatureMax)}°</span></div>
     <div className="rain-note"><CloudRain size={15} /><span>今日降雨概率</span><strong>{data.precipitationProbability === null ? '暂无数据' : `${data.precipitationProbability}%`}</strong></div>
+    {locationStatus && <p className="weather-location-status" role="status">{locationStatus}</p>}
     {query.isError && <p className="inline-error">更新失败 · 正在显示上次结果</p>}
   </div>
 }
