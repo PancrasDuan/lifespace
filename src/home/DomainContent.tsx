@@ -33,5 +33,5 @@ export function DomainContent({ query, now, localZone }: { query: UseQueryResult
 export function DomainDetail({ query, now, localZone }: { query: UseQueryResult<DomainsResult, Error>; now: Date; localZone: string }) {
   const today = dateKey(now, localZone)
   return <>{query.data?.domains.length ? <><ul className="domain-detail-list">{orderedDomains(query.data.domains).map(domain => <li key={domain.name}><strong>{domain.name}</strong><span>{statuses[domain.status]}</span><p>{expiryText(domain, today)}{domain.expiresOn && <><br />到期日期 · {domain.expiresOn}</>}</p></li>)}</ul>{query.isError && <p className="inline-error">更新失败 · 正在显示上次结果</p>}</> : <DomainContent query={query} now={now} localZone={localZone} />}
-    <p className="detail-note">状态来自 DNSHE；剩余天数按本地当天与来源到期日期计算。</p><DNSHELoginLink /></>
+    <DNSHELoginLink /></>
 }

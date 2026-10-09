@@ -19,7 +19,7 @@ export function WeatherCityPicker({ choose }: { choose: (city: City | null) => v
       else if (event.key === 'Enter' && open && active >= 0 && active < options.length) { event.preventDefault(); select(options[active]) }
       else if (event.key === 'Escape' && open) { event.preventDefault(); event.stopPropagation(); setOpen(false); setActive(-1) }
     }} />
-    {open && <div className="city-results"><div id={`${id}-options`} ref={optionsRef} role="listbox" aria-label="天气城市候选项">{options.map((city, index) => <button type="button" role="option" id={`${id}-${index}`} key={city?.id ?? 'auto'} aria-selected={active === index} aria-label={city ? `选择${city.name} ${city.region}` : '使用当前位置'} onMouseDown={event => event.preventDefault()} onClick={() => select(city)}><strong>{city?.name ?? '使用当前位置'}</strong><span>{city?.region ?? '自动定位，仅用于天气；每次进入页面重新定位'}</span></button>)}</div>
+    {open && <div className="city-results"><div id={`${id}-options`} ref={optionsRef} role="listbox" aria-label="天气城市候选项">{options.map((city, index) => <button type="button" role="option" id={`${id}-${index}`} key={city?.id ?? 'auto'} aria-selected={active === index} aria-label={city ? `选择${city.name} ${city.region}` : '使用当前位置'} onMouseDown={event => event.preventDefault()} onClick={() => select(city)}><strong>{city?.name ?? '使用当前位置'}</strong>{city && <span>{city.region}</span>}</button>)}</div>
       <p role="status">{search.trim().length < 2 ? '输入至少两个字符搜索城市' : query !== search.trim() || locations.isPending ? '正在搜索城市…' : locations.isError ? locations.error.message : !cities.length ? '没有匹配城市，请换个名称搜索' : ''}</p></div>}
   </div>
 }
