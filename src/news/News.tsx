@@ -49,7 +49,6 @@ export function News() {
     {unsaved && <p role="alert" className="news-error">来源选择未保存，仅在当前页面生效。</p>}
     {metadata.isSuccess && !sources.length && <div className="news-page-state"><h2>未启用来源</h2><p>打开来源设置，选择要浏览的榜单。</p><button onClick={() => setSettingsOpen(true)}>打开新闻来源设置</button></div>}
     <section className="news-grid" aria-label="新闻榜单">{sources.map((source, index) => <NewsCard key={source.id} source={source} query={queries[index]} />)}</section>
-    <p className="page-note">榜单有各自的更新节奏，刷新可能读取缓存。</p>
     {settingsOpen && <NewsSourceSettings sources={allSources} enabled={enabled} change={change} unsaved={unsaved} close={() => setSettingsOpen(false)} />}
   </div></AppLayout>
 }
