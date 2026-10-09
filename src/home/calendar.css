@@ -38,7 +38,8 @@
 .calendar-date.outside{opacity:.4}
 .calendar-holiday-badge{position:absolute;top:4px;right:4px;font-size:10px;line-height:15px;padding:0 3px;border-radius:4px;background:#b97868;color:#fff}
 .calendar-holiday-badge.work{background:#788b92}
-.calendar-almanac{padding:22px 20px}
+.calendar-almanac{padding:22px 20px;contain:size;min-height:0;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:none}
+.calendar-almanac::-webkit-scrollbar{display:none}
 .calendar-selected-summary{text-align:center;font-size:14px;line-height:1.8}
 .calendar-selected-summary>p{margin:0 0 12px}
 .calendar-selected-summary>p:last-child{margin:12px 0 20px;color:var(--quiet);font-size:13px;line-height:1.9}
@@ -73,7 +74,7 @@
   .calendar-date{border-radius:8px;padding:15px 0 8px;gap:5px}.calendar-date>strong{font-size:19px}
   .calendar-date>span:not(.calendar-holiday-badge){font-size:9px}.calendar-holiday-badge{font-size:8px;top:2px;right:2px;padding:0 2px;line-height:12px}
   .calendar-month-heading{margin-top:17px}.calendar-weekdays{font-size:12px}
-  .calendar-almanac{padding:18px}.calendar-selected-summary>p:last-child{margin-bottom:15px}
+  .calendar-almanac{padding:18px;contain:none;overflow:visible;overscroll-behavior:auto}.calendar-selected-summary>p:last-child{margin-bottom:15px}
 }
 /* 年份和月份采用与 iTab 同类的四列弹出网格，打开面板不改变日期。 */
 .calendar-controls{position:relative}
