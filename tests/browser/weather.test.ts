@@ -5,7 +5,7 @@ const sampleWeather = { date: '2026-10-06', timeZone: 'Asia/Shanghai', fetchedAt
   daily: Array.from({ length: 7 }, (_, index) => ({ date: `2026-10-${String(index + 6).padStart(2, '0')}`, weatherCode: index % 2 ? 61 : 3, temperatureMin: 19 + index, temperatureMax: 26 + index, precipitationProbability: 65, precipitation: index, sunrise: 1791237600 + index * 86400, sunset: 1791280800 + index * 86400 })) }
 async function fixture(page: Page) {
   await page.clock.install({ time: new Date('2026-10-06T02:00:00Z') })
-  await page.addInitScript(() => { Object.defineProperty(navigator, 'geolocation', { value: undefined }) })
+  await page.addInitScript(() => { Object.defineProperty(navigator, 'geolocation', { value: undefined, configurable: true }) })
   await page.route('**/api/**', route => route.fulfill({ status: 503, json: { error: { code: 'SOURCE_UNAVAILABLE', message: '来源不可用' } } }))
   await page.route('**/api/weather/detail?**', route => route.fulfill({ json: { ...sampleWeather, temperature: new URL(route.request().url()).searchParams.get('latitude') === '31.23' ? 28 : 23 } }))
   await page.route('**/api/weather/locations?**', route => route.fulfill({ json: { locations: [shanghai] } }))
@@ -31,7 +31,7 @@ test('天气详情切城同步一级卡片并持久化，不修改首页地区',
 })
 
 
-test('详情预报选择、展开与刷新失败保留一致快照，AQI 失败不影响天气', async ({ page }) => {
+test('详情预报选择与刷新失败保留一致快照，AQI 失败不影响天气', async ({ page }) => {
   await fixture(page); await page.goto('/')
   const card = page.getByRole('button', { name: '查看今日天气详情' })
   await card.click(); const dialog = page.getByRole('dialog')
@@ -40,9 +40,7 @@ test('详情预报选择、展开与刷新失败保留一致快照，AQI 失败�
   await dialog.getByRole('button', { name: '查看2026-10-07预报' }).click()
   await expect(dialog.locator('.selected-forecast')).toContainText('降水总量 1 mm')
   await expect(dialog).toContainText('空气质量暂时不可用')
-  await dialog.getByRole('button', { name: '展开天气窗口' }).click()
-  await expect(dialog).toHaveClass(/expanded/)
-  await dialog.getByRole('button', { name: '恢复天气窗口' }).click()
+  await expect(dialog.getByRole('button', { name: '展开天气窗口' })).toHaveCount(0)
   await page.route('**/api/weather/detail?**', route => route.fulfill({ status: 502, json: { error: { code: 'SOURCE_UNAVAILABLE', message: '天气暂不可用' } } }))
   await dialog.getByRole('button', { name: '刷新天气详情' }).click()
   await expect(dialog).toContainText('更新失败 · 正在显示上次结果')
@@ -82,4 +80,71 @@ test('天气城市保存失败不切城，搜索 Esc 先关闭候选再关闭详
   await expect(page.getByRole('dialog')).toContainText('浏览器未允许保存天气城市')
   await expect(page.locator('.weather-place')).toContainText('北京')
   await page.keyboard.press('Escape'); await expect(page.getByRole('dialog')).toHaveCount(0)
+})
+
+async function locationFixture(page: Page) {
+  await fixture(page)
+  await page.addInitScript(city => {
+    localStorage.setItem('lifespace.settings.v2', JSON.stringify({ mode: 'manual', city: { ...city, name: '首页地区' }, overseas: [] }))
+    if (!localStorage.getItem('lifespace.weather-settings.v1')) localStorage.setItem('lifespace.weather-city.v1', JSON.stringify(city))
+    Object.defineProperty(navigator, 'geolocation', { configurable: true, value: { getCurrentPosition: (success: PositionCallback, error: PositionErrorCallback) => {
+      const w = window as unknown as { weatherPositions: { success: PositionCallback; error: PositionErrorCallback }[] }
+      ;(w.weatherPositions ??= []).push({ success, error })
+    } } })
+  }, shanghai)
+  await page.route('**/api/weather/detail?**', route => route.fulfill({ json: { ...sampleWeather, timeZone: new URL(route.request().url()).searchParams.get('timeZone') } }))
+}
+async function weatherPosition(page: Page, attempt = 0) {
+  await page.evaluate(attempt => {
+    const w = window as unknown as { weatherPositions: { success: PositionCallback }[] }
+    w.weatherPositions[attempt].success({ coords: { latitude: 35.68123, longitude: 139.76999 } } as GeolocationPosition)
+  }, attempt)
+}
+test('手动天气城市可切回当前位置，定位独立保存且刷新重新定位', async ({ page }) => {
+  await locationFixture(page); await page.goto('/')
+  const card = page.getByRole('button', { name: '查看今日天气详情' })
+  await expect(card).toContainText('上海'); await card.click()
+  const input = page.getByRole('combobox', { name: '天气城市' })
+  await input.click()
+  await expect(page.getByRole('option', { name: '使用当前位置', exact: true })).toBeVisible()
+  await input.press('ArrowDown'); await input.press('Enter')
+  await weatherPosition(page)
+  await expect(page.locator('.weather-place')).toContainText('当前位置')
+  await expect(page.getByRole('dialog')).toContainText('Asia/Tokyo')
+  await page.keyboard.press('Escape'); await expect(card).toContainText('当前位置')
+  await expect(page.getByRole('button', { name: '查看世界时间详情' })).toContainText('首页地区')
+  const stored = await page.evaluate(() => JSON.stringify({ ...localStorage }))
+  expect(stored).not.toContain('35.68'); expect(stored).not.toContain('139.77')
+  await page.reload(); await weatherPosition(page)
+  await expect(card).toContainText('当前位置')
+  await card.click(); await expect(page.getByRole('button', { name: '展开天气窗口' })).toHaveCount(0)
+})
+
+test('天气定位拒绝后可重新定位，手动切换使迟到定位失效', async ({ page }) => {
+  await locationFixture(page); await page.goto('/'); await page.getByRole('button', { name: '查看今日天气详情' }).click()
+  const input = page.getByRole('combobox', { name: '天气城市' })
+  await input.click(); await page.getByRole('option', { name: '使用当前位置', exact: true }).click()
+  await page.evaluate(() => (window as unknown as { weatherPositions: { error: PositionErrorCallback }[] }).weatherPositions[0].error({ code: 1 } as GeolocationPositionError))
+  await expect(page.getByRole('dialog')).toContainText('定位授权被拒绝，已使用北京')
+  await input.click(); await page.getByRole('option', { name: '使用当前位置', exact: true }).click()
+  await weatherPosition(page, 1)
+  await expect(page.locator('.weather-place')).toContainText('当前位置')
+  await input.click(); await page.getByRole('option', { name: '使用当前位置', exact: true }).click()
+  await input.fill('上海'); await page.clock.runFor(400)
+  await page.getByRole('option', { name: '选择上海 上海市 · 中国' }).click()
+  await weatherPosition(page, 2)
+  await expect(page.locator('.weather-place')).toContainText('上海')
+  await expect(page.getByRole('button', { name: '查看世界时间详情' })).toContainText('首页地区')
+})
+
+test('天气定位八秒超时后迟到成功不会替换回退城市', async ({ page }) => {
+  await locationFixture(page); await page.goto('/'); await page.getByRole('button', { name: '查看今日天气详情' }).click()
+  await page.getByRole('combobox', { name: '天气城市' }).click()
+  await page.getByRole('option', { name: '使用当前位置', exact: true }).click()
+  await page.clock.runFor(8000)
+  await expect(page.getByRole('dialog')).toContainText('定位超时，已使用北京')
+  await weatherPosition(page)
+  await expect(page.locator('.weather-place')).toContainText('北京')
+  await page.keyboard.press('Escape')
+  await expect(page.getByRole('button', { name: '查看今日天气详情' })).toContainText('定位超时，已使用北京')
 })
