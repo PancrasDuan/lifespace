@@ -27,7 +27,7 @@ export function SettingsDialog({ settings, location, save, close }: { settings: 
     setRequestLocation(!city)
     setSearch(''); setExpanded(false); setActive(-1); setError('')
   }
-  return <Modal title="首页设置" close={close}><div className="settings-content"><p>设置保存在当前浏览器。</p>
+  return <Modal title="首页设置" close={close}><div className="settings-content"><p>设置保存在当前浏览器。地区用于时间、日历和今日待办；天气城市在天气详情中单独选择。</p>
     <p role="status">地区来源：{location.source} · {location.city.name}{location.pending ? ' · 正在定位…' : ''}{location.error ? ` · ${location.error}` : ''}</p>
     <label className="field-label" htmlFor="city-search">地区</label>
     <div className="city-picker" onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget)) { setExpanded(false); setActive(-1) } }}>
@@ -41,7 +41,7 @@ export function SettingsDialog({ settings, location, save, close }: { settings: 
       </div>}
     </div>
     <p className="selected-city">已选：{draft.mode === 'manual' && draft.city ? `${draft.city.name} · ${draft.city.region}` : '使用当前位置（自动定位）'}</p>
-    <p className="location-notice">自动定位坐标保留两位小数，经本站发送给 Open-Meteo 获取天气，不保存自动坐标。时区在本地解析，边界附近可手动选择地区。</p>
+    <p className="location-notice">自动定位坐标保留两位小数，用于确定本地时区，不保存自动坐标。时区在本地解析，边界附近可手动选择地区。</p>
     <div className="field-label">海外时间<span>选择你想关注的地区</span></div><div className="zone-options">{zones.map(zone => <label key={zone.id}><input type="checkbox" aria-label={zone.name} checked={draft.overseas.includes(zone.id)} onChange={event => setDraft({ ...draft, overseas: event.target.checked ? [...draft.overseas, zone.id] : draft.overseas.filter(id => id !== zone.id) })} /><span><strong>{zone.name}</strong><small>{zone.id}</small></span></label>)}</div>
     {error && <p role="alert" className="inline-error">{error}</p>}
     <button className="primary-button" onClick={() => { try { save(draft); if (requestLocation && settings.mode === 'auto') location.retry(); close() } catch { setError('浏览器未允许保存设置，请检查存储权限') } }}>保存设置</button>

@@ -10,7 +10,7 @@ async function fixture(page: Page, time = '2026-10-05T15:59:00Z', unsupported = 
     } } })
   }, unsupported)
   await page.route('**/api/**', route => route.fulfill({ status: 503, json: { error: { code: 'SOURCE_UNAVAILABLE', message: '来源不可用' } } }))
-  await page.route('**/api/weather?**', route => {
+  await page.route('**/api/weather/detail?**', route => {
     const zone = new URL(route.request().url()).searchParams.get('timeZone')!
     return route.fulfill({ json: { date: '2026-10-05', timeZone: zone, fetchedAt: '2026-10-05T15:59:00Z', temperature: 23, weatherCode: 3, temperatureMin: 19, temperatureMax: 26, precipitationProbability: 65 } })
   })
@@ -23,7 +23,7 @@ async function locate(page: Page, latitude = 40.7128, longitude = -74.006, attem
 }
 const timeCard = (page: Page) => page.getByRole('button', { name: '查看世界时间详情' })
 
-test('自动定位独立于设备时区，取整坐标并统一核心日期', async ({ page }) => {
+test('自动定位统一核心日期，天气保持独立城市', async ({ page }) => {
   await fixture(page)
   const requests: string[] = []
   page.on('request', request => { if (request.url().includes('/api/')) requests.push(request.url()) })
@@ -34,7 +34,8 @@ test('自动定位独立于设备时区，取整坐标并统一核心日期', as
   await expect(timeCard(page).locator('.local-clock')).toContainText('11:59')
   await expect(page.getByRole('button', { name: '查看日期与黄历详情' })).toContainText('八月廿五')
   await expect.poll(() => requests.some(url => url.includes('timeZone=America%2FNew_York'))).toBe(true)
-  await expect.poll(() => requests.some(url => url.includes('latitude=40.71') && url.includes('longitude=-74.01'))).toBe(true)
+  expect(requests.some(url => url.includes('latitude=40.71') && url.includes('longitude=-74.01'))).toBe(false)
+  await expect(page.getByRole('button', { name: '查看今日天气详情' })).toContainText('北京')
   const stored = await page.evaluate(() => JSON.stringify({ ...localStorage }))
   expect(stored).not.toContain('40.71')
   await page.getByRole('button', { name: '首页设置', exact: true }).click()
@@ -113,11 +114,11 @@ test('旧首页设置只重置一次，新闻设置保留，自动保存不包�
   expect(await page.evaluate(() => localStorage.getItem('lifespace.news-sources.v1'))).toBe('["zhihu"]')
 })
 
-test('有效地区午夜同步更新核心内容，更新时间仍使用设备时区，天气失败不改地区', async ({ page }) => {
+test('有效地区午夜更新日历与任务，天气独立且失败不改地区', async ({ page }) => {
   await fixture(page, '2026-10-06T03:59:00Z')
   let day = '2026-10-05'; let failed = false
   await page.route('**/api/tasks/today?**', route => route.fulfill({ json: { date: day, timeZone: new URL(route.request().url()).searchParams.get('timeZone'), fetchedAt: '2026-10-06T03:59:00Z', tasks: [{ id: '1', title: `当天任务 ${day}`, plannedAt: 1791259140, dueAt: null, area: '学习' }] } }))
-  await page.route('**/api/weather?**', route => route.fulfill(failed ? { status: 502, json: { error: { code: 'SOURCE_UNAVAILABLE', message: '天气来源不可用' } } } : { json: { date: day, timeZone: new URL(route.request().url()).searchParams.get('timeZone'), fetchedAt: '2026-10-06T03:59:00Z', temperature: 23, weatherCode: 3, temperatureMin: 19, temperatureMax: 26, precipitationProbability: 65 } }))
+  await page.route('**/api/weather/detail?**', route => route.fulfill(failed ? { status: 502, json: { error: { code: 'SOURCE_UNAVAILABLE', message: '天气来源不可用' } } } : { json: { date: day, timeZone: new URL(route.request().url()).searchParams.get('timeZone'), fetchedAt: '2026-10-06T03:59:00Z', temperature: 23, weatherCode: 3, temperatureMin: 19, temperatureMax: 26, precipitationProbability: 65 } }))
   await page.goto('/')
   await locate(page)
   await expect(timeCard(page).locator('.local-clock')).toContainText('23:59')
@@ -131,7 +132,7 @@ test('有效地区午夜同步更新核心内容，更新时间仍使用设备�
   await expect(calendar).toContainText('八月廿六')
   await expect(page.getByRole('button', { name: '查看今日待办详情' })).toContainText('当天任务 2026-10-06')
   await page.getByRole('button', { name: '查看今日天气详情' }).click()
-  await expect(page.getByRole('dialog')).toContainText('2026-10-06')
+  await expect(page.getByRole('dialog')).toContainText('2026-10-05')
   await page.keyboard.press('Escape')
   await expect(page.locator('.panel-footer').filter({ hasText: 'Open-Meteo' })).toContainText('11:59')
   failed = true

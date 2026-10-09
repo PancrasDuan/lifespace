@@ -33,5 +33,5 @@ export function Modal({ title, children, close, description, className = '', exp
     if (event.target !== event.currentTarget) return
     const box = event.currentTarget.getBoundingClientRect()
     if (event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom) close()
-  }}><header><div><span className="eyebrow">LifeSpace</span><h2>{title}</h2>{description && <p className="modal-description" id={descriptionId}>{description}</p>}</div><div className="modal-actions">{expandable && <button aria-label={expanded ? '恢复日历窗口' : '展开日历窗口'} onClick={() => setExpanded(value => !value)}>{expanded ? <Minimize2 size={20} /> : <Maximize2 size={20} />}</button>}<button aria-label="关闭详情" onClick={close}><X size={22} /></button></div></header>{children}</dialog>
+  }}><header><div><span className="eyebrow">LifeSpace</span><h2>{title}</h2>{description && <p className="modal-description" id={descriptionId}>{description}</p>}</div><div className="modal-actions">{expandable && <button aria-label={expanded ? `恢复${title}窗口` : `展开${title}窗口`} onClick={() => setExpanded(value => !value)}>{expanded ? <Minimize2 size={20} /> : <Maximize2 size={20} />}</button>}<button aria-label="关闭详情" onClick={close}><X size={22} /></button></div></header>{children}</dialog>
 }

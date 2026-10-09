@@ -1,6 +1,6 @@
 # LifeSpace
 
-个人每日首页：Google 搜索、本地与海外时间、Open-Meteo 当天天气、Supabase 今日待办、本地黄历、DNSHE 域名信息及 AI 服务状态。采用已确认的浅色布局，卡片与详情均为只读。
+个人每日首页：Google 搜索、本地与海外时间、Open-Meteo 天气与预报、Supabase 今日待办、本地黄历、DNSHE 域名信息及 AI 服务状态。采用已确认的浅色布局，卡片与详情均为只读。
 
 线上地址：[LifeSpace](https://lifespace.onepeace.cc.cd/)。
 
@@ -13,7 +13,7 @@ npm ci
 npm run dev
 ```
 
-打开 `http://127.0.0.1:5174/`。城市与海外时区设置保存在当前浏览器；默认上海天气、纽约和伦敦时间。任务来源尚未配置时显示明确提示，其他卡片正常使用。
+打开 `http://127.0.0.1:5174/`。首页地区与海外时区在首页设置中配置；天气城市在天气详情中独立选择，两张天气卡片共用该城市，互不影响其他模块。设置保存在当前浏览器；天气默认北京，海外时间默认纽约和伦敦。任务来源尚未配置时显示明确提示，其他卡片正常使用。
 
 ## 接入任务来源
 
@@ -92,7 +92,11 @@ npm run test:browser
 - `GET /api/domains`：DNSHE 账户内全部域名的展示信息。
 - `GET /api/ai-status`：OpenAI 与 xAI 的整体状态及按提供方归属的当前异常。
 - `GET /api/weather/locations?q=<城市关键词>`：城市搜索。
-- `GET /api/weather?latitude=<纬度>&longitude=<经度>`：城市当地当天天气。
+- `GET /api/weather?latitude=<纬度>&longitude=<经度>&timeZone=<IANA 时区>`：城市当地当天天气。
+- `GET /api/weather/detail?latitude=<纬度>&longitude=<经度>&timeZone=<IANA 时区>`：当前天气、未来 24 小时与七日预报。
+- `GET /api/weather/air-quality?latitude=<纬度>&longitude=<经度>&timeZone=<IANA 时区>`：美制 AQI、PM2.5 与 PM10。
+- 天气详情支持城市搜索、刷新、展开、选择预报日期和移动端横向浏览；空气质量独立加载，失败不阻断天气。预报按天气城市时区显示，缺失指标显示暂无数据。
+- 空气质量来源：[Open-Meteo](https://open-meteo.com/en/docs/air-quality-api) 与 [CAMS](https://atmosphere.copernicus.eu/)，采用美制 AQI，属于模型估计。
 - 天气来源：[Open-Meteo](https://open-meteo.com/)；日期与黄历使用 `tyme4ts` 本地生成。
 
 ## AI 服务状态
