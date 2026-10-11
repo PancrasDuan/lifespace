@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from './authenticated-test'
 
 const domains = [
   { name: 'onepeace.cc.cd', status: 'registered', expiresOn: '2026-10-20', neverExpires: false },
@@ -10,7 +10,7 @@ const result = { fetchedAt: '2026-10-06T00:00:00Z', domains }
 
 test.beforeEach(async ({ page }) => {
   await page.clock.install({ time: new Date('2026-10-06T00:00:00Z') })
-  await page.route('**/api/**', route => route.fulfill({ status: 503, json: { error: { code: 'NOT_CONFIGURED', message: '来源尚未配置' } } }))
+  await page.route(/\/api\/(?!auth\/)/, route => route.fulfill({ status: 503, json: { error: { code: 'NOT_CONFIGURED', message: '来源尚未配置' } } }))
 })
 
 test('登录页独立跳转，摘要显示数量，无提醒且详情完整只读', async ({ page, context }) => {

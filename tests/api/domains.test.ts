@@ -1,5 +1,5 @@
 import { afterEach, expect, test, vi } from 'vitest'
-import app from '../../worker/index'
+import app from './authenticated-app'
 import { domainsResultSchema } from '../../src/shared/contracts'
 
 const env = { DNSHE_API_KEY: 'test-key', DNSHE_API_SECRET: 'test-secret', DNSHE_READ_LIMITER: { limit: async () => ({ success: true }) } }

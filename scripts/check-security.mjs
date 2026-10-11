@@ -13,7 +13,14 @@ const markers = {
   DNSHE_API_KEY: 'cfsd_SECURITY_TEST_KEY_20261006',
   DNSHE_API_SECRET: 'SECURITY_TEST_DNSHE_SECRET_20261006',
   SUPABASE_SECRET_KEY: 'sb_secret_SECURITY_TEST_SUPABASE_20261006',
+  AUTH_ALLOWED_EMAILS: 'security-user@example.com',
+  AUTH_HOOK_SECRET: 'SECURITY_TEST_HOOK_SECRET_20261011',
 }
+const publicBindings = { SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_security-test-only' }
+const authUser = { id: '00000000-0000-4000-8000-000000000001', email: markers.AUTH_ALLOWED_EMAILS, email_confirmed_at: '2026-10-11', is_anonymous: false }
+const encode = value => Buffer.from(JSON.stringify(value)).toString('base64url')
+const userToken = `${encode({ alg: 'HS256' })}.${encode({ sub: authUser.id, session_id: '00000000-0000-4000-8000-000000000002', exp: 4102444800 })}.test-signature`
+const authHeaders = { Authorization: `Bearer ${userToken}` }
 // 父进程同时检查原生构建器直接写入 stdout/stderr 的内容。
 if (process.env.LIFESPACE_SECURITY_CHILD !== '1') {
   const result = spawnSync(process.execPath, [fileURLToPath(import.meta.url)], {
@@ -67,7 +74,7 @@ try {
     await cp(resolve(root, path), resolve(fixture, path), { recursive: true })
   }
   await symlink(resolve(root, 'node_modules'), resolve(fixture, 'node_modules'), 'dir')
-  await writeFile(resolve(fixture, '.dev.vars'), Object.entries(markers).map(([key, value]) => `${key}=${value}`).join('\n'))
+  await writeFile(resolve(fixture, '.dev.vars'), Object.entries({ ...markers, ...publicBindings }).map(([key, value]) => `${key}=${value}`).join('\n'))
   await writeFile(resolve(fixture, '.env.private'), `SECRET=${markers.DNSHE_API_SECRET}`)
   process.chdir(fixture)
   await (await createBuilder({ configFile: resolve(fixture, 'vite.config.ts'), customLogger: logger })).buildApp()
@@ -82,14 +89,20 @@ try {
   checks.push({ name: '前端构建目录与虚构密钥隔离', passed: true, fileCount: publicFiles.length })
   let upstreamCalls = 0
   let newsCalls = 0
+  let authCalls = 0
   runtime = new Miniflare(convertV4MiniflareOptions({ workers: [{
     name: generated.name, modules: true, scriptPath: resolve(fixture, 'dist/lifespace/index.js'),
     compatibilityDate: generated.compatibility_date, compatibilityFlags: generated.compatibility_flags,
-    bindings: { ...generated.vars, ...markers },
+    bindings: { ...generated.vars, ...markers, ...publicBindings },
     ratelimits: Object.fromEntries(generated.ratelimits.map(binding => [binding.name, binding])),
     assets: { directory: publicDir, binding: 'ASSETS', run_worker_first: generated.assets.run_worker_first,
       routerConfig: { has_user_worker: true }, assetConfig: { not_found_handling: 'single-page-application' } },
     outboundService: async request => {
+      if (new URL(request.url).pathname === '/auth/v1/user') {
+        authCalls++
+        assert.equal(request.headers.get('Authorization'), authHeaders.Authorization)
+        return new RuntimeResponse(JSON.stringify(authUser), { headers: { 'Content-Type': 'application/json' } })
+      }
       if (new URL(request.url).origin === 'https://newsnow.busiyi.world') {
         assert.equal(new URL(request.url).pathname, '/api/s')
         assert.equal(new URL(request.url).search, '?id=baidu')
@@ -109,6 +122,9 @@ try {
     },
   }] }))
   const runtimeBindings = await runtime.getBindings()
+  assert.equal(typeof runtimeBindings.SUPABASE_URL, 'string', '隔离运行时缺少认证 URL')
+  assert.equal(runtimeBindings.AUTH_ALLOWED_EMAILS, markers.AUTH_ALLOWED_EMAILS, '隔离白名单绑定缺失')
+  assert.equal(runtimeBindings.SUPABASE_PUBLISHABLE_KEY, publicBindings.SUPABASE_PUBLISHABLE_KEY, '隔离公开 key 绑定缺失')
   assert((await runtimeBindings.DNSHE_READ_LIMITER.limit({ key: 'security-probe' })).success, '运行时读取限流绑定不可用')
   assert((await runtimeBindings.NEWS_READ_LIMITER.limit({ key: 'security-probe' })).success, '新闻读取限流绑定不可用')
   const newsProtection = generated.ratelimits.find(binding => binding.name === 'NEWS_READ_LIMITER')
@@ -116,18 +132,24 @@ try {
   assert.equal(newsProtection.simple.period, 60)
   for (const path of ['/', '/news', '/.dev.vars', '/.env.private', '/dist/lifespace/.dev.vars', '/.git/config', '/__private-cache/domains-v1/test', '/__private-cache/news-v1/baidu']) {
     const response = await runtime.dispatchFetch(`https://lifespace.onepeace.cc.cd${path}`)
+    if (path === '/') {
+      assert(response.headers.get('Content-Security-Policy')?.includes("script-src 'self'"), '生产页面缺少脚本来源限制')
+      assert.equal(response.headers.get('Referrer-Policy'), 'no-referrer')
+    }
     assertClean(await response.text(), '生产静态资源响应')
   }
   for (const path of ['/api/domains', '/api/domains?refresh=1']) {
-    const response = await runtime.dispatchFetch(`https://lifespace.onepeace.cc.cd${path}`)
+    const anonymous = await runtime.dispatchFetch(`https://lifespace.onepeace.cc.cd${path}`)
+    assert.equal(anonymous.status, 401, '未登录用户不得访问已缓存业务数据')
+    const response = await runtime.dispatchFetch(`https://lifespace.onepeace.cc.cd${path}`, { headers: authHeaders })
     const body = await response.text()
-    if (response.status !== 200) throw new Error(`生产域名接口返回 ${response.status}（上游调用 ${upstreamCalls} 次）：${body.slice(0, 1000)}`)
+    if (response.status !== 200) throw new Error(`生产域名接口返回 ${response.status}（认证调用 ${authCalls} 次，上游调用 ${upstreamCalls} 次）：${body.slice(0, 1000)}`)
     assertClean(body, '生产域名接口响应')
   }
   assert.equal(upstreamCalls, 1, '生产运行时未复用边缘缓存')
   let firstNewsTime
   for (const [index, path] of ['/api/news/source?id=baidu', '/api/news/source?id=baidu&refresh=force'].entries()) {
-    const response = await runtime.dispatchFetch('https://lifespace.onepeace.cc.cd' + path)
+    const response = await runtime.dispatchFetch('https://lifespace.onepeace.cc.cd' + path, { headers: authHeaders })
     assert.equal(response.status, 200, '生产新闻接口不可用')
     assert.equal(response.headers.get('Cache-Control'), 'no-store')
     const body = await response.text()
@@ -140,6 +162,7 @@ try {
     else assert.equal(result.fetchedAt, firstNewsTime)
   }
   assert.equal(newsCalls, 1, '生产运行时新闻缓存未命中')
+  assert.equal(authCalls, 4, '业务缓存命中也必须逐次在线验证会话')
   checks.push({ name: '生产运行时公开路径、接口与边缘缓存', passed: true })
   await runtime.dispose(); runtime = undefined
   devServer = await createServer({ configFile: resolve(fixture, 'vite.config.ts'), customLogger: logger,

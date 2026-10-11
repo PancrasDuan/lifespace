@@ -1,5 +1,5 @@
 import { afterEach, expect, test, vi } from 'vitest'
-import app from '../../worker/index'
+import app from './authenticated-app'
 
 afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers() })
 const now = 1791295200 // 2026-10-06 14:00 UTC

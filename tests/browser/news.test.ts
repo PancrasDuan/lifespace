@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test, type Page } from './authenticated-test'
 import { newsSources } from '../../src/shared/news-sources'
 
 const result = (id: string) => ({
@@ -15,7 +15,7 @@ test('前端新鲜期沿用原获取时间，返回页面复用缓存，过期�
   await page.clock.install({ time: new Date('2026-10-06T08:00:00Z') })
   await sourceMetadata(page)
   const requests: string[] = []
-  await page.route('**/api/**', route => route.fulfill({ status: 503, json: { error: { code: 'SOURCE_UNAVAILABLE', message: '来源不可用' } } }))
+  await page.route(/\/api\/(?!auth\/)/, route => route.fulfill({ status: 503, json: { error: { code: 'SOURCE_UNAVAILABLE', message: '来源不可用' } } }))
   await sourceMetadata(page)
   await page.route('**/api/news/source?**', route => {
     const id = new URL(route.request().url()).searchParams.get('id')!
@@ -41,7 +41,7 @@ test('新闻取数最多三个并发，离开页面取消未开始的来源', as
   const requests: string[] = []
   let release!: () => void
   const held = new Promise<void>(resolve => { release = resolve })
-  await page.route('**/api/**', route => route.fulfill({ status: 503, json: { error: { code: 'SOURCE_UNAVAILABLE', message: '来源不可用' } } }))
+  await page.route(/\/api\/(?!auth\/)/, route => route.fulfill({ status: 503, json: { error: { code: 'SOURCE_UNAVAILABLE', message: '来源不可用' } } }))
   await page.route('**/api/news/sources', route => route.fulfill({ json: { sources: newsSources } }))
   await page.route('**/api/news/source?**', async route => {
     const id = new URL(route.request().url()).searchParams.get('id')!
@@ -60,7 +60,7 @@ test('新闻取数最多三个并发，离开页面取消未开始的来源', as
 })
 
 test('新闻导航支持站内切换、直接访问、刷新和前进后退，首页保持可用', async ({ page }) => {
-  await page.route('**/api/**', route => route.fulfill({ status: 503, json: { error: { code: 'SOURCE_UNAVAILABLE', message: '示例来源暂不可用' } } }))
+  await page.route(/\/api\/(?!auth\/)/, route => route.fulfill({ status: 503, json: { error: { code: 'SOURCE_UNAVAILABLE', message: '示例来源暂不可用' } } }))
   await page.goto('/')
   await page.getByRole('link', { name: '新闻', exact: true }).click()
   await expect(page).toHaveURL(/\/news$/)
@@ -177,7 +177,7 @@ test('新开新闻页收到回退结果时提示旧榜单与原时间，刷新�
 
 test('回退标记不受客户端时钟影响，返回新闻页立即重新检查', async ({ page }) => {
   await page.clock.install({ time: new Date('2026-10-06T08:00:00Z') })
-  await page.route('**/api/**', route => route.fulfill({ status: 503, json: { error: { code: 'SOURCE_UNAVAILABLE', message: '来源不可用' } } }))
+  await page.route(/\/api\/(?!auth\/)/, route => route.fulfill({ status: 503, json: { error: { code: 'SOURCE_UNAVAILABLE', message: '来源不可用' } } }))
   await sourceMetadata(page)
   let reads = 0
   await page.route('**/api/news/source?**', route => {

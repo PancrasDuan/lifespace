@@ -1,6 +1,6 @@
 import { afterEach, expect, test, vi } from 'vitest'
 import { readFileSync } from 'node:fs'
-import app from '../../worker/index'
+import app from './authenticated-app'
 import { aiStatusResultSchema } from '../../src/shared/ai-status-contracts'
 import officialPageSummary from '../fixtures/ai-status/openai-page-summary.json'
 

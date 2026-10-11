@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test, type Page } from './authenticated-test'
 const shanghai = { id: 'shanghai', name: '上海', region: '上海市 · 中国', latitude: 31.23, longitude: 121.47, timeZone: 'Asia/Shanghai' }
 const sampleWeather = { date: '2026-10-06', timeZone: 'Asia/Shanghai', fetchedAt: '2026-10-06T02:00:00Z', currentTime: 1791252000, temperature: 23, weatherCode: 3, temperatureMin: 19, temperatureMax: 26, precipitationProbability: 65, isDay: 1, apparentTemperature: 24, humidity: 70, pressure: 1014, precipitation: 0, windSpeed: 2, windDirection: 90,
   hourly: Array.from({ length: 24 }, (_, index) => ({ time: 1791252000 + index * 3600, temperature: index === 4 ? null : 19 + index % 8, weatherCode: 2, precipitationProbability: 10, isDay: index < 8 ? 1 : 0 })),
@@ -6,7 +6,7 @@ const sampleWeather = { date: '2026-10-06', timeZone: 'Asia/Shanghai', fetchedAt
 async function fixture(page: Page) {
   await page.clock.install({ time: new Date('2026-10-06T02:00:00Z') })
   await page.addInitScript(() => { Object.defineProperty(navigator, 'geolocation', { value: undefined, configurable: true }) })
-  await page.route('**/api/**', route => route.fulfill({ status: 503, json: { error: { code: 'SOURCE_UNAVAILABLE', message: '来源不可用' } } }))
+  await page.route(/\/api\/(?!auth\/)/, route => route.fulfill({ status: 503, json: { error: { code: 'SOURCE_UNAVAILABLE', message: '来源不可用' } } }))
   await page.route('**/api/weather/detail?**', route => route.fulfill({ json: { ...sampleWeather, temperature: new URL(route.request().url()).searchParams.get('latitude') === '31.23' ? 28 : 23 } }))
   await page.route('**/api/weather/locations?**', route => route.fulfill({ json: { locations: [shanghai] } }))
 }
