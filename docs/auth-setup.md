@@ -1,6 +1,6 @@
 # 认证接入与验收
 
-代码、模拟流程与页面用户验收已通过。邮件采用 Resend，发信域名为 `onepeace.bbroot.com`；SMTP 配置、真实投递与生产接入仍需验收。
+代码、模拟流程与页面用户验收已通过。邮件采用 Resend，发信域名为 `onepeace.bbroot.com`；用户已确认保存 SMTP 与注册 Hook 配置，三个 Worker 认证项已核验为 Secret。真实投递与生产接入仍需验收。
 
 ## 配置
 
@@ -27,6 +27,13 @@
 | Password | Resend API Key |
 
 参数依据 [Resend 官方 Supabase SMTP 接入说明](https://resend.com/docs/send-with-supabase-smtp)。发信域名只用于认证邮件，Site URL 与回跳地址使用上文的 LifeSpace 网站地址。
+
+## 发布顺序
+
+1. 发布前确认 Site URL、两个精确回跳地址、邮箱确认开关、SMTP、注册 Hook 和三个 Worker Secret。尚未部署的 Hook 端点会拒绝注册，不能将 404 视为接入成功。
+2. 用户对 PR #38 明确确认合并后，按项目流程 squash merge，等待 Cloudflare 自动发布，核对部署 SHA 与 Secret 是否实际生效。
+3. 使用用户指定的获准邮箱进行真实注册与恢复验收。真实账户密码由用户在页面输入，验证与恢复链接由用户在发起操作的浏览器打开。
+4. 完成下列生产验收后关闭任务。模拟服务不用于真实密码或收信验收。
 
 ## 验收
 
