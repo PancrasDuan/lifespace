@@ -1,8 +1,8 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from './authenticated-test'
 
 test('正式首页显示独立日期与 UTC 时差，设置刷新后保留', async ({ page }) => {
   await page.clock.install({ time: new Date('2026-10-05T16:10:00Z') })
-  await page.route('**/api/**', route => route.fulfill({ status: 503, json: { error: { code: 'TASKS_NOT_CONFIGURED', message: '任务来源尚未配置' } } }))
+  await page.route(/\/api\/(?!auth\/)/, route => route.fulfill({ status: 503, json: { error: { code: 'TASKS_NOT_CONFIGURED', message: '任务来源尚未配置' } } }))
   await page.goto('/')
   await expect(page.getByRole('heading', { name: 'LifeSpace', exact: true })).toBeVisible()
   await expect(page.getByText('原型 · 示例数据')).toHaveCount(0)
@@ -25,7 +25,7 @@ test('正式首页显示独立日期与 UTC 时差，设置刷新后保留', asy
 })
 
 test('Google 搜索支持 Enter 和按钮，空关键词保持当前页面', async ({ page, context }) => {
-  await page.route('**/api/**', route => route.fulfill({ status: 503, json: { error: { code: 'TASKS_NOT_CONFIGURED', message: '任务来源尚未配置' } } }))
+  await page.route(/\/api\/(?!auth\/)/, route => route.fulfill({ status: 503, json: { error: { code: 'TASKS_NOT_CONFIGURED', message: '任务来源尚未配置' } } }))
   await context.route('https://www.google.com/search?**', route => route.fulfill({ body: '搜索结果' }))
   await page.goto('/')
   await page.getByRole('button', { name: '搜索', exact: true }).click()
@@ -43,7 +43,7 @@ test('Google 搜索支持 Enter 和按钮，空关键词保持当前页面', asy
 })
 
 test('电脑和手机布局无横向溢出，导航占位保持禁用', async ({ page }) => {
-  await page.route('**/api/**', route => route.fulfill({ status: 503, json: { error: { code: 'TASKS_NOT_CONFIGURED', message: '任务来源尚未配置' } } }))
+  await page.route(/\/api\/(?!auth\/)/, route => route.fulfill({ status: 503, json: { error: { code: 'TASKS_NOT_CONFIGURED', message: '任务来源尚未配置' } } }))
   for (const width of [1440, 390]) {
     await page.setViewportSize({ width, height: 954 })
     await page.goto('/')
@@ -59,7 +59,7 @@ test('电脑和手机布局无横向溢出，导航占位保持禁用', async ({
 
 test('黄历摘要和已打开详情在本地午夜切换到同一天', async ({ page }) => {
   await page.clock.install({ time: new Date('2026-10-05T15:59:00Z') })
-  await page.route('**/api/**', route => route.fulfill({ status: 503, json: { error: { code: 'TASKS_NOT_CONFIGURED', message: '任务来源尚未配置' } } }))
+  await page.route(/\/api\/(?!auth\/)/, route => route.fulfill({ status: 503, json: { error: { code: 'TASKS_NOT_CONFIGURED', message: '任务来源尚未配置' } } }))
   await page.goto('/')
   const calendar = page.getByRole('button', { name: '查看日期与黄历详情' })
   await expect(calendar).toContainText('八月廿五')
@@ -73,7 +73,7 @@ test('黄历摘要和已打开详情在本地午夜切换到同一天', async ({
 
 test('手机显示较长城市名称时，地点与 UTC 时差仍为单行', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 })
-  await page.route('**/api/**', route => route.fulfill({ status: 503, json: { error: { code: 'TASKS_NOT_CONFIGURED', message: '任务来源尚未配置' } } }))
+  await page.route(/\/api\/(?!auth\/)/, route => route.fulfill({ status: 503, json: { error: { code: 'TASKS_NOT_CONFIGURED', message: '任务来源尚未配置' } } }))
   await page.goto('/')
   await page.getByRole('button', { name: '打开设置' }).click()
   await page.getByLabel('纽约', { exact: true }).uncheck()
@@ -88,7 +88,7 @@ test('手机显示较长城市名称时，地点与 UTC 时差仍为单行', asy
 
 test('纽约夏令时开始后，UTC 时差和当地时钟同步前进一小时', async ({ page }) => {
   await page.clock.install({ time: new Date('2026-03-08T06:59:00Z') })
-  await page.route('**/api/**', route => route.fulfill({ status: 503, json: { error: { code: 'TASKS_NOT_CONFIGURED', message: '任务来源尚未配置' } } }))
+  await page.route(/\/api\/(?!auth\/)/, route => route.fulfill({ status: 503, json: { error: { code: 'TASKS_NOT_CONFIGURED', message: '任务来源尚未配置' } } }))
   await page.goto('/')
   const card = page.getByRole('button', { name: '查看世界时间详情' })
   await expect(card).toContainText('01:59')

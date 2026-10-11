@@ -1,5 +1,5 @@
 import { afterEach, expect, test, vi } from 'vitest'
-import app from '../../worker/index'
+import app from './authenticated-app'
 import { tasksResultSchema } from '../../src/shared/contracts'
 
 afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers() })

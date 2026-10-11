@@ -17,6 +17,6 @@
     {"name": "DNSHE_READ_LIMITER", "namespace_id": "20261006", "simple": {"limit": 1, "period": 60}},
     {"name": "NEWS_READ_LIMITER", "namespace_id": "20261007", "simple": {"limit": 30, "period": 60}}
   ],
-  "secrets": {"required": ["SUPABASE_SECRET_KEY", "DNSHE_API_KEY", "DNSHE_API_SECRET"]},
+  "secrets": {"required": ["SUPABASE_SECRET_KEY", "DNSHE_API_KEY", "DNSHE_API_SECRET", "SUPABASE_PUBLISHABLE_KEY", "AUTH_ALLOWED_EMAILS", "AUTH_HOOK_SECRET"]},
   "observability": {"enabled": true, "head_sampling_rate": 1}
 }

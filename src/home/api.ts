@@ -3,6 +3,7 @@ import { weatherDetailSchema, airQualitySchema } from '../shared/weather-contrac
 import { aiStatusResultSchema } from '../shared/ai-status-contracts'
 import { domainsResultSchema, locationsResultSchema, tasksResultSchema, weatherResultSchema, type City } from '../shared/contracts'
 import { newsResultSchema, newsSourcesResultSchema } from '../shared/news-contracts'
+import { authorizedFetch } from '../auth/request'
 
 export class ClientError extends Error {
   constructor(readonly code: string, message: string) { super(message) }
@@ -11,7 +12,7 @@ const failureSchema = z.object({ error: z.object({ code: z.string(), message: z.
 
 async function request<T>(path: string, schema: z.ZodType<T>, signal: AbortSignal): Promise<T> {
   let response: Response
-  try { response = await fetch(path, { signal: AbortSignal.any([signal, AbortSignal.timeout(15000)]) }) }
+  try { response = await authorizedFetch(path, AbortSignal.any([signal, AbortSignal.timeout(15000)])) }
   catch (error) {
     if (signal.aborted) throw error
     throw new ClientError('NETWORK_UNAVAILABLE', '连接失败或请求超时，请刷新重试')

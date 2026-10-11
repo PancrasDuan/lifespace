@@ -7,9 +7,24 @@ import { readDomainCard } from './domain-card'
 import { newsSources } from '../src/shared/news-sources'
 import { readNews } from './news'
 import { readAiStatus } from './ai-status'
+import { publicConfig, registrationHook, verifyIdentity, type AuthEnv, type Identity } from './auth'
 
-const app = new Hono<{ Bindings: Partial<CloudflareEnv> }>()
+const app = new Hono<{ Bindings: AuthEnv; Variables: { identity: Identity } }>()
 app.use('/api/*', async (c, next) => { c.header('Cache-Control', 'no-store'); await next() })
+app.get('/api/auth/config', c => c.json(publicConfig(c.env)))
+app.post('/api/auth/hooks/before-user-created', async c => {
+  try {
+    const result = await registrationHook(c.env, c.req.raw)
+    return c.json(result.body, result.status)
+  } catch {
+    return c.json({ error: { http_code: 503, message: '注册服务暂时不可用' } }, 503)
+  }
+})
+app.use('/api/*', async (c, next) => {
+  c.set('identity', await verifyIdentity(c.env, c.req.header('Authorization')))
+  await next()
+})
+app.get('/api/auth/me', c => c.json({ user: c.get('identity') }))
 app.get('/api/tasks/today', async c => c.json(await readTasks(c.env, c.req.query('timeZone'))))
 app.get('/api/domains', async c => c.json(await readDomainCard(c.env)))
 app.get('/api/ai-status', async c => c.json(await readAiStatus()))

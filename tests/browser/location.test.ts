@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test, type Page } from './authenticated-test'
 
 async function fixture(page: Page, time = '2026-10-05T15:59:00Z', unsupported = false) {
   await page.clock.install({ time: new Date(time) })
@@ -9,7 +9,7 @@ async function fixture(page: Page, time = '2026-10-05T15:59:00Z', unsupported = 
       ;(w.positions ??= []).push({ success, error })
     } } })
   }, unsupported)
-  await page.route('**/api/**', route => route.fulfill({ status: 503, json: { error: { code: 'SOURCE_UNAVAILABLE', message: '来源不可用' } } }))
+  await page.route(/\/api\/(?!auth\/)/, route => route.fulfill({ status: 503, json: { error: { code: 'SOURCE_UNAVAILABLE', message: '来源不可用' } } }))
   await page.route('**/api/weather/detail?**', route => {
     const zone = new URL(route.request().url()).searchParams.get('timeZone')!
     return route.fulfill({ json: { date: '2026-10-05', timeZone: zone, fetchedAt: '2026-10-05T15:59:00Z', temperature: 23, weatherCode: 3, temperatureMin: 19, temperatureMax: 26, precipitationProbability: 65 } })
@@ -173,7 +173,13 @@ for (const broken of ['denied', 'corrupt'] as const) {
   test(`首页存储不可用仍可定位：${broken}`, async ({ page }) => {
     await fixture(page)
     await page.addInitScript(broken => {
-      if (broken === 'denied') { Storage.prototype.getItem = () => { throw new DOMException('blocked', 'SecurityError') } }
+      if (broken === 'denied') {
+        const getItem = Storage.prototype.getItem
+        Storage.prototype.getItem = function (key) {
+          if (key === 'lifespace.settings.v2') throw new DOMException('blocked', 'SecurityError')
+          return getItem.call(this, key)
+        }
+      }
       else localStorage.setItem('lifespace.settings.v2', '{invalid')
     }, broken)
     await page.goto('/')

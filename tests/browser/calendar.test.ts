@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test, type Page } from './authenticated-test'
 
 async function selectMonth(page: Page, month: number) {
   await page.getByRole('combobox', { name: '月份', exact: true }).click()
@@ -7,7 +7,7 @@ async function selectMonth(page: Page, month: number) {
 
 test.beforeEach(async ({ page }) => {
   await page.clock.install({ time: new Date('2026-10-09T04:00:00Z') })
-  await page.route('**/api/**', route => route.fulfill({ status: 503, json: { error: { code: 'NOT_CONFIGURED', message: '未配置' } } }))
+  await page.route(/\/api\/(?!auth\/)/, route => route.fulfill({ status: 503, json: { error: { code: 'NOT_CONFIGURED', message: '未配置' } } }))
   await page.goto('/')
   await page.getByRole('button', { name: '查看日期与黄历详情' }).click()
 })

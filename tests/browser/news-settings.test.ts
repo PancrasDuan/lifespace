@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test, type Page } from './authenticated-test'
 import { newsSources } from '../../src/shared/news-sources'
 
 const result = (id: string) => ({
@@ -9,7 +9,7 @@ const result = (id: string) => ({
 
 async function fixture(page: Page) {
   await page.clock.install({ time: new Date('2026-10-06T08:00:00Z') })
-  await page.route('**/api/**', route => route.fulfill({ status: 503, json: { error: { code: 'SOURCE_UNAVAILABLE', message: '来源不可用' } } }))
+  await page.route(/\/api\/(?!auth\/)/, route => route.fulfill({ status: 503, json: { error: { code: 'SOURCE_UNAVAILABLE', message: '来源不可用' } } }))
   await page.route('**/api/news/sources', route => route.fulfill({ json: { sources: newsSources } }))
   const reads: string[] = []
   await page.route('**/api/news/source?**', route => {
@@ -91,7 +91,11 @@ test('明确关闭全部来源后显示恢复入口，空选择刷新后仍保�
 test('浏览器拒绝保存时当前选择仍即时生效，并明确提示未保存', async ({ page }) => {
   await fixture(page)
   await page.addInitScript(() => {
-    Storage.prototype.setItem = () => { throw new DOMException('storage denied', 'QuotaExceededError') }
+    const setItem = Storage.prototype.setItem
+    Storage.prototype.setItem = function (key, value) {
+      if (key === 'lifespace.news-sources.v1') throw new DOMException('storage denied', 'QuotaExceededError')
+      setItem.call(this, key, value)
+    }
   })
   await page.goto('/news')
   await page.getByRole('button', { name: '新闻来源设置', exact: true }).click()
@@ -151,7 +155,13 @@ for (const [name, stored, expected] of [
 
 test('浏览器拒绝读取存储时使用默认五源，仍能打开设置应用选择', async ({ page }) => {
   await fixture(page)
-  await page.addInitScript(() => { Storage.prototype.getItem = () => { throw new DOMException('denied', 'SecurityError') } })
+  await page.addInitScript(() => {
+    const getItem = Storage.prototype.getItem
+    Storage.prototype.getItem = function (key) {
+      if (key === 'lifespace.news-sources.v1') throw new DOMException('denied', 'SecurityError')
+      return getItem.call(this, key)
+    }
+  })
   await page.goto('/news')
   await expect(page.getByRole('article').getByRole('heading')).toHaveText(['百度热搜', '财联社热门', '腾讯新闻综合早报', '今日头条', '知乎'])
   await page.getByRole('button', { name: '新闻来源设置', exact: true }).click()

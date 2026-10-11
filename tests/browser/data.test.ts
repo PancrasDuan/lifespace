@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from './authenticated-test'
 
 test.beforeEach(async ({ page }) => {
   await page.route('**/api/ai-status', route => route.fulfill({ status: 503, json: { error: { code: 'SOURCE_UNAVAILABLE', message: '测试中不访问官方状态来源' } } }))

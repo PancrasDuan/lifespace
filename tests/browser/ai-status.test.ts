@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from './authenticated-test'
 
 const checkedAt = '2026-10-07T02:00:00Z'
 const xai = { id: 'xai', name: 'xAI', statusBasis: 'official-events', status: 'normal', statusUrl: 'https://status.x.ai/', checkedAt, description: '无未解决官方事件，按事件规则可用', incidents: [], affectedServices: [], error: null }
@@ -10,7 +10,7 @@ const abnormal = { ...normal, status: 'abnormal', providers: [{ ...normal.provid
 
 test('首页卡片没有说明，详情标题下保留说明并展示两家子状态', async ({ page }) => {
   const groups = ['APIs', 'ChatGPT', 'Codex', 'FedRAMP', 'Ads Platform'].map(name => ({ id: name, name, status: name === 'ChatGPT' ? 'abnormal' : 'normal', statusLabel: name === 'ChatGPT' ? '存在异常' : '可用', components: [] }))
-  await page.route('**/api/**', route => route.fulfill({ status: 503, json: { error: { code: 'NOT_CONFIGURED', message: '未配置' } } }))
+  await page.route(/\/api\/(?!auth\/)/, route => route.fulfill({ status: 503, json: { error: { code: 'NOT_CONFIGURED', message: '未配置' } } }))
   await page.route('**/api/ai-status', route => route.fulfill({ json: { ...normal, providers: [{ ...normal.providers[0], subStatuses: groups }, { ...xai, subStatuses: [{ id: 'Grok', name: 'Grok', status: 'abnormal', statusLabel: '异常', components: [{ id: 'grok-com', name: 'grok.com', status: 'normal', statusLabel: '可用' }, { id: 'voice', name: 'Voice', status: 'abnormal', statusLabel: '异常' }] }] }] } }))
   await page.goto('/')
   await expect(page.locator('.panel-ai > .panel-description')).toHaveCount(0)
@@ -28,7 +28,7 @@ test('首页卡片没有说明，详情标题下保留说明并展示两家子�
 })
 
 test('xAI 子模块按事件显示异常和可用，注明规则，不出现旧组件快照缺失提示', async ({ page }) => {
-  await page.route('**/api/**', route => route.fulfill({ status: 503, json: { error: { code: 'NOT_CONFIGURED', message: '未配置' } } }))
+  await page.route(/\/api\/(?!auth\/)/, route => route.fulfill({ status: 503, json: { error: { code: 'NOT_CONFIGURED', message: '未配置' } } }))
   await page.route('**/api/ai-status', route => route.fulfill({ json: { ...normal, status: 'abnormal', providers: [normal.providers[0], { ...xai, status: 'abnormal', description: '存在未解决官方事件，涉及的子模块标为异常', subStatuses: [{ id: 'grok', name: 'Grok', status: 'abnormal', statusLabel: '异常', components: [{ id: 'grok-com', name: 'grok.com', status: 'abnormal', statusLabel: '异常' }, { id: 'voice', name: 'Voice', status: 'normal', statusLabel: '可用' }] }] }] } }))
   await page.goto('/')
   await page.getByRole('button', { name: '查看AI 服务状态详情' }).click()
@@ -45,7 +45,7 @@ test('xAI 子模块按事件显示异常和可用，注明规则，不出现旧�
 
 test('请求失败后隐藏旧子状态的可用标记，明确当前官网子状态未知', async ({ page }) => {
   const data = { ...normal, providers: [{ ...normal.providers[0], subStatuses: ['APIs', 'ChatGPT', 'Codex', 'FedRAMP', 'Ads Platform'].map(name => ({ id: name, name, status: 'normal', statusLabel: '可用', components: [] })) }, xai] }
-  await page.route('**/api/**', route => route.fulfill({ status: 503, json: { error: { code: 'NOT_CONFIGURED', message: '未配置' } } }))
+  await page.route(/\/api\/(?!auth\/)/, route => route.fulfill({ status: 503, json: { error: { code: 'NOT_CONFIGURED', message: '未配置' } } }))
   let failed = false
   await page.route('**/api/ai-status', route => route.fulfill(failed ? { status: 502, json: { error: { code: 'FAILED', message: '获取失败' } } } : { json: data }))
   await page.goto('/')
@@ -64,7 +64,7 @@ test('请求失败后隐藏旧子状态的可用标记，明确当前官网子�
 })
 
 test('全部异常及受影响服务在卡片和详情展示，旧异常不能冒充当前状态', async ({ page }) => {
-  await page.route('**/api/**', route => route.fulfill({ status: 503, json: { error: { code: 'NOT_CONFIGURED', message: '未配置' } } }))
+  await page.route(/\/api\/(?!auth\/)/, route => route.fulfill({ status: 503, json: { error: { code: 'NOT_CONFIGURED', message: '未配置' } } }))
   let failed = false
   await page.route('**/api/ai-status', route => route.fulfill(failed ? { status: 502, json: { error: { code: 'FAILED', message: '连接失败' } } } : { json: abnormal }))
   await page.goto('/')
@@ -85,7 +85,7 @@ test('全部异常及受影响服务在卡片和详情展示，旧异常不能�
 })
 
 test('后台页面恢复可见时立即刷新官方状态', async ({ page }) => {
-  await page.route('**/api/**', route => route.fulfill({ status: 503, json: { error: { code: 'NOT_CONFIGURED', message: '未配置' } } }))
+  await page.route(/\/api\/(?!auth\/)/, route => route.fulfill({ status: 503, json: { error: { code: 'NOT_CONFIGURED', message: '未配置' } } }))
   let requests = 0
   await page.route('**/api/ai-status', route => { requests++; return route.fulfill({ json: normal }) })
   await page.goto('/')
@@ -98,7 +98,7 @@ test('后台页面恢复可见时立即刷新官方状态', async ({ page }) => 
 
 test('AI 状态打开、手动、返回主页与每小时刷新，未到一小时不轮询', async ({ page }) => {
   await page.clock.install({ time: new Date(checkedAt) })
-  await page.route('**/api/**', route => route.fulfill({ status: 503, json: { error: { code: 'NOT_CONFIGURED', message: '未配置' } } }))
+  await page.route(/\/api\/(?!auth\/)/, route => route.fulfill({ status: 503, json: { error: { code: 'NOT_CONFIGURED', message: '未配置' } } }))
   let requests = 0
   await page.route('**/api/ai-status', route => { requests++; return route.fulfill({ json: normal }) })
   await page.goto('/')
@@ -116,7 +116,7 @@ test('AI 状态打开、手动、返回主页与每小时刷新，未到一小�
 })
 
 test('单家刷新失败保留上次结果并标明当前状态未知', async ({ page }) => {
-  await page.route('**/api/**', route => route.fulfill({ status: 503, json: { error: { code: 'NOT_CONFIGURED', message: '未配置' } } }))
+  await page.route(/\/api\/(?!auth\/)/, route => route.fulfill({ status: 503, json: { error: { code: 'NOT_CONFIGURED', message: '未配置' } } }))
   let failed = false
   await page.route('**/api/ai-status', route => route.fulfill({ json: failed ? { ...normal, status: 'unknown', providers: [{ ...normal.providers[0], status: 'unknown', error: '官方状态获取失败' }, xai] } : normal }))
   await page.goto('/')
@@ -130,7 +130,7 @@ test('单家刷新失败保留上次结果并标明当前状态未知', async ({
 })
 
 test('AI 状态卡片显示正常状态，点击详情可打开官方状态页', async ({ page }) => {
-  await page.route('**/api/**', route => route.fulfill({ status: 503, json: { error: { code: 'NOT_CONFIGURED', message: '未配置' } } }))
+  await page.route(/\/api\/(?!auth\/)/, route => route.fulfill({ status: 503, json: { error: { code: 'NOT_CONFIGURED', message: '未配置' } } }))
   await page.route('**/api/ai-status', route => route.fulfill({ json: normal }))
   await page.goto('/')
   const card = page.getByRole('button', { name: '查看AI 服务状态详情' })
@@ -147,7 +147,7 @@ test('两家全部异常在首页及详情按提供方分组，电脑和手机�
     { ...abnormal.providers[0].incidents[0], id: 'grok', title: 'Grok 服务异常', affectedServices: ['grok.com'] },
     { ...abnormal.providers[0].incidents[1], id: 'api', title: 'xAI API 异常', affectedServices: ['Global API'] },
   ] }] }
-  await page.route('**/api/**', route => route.fulfill({ status: 503, json: { error: { code: 'NOT_CONFIGURED', message: '未配置' } } }))
+  await page.route(/\/api\/(?!auth\/)/, route => route.fulfill({ status: 503, json: { error: { code: 'NOT_CONFIGURED', message: '未配置' } } }))
   await page.route('**/api/ai-status', route => route.fulfill({ json: result }))
   for (const width of [1440, 390]) {
     await page.setViewportSize({ width, height: 954 })
@@ -169,7 +169,7 @@ test('两家全部异常在首页及详情按提供方分组，电脑和手机�
 })
 
 test('已知异常与单家获取失败并存时，同时展示异常和未知', async ({ page }) => {
-  await page.route('**/api/**', route => route.fulfill({ status: 503, json: { error: { code: 'NOT_CONFIGURED', message: '未配置' } } }))
+  await page.route(/\/api\/(?!auth\/)/, route => route.fulfill({ status: 503, json: { error: { code: 'NOT_CONFIGURED', message: '未配置' } } }))
   await page.route('**/api/ai-status', route => route.fulfill({ json: { ...abnormal, providers: [abnormal.providers[0], { ...xai, status: 'unknown', description: '状态未知', error: '官方状态接口拒绝访问' }] } }))
   await page.goto('/')
   const card = page.getByRole('button', { name: '查看AI 服务状态详情' })
