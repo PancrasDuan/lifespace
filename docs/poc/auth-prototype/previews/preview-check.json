@@ -1,0 +1,118 @@
+{
+  "captures": [
+    "A-login-normal-desktop.png",
+    "A-login-normal-mobile.png",
+    "B-login-normal-desktop.png",
+    "B-login-normal-mobile.png",
+    "C-login-normal-desktop.png",
+    "C-login-normal-mobile.png",
+    "A-register-normal-desktop.png",
+    "A-register-normal-mobile.png",
+    "A-verify-normal-desktop.png",
+    "A-verify-normal-mobile.png",
+    "A-forgot-normal-desktop.png",
+    "A-forgot-normal-mobile.png",
+    "A-sent-normal-desktop.png",
+    "A-sent-normal-mobile.png",
+    "A-reset-normal-desktop.png",
+    "A-reset-normal-mobile.png",
+    "A-done-normal-desktop.png",
+    "A-done-normal-mobile.png",
+    "A-denied-normal-desktop.png",
+    "A-denied-normal-mobile.png",
+    "A-home-normal-desktop.png",
+    "A-home-normal-mobile.png",
+    "A-dashboard-normal-desktop.png",
+    "A-dashboard-normal-mobile.png",
+    "A-login-wrong-mobile.png",
+    "A-login-unverified-mobile.png",
+    "A-login-loading-mobile.png",
+    "A-register-denied-mobile.png",
+    "A-verify-expired-mobile.png",
+    "A-verify-quota-mobile.png",
+    "A-reset-expired-mobile.png",
+    "A-reset-pending-mobile.png",
+    "A-login-service-mobile.png",
+    "A-home-revoked-mobile.png",
+    "B-login-visible-desktop.png",
+    "B-home-normal-desktop.png",
+    "B-dashboard-normal-desktop.png",
+    "B-dashboard-normal-mobile.png",
+    "B-dashboard-menu-desktop.png",
+    "B-dashboard-menu-mobile.png"
+  ],
+  "checks": [
+    [
+      "空表单校验",
+      true
+    ],
+    [
+      "密码显示切换",
+      true
+    ],
+    [
+      "登录成功流程",
+      true
+    ],
+    [
+      "登录成功后进入首页",
+      true
+    ],
+    [
+      "退出流程",
+      true
+    ],
+    [
+      "注册到验证提示",
+      true
+    ],
+    [
+      "重发限频倒计时",
+      true
+    ],
+    [
+      "验证邮件模拟回跳",
+      true
+    ],
+    [
+      "撤销待完成重试",
+      true
+    ],
+    [
+      "C 分步登录",
+      true
+    ],
+    [
+      "输入框内不拦截方向键",
+      true
+    ],
+    [
+      "方向键切换布局",
+      true
+    ],
+    [
+      "所有密码框图标和显示状态（15处）",
+      true
+    ],
+    [
+      "A 手机预览面板无横向溢出",
+      true
+    ],
+    [
+      "B 手机预览面板无横向溢出",
+      true
+    ],
+    [
+      "C 手机预览面板无横向溢出",
+      true
+    ],
+    [
+      "所有页面头像与退出菜单（30种组合）",
+      true
+    ]
+  ],
+  "errors": [],
+  "externalRequests": [],
+  "realAuthRequests": 0,
+  "persistence": "无"
+}
