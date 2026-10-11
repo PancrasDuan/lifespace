@@ -15,6 +15,6 @@ LifeSpace 复用 Supabase 项目 `personal_os`。前端固定使用 `@supabase/s
 
 浏览器仅获得项目 URL 和 publishable key；现有业务服务端密钥与数据库读取仍在 Worker。生产静态资源设置 CSP，禁止外部脚本并仅允许连接当前 Auth 项目；更换项目需同步修改 `public/_headers`。
 
-邮件使用 Supabase 自定义 SMTP，渠道由用户稍后决定。当前交付先覆盖代码与外部 HTTP 模拟验收，真实邮件、项目 Hook 配置及生产接入另行验收，不新增付费服务或自建会话数据库。
+邮件由 Supabase 自定义 SMTP 接入 Resend，发信域名为 `onepeace.bbroot.com`，默认发件人为 `LifeSpace <noreply@onepeace.bbroot.com>`。Resend API Key 仅配置在 Supabase SMTP 密码字段。代码、外部 HTTP 模拟及页面用户验收已通过，真实邮件、项目 Hook 配置及生产接入仍需验收，不新增付费服务或自建会话数据库。
 
 在线会话检查依据 [Auth 服务端源码](https://github.com/supabase/auth/blob/4eee58f296d9698a1c2c0ae14d7a0b379c7622d3/internal/api/user.go)，SDK 行为依据固定安装版本及 [SDK 源码](https://github.com/supabase/supabase-js/tree/0ea16af3ebb488ae4ca62925cc24cfb92602b6f6)。实际接入验收仍须证明撤销后的未过期 token 被本站 Worker 拒绝。

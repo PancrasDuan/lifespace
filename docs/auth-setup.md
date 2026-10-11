@@ -1,6 +1,6 @@
 # 认证接入与验收
 
-代码与模拟流程先行；真实邮件渠道暂未确定，本步骤完成前不视为生产认证已验收。
+代码、模拟流程与页面用户验收已通过。邮件采用 Resend，发信域名为 `onepeace.bbroot.com`；SMTP 配置、真实投递与生产接入仍需验收。
 
 ## 配置
 
@@ -15,7 +15,18 @@
 | `AUTH_HOOK_SECRET` | Supabase HTTP Hook 生成的签名密钥，支持控制台给出的 `v1,` 前缀 |
 
 4. 在 Auth Hooks 启用 `Before User Created`，地址为 `https://lifespace.onepeace.cc.cd/api/auth/hooks/before-user-created`；将签名密钥配置到 Worker。启用前，客户端可绕过注册页直接调用 Supabase，所以必须完成此项才能对外开放注册。
-5. 邮件渠道确定后配置 Supabase 自定义 SMTP、发件地址和认证邮件模板；此项目前待定。
+5. 在 Supabase → Authentication → Notifications → Email → SMTP Settings 启用自定义 SMTP，使用下表配置。Resend 域名须显示 `Verified`，API Key 直接填入 Supabase 控制台，不保存到本站前端、Worker 或 Git。
+
+| SMTP 配置 | 值 |
+|---|---|
+| Sender email | `noreply@onepeace.bbroot.com` |
+| Sender name | `LifeSpace` |
+| Host | `smtp.resend.com` |
+| Port | `465`，SSL/TLS |
+| Username | `resend` |
+| Password | Resend API Key |
+
+参数依据 [Resend 官方 Supabase SMTP 接入说明](https://resend.com/docs/send-with-supabase-smtp)。发信域名只用于认证邮件，Site URL 与回跳地址使用上文的 LifeSpace 网站地址。
 
 ## 验收
 
