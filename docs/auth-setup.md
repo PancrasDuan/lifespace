@@ -1,11 +1,11 @@
 # 认证接入与验收
 
-代码、模拟流程与页面用户验收已通过。邮件采用 Resend，发信域名为 `onepeace.bbroot.com`；用户已确认保存 SMTP 与注册 Hook 配置，三个 Worker 认证项已核验为 Secret。真实投递与生产接入仍需验收。
+代码、模拟流程与页面用户验收已通过。邮件采用 Resend，发信域名为 `onepeace.bbroot.com`；用户已确认保存 SMTP 与注册 Hook 配置，三个 Worker 认证项已核验为 Secret。PR #38 已合并并发布；真实注册邮件、邮箱确认和密码登录已通过。其余生产验收见下文。
 
 ## 配置
 
 1. 在现有 Supabase 项目 `personal_os` 启用邮箱密码认证与邮箱确认。保持多会话可用，不设置固定登录期限，关闭匿名登录及未使用的登录方式。
-2. 配置 Site URL 为 `https://lifespace.onepeace.cc.cd`，允许回跳 `/auth/callback` 和 `/auth/reset`；本地调试只添加所用回环地址，不使用宽泛生产通配地址。PKCE 邮件链接应在发起注册或恢复的浏览器打开。
+2. 配置 Site URL 为 `https://lifespace.onepeace.cc.cd`，允许回跳 `/auth/callback` 和 `/auth/reset`；本地调试只添加所用回环地址，不使用宽泛生产通配地址。PKCE 邮件链接应在发起注册或恢复的浏览器打开。注册验证链接在其他浏览器打开时，可能已完成邮箱验证，但不能自动登录；使用邮箱和密码登录即可继续。
 3. 将以下值保存为 Worker runtime secrets。本地使用忽略的 `.dev.vars`，示例见根目录 `.dev.vars.example`，不要把真实值写进 Issue、终端日志或聊天。
 
 | 配置 | 内容 |
@@ -31,7 +31,7 @@
 ## 发布顺序
 
 1. 发布前确认 Site URL、两个精确回跳地址、邮箱确认开关、SMTP、注册 Hook 和三个 Worker Secret。尚未部署的 Hook 端点会拒绝注册，不能将 404 视为接入成功。
-2. 用户对 PR #38 明确确认合并后，按项目流程 squash merge，等待 Cloudflare 自动发布，核对部署 SHA 与 Secret 是否实际生效。
+2. 用户对待发布 PR 明确确认合并后，按项目流程 squash merge，等待 Cloudflare 自动发布，核对部署 SHA 与 Secret 是否实际生效。
 3. 使用用户指定的获准邮箱进行真实注册与恢复验收。真实账户密码由用户在页面输入，验证与恢复链接由用户在发起操作的浏览器打开。
 4. 完成下列生产验收后关闭任务。模拟服务不用于真实密码或收信验收。
 

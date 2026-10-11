@@ -8,7 +8,7 @@ import { AccountMenu } from './AccountMenu'
 import { ResetPasswordForm } from './ResetPasswordForm'
 
 const identitySchema = z.object({ user: z.object({ id: z.uuid(), email: z.email() }) })
-type GateState = { kind: 'checking' | 'login' | 'unavailable' | 'denied' | 'callbackFailed' } | { kind: 'allowed'; email: string; id: string; sessionId?: string }
+type GateState = { kind: 'checking' | 'login' | 'unavailable' | 'denied' | 'callbackFailed' | 'callbackNeedsLogin' } | { kind: 'allowed'; email: string; id: string; sessionId?: string }
 
 export function AuthGate({ children }: { children: ReactNode }) {
   const [state, setState] = useState<GateState>({ kind: 'checking' })
@@ -23,9 +23,17 @@ export function AuthGate({ children }: { children: ReactNode }) {
       try {
         const client = await authClient()
         const initialized = await client.auth.initialize()
-        if (window.location.pathname === '/auth/callback' && (initialized.error || new URL(window.location.href).searchParams.has('error') || new URL(window.location.href).searchParams.has('code'))) {
-          if (!disposed && current === generation) { queries.clear(); setState({ kind: 'callbackFailed' }) }
-          return
+        if (window.location.pathname === '/auth/callback') {
+          const params = new URL(window.location.href).searchParams
+          // With no local PKCE verifier, the SDK leaves the code untouched without an error.
+          // An unexchanged code is not evidence that the email verification failed or succeeded.
+          if (initialized.error || params.has('error') || params.has('code')) {
+            if (!disposed && current === generation) {
+              queries.clear()
+              setState({ kind: initialized.error || params.has('error') ? 'callbackFailed' : 'callbackNeedsLogin' })
+            }
+            return
+          }
         }
         const { data, error } = await currentSession()
         if (disposed || current !== generation) return
@@ -68,11 +76,13 @@ export function AuthGate({ children }: { children: ReactNode }) {
   }, [queries])
   if (window.location.pathname === '/auth/reset') return <><AccountMenu email={accountEmail} /><AuthLayout><ResetPasswordForm authorized={state.kind === 'allowed' && isRecoveryFlow(state.sessionId)} checking={state.kind === 'checking'} accountId={state.kind === 'allowed' ? state.id : undefined} /></AuthLayout></>
   if (state.kind === 'allowed') return <><AccountMenu email={state.email} />{children}</>
+  const callbackNeedsLogin = state.kind === 'callbackNeedsLogin'
+  const callbackMessage = callbackNeedsLogin || state.kind === 'callbackFailed'
   return <><AccountMenu email={accountEmail} /><AuthLayout>
     {state.kind === 'login' ? <LoginForm /> : <div className="auth-center">
-      <h1>{state.kind === 'checking' ? '正在确认访问资格' : state.kind === 'denied' ? '暂时无法进入' : state.kind === 'callbackFailed' ? '验证链接不可用' : '暂时无法连接'}</h1>
-      <p>{state.kind === 'checking' ? '请稍候…' : state.kind === 'denied' ? '此账户暂未获准访问 LifeSpace。' : state.kind === 'callbackFailed' ? '链接可能已过期、已使用，或在另一浏览器打开。请返回登录页重新操作。' : '认证服务暂时不可用，请稍后重试。'}</p>
-      {state.kind !== 'checking' && <button className="auth-primary" onClick={() => state.kind === 'callbackFailed' ? window.location.assign('/') : window.location.reload()}>{state.kind === 'callbackFailed' ? '返回登录' : '重试'}</button>}
+      <h1>{state.kind === 'checking' ? '正在确认访问资格' : state.kind === 'denied' ? '暂时无法进入' : callbackNeedsLogin ? '请登录继续访问' : state.kind === 'callbackFailed' ? '验证链接不可用' : '暂时无法连接'}</h1>
+      <p>{state.kind === 'checking' ? '请稍候…' : state.kind === 'denied' ? '此账户暂未获准访问 LifeSpace。' : callbackNeedsLogin ? '当前浏览器缺少自动登录所需的校验凭据。邮箱可能已验证，请使用邮箱和密码登录。' : state.kind === 'callbackFailed' ? '链接可能已过期或已使用。请返回登录页重新操作。' : '认证服务暂时不可用，请稍后重试。'}</p>
+      {state.kind !== 'checking' && <button className="auth-primary" onClick={() => callbackMessage ? window.location.assign('/') : window.location.reload()}>{callbackNeedsLogin ? '使用邮箱密码登录' : state.kind === 'callbackFailed' ? '返回登录' : '重试'}</button>}
     </div>}
   </AuthLayout></>
 }
