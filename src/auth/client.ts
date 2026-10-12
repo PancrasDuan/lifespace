@@ -1,5 +1,6 @@
 import { createClient, isAuthApiError, isAuthRefreshDiscardedError, isAuthRetryableFetchError, type Session, type SupabaseClient } from '@supabase/supabase-js'
 import { z } from 'zod'
+import { publicAuthConfig } from './config'
 
 let clientPromise: Promise<SupabaseClient> | undefined
 const cleanupHandlers = new WeakMap<SupabaseClient, () => Promise<void>>()
@@ -29,9 +30,7 @@ export async function currentSession() {
 const configSchema = z.object({ url: z.url(), publishableKey: z.string().startsWith('sb_publishable_') })
 export function authClient(): Promise<SupabaseClient> {
   if (!clientPromise) clientPromise = (async () => {
-    const response = await fetch('/api/auth/config', { signal: AbortSignal.timeout(10000) })
-    if (!response.ok) throw new Error('认证服务暂时不可用，请稍后重试')
-    const config = configSchema.parse(await response.json())
+    const config = configSchema.parse(await publicAuthConfig())
     let cleanupOnly = false
     const client = createClient(config.url, config.publishableKey, {
       auth: { flowType: 'pkce' },

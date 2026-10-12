@@ -6,6 +6,7 @@ import { authClient, currentSession, temporarilyUnavailable, isRecoveryFlow, ses
 import './auth.css'
 import { AccountMenu } from './AccountMenu'
 import { ResetPasswordForm } from './ResetPasswordForm'
+import { HomeSkeleton } from './HomeSkeleton'
 
 const identitySchema = z.object({ user: z.object({ id: z.uuid(), email: z.email() }) })
 type GateState = { kind: 'checking' | 'login' | 'unavailable' | 'denied' | 'callbackFailed' | 'callbackNeedsLogin' } | { kind: 'allowed'; email: string; id: string; sessionId?: string }
@@ -18,29 +19,39 @@ export function AuthGate({ children }: { children: ReactNode }) {
     let disposed = false
     let unsubscribe: (() => void) | undefined
     let generation = 0
+    let identityRequest: { token: string; controller: AbortController; promise: Promise<Response> } | undefined
+    const cancelIdentity = () => { identityRequest?.controller.abort(); identityRequest = undefined }
+    const verify = (token: string) => {
+      if (identityRequest?.token === token) return identityRequest.promise
+      cancelIdentity()
+      const controller = new AbortController()
+      const request: NonNullable<typeof identityRequest> = {
+        token, controller,
+        promise: fetch('/api/auth/me', {
+          headers: { Authorization: `Bearer ${token}` },
+          signal: AbortSignal.any([controller.signal, AbortSignal.timeout(10000)]),
+        }).finally(() => { if (identityRequest === request) identityRequest = undefined }),
+      }
+      identityRequest = request
+      return request.promise
+    }
     const check = async () => {
       const current = ++generation
       try {
         const client = await authClient()
         const initialized = await client.auth.initialize()
-        if (window.location.pathname === '/auth/callback') {
-          const params = new URL(window.location.href).searchParams
-          // With no local PKCE verifier, the SDK leaves the code untouched without an error.
-          // An unexchanged code is not evidence that the email verification failed or succeeded.
-          if (initialized.error || params.has('error') || params.has('code')) {
-            if (!disposed && current === generation) {
-              queries.clear()
-              setState({ kind: initialized.error || params.has('error') ? 'callbackFailed' : 'callbackNeedsLogin' })
-            }
-            return
-          }
-        }
+        const params = new URL(window.location.href).searchParams
+        // Callback feedback is only used when no session passes the Worker gate.
+        const callbackState: GateState | undefined = window.location.pathname === '/auth/callback'
+          ? initialized.error || params.has('error') ? { kind: 'callbackFailed' }
+            : params.has('code') ? { kind: 'callbackNeedsLogin' } : undefined
+          : undefined
         const { data, error } = await currentSession()
         if (disposed || current !== generation) return
         if (temporarilyUnavailable(error)) { queries.clear(); setState({ kind: 'unavailable' }); return }
-        if (error || !data.session) { queries.clear(); setAccountEmail(undefined); setState({ kind: 'login' }); return }
+        if (error || !data.session) { queries.clear(); setAccountEmail(undefined); setState(callbackState ?? { kind: 'login' }); return }
         setAccountEmail(data.session.user.email)
-        const response = await fetch('/api/auth/me', { headers: { Authorization: `Bearer ${data.session.access_token}` }, signal: AbortSignal.timeout(10000) })
+        const response = await verify(data.session.access_token)
         if (disposed || current !== generation) return
         if (response.ok) {
           const identity = identitySchema.parse(await response.json())
@@ -54,12 +65,18 @@ export function AuthGate({ children }: { children: ReactNode }) {
             }
             setState({ kind: 'allowed', email: identity.user.email, id: identity.user.id, sessionId: sessionIdentifier(data.session) })
           }
-        } else { queries.clear(); setState({ kind: response.status === 403 ? 'denied' : response.status === 401 ? 'login' : 'unavailable' }) }
+        } else { queries.clear(); setState({ kind: response.status === 403 ? 'denied' : response.status === 401 ? callbackState?.kind ?? 'login' : 'unavailable' }) }
       } catch { if (!disposed && current === generation) { queries.clear(); setState({ kind: 'unavailable' }) } }
     }
     void authClient().then(client => {
       if (disposed) return
-      const { data } = client.auth.onAuthStateChange(() => { window.setTimeout(() => { void check() }, 0) })
+      const { data } = client.auth.onAuthStateChange((event, session) => {
+        if (event === 'SIGNED_OUT' || (identityRequest && identityRequest.token !== session?.access_token)) {
+          generation++; cancelIdentity()
+        }
+        if (event === 'SIGNED_OUT') { queries.clear(); setAccountEmail(undefined); setState({ kind: 'login' }) }
+        window.setTimeout(() => { if (!disposed) void check() }, 0)
+      })
       unsubscribe = () => data.subscription.unsubscribe()
     }).catch(() => { if (!disposed) setState({ kind: 'unavailable' }) })
     void check()
@@ -67,22 +84,23 @@ export function AuthGate({ children }: { children: ReactNode }) {
     window.addEventListener('focus', focus)
     document.addEventListener('visibilitychange', focus)
     const rejected = (event: Event) => {
-      generation++; queries.clear()
+      generation++; cancelIdentity(); queries.clear()
       const status = (event as CustomEvent<number>).detail
       setState({ kind: status === 403 ? 'denied' : status === 401 ? 'login' : 'unavailable' })
     }
     window.addEventListener('lifespace-auth-rejected', rejected)
-    return () => { disposed = true; generation++; unsubscribe?.(); window.removeEventListener('focus', focus); document.removeEventListener('visibilitychange', focus); window.removeEventListener('lifespace-auth-rejected', rejected) }
+    return () => { disposed = true; generation++; cancelIdentity(); unsubscribe?.(); window.removeEventListener('focus', focus); document.removeEventListener('visibilitychange', focus); window.removeEventListener('lifespace-auth-rejected', rejected) }
   }, [queries])
   if (window.location.pathname === '/auth/reset') return <><AccountMenu email={accountEmail} /><AuthLayout><ResetPasswordForm authorized={state.kind === 'allowed' && isRecoveryFlow(state.sessionId)} checking={state.kind === 'checking'} accountId={state.kind === 'allowed' ? state.id : undefined} /></AuthLayout></>
+  if (state.kind === 'checking') return <HomeSkeleton />
   if (state.kind === 'allowed') return <><AccountMenu email={state.email} />{children}</>
   const callbackNeedsLogin = state.kind === 'callbackNeedsLogin'
   const callbackMessage = callbackNeedsLogin || state.kind === 'callbackFailed'
   return <><AccountMenu email={accountEmail} /><AuthLayout>
     {state.kind === 'login' ? <LoginForm /> : <div className="auth-center">
-      <h1>{state.kind === 'checking' ? '正在确认访问资格' : state.kind === 'denied' ? '暂时无法进入' : callbackNeedsLogin ? '请登录继续访问' : state.kind === 'callbackFailed' ? '验证链接不可用' : '暂时无法连接'}</h1>
-      <p>{state.kind === 'checking' ? '请稍候…' : state.kind === 'denied' ? '此账户暂未获准访问 LifeSpace。' : callbackNeedsLogin ? '当前浏览器缺少自动登录所需的校验凭据。邮箱可能已验证，请使用邮箱和密码登录。' : state.kind === 'callbackFailed' ? '链接可能已过期或已使用。请返回登录页重新操作。' : '认证服务暂时不可用，请稍后重试。'}</p>
-      {state.kind !== 'checking' && <button className="auth-primary" onClick={() => callbackMessage ? window.location.assign('/') : window.location.reload()}>{callbackNeedsLogin ? '使用邮箱密码登录' : state.kind === 'callbackFailed' ? '返回登录' : '重试'}</button>}
+      <h1>{state.kind === 'denied' ? '暂时无法进入' : callbackNeedsLogin ? '请登录继续访问' : state.kind === 'callbackFailed' ? '验证链接不可用' : '暂时无法连接'}</h1>
+      <p>{state.kind === 'denied' ? '此账户暂未获准访问 LifeSpace。' : callbackNeedsLogin ? '当前浏览器缺少自动登录所需的校验凭据。邮箱可能已验证，请使用邮箱和密码登录。' : state.kind === 'callbackFailed' ? '链接可能已过期或已使用。请返回登录页重新操作。' : '认证服务暂时不可用，请稍后重试。'}</p>
+      {<button className="auth-primary" onClick={() => callbackMessage ? window.location.assign('/') : window.location.reload()}>{callbackNeedsLogin ? '使用邮箱密码登录' : state.kind === 'callbackFailed' ? '返回登录' : '重试'}</button>}
     </div>}
   </AuthLayout></>
 }

@@ -1,0 +1,110 @@
+{
+  "description": "认证启动优化前后对照：生产构建、虚构已登录会话、模拟 HTTP；计时到首页 DOM 出现，不代表生产环境端到端性能。",
+  "conditions": {
+    "largeScriptDelayMs": 500,
+    "publicConfigDelayMs": 300,
+    "identityCheckDelayMs": 400,
+    "samplesPerVariant": 5
+  },
+  "samples": {
+    "before": [
+      {
+        "benchmark": "before",
+        "sample": 1,
+        "homeReadyMs": 1315,
+        "configRequests": 1,
+        "identityRequests": 3,
+        "configStartMs": 598,
+        "largeScriptDeliveredMs": 519
+      },
+      {
+        "benchmark": "before",
+        "sample": 2,
+        "homeReadyMs": 1290,
+        "configRequests": 1,
+        "identityRequests": 3,
+        "configStartMs": 576,
+        "largeScriptDeliveredMs": 512
+      },
+      {
+        "benchmark": "before",
+        "sample": 3,
+        "homeReadyMs": 1289,
+        "configRequests": 1,
+        "identityRequests": 3,
+        "configStartMs": 574,
+        "largeScriptDeliveredMs": 511
+      },
+      {
+        "benchmark": "before",
+        "sample": 4,
+        "homeReadyMs": 1293,
+        "configRequests": 1,
+        "identityRequests": 3,
+        "configStartMs": 576,
+        "largeScriptDeliveredMs": 511
+      },
+      {
+        "benchmark": "before",
+        "sample": 5,
+        "homeReadyMs": 1294,
+        "configRequests": 1,
+        "identityRequests": 3,
+        "configStartMs": 576,
+        "largeScriptDeliveredMs": 509
+      }
+    ],
+    "after": [
+      {
+        "benchmark": "after",
+        "sample": 1,
+        "homeReadyMs": 1000,
+        "configRequests": 1,
+        "identityRequests": 1,
+        "configStartMs": 22,
+        "largeScriptDeliveredMs": 531
+      },
+      {
+        "benchmark": "after",
+        "sample": 2,
+        "homeReadyMs": 990,
+        "configRequests": 1,
+        "identityRequests": 1,
+        "configStartMs": 12,
+        "largeScriptDeliveredMs": 516
+      },
+      {
+        "benchmark": "after",
+        "sample": 3,
+        "homeReadyMs": 1004,
+        "configRequests": 1,
+        "identityRequests": 1,
+        "configStartMs": 16,
+        "largeScriptDeliveredMs": 520
+      },
+      {
+        "benchmark": "after",
+        "sample": 4,
+        "homeReadyMs": 1004,
+        "configRequests": 1,
+        "identityRequests": 1,
+        "configStartMs": 11,
+        "largeScriptDeliveredMs": 516
+      },
+      {
+        "benchmark": "after",
+        "sample": 5,
+        "homeReadyMs": 990,
+        "configRequests": 1,
+        "identityRequests": 1,
+        "configStartMs": 14,
+        "largeScriptDeliveredMs": 518
+      }
+    ]
+  },
+  "medianHomeReadyMs": {
+    "before": 1293,
+    "after": 1000
+  },
+  "improvementPercent": 22.7
+}

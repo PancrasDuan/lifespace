@@ -1,0 +1,13 @@
+.skeleton-sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+.auth-loading .info-panel:hover{transform:none}
+.skeleton-bar{display:block;height:12px;width:85%;border-radius:7px;background:linear-gradient(100deg,#e4ecdf 20%,#f5f8f1 45%,#e4ecdf 70%);background-size:220% 100%;animation:auth-skeleton-shimmer 1.8s ease-in-out infinite}
+.skeleton-search{flex:1;height:12px;max-width:360px;margin-right:auto}
+.skeleton-card-content{display:flex;flex-direction:column;gap:20px;padding:25px 23px;min-height:180px}
+.skeleton-value{width:45%;height:44px;border-radius:10px;margin-bottom:5px}
+.skeleton-short{width:60%}
+.skeleton-footer{width:110px;height:8px;margin:4px 0}
+.auth-loading .panel-time .skeleton-card-content{min-height:150px}
+.auth-loading .panel-domains .skeleton-card-content{min-height:150px}
+@keyframes auth-skeleton-shimmer{from{background-position:100% 0}to{background-position:-100% 0}}
+@media(max-width:720px){.skeleton-card-content{padding:22px 18px;min-height:165px}.auth-loading .panel-time .skeleton-card-content{min-height:200px}}
+@media(prefers-reduced-motion:reduce){.skeleton-bar{animation:none}}
