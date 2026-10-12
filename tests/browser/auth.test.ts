@@ -329,7 +329,7 @@ test('退出远端失败不清理 SDK 会话，允许当前浏览器重试', asy
   await expect(page.getByRole('button', { name: '查看世界时间详情' })).toBeVisible()
   await page.getByRole('button', { name: '账户菜单' }).click()
   await page.getByRole('menuitem', { name: '退出登录' }).click()
-  await expect(page.getByRole('alert')).toHaveText('退出未完成，请重试')
+  await expect(page.getByRole('alert')).toHaveText('退出请求未获确认，请重试')
   await expect(page.getByRole('button', { name: '查看世界时间详情' })).toBeVisible()
   await expect(page.getByRole('menuitem', { name: '退出登录' })).toBeEnabled()
 })

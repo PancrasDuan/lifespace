@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { UserRound, LogOut } from 'lucide-react'
-import { revokeSession } from './client'
+import { revokeSession, LogoutFailure } from './client'
 
 export function AccountMenu({ email }: { email?: string }) {
   const [open, setOpen] = useState(false)
@@ -21,7 +21,7 @@ export function AccountMenu({ email }: { email?: string }) {
     try {
       await revokeSession('local')
       window.dispatchEvent(new CustomEvent('lifespace-auth-rejected', { detail: 401 })); setOpen(false)
-    } catch { setError('退出未完成，请重试') }
+    } catch (error) { setError(error instanceof LogoutFailure ? error.message : '退出未完成，请重试') }
     finally { setBusy(false) }
   }
   return <div className="auth-account" ref={root}><button ref={trigger} className="auth-avatar" aria-label="账户菜单" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(!open)}><UserRound size={20} /></button>
