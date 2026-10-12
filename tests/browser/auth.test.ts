@@ -203,6 +203,31 @@ test('失效的验证回跳显示重新操作入口', async ({ page }) => {
   await expect(page.getByRole('button', { name: '查看世界时间详情' })).toHaveCount(0)
 })
 
+test('另一浏览器缺少校验凭据时提示手动登录，密码登录后正常进入首页', async ({ page }) => {
+  await page.route('https://auth-test.supabase.co/auth/v1/token?grant_type=password', route => route.fulfill({ json: session }))
+  await page.route('**/api/auth/me', route => route.fulfill({ json: { user: { id: user.id, email: user.email } } }))
+  await page.route(/\/api\/(?!auth\/)/, route => route.fulfill({ status: 503, json: { error: { code: 'SOURCE_UNAVAILABLE', message: '稍后重试' } } }))
+  await page.goto('/auth/callback?code=test-verification-code')
+  await expect(page.getByRole('heading', { name: '请登录继续访问' })).toBeVisible()
+  await expect(page.getByText('当前浏览器缺少自动登录所需的校验凭据。邮箱可能已验证，请使用邮箱和密码登录。')).toBeVisible()
+  await expect(page.getByRole('button', { name: '查看世界时间详情' })).toHaveCount(0)
+  await page.getByRole('button', { name: '使用邮箱密码登录' }).click()
+  await expect(page).toHaveURL('/')
+  await page.getByLabel('邮箱', { exact: true }).fill(user.email)
+  await page.getByLabel('密码', { exact: true }).fill('test-password')
+  await page.getByRole('button', { name: '登录 LifeSpace', exact: true }).click()
+  await expect(page.getByRole('button', { name: '查看世界时间详情' })).toBeVisible()
+})
+
+test('原浏览器交换已失效的验证代码仍显示错误提示', async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem('sb-auth-test-auth-token-code-verifier', JSON.stringify('test-pkce-verifier')))
+  await page.route('https://auth-test.supabase.co/auth/v1/token?grant_type=pkce', route => route.fulfill({ status: 400, json: { code: 'flow_state_expired', msg: 'Expired auth code' } }))
+  await page.goto('/auth/callback?code=test-expired-code')
+  await expect(page.getByRole('heading', { name: '验证链接不可用' })).toBeVisible()
+  await expect(page.getByRole('button', { name: '返回登录' })).toBeVisible()
+  await expect(page.getByRole('button', { name: '查看世界时间详情' })).toHaveCount(0)
+})
+
 test('验证邮件 PKCE 回跳通过准入后进入首页并清理回跳地址', async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem('sb-auth-test-auth-token-code-verifier', JSON.stringify('test-pkce-verifier')))
   await page.route('https://auth-test.supabase.co/auth/v1/token?grant_type=pkce', route => route.fulfill({ json: pkceSession }))
