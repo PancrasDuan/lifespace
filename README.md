@@ -1,6 +1,6 @@
 # LifeSpace
 
-个人每日首页：Google 搜索、本地与海外时间、Open-Meteo 天气与预报、Supabase 今日待办、本地黄历、DNSHE 域名信息及 AI 服务状态。采用已确认的浅色布局，卡片与详情均为只读。
+个人每日首页：Google 搜索、本地与海外时间、Open-Meteo 天气与预报、Supabase 今日待办、本地黄历、DNSHE 域名信息及服务状态。采用已确认的浅色布局，卡片与详情均为只读。
 
 访问采用邮箱白名单与 Supabase Auth，前端 SDK 管理登录及续期，Worker 逐次在线验证会话和准入。配置及真实邮件验收见 [认证接入](docs/auth-setup.md)，职责与撤销边界见 [认证决策](docs/adr/0001-supabase-auth.md)。
 
@@ -92,7 +92,7 @@ npm run test:browser
 
 - `GET /api/tasks/today?timeZone=<IANA 时区>`：今日待办。
 - `GET /api/domains`：DNSHE 账户内全部域名的展示信息。
-- `GET /api/ai-status`：OpenAI 与 xAI 的整体状态及按提供方归属的当前异常。
+- `GET /api/ai-status`：OpenAI、xAI 与 Resend 的整体状态及按提供方归属的当前异常。
 - `GET /api/weather/locations?q=<城市关键词>`：城市搜索。
 - `GET /api/weather?latitude=<纬度>&longitude=<经度>&timeZone=<IANA 时区>`：城市当地当天天气。
 - `GET /api/weather/detail?latitude=<纬度>&longitude=<经度>&timeZone=<IANA 时区>`：当前天气、未来 24 小时与七日预报。
@@ -101,11 +101,13 @@ npm run test:browser
 - 空气质量来源：[Open-Meteo](https://open-meteo.com/en/docs/air-quality-api) 与 [CAMS](https://atmosphere.copernicus.eu/)，采用美制 AQI，属于模型估计。
 - 天气来源：[Open-Meteo](https://open-meteo.com/)；日期与黄历使用 `tyme4ts` 本地生成。
 
-## AI 服务状态
+## 服务状态
 
-首页一张卡片汇总 OpenAI 与 xAI 的官方状态；多个当前异常按提供方分组，点击查看各家状态、官网子状态、异常说明、受影响服务、检查时间和官方链接；说明文字仅位于详情主标题下，首页卡片不展示该说明。打开或返回主页时刷新，支持手动刷新；页面保持打开时每小时刷新，恢复可见时更新。
+首页一张卡片汇总 OpenAI、xAI 与 Resend 的官方状态；多个当前异常按提供方分组，点击查看各家状态、官网子状态、异常说明、受影响服务、检查时间和官方链接；说明文字仅位于详情主标题下，首页卡片不展示该说明。打开或返回主页时刷新，支持手动刷新；页面保持打开时每小时刷新，恢复可见时更新。
 
 获取失败显示未知，保留的旧结果标注原成功时间。官方未提供说明时显示“原因待公布”。公开来源无需账户凭据。OpenAI 展示官网五组状态；xAI 以官方 RSS 未解决事件判定整体和子模块：有事件则整体异常，涉及模块异常，其余可用；无事件则可用，获取或解析失败则未知。xAI 显示“按官方事件判定”，不声称组件快照。
+
+Resend 读取公开的 [状态摘要接口](https://resend-status.com/api/v2/summary.json)，无需 API Key；仅 SMTP、General API、Single Email 参与汇总，详情展示全部组件和当前事件。缺失或无法识别的发信组件状态显示未知；其他组件异常不影响发信状态汇总。刷新及失败处理与原卡片一致。
 
 xAI 模块目录独立维护于 `src/shared/xai-modules.json`，2026-10-07 从官网核对三组 14 项；事件官方链接中的模块 ID 用于关联，目录外活跃模块加入其他模块。官网新增但未发生事件的模块需更新目录。执行 `node scripts/check-ai-status-live.mjs --require-substatuses` 核对真实取数、OpenAI 五组和 xAI 事件判定模块；来源说明见 [AI 状态来源验收](docs/ai-status-source-check.md)，原站规则研究见 [xAI 子状态研究](docs/xai-substatus-research.md)。
 

@@ -32,6 +32,7 @@ function Incidents({ provider, detail = false }: { provider: AiProvider; detail?
 function Providers({ view, detail = false }: { view: StatusView; detail?: boolean }) {
   return <div className="ai-providers">{view.query.data?.providers.filter(provider => detail || view.query.isError || provider.status !== 'normal' || provider.subStatusError).map(provider => {
     const stale = view.query.isError || provider.status === 'unknown'
+    const currentSnapshot = !view.query.isError && (!stale || (provider.id === 'resend' && provider.subStatusError === null))
     const current = stale ? 'unknown' : provider.status
     const last = stale ? view.previous.get(provider.id) : undefined
     return <section className="ai-provider" key={provider.id} aria-label={`${provider.name} 状态`}>
@@ -39,9 +40,10 @@ function Providers({ view, detail = false }: { view: StatusView; detail?: boolea
       {provider.error && <p className="inline-error">{provider.error}</p>}
       {!view.query.isError && !provider.error && (detail || provider.status !== 'normal') && <p>{provider.description}</p>}
       {!detail && provider.subStatusError && <p>官网子状态暂不可获取</p>}
-      {!stale && provider.status === 'abnormal' && <><Incidents provider={provider} detail={detail} />
+      {detail && provider.id === 'resend' && <p>汇总仅关注 SMTP、General API、Single Email；其余组件和事件见下方详情。</p>}
+      {currentSnapshot && (provider.status === 'abnormal' || detail) && <><Incidents provider={provider} detail={detail} />
         {provider.affectedServices.length > 0 && <p>受影响服务：{provider.affectedServices.join('、')}</p>}
-        {provider.incidents.length === 0 && <p>原因待公布</p>}</>}
+        {provider.status === 'abnormal' && provider.incidents.length === 0 && <p>原因待公布</p>}</>}
       {last && <div className="ai-stale"><small>上次结果 · {time(last.checkedAt)} · {labels[last.status]}，当前状态未确认</small><Incidents provider={last} detail={detail} /></div>}
       {detail && <><SubStatuses provider={provider} stale={view.query.isError} /><p className="ai-check">{view.query.isError ? '上次成功检查' : '最近检查'}：{time(provider.checkedAt)}</p><a href={provider.statusUrl} target="_blank" rel="noopener noreferrer">{provider.name} 官方状态页</a></>}
     </section>
@@ -82,6 +84,6 @@ export function AiStatusContent({ view }: { view: StatusView }) {
 export function AiStatusDetail({ view }: { view: StatusView }) {
   return <>
     {view.query.isError && <p className="inline-error">本次获取失败，当前状态未知</p>}
-    {view.query.data ? <Providers view={view} detail /> : <p>状态尚未获取。<a href="https://status.openai.com/" target="_blank" rel="noopener noreferrer">OpenAI 官方状态页</a> · <a href="https://status.x.ai/" target="_blank" rel="noopener noreferrer">xAI 官方状态页</a></p>}
+    {view.query.data ? <Providers view={view} detail /> : <p>状态尚未获取。<a href="https://status.openai.com/" target="_blank" rel="noopener noreferrer">OpenAI 官方状态页</a> · <a href="https://status.x.ai/" target="_blank" rel="noopener noreferrer">xAI 官方状态页</a> · <a href="https://resend-status.com/" target="_blank" rel="noopener noreferrer">Resend 官方状态页</a></p>}
   </>
 }
