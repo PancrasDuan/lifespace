@@ -1,0 +1,204 @@
+{
+  "page": {
+    "id": "01KK2QB40MG2D5J5K7B7PVS0A6",
+    "name": "Notion",
+    "url": "https://www.notion-status.com/",
+    "updated_at": "2026-09-10T15:04:16Z"
+  },
+  "status": {
+    "description": "All Systems Operational",
+    "indicator": "none"
+  },
+  "components": [
+    {
+      "id": "01KK2QB40MF1A0T2SKSE02084R",
+      "name": "Login and user accounts",
+      "status": "operational",
+      "created_at": "2026-03-06T23:22:22Z",
+      "updated_at": "2026-06-12T21:48:59Z",
+      "position": 0,
+      "description": "User authentication and management",
+      "page_id": "01KK2QB40MG2D5J5K7B7PVS0A6"
+    },
+    {
+      "id": "01KK2QB40MYBG2ZDZHE55VWQTV",
+      "name": "View and edit content",
+      "status": "operational",
+      "created_at": "2026-03-06T23:22:22Z",
+      "updated_at": "2026-06-12T21:48:59Z",
+      "position": 1,
+      "description": "View and editing pages, including pages in databases",
+      "page_id": "01KK2QB40MG2D5J5K7B7PVS0A6"
+    },
+    {
+      "id": "01KK2QB40M2QP6N862GCJS77YE",
+      "name": "Databases",
+      "status": "operational",
+      "created_at": "2026-03-06T23:22:22Z",
+      "updated_at": "2026-06-12T21:48:59Z",
+      "position": 2,
+      "description": "Collections of pages with typed properties, plus views, forms, and automations to organize, collect, and act on them",
+      "page_id": "01KK2QB40MG2D5J5K7B7PVS0A6"
+    },
+    {
+      "id": "01KK2QB40MKK284NY745VZVFTQ",
+      "name": "Search",
+      "status": "operational",
+      "created_at": "2026-03-06T23:22:22Z",
+      "updated_at": "2026-06-12T21:49:00Z",
+      "position": 3,
+      "description": "Workspace search that finds matching pages and database entries",
+      "page_id": "01KK2QB40MG2D5J5K7B7PVS0A6"
+    },
+    {
+      "id": "01KK2QB40M6SC2S63V7TJ4XAND",
+      "name": "Notifications",
+      "status": "operational",
+      "created_at": "2026-03-06T23:22:22Z",
+      "updated_at": "2026-06-12T21:49:00Z",
+      "position": 4,
+      "description": "Notifications for mentions, comments, assignments, reminders, and follow/updates across pages and databases (delivered in-app and, where enabled, via email/push)",
+      "page_id": "01KK2QB40MG2D5J5K7B7PVS0A6"
+    },
+    {
+      "id": "01KK2QB40MDY87965Q0JSNFY1X",
+      "name": "Notion Agent",
+      "status": "operational",
+      "created_at": "2026-03-06T23:22:22Z",
+      "updated_at": "2026-06-12T21:49:00Z",
+      "position": 5,
+      "description": "Chat to find answers, generate content, and manage your workspace",
+      "page_id": "01KK2QB40MG2D5J5K7B7PVS0A6"
+    },
+    {
+      "id": "01KTYWYK6A7R4BZRG4B87JJ5FF",
+      "name": "Enterprise Search",
+      "status": "operational",
+      "created_at": "2026-06-12T21:49:00Z",
+      "updated_at": "2026-06-12T21:49:00Z",
+      "position": 6,
+      "description": "Find content across integrations with AI Connectors",
+      "page_id": "01KK2QB40MG2D5J5K7B7PVS0A6"
+    },
+    {
+      "id": "01KTYWYK6AKQFFQCE51XETM1BZ",
+      "name": "Custom Agents",
+      "status": "operational",
+      "created_at": "2026-06-12T21:49:00Z",
+      "updated_at": "2026-06-12T21:49:00Z",
+      "position": 7,
+      "description": "Automated workflows and chats in Notion and connected tools",
+      "page_id": "01KK2QB40MG2D5J5K7B7PVS0A6"
+    },
+    {
+      "id": "01KTYWYK6AQRM8FJNWNXKH483B",
+      "name": "AI Meeting Notes",
+      "status": "operational",
+      "created_at": "2026-06-12T21:49:00Z",
+      "updated_at": "2026-06-12T21:49:00Z",
+      "position": 8,
+      "description": "Record meeting notes, generate summaries and action items",
+      "page_id": "01KK2QB40MG2D5J5K7B7PVS0A6"
+    },
+    {
+      "id": "01KK2QB40M8DPAM1W0ASK21666",
+      "name": "Notion API",
+      "status": "operational",
+      "created_at": "2026-03-06T23:22:22Z",
+      "updated_at": "2026-06-12T21:49:00Z",
+      "position": 9,
+      "description": "API access for Notion services",
+      "page_id": "01KK2QB40MG2D5J5K7B7PVS0A6"
+    },
+    {
+      "id": "01KTYWYK6ASXXMQMR8RG5XXAZN",
+      "name": "Notion MCP",
+      "status": "operational",
+      "created_at": "2026-06-12T21:49:00Z",
+      "updated_at": "2026-06-12T21:49:00Z",
+      "position": 10,
+      "description": "Connect Notion to AI tools and agents via MCP",
+      "page_id": "01KK2QB40MG2D5J5K7B7PVS0A6"
+    },
+    {
+      "id": "01KTYWYK6ARGN1SC5Z501WRHSM",
+      "name": "Notion Workers",
+      "status": "operational",
+      "created_at": "2026-06-12T21:49:00Z",
+      "updated_at": "2026-06-12T21:49:00Z",
+      "position": 11,
+      "description": "Run jobs to automate workflows and sync data",
+      "page_id": "01KK2QB40MG2D5J5K7B7PVS0A6"
+    },
+    {
+      "id": "01KK2QB40MK48JR4030HR4DY9M",
+      "name": "Data & Integrations",
+      "status": "operational",
+      "created_at": "2026-03-06T23:22:22Z",
+      "updated_at": "2026-06-12T21:49:00Z",
+      "position": 12,
+      "description": "Import/export, synced databases, embeds, third\u2011party integrations and AI connectors",
+      "page_id": "01KK2QB40MG2D5J5K7B7PVS0A6"
+    },
+    {
+      "id": "01KK2QB40MX8JSN8D7ZRK8Y01X",
+      "name": "Notion Apps",
+      "status": "operational",
+      "created_at": "2026-03-06T23:22:22Z",
+      "updated_at": "2026-06-12T21:49:00Z",
+      "position": 13,
+      "description": "Notion Mobile and Desktop apps",
+      "page_id": "01KK2QB40MG2D5J5K7B7PVS0A6"
+    },
+    {
+      "id": "01KK2QB40MN6K8JZFRHKETJSVS",
+      "name": "Notion Calendar",
+      "status": "operational",
+      "created_at": "2026-03-06T23:22:22Z",
+      "updated_at": "2026-06-12T21:49:00Z",
+      "position": 14,
+      "description": "Notion Calendar app",
+      "page_id": "01KK2QB40MG2D5J5K7B7PVS0A6"
+    },
+    {
+      "id": "01KK2QB40MKQXK44J6ENSZS2WV",
+      "name": "Notion Mail",
+      "status": "operational",
+      "created_at": "2026-03-06T23:22:22Z",
+      "updated_at": "2026-06-12T21:49:00Z",
+      "position": 15,
+      "description": "Notion Email app, Custom Agent mail triggers, connections, and tools",
+      "page_id": "01KK2QB40MG2D5J5K7B7PVS0A6"
+    },
+    {
+      "id": "01KK2QB40M2J38GDRJN5WZSNCH",
+      "name": "Notion Sites",
+      "status": "operational",
+      "created_at": "2026-03-06T23:22:22Z",
+      "updated_at": "2026-06-12T21:49:00Z",
+      "position": 16,
+      "description": "Publish a Notion page as a publicly accessible website with optional custom domain.",
+      "page_id": "01KK2QB40MG2D5J5K7B7PVS0A6"
+    },
+    {
+      "id": "01KK2QB40MWW0XD8P2SKZ7DZEQ",
+      "name": "Marketplace",
+      "status": "operational",
+      "created_at": "2026-03-06T23:22:22Z",
+      "updated_at": "2026-06-12T21:49:00Z",
+      "position": 17,
+      "description": "A catalog of custom agents, templates, integrations, and consulting services",
+      "page_id": "01KK2QB40MG2D5J5K7B7PVS0A6"
+    },
+    {
+      "id": "01KK2QB40MWM0PEZ4XG8YPM871",
+      "name": "Administration",
+      "status": "operational",
+      "created_at": "2026-03-06T23:22:22Z",
+      "updated_at": "2026-06-12T21:49:00Z",
+      "position": 18,
+      "description": "Workspace and org controls, users and guests, permissions, security settings, audit/retention, and other account management",
+      "page_id": "01KK2QB40MG2D5J5K7B7PVS0A6"
+    }
+  ]
+}

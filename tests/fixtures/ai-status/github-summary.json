@@ -1,0 +1,421 @@
+{
+  "page": {
+    "id": "kctbh9vrtdwd",
+    "name": "GitHub",
+    "url": "https://www.githubstatus.com",
+    "time_zone": "Etc/UTC",
+    "updated_at": "2026-10-12T13:38:44.594Z"
+  },
+  "components": [
+    {
+      "id": "8l4ygp009s5s",
+      "name": "Git Operations",
+      "status": "operational",
+      "created_at": "2017-01-31T20:05:05.370Z",
+      "updated_at": "2026-10-07T15:49:53.270Z",
+      "position": 1,
+      "description": "Performance of git clones, pulls, pushes, and associated operations",
+      "showcase": true,
+      "start_date": null,
+      "group_id": null,
+      "page_id": "kctbh9vrtdwd",
+      "group": false,
+      "only_show_if_degraded": false
+    },
+    {
+      "id": "4230lsnqdsld",
+      "name": "Webhooks",
+      "status": "operational",
+      "created_at": "2019-11-13T18:00:24.256Z",
+      "updated_at": "2026-10-07T15:49:53.296Z",
+      "position": 2,
+      "description": "Real time HTTP callbacks of user-generated and system events",
+      "showcase": true,
+      "start_date": null,
+      "group_id": null,
+      "page_id": "kctbh9vrtdwd",
+      "group": false,
+      "only_show_if_degraded": false
+    },
+    {
+      "id": "0l2p9nhqnxpd",
+      "name": "Visit www.githubstatus.com for more information",
+      "status": "operational",
+      "created_at": "2018-12-05T19:39:40.838Z",
+      "updated_at": "2025-03-19T05:00:21.309Z",
+      "position": 3,
+      "description": null,
+      "showcase": false,
+      "start_date": null,
+      "group_id": null,
+      "page_id": "kctbh9vrtdwd",
+      "group": false,
+      "only_show_if_degraded": false
+    },
+    {
+      "id": "brv1bkgrwx7q",
+      "name": "API Requests",
+      "status": "operational",
+      "created_at": "2017-01-31T20:01:46.621Z",
+      "updated_at": "2026-09-23T10:58:27.066Z",
+      "position": 4,
+      "description": "Requests for GitHub APIs",
+      "showcase": true,
+      "start_date": null,
+      "group_id": null,
+      "page_id": "kctbh9vrtdwd",
+      "group": false,
+      "only_show_if_degraded": false
+    },
+    {
+      "id": "kr09ddfgbfsf",
+      "name": "Issues",
+      "status": "degraded_performance",
+      "created_at": "2017-01-31T20:01:46.638Z",
+      "updated_at": "2026-10-12T12:21:48.028Z",
+      "position": 5,
+      "description": "Requests for Issues on GitHub.com",
+      "showcase": true,
+      "start_date": null,
+      "group_id": null,
+      "page_id": "kctbh9vrtdwd",
+      "group": false,
+      "only_show_if_degraded": false
+    },
+    {
+      "id": "hhtssxt0f5v2",
+      "name": "Pull Requests",
+      "status": "operational",
+      "created_at": "2020-09-02T15:39:06.329Z",
+      "updated_at": "2026-10-12T13:02:17.328Z",
+      "position": 6,
+      "description": "Requests for Pull Requests on GitHub.com",
+      "showcase": true,
+      "start_date": null,
+      "group_id": null,
+      "page_id": "kctbh9vrtdwd",
+      "group": false,
+      "only_show_if_degraded": false
+    },
+    {
+      "id": "br0l2tvcx85d",
+      "name": "Actions",
+      "status": "degraded_performance",
+      "created_at": "2019-11-13T18:02:19.432Z",
+      "updated_at": "2026-10-12T12:21:48.078Z",
+      "position": 7,
+      "description": "Workflows, Compute and Orchestration for GitHub Actions",
+      "showcase": true,
+      "start_date": null,
+      "group_id": null,
+      "page_id": "kctbh9vrtdwd",
+      "group": false,
+      "only_show_if_degraded": false
+    },
+    {
+      "id": "st3j38cctv9l",
+      "name": "Packages",
+      "status": "operational",
+      "created_at": "2019-11-13T18:02:40.064Z",
+      "updated_at": "2026-08-13T15:33:02.208Z",
+      "position": 8,
+      "description": "API requests and webhook delivery for GitHub Packages",
+      "showcase": true,
+      "start_date": null,
+      "group_id": null,
+      "page_id": "kctbh9vrtdwd",
+      "group": false,
+      "only_show_if_degraded": false
+    },
+    {
+      "id": "vg70hn9s2tyj",
+      "name": "Pages",
+      "status": "operational",
+      "created_at": "2017-01-31T20:04:33.923Z",
+      "updated_at": "2026-10-05T22:40:41.750Z",
+      "position": 9,
+      "description": "Frontend application and API servers for Pages builds",
+      "showcase": true,
+      "start_date": null,
+      "group_id": null,
+      "page_id": "kctbh9vrtdwd",
+      "group": false,
+      "only_show_if_degraded": false
+    },
+    {
+      "id": "pjmpxvq2cmr2",
+      "name": "Copilot",
+      "status": "operational",
+      "created_at": "2022-06-21T16:04:33.017Z",
+      "updated_at": "2026-08-17T21:15:46.595Z",
+      "position": 10,
+      "description": null,
+      "showcase": true,
+      "start_date": "2022-06-21",
+      "group_id": null,
+      "page_id": "kctbh9vrtdwd",
+      "group": false,
+      "only_show_if_degraded": false
+    },
+    {
+      "id": "h2ftsgbw7kmk",
+      "name": "Codespaces",
+      "status": "operational",
+      "created_at": "2021-08-11T16:02:09.505Z",
+      "updated_at": "2026-07-14T09:51:08.862Z",
+      "position": 11,
+      "description": "Orchestration and Compute for GitHub Codespaces",
+      "showcase": true,
+      "start_date": "2021-08-11",
+      "group_id": null,
+      "page_id": "kctbh9vrtdwd",
+      "group": false,
+      "only_show_if_degraded": false
+    },
+    {
+      "id": "cnnb39dkkk82",
+      "name": "Copilot AI Model Providers",
+      "status": "operational",
+      "created_at": "2026-04-17T12:33:08.827Z",
+      "updated_at": "2026-09-16T11:45:34.336Z",
+      "position": 12,
+      "description": null,
+      "showcase": true,
+      "start_date": "2026-04-17",
+      "group_id": null,
+      "page_id": "kctbh9vrtdwd",
+      "group": false,
+      "only_show_if_degraded": false
+    }
+  ],
+  "incidents": [
+    {
+      "id": "93njd414rpbx",
+      "name": "Incident with Actions, Pull Requests and Issues",
+      "status": "investigating",
+      "created_at": "2026-10-12T12:21:47.972Z",
+      "updated_at": "2026-10-12T13:38:44.573Z",
+      "monitoring_at": null,
+      "resolved_at": null,
+      "impact": "minor",
+      "shortlink": "https://stspg.io/flldq0dn2wdz",
+      "started_at": "2026-10-12T12:21:47.965Z",
+      "page_id": "kctbh9vrtdwd",
+      "incident_updates": [
+        {
+          "id": "m8vb4xnqflf2",
+          "status": "investigating",
+          "body": "Our initial mitigation was not fully successful, and users may still experience delays and errors with Actions, issues and projects, and notifications are delayed. We're continuing to investigate the root cause and work on additional mitigations.",
+          "incident_id": "93njd414rpbx",
+          "created_at": "2026-10-12T13:38:44.570Z",
+          "updated_at": "2026-10-12T13:38:44.570Z",
+          "display_at": "2026-10-12T13:38:44.570Z",
+          "affected_components": [
+            {
+              "code": "kr09ddfgbfsf",
+              "name": "Issues",
+              "old_status": "degraded_performance",
+              "new_status": "degraded_performance"
+            },
+            {
+              "code": "br0l2tvcx85d",
+              "name": "Actions",
+              "old_status": "degraded_performance",
+              "new_status": "degraded_performance"
+            },
+            {
+              "code": "hhtssxt0f5v2",
+              "name": "Pull Requests",
+              "old_status": "operational",
+              "new_status": "operational"
+            }
+          ],
+          "deliver_notifications": true,
+          "custom_tweet": null,
+          "tweet_id": null
+        },
+        {
+          "id": "k4j0qc2m06kk",
+          "status": "investigating",
+          "body": "Pull Requests is operating normally.",
+          "incident_id": "93njd414rpbx",
+          "created_at": "2026-10-12T13:02:17.366Z",
+          "updated_at": "2026-10-12T13:02:17.366Z",
+          "display_at": "2026-10-12T13:02:17.366Z",
+          "affected_components": [
+            {
+              "code": "kr09ddfgbfsf",
+              "name": "Issues",
+              "old_status": "degraded_performance",
+              "new_status": "degraded_performance"
+            },
+            {
+              "code": "br0l2tvcx85d",
+              "name": "Actions",
+              "old_status": "degraded_performance",
+              "new_status": "degraded_performance"
+            },
+            {
+              "code": "hhtssxt0f5v2",
+              "name": "Pull Requests",
+              "old_status": "degraded_performance",
+              "new_status": "operational"
+            }
+          ],
+          "deliver_notifications": true,
+          "custom_tweet": null,
+          "tweet_id": null
+        },
+        {
+          "id": "zmz2v8k064c2",
+          "status": "investigating",
+          "body": "We have a mitigation in progress and are monitoring for recovery. Users may also experience delayed web notifications as we mitigate.",
+          "incident_id": "93njd414rpbx",
+          "created_at": "2026-10-12T12:57:44.849Z",
+          "updated_at": "2026-10-12T12:57:44.849Z",
+          "display_at": "2026-10-12T12:57:44.849Z",
+          "affected_components": [
+            {
+              "code": "kr09ddfgbfsf",
+              "name": "Issues",
+              "old_status": "degraded_performance",
+              "new_status": "degraded_performance"
+            },
+            {
+              "code": "br0l2tvcx85d",
+              "name": "Actions",
+              "old_status": "degraded_performance",
+              "new_status": "degraded_performance"
+            },
+            {
+              "code": "hhtssxt0f5v2",
+              "name": "Pull Requests",
+              "old_status": "degraded_performance",
+              "new_status": "degraded_performance"
+            }
+          ],
+          "deliver_notifications": true,
+          "custom_tweet": null,
+          "tweet_id": null
+        },
+        {
+          "id": "j38yvdtzr9x9",
+          "status": "investigating",
+          "body": "Users may experience issues loading the Actions tab UI, interacting with the Checks API, queueing new Actions runs, creating and updating issues, and requesting PR reviews, including via REST and GraphQL APIs.",
+          "incident_id": "93njd414rpbx",
+          "created_at": "2026-10-12T12:33:21.895Z",
+          "updated_at": "2026-10-12T12:33:21.895Z",
+          "display_at": "2026-10-12T12:33:21.895Z",
+          "affected_components": [
+            {
+              "code": "kr09ddfgbfsf",
+              "name": "Issues",
+              "old_status": "degraded_performance",
+              "new_status": "degraded_performance"
+            },
+            {
+              "code": "br0l2tvcx85d",
+              "name": "Actions",
+              "old_status": "degraded_performance",
+              "new_status": "degraded_performance"
+            },
+            {
+              "code": "hhtssxt0f5v2",
+              "name": "Pull Requests",
+              "old_status": "degraded_performance",
+              "new_status": "degraded_performance"
+            }
+          ],
+          "deliver_notifications": true,
+          "custom_tweet": null,
+          "tweet_id": null
+        },
+        {
+          "id": "tysn3wg7m41g",
+          "status": "investigating",
+          "body": "We are investigating reports of degraded performance for Actions, Issues and Pull Requests",
+          "incident_id": "93njd414rpbx",
+          "created_at": "2026-10-12T12:21:48.115Z",
+          "updated_at": "2026-10-12T12:21:48.115Z",
+          "display_at": "2026-10-12T12:21:48.115Z",
+          "affected_components": [
+            {
+              "code": "kr09ddfgbfsf",
+              "name": "Issues",
+              "old_status": "operational",
+              "new_status": "degraded_performance"
+            },
+            {
+              "code": "br0l2tvcx85d",
+              "name": "Actions",
+              "old_status": "operational",
+              "new_status": "degraded_performance"
+            },
+            {
+              "code": "hhtssxt0f5v2",
+              "name": "Pull Requests",
+              "old_status": "operational",
+              "new_status": "degraded_performance"
+            }
+          ],
+          "deliver_notifications": true,
+          "custom_tweet": null,
+          "tweet_id": null
+        }
+      ],
+      "components": [
+        {
+          "id": "kr09ddfgbfsf",
+          "name": "Issues",
+          "status": "degraded_performance",
+          "created_at": "2017-01-31T20:01:46.638Z",
+          "updated_at": "2026-10-12T12:21:48.028Z",
+          "position": 5,
+          "description": "Requests for Issues on GitHub.com",
+          "showcase": true,
+          "start_date": null,
+          "group_id": null,
+          "page_id": "kctbh9vrtdwd",
+          "group": false,
+          "only_show_if_degraded": false
+        },
+        {
+          "id": "hhtssxt0f5v2",
+          "name": "Pull Requests",
+          "status": "operational",
+          "created_at": "2020-09-02T15:39:06.329Z",
+          "updated_at": "2026-10-12T13:02:17.328Z",
+          "position": 6,
+          "description": "Requests for Pull Requests on GitHub.com",
+          "showcase": true,
+          "start_date": null,
+          "group_id": null,
+          "page_id": "kctbh9vrtdwd",
+          "group": false,
+          "only_show_if_degraded": false
+        },
+        {
+          "id": "br0l2tvcx85d",
+          "name": "Actions",
+          "status": "degraded_performance",
+          "created_at": "2019-11-13T18:02:19.432Z",
+          "updated_at": "2026-10-12T12:21:48.078Z",
+          "position": 7,
+          "description": "Workflows, Compute and Orchestration for GitHub Actions",
+          "showcase": true,
+          "start_date": null,
+          "group_id": null,
+          "page_id": "kctbh9vrtdwd",
+          "group": false,
+          "only_show_if_degraded": false
+        }
+      ],
+      "reminder_intervals": null
+    }
+  ],
+  "scheduled_maintenances": [],
+  "status": {
+    "indicator": "minor",
+    "description": "Partially Degraded Service"
+  }
+}
