@@ -228,6 +228,72 @@ test('原浏览器交换已失效的验证代码仍显示错误提示', async ({
   await expect(page.getByRole('button', { name: '查看世界时间详情' })).toHaveCount(0)
 })
 
+test('刷新时显示首页骨架屏，准入完成前不请求或展示业务数据', async ({ page }) => {
+  await page.addInitScript(({ user }) => localStorage.setItem('sb-auth-test-auth-token', JSON.stringify({ access_token: 'test-access-token', refresh_token: 'test-refresh-token', expires_at: 4102444800, token_type: 'bearer', user })), { user })
+  let release: () => void = () => {}
+  let pending = Promise.resolve()
+  await page.route('**/api/auth/me', async route => { await pending; await route.fulfill({ json: { user: { id: user.id, email: user.email } } }) })
+  let businessRequests = 0
+  await page.route(/\/api\/(?!auth\/)/, route => { businessRequests++; return route.fulfill({ status: 503, json: { error: { code: 'SOURCE_UNAVAILABLE', message: '稍后重试' } } }) })
+  await page.goto('/')
+  await expect(page.getByRole('button', { name: '查看世界时间详情' })).toBeVisible()
+  const readyRequests = businessRequests
+  pending = new Promise<void>(resolve => { release = resolve })
+  await page.reload()
+  try {
+    await expect(page.getByRole('status', { name: '正在确认访问资格' })).toBeVisible()
+    await expect(page.locator('.auth-card')).toHaveCount(0)
+    await expect(page.getByRole('button', { name: '查看今日待办详情' })).toHaveCount(0)
+    await expect(page.getByRole('link', { name: '新闻', exact: true })).toHaveCount(0)
+    expect(businessRequests).toBe(readyRequests)
+    for (const width of [1440, 390]) {
+      await page.setViewportSize({ width, height: 954 })
+      const sizes = await page.evaluate(() => ({ viewport: document.documentElement.clientWidth, content: document.documentElement.scrollWidth }))
+      expect(sizes.content).toBeLessThanOrEqual(sizes.viewport)
+    }
+  } finally { release() }
+  await expect(page.getByRole('button', { name: '查看世界时间详情' })).toBeVisible()
+  await expect(page.getByRole('status', { name: '正在确认访问资格' })).toHaveCount(0)
+})
+
+test('已有有效会话的回跳先验证准入，通过后清理地址进入首页', async ({ page }) => {
+  await page.addInitScript(({ user }) => localStorage.setItem('sb-auth-test-auth-token', JSON.stringify({ access_token: 'test-access-token', refresh_token: 'test-refresh-token', expires_at: 4102444800, token_type: 'bearer', user })), { user })
+  let identityChecks = 0
+  await page.route('**/api/auth/me', route => { identityChecks++; return route.fulfill({ json: { user: { id: user.id, email: user.email } } }) })
+  await page.route(/\/api\/(?!auth\/)/, route => route.fulfill({ status: 503, json: { error: { code: 'SOURCE_UNAVAILABLE', message: '稍后重试' } } }))
+  await page.goto('/auth/callback?code=test-unexchanged-code')
+  await expect(page.getByRole('button', { name: '查看世界时间详情' })).toBeVisible()
+  await expect(page).toHaveURL('/')
+  expect(identityChecks).toBeGreaterThan(0)
+  await expect(page.getByRole('heading', { name: '请登录继续访问' })).toHaveCount(0)
+})
+
+for (const { status, heading } of [
+  { status: 401, heading: '请登录继续访问' },
+  { status: 403, heading: '暂时无法进入' },
+  { status: 503, heading: '暂时无法连接' },
+]) {
+  test(`回跳已有本地会话但 Worker 返回 ${status} 时不能进入首页`, async ({ page }) => {
+    await page.addInitScript(({ user }) => localStorage.setItem('sb-auth-test-auth-token', JSON.stringify({ access_token: 'test-access-token', refresh_token: 'test-refresh-token', expires_at: 4102444800, token_type: 'bearer', user })), { user })
+    await page.route('**/api/auth/me', route => route.fulfill({ status, json: {} }))
+    let businessRequests = 0
+    await page.route(/\/api\/(?!auth\/)/, route => { businessRequests++; return route.fulfill({ status: 503, json: {} }) })
+    await page.goto('/auth/callback?code=test-unexchanged-code')
+    await expect(page.getByRole('heading', { name: heading })).toBeVisible()
+    await expect(page.getByRole('button', { name: '查看世界时间详情' })).toHaveCount(0)
+    expect(businessRequests).toBe(0)
+  })
+}
+
+test('已有会话通过准入时不被 URL 的回跳错误阻挡', async ({ page }) => {
+  await page.addInitScript(({ user }) => localStorage.setItem('sb-auth-test-auth-token', JSON.stringify({ access_token: 'test-access-token', refresh_token: 'test-refresh-token', expires_at: 4102444800, token_type: 'bearer', user })), { user })
+  await page.route('**/api/auth/me', route => route.fulfill({ json: { user: { id: user.id, email: user.email } } }))
+  await page.route(/\/api\/(?!auth\/)/, route => route.fulfill({ status: 503, json: { error: { code: 'SOURCE_UNAVAILABLE', message: '稍后重试' } } }))
+  await page.goto('/auth/callback?error=access_denied&error_code=otp_expired')
+  await expect(page.getByRole('button', { name: '查看世界时间详情' })).toBeVisible()
+  await expect(page).toHaveURL('/')
+})
+
 test('验证邮件 PKCE 回跳通过准入后进入首页并清理回跳地址', async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem('sb-auth-test-auth-token-code-verifier', JSON.stringify('test-pkce-verifier')))
   await page.route('https://auth-test.supabase.co/auth/v1/token?grant_type=pkce', route => route.fulfill({ json: pkceSession }))
