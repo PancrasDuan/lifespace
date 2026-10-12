@@ -18,6 +18,7 @@ test('首页卡片没有说明，详情标题下保留说明并展示两家子�
   const dialog = page.getByRole('dialog')
   await expect(dialog.locator('header')).toContainText('官方状态为汇总信息')
   await expect(dialog.locator('.detail-content > .detail-note')).toHaveCount(0)
+  await dialog.locator('summary[aria-label="OpenAI 子服务"]').click()
   const openai = dialog.getByRole('list', { name: 'OpenAI 官网子状态' })
   await expect(openai.getByRole('listitem')).toHaveCount(5)
   await expect(openai).toContainText('ChatGPT')
@@ -35,6 +36,8 @@ test('xAI 子模块按事件显示异常和可用，注明规则，不出现旧�
   const provider = page.getByRole('dialog').getByRole('region', { name: 'xAI 状态' })
   await expect(provider).toContainText('子模块状态（按事件）')
   await expect(provider).toContainText('依据官方未解决事件判定')
+  await provider.locator('summary[aria-label="xAI 子服务"]').click()
+  await provider.locator('summary[aria-label="xAI Grok 子服务"]').click()
   const list = provider.getByRole('list', { name: 'xAI 子模块状态' })
   await expect(list).toContainText('grok.com')
   await expect(list).toContainText('异常')
@@ -50,6 +53,7 @@ test('请求失败后隐藏旧子状态的可用标记，明确当前官网子�
   await page.route('**/api/ai-status', route => route.fulfill(failed ? { status: 502, json: { error: { code: 'FAILED', message: '获取失败' } } } : { json: data }))
   await page.goto('/')
   await page.getByRole('button', { name: '查看服务状态详情' }).click()
+  await page.getByRole('dialog').locator('summary[aria-label="OpenAI 子服务"]').click()
   await expect(page.getByRole('dialog').getByRole('list', { name: 'OpenAI 官网子状态' })).toContainText('可用')
   await page.getByRole('button', { name: '关闭详情' }).click()
   failed = true
@@ -219,4 +223,50 @@ test('Resend 发信组件未知时仍展示已取得的当前事件与其余组�
   await expect(region).toContainText('正在调查控制台异常')
   await expect(region).toContainText('Webhooks')
   await expect(region).not.toContainText('上次结果')
+})
+
+const extendedProviders = [
+  ...normal.providers, resend,
+  ...[{ id: 'github', name: 'GitHub', statusUrl: 'https://www.githubstatus.com/' }, { id: 'cloudflare', name: 'Cloudflare', statusUrl: 'https://www.cloudflarestatus.com/' }, { id: 'supabase', name: 'Supabase', statusUrl: 'https://status.supabase.com/' }, { id: 'notion', name: 'Notion', statusUrl: 'https://www.notion-status.com/' }].map(provider => ({ ...provider, statusBasis: 'official-components', status: 'normal', checkedAt, description: '官方全平台状态', error: null, incidents: [], affectedServices: [], subStatusError: null,
+    subStatuses: [{ id: 'group', name: 'Services', status: 'normal', statusLabel: '正常', components: Array.from({ length: provider.id === 'cloudflare' ? 300 : 3 }, (_, i) => ({ id: String(i), name: `Service ${i}`, status: i === 1 ? 'abnormal' : 'normal', statusLabel: i === 1 ? '部分故障' : '正常' })) }],
+  })),
+]
+
+test('七家独立服务卡片，子服务默认收起，分组可键盘展开，各家独立收起', async ({ page }) => {
+  await page.route('**/api/ai-status', route => route.fulfill({ json: { ...normal, providers: extendedProviders } }))
+  await page.goto('/')
+  await page.getByRole('button', { name: '查看服务状态详情' }).click()
+  const dialog = page.getByRole('dialog')
+  await expect(dialog.locator('.service-provider-card')).toHaveCount(7)
+  await expect(dialog.locator('.service-substatus-fold[open]')).toHaveCount(0)
+  const cloudflare = dialog.getByRole('region', { name: 'Cloudflare 状态' })
+  await expect(cloudflare).toContainText('300 项')
+  await expect(cloudflare).toContainText('1 项异常')
+  const summary = cloudflare.locator('summary[aria-label="Cloudflare 子服务"]')
+  await summary.focus(); await page.keyboard.press('Enter')
+  await expect(cloudflare.locator('.service-substatus-fold')).toHaveAttribute('open', '')
+  const group = cloudflare.locator('summary[aria-label="Cloudflare Services 子服务"]')
+  await group.click()
+  await expect(cloudflare.getByText('Service 299', { exact: true })).toBeVisible()
+  await expect(cloudflare.getByText('部分故障', { exact: true })).toBeVisible()
+  await expect(dialog.getByRole('region', { name: 'Notion 状态' }).locator('.service-substatus-fold')).not.toHaveAttribute('open', '')
+  await summary.click()
+  await expect(cloudflare.getByText('Service 299', { exact: true })).not.toBeVisible()
+})
+
+test('七家详情在电脑与手机无横向溢出，服务边界清晰且异常事件不随子服务折叠', async ({ page }) => {
+  await page.route('**/api/ai-status', route => route.fulfill({ json: { ...normal, providers: extendedProviders } }))
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: 950 })
+    await page.goto('/')
+    await page.getByRole('button', { name: '查看服务状态详情' }).click()
+    const dialog = page.getByRole('dialog')
+    const resendRegion = dialog.getByRole('region', { name: 'Resend 状态' })
+    await expect(resendRegion.getByText('Dashboard 故障', { exact: true })).toBeVisible()
+    await expect(resendRegion.locator('.service-substatus-fold')).not.toHaveAttribute('open', '')
+    expect(await dialog.evaluate(element => element.scrollWidth <= element.clientWidth + 1)).toBe(true)
+    expect(await dialog.locator('.service-provider-card').first().evaluate(element => getComputedStyle(element).borderLeftWidth)).not.toBe('0px')
+    if (width === 1440) await page.screenshot({ path: '.cache/service-status-redesign.png' })
+    await page.getByRole('button', { name: '关闭详情' }).click()
+  }
 })

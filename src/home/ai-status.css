@@ -28,3 +28,37 @@
 .ai-components .ai-state{flex-shrink:0}
 .ai-substatus-unavailable{padding:10px 12px;background:rgba(101,118,107,.06);border-radius:6px}
 @media(max-width:480px){.ai-components{grid-template-columns:1fr}}
+
+/* 服务详情：独立容器强化提供方边界，子服务按需展开。 */
+.service-detail-overview{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;font-size:11px;color:var(--quiet);padding-bottom:16px;border-bottom:1px solid var(--line)}
+.service-detail-overview strong{color:var(--ink);font-size:14px}
+.detail-content .service-detail-providers{gap:16px;margin-top:18px}
+.detail-content .service-provider-card{padding:20px;border:1px solid #cad8cc;border-radius:16px;background:#fffefb;box-shadow:0 3px 12px rgba(46,71,52,.04);border-top:3px solid #a5bda9}
+.detail-content .service-provider-card[data-status="abnormal"]{border-top-color:#b9744e}
+.detail-content .service-provider-card[data-status="unknown"]{border-top-color:#9daaa1}
+.service-identity{display:flex;align-items:center;gap:11px;min-width:0}
+.service-mark{display:grid;place-items:center;width:36px;height:36px;flex-shrink:0;border:1px solid #d9e4db;border-radius:11px;background:#eff5ef;color:#385a43;font-size:18px;font-weight:600;font-family:Georgia,serif}
+.service-provider-card[data-provider="github"] .service-mark{background:#f1edf7;color:#67527b;border-color:#e2daec}
+.service-provider-card[data-provider="cloudflare"] .service-mark{background:#fff2e4;color:#aa6b32;border-color:#efdbc4}
+.service-provider-card[data-provider="notion"] .service-mark{background:#f0f1ed;color:#455047}
+.service-identity>div{display:flex;flex-direction:column;gap:1px}.service-identity strong{font-size:16px;font-weight:600;letter-spacing:.1px}.service-identity small{font-size:10px;letter-spacing:.5px}
+.service-provider-card>.ai-provider-heading{margin-bottom:12px}.service-provider-card .ai-provider-heading>.ai-state{border:1px solid currentColor;border-radius:20px;padding:2px 10px;white-space:nowrap}
+.service-provider-card .ai-incidents>li{margin-top:12px;padding:12px;border:1px solid #eadbcf;border-radius:10px;background:#fcf7f2}.service-provider-card .ai-incidents>li:first-child{margin-top:0}
+.service-provider-footer{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:12px;margin-top:16px;font-size:10px;color:var(--quiet)}
+.service-provider-footer a{display:inline-flex;align-items:center;gap:4px;color:#486d52;font-size:11px;white-space:nowrap}
+.service-substatus-fold{border:1px solid #dce6dc;border-radius:10px;background:#f5f8f2;overflow:hidden;margin-top:16px}
+.service-substatus-fold>summary,.service-subgroup>summary{display:flex;align-items:center;justify-content:space-between;gap:12px;list-style:none;padding:11px 12px;font-size:12px;user-select:none}
+.service-substatus-fold summary::-webkit-details-marker{display:none}
+.service-substatus-fold summary:focus-visible{outline:2px solid #486d52;outline-offset:-3px;border-radius:8px}
+.service-substatus-fold summary>span:first-child,.service-subgroup summary>span:first-child{display:flex;align-items:center;gap:7px;min-width:0}
+.service-substatus-fold summary svg{flex-shrink:0;transition:transform .15s ease}.service-substatus-fold[open]>summary svg,.service-subgroup[open]>summary svg{transform:rotate(180deg)}
+.service-fold-hint{font-size:10px;color:var(--quiet);white-space:nowrap}
+.service-substatus-body{padding:0 12px 12px;border-top:1px solid #dce6dc}.service-substatus-body>.ai-substatuses{margin-top:8px}
+.service-subgroup{margin:0!important;border:1px solid #dce6dc;border-radius:8px;background:#fffefb}
+.service-subgroup>summary{padding:9px 10px}.service-subgroup .ai-components{padding:0 10px 10px}.service-subgroup>small{display:block;padding:0 10px 10px}
+.service-substatus-body .ai-substatuses>li{border-bottom:0;padding:5px 0}
+.service-substatus-body .ai-substatus-heading{padding:7px 0;border-bottom:1px solid var(--line)}
+@media(max-width:720px){.detail-content .service-provider-card{padding:16px;border-radius:13px}.service-detail-overview{font-size:10px}.service-provider-footer{align-items:flex-start;flex-direction:column;gap:5px}.service-substatus-fold>summary{gap:8px;padding:11px 10px}.service-fold-hint{font-size:9px}.service-identity strong{font-size:15px}}
+@media(prefers-reduced-motion:reduce){.service-substatus-fold summary svg{transition:none}}
+
+.modal:has(.service-detail-providers)>header{position:sticky;top:0;z-index:2;background:#f6faf2}
