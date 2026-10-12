@@ -62,3 +62,14 @@
 @media(prefers-reduced-motion:reduce){.service-substatus-fold summary svg{transition:none}}
 
 .modal:has(.service-detail-providers)>header{position:sticky;top:0;z-index:2;background:#f6faf2}
+
+/* 一级卡片：一个系统一行，仅呈现名称和当前状态。 */
+.service-primary-content .ai-overall{margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid var(--line)}
+.service-primary-content .ai-overall>strong{font-size:20px}
+.service-status-rows{display:flex;flex-direction:column}
+.service-status-row{display:flex;align-items:center;justify-content:space-between;gap:16px;min-width:0;padding:11px 0;border-bottom:1px solid var(--line)}
+.service-status-row:last-child{border-bottom:0;padding-bottom:0}
+.service-status-row>strong{font-size:13px;font-weight:500;color:var(--ink)}
+.service-status-row>.ai-state{display:inline-flex;align-items:center;gap:7px;font-size:11px;white-space:nowrap}
+.service-status-row .ai-state>i{width:6px;height:6px;border-radius:50%;background:currentColor;flex-shrink:0}
+@media(max-width:720px){.service-status-row{padding:10px 0}.service-status-row>strong{font-size:12px}}

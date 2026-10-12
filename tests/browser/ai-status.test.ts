@@ -67,15 +67,15 @@ test('请求失败后隐藏旧子状态的可用标记，明确当前官网子�
   await expect(provider).not.toContainText('可用')
 })
 
-test('全部异常及受影响服务在卡片和详情展示，旧异常不能冒充当前状态', async ({ page }) => {
+test('一级只显示系统状态，全部异常和受影响服务在二级展示，旧异常不能冒充当前状态', async ({ page }) => {
   await page.route(/\/api\/(?!auth\/)/, route => route.fulfill({ status: 503, json: { error: { code: 'NOT_CONFIGURED', message: '未配置' } } }))
   let failed = false
   await page.route('**/api/ai-status', route => route.fulfill(failed ? { status: 502, json: { error: { code: 'FAILED', message: '连接失败' } } } : { json: abnormal }))
   await page.goto('/')
   const card = page.getByRole('button', { name: '查看服务状态详情' })
-  await expect(card).toContainText('ChatGPT 回应异常')
-  await expect(card).toContainText('登录异常')
-  await expect(card).toContainText('原因待公布')
+  await expect(card).not.toContainText('ChatGPT 回应异常')
+  await expect(card).not.toContainText('登录异常')
+  await expect(card.getByRole('region', { name: 'OpenAI 状态' })).toContainText('存在异常')
   await card.click()
   await expect(page.getByRole('dialog')).toContainText('受影响服务：ChatGPT')
   await expect(page.getByRole('dialog')).toContainText('受影响服务：官方未列出')
@@ -83,9 +83,11 @@ test('全部异常及受影响服务在卡片和详情展示，旧异常不能�
   failed = true
   await page.getByRole('button', { name: '刷新服务状态' }).click()
   await expect(card.locator('.ai-overall')).toContainText('状态未知')
-  await expect(card).toContainText('上次结果')
-  await expect(card).toContainText('当前状态未确认')
-  await expect(card).toContainText('ChatGPT 回应异常')
+  await expect(card).not.toContainText('上次结果')
+  await card.click()
+  await expect(page.getByRole('dialog')).toContainText('上次结果')
+  await expect(page.getByRole('dialog')).toContainText('当前状态未确认')
+  await expect(page.getByRole('dialog')).toContainText('ChatGPT 回应异常')
 })
 
 test('后台页面恢复可见时立即刷新官方状态', async ({ page }) => {
@@ -129,8 +131,10 @@ test('单家刷新失败保留上次结果并标明当前状态未知', async ({
   failed = true
   await page.getByRole('button', { name: '刷新服务状态' }).click()
   await expect(card).toContainText('状态未知')
-  await expect(card).toContainText('上次结果')
-  await expect(card).toContainText('当前状态未确认')
+  await expect(card).not.toContainText('上次结果')
+  await card.click()
+  await expect(page.getByRole('dialog')).toContainText('上次结果')
+  await expect(page.getByRole('dialog')).toContainText('当前状态未确认')
 })
 
 test('AI 状态卡片显示正常状态，点击详情可打开官方状态页', async ({ page }) => {
@@ -146,7 +150,7 @@ test('AI 状态卡片显示正常状态，点击详情可打开官方状态页',
   await expect(dialog.getByRole('link', { name: 'xAI 官方状态页' })).toHaveAttribute('href', 'https://status.x.ai/')
 })
 
-test('两家全部异常在首页及详情按提供方分组，电脑和手机无横向溢出', async ({ page }) => {
+test('一级按行显示两家状态，二级保留全部事件，电脑和手机无横向溢出', async ({ page }) => {
   const result = { ...abnormal, providers: [abnormal.providers[0], { ...xai, status: 'abnormal', description: 'Partial System Degradation', incidents: [
     { ...abnormal.providers[0].incidents[0], id: 'grok', title: 'Grok 服务异常', affectedServices: ['grok.com'] },
     { ...abnormal.providers[0].incidents[1], id: 'api', title: 'xAI API 异常', affectedServices: ['Global API'] },
@@ -157,15 +161,18 @@ test('两家全部异常在首页及详情按提供方分组，电脑和手机�
     await page.setViewportSize({ width, height: 954 })
     await page.goto('/')
     const card = page.getByRole('button', { name: '查看服务状态详情' })
-    await expect(card.getByRole('region', { name: 'OpenAI 状态' })).toContainText('ChatGPT 回应异常')
-    await expect(card.getByRole('region', { name: 'OpenAI 状态' })).toContainText('登录异常')
-    await expect(card.getByRole('region', { name: 'OpenAI 状态' })).not.toContainText('Grok 服务异常')
-    await expect(card.getByRole('region', { name: 'xAI 状态' })).toContainText('Grok 服务异常')
-    await expect(card.getByRole('region', { name: 'xAI 状态' })).toContainText('xAI API 异常')
+    await expect(card.getByRole('region', { name: 'OpenAI 状态' })).toHaveText('OpenAI存在异常')
+    await expect(card.getByRole('region', { name: 'xAI 状态' })).toHaveText('xAI存在异常')
+    await expect(card).not.toContainText('ChatGPT 回应异常')
     const size = await page.evaluate(() => ({ width: document.documentElement.clientWidth, content: document.documentElement.scrollWidth }))
     expect(size.content).toBeLessThanOrEqual(size.width)
     await card.click()
-    await expect(page.getByRole('dialog').getByRole('region', { name: 'xAI 状态' })).toContainText('受影响服务：Global API')
+    const dialog = page.getByRole('dialog')
+    await expect(dialog.getByRole('region', { name: 'OpenAI 状态' })).toContainText('ChatGPT 回应异常')
+    await expect(dialog.getByRole('region', { name: 'OpenAI 状态' })).toContainText('登录异常')
+    await expect(dialog.getByRole('region', { name: 'xAI 状态' })).toContainText('Grok 服务异常')
+    await expect(dialog.getByRole('region', { name: 'xAI 状态' })).toContainText('xAI API 异常')
+    await expect(dialog.getByRole('region', { name: 'xAI 状态' })).toContainText('受影响服务：Global API')
     if (width === 1440) await page.screenshot({ path: '.cache/ai-status-detail.png' })
     await page.getByRole('button', { name: '关闭详情' }).click()
     if (width === 1440) await page.screenshot({ path: '.cache/ai-status-card.png', fullPage: true })
@@ -179,8 +186,11 @@ test('已知异常与单家获取失败并存时，同时展示异常和未知',
   const card = page.getByRole('button', { name: '查看服务状态详情' })
   await expect(card.locator('.ai-overall')).toContainText('存在异常')
   await expect(card.getByRole('region', { name: 'xAI 状态' })).toContainText('状态未知')
-  await expect(card).toContainText('官方状态接口拒绝访问')
-  await expect(card).toContainText('ChatGPT 回应异常')
+  await expect(card).not.toContainText('官方状态接口拒绝访问')
+  await expect(card).not.toContainText('ChatGPT 回应异常')
+  await card.click()
+  await expect(page.getByRole('dialog')).toContainText('官方状态接口拒绝访问')
+  await expect(page.getByRole('dialog')).toContainText('ChatGPT 回应异常')
 })
 
 const resend = { id: 'resend', name: 'Resend', statusBasis: 'official-components', status: 'normal', statusUrl: 'https://resend-status.com/', checkedAt, description: '发信相关组件正常', error: null, affectedServices: [], subStatusError: null,
@@ -193,7 +203,10 @@ test('服务状态展示三家，Resend 非发信异常保留在详情，刷新�
   await page.route('**/api/ai-status', route => route.fulfill({ json: { ...normal, status: failed ? 'unknown' : 'normal', providers: [...normal.providers, failed ? { ...resend, status: 'unknown', description: '状态未知', error: '官方状态获取失败', subStatuses: [], incidents: [] } : resend] } }))
   await page.goto('/')
   const card = page.getByRole('button', { name: '查看服务状态详情' })
-  await expect(card).toContainText('OpenAI · xAI · Resend')
+  await expect(card.locator('.service-status-row')).toHaveCount(3)
+  await expect(card).toContainText('OpenAI')
+  await expect(card).toContainText('xAI')
+  await expect(card).toContainText('Resend')
   await expect(card).toContainText('正常')
   await expect(card).not.toContainText('Dashboard 故障')
   await card.click()
@@ -207,8 +220,10 @@ test('服务状态展示三家，Resend 非发信异常保留在详情，刷新�
   failed = true
   await page.getByRole('button', { name: '刷新服务状态' }).click()
   await expect(card).toContainText('状态未知')
-  await expect(card).toContainText('上次结果')
-  await expect(card).toContainText('当前状态未确认')
+  await expect(card).not.toContainText('上次结果')
+  await card.click()
+  await expect(page.getByRole('dialog')).toContainText('上次结果')
+  await expect(page.getByRole('dialog')).toContainText('当前状态未确认')
 })
 
 
@@ -268,5 +283,29 @@ test('七家详情在电脑与手机无横向溢出，服务边界清晰且异�
     expect(await dialog.locator('.service-provider-card').first().evaluate(element => getComputedStyle(element).borderLeftWidth)).not.toBe('0px')
     if (width === 1440) await page.screenshot({ path: '.cache/service-status-redesign.png' })
     await page.getByRole('button', { name: '关闭详情' }).click()
+  }
+})
+
+
+test('一级七个系统各占一行，仅显示标题和状态，正常系统可见且手机不溢出', async ({ page }) => {
+  await page.route('**/api/ai-status', route => route.fulfill({ json: { ...normal, providers: extendedProviders } }))
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: 950 })
+    await page.goto('/')
+    const card = page.getByRole('button', { name: '查看服务状态详情' })
+    const rows = card.locator('.service-status-row')
+    await expect(rows).toHaveCount(7)
+    for (let i = 0; i < extendedProviders.length; i++) {
+      await expect(rows.nth(i).locator('strong')).toHaveText(extendedProviders[i].name)
+      await expect(rows.nth(i).locator('.ai-state')).toBeVisible()
+    }
+    await expect(card).not.toContainText('Dashboard 故障')
+    await expect(card).not.toContainText('官方全平台状态')
+    await expect(card).not.toContainText('Webhooks')
+    const boxes = await rows.evaluateAll(elements => elements.map(element => { const box = element.getBoundingClientRect(); return { x: box.x, y: box.y, bottom: box.bottom, width: box.width } }))
+    expect(boxes.every(box => Math.abs(box.x - boxes[0].x) < 1 && Math.abs(box.width - boxes[0].width) < 1)).toBe(true)
+    expect(boxes.slice(1).every((box, i) => box.y >= boxes[i].bottom)).toBe(true)
+    expect(await card.evaluate(element => element.scrollWidth <= element.clientWidth + 1)).toBe(true)
+    if (width === 1440) await page.screenshot({ path: '.cache/service-status-primary.png', fullPage: true })
   }
 })

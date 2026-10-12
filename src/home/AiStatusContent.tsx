@@ -92,10 +92,15 @@ function SubStatuses({ provider, stale }: { provider: AiProvider; stale: boolean
 export function AiStatusContent({ view }: { view: StatusView }) {
   const { query } = view
   const status = query.isError || !query.data ? 'unknown' : query.data.status
-  return <div className="ai-content"><div className={`ai-overall ai-state-${status}`}><strong>{query.isPending ? '正在获取' : labels[status]}</strong><span>{query.data?.providers.map(provider => provider.name).join(' · ') || '官方服务运行状态'}</span></div>
-    {query.isError && <p className="inline-error">本次获取失败，当前状态未知</p>}
-    {query.data && <Providers view={view} />}
-    {!query.data && !query.isPending && <p>请刷新重试，或进入详情查看官方状态页</p>}
+  return <div className="ai-content service-primary-content">
+    <div className={`ai-overall ai-state-${status}`}><strong>{query.isPending ? '正在获取' : labels[status]}</strong></div>
+    {query.data && <div className="service-status-rows" aria-label="系统运行状态">{query.data.providers.map(provider => {
+      const current = query.isError ? 'unknown' : provider.status
+      return <section className="service-status-row" key={provider.id} aria-label={`${provider.name} 状态`}>
+        <strong>{provider.name}</strong><span className={`ai-state ai-state-${current}`}><i aria-hidden="true" />{current === 'normal' && provider.statusBasis === 'official-events' ? '可用' : labels[current]}</span>
+      </section>
+    })}</div>}
+    {!query.data && !query.isPending && <p>状态未知</p>}
   </div>
 }
 
