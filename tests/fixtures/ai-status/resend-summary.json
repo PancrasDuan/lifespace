@@ -1,0 +1,133 @@
+{
+  "page": {
+    "id": "01JAVQMNY0DQSV4WA26TFYAMWG",
+    "name": "Resend",
+    "url": "https://resend-status.com/",
+    "updated_at": "2026-09-29T14:01:11Z"
+  },
+  "status": {
+    "description": "All Systems Operational",
+    "indicator": "none"
+  },
+  "components": [
+    {
+      "id": "01JAVQMPBQB2V1EV4CXB9SSE6S",
+      "name": "Single Email",
+      "status": "operational",
+      "created_at": "2024-10-23T03:45:01Z",
+      "updated_at": "2026-09-08T13:11:08Z",
+      "position": 0,
+      "description": "API endpoint for sending individual emails",
+      "page_id": "01JAVQMNY0DQSV4WA26TFYAMWG"
+    },
+    {
+      "id": "01JBC9MT40KNWXCBCC34T3EKBM",
+      "name": "Batch Emails",
+      "status": "operational",
+      "created_at": "2024-10-29T14:07:30Z",
+      "updated_at": "2026-09-08T13:11:08Z",
+      "position": 1,
+      "description": "API endpoint for sending multiple emails in a single request",
+      "page_id": "01JAVQMNY0DQSV4WA26TFYAMWG"
+    },
+    {
+      "id": "01JBC9MT40F8R4SYA7JDK2V8PN",
+      "name": "Broadcast Emails",
+      "status": "operational",
+      "created_at": "2024-10-29T14:07:30Z",
+      "updated_at": "2026-09-08T13:11:08Z",
+      "position": 2,
+      "description": "API endpoint for sending emails to audiences using broadcast templates",
+      "page_id": "01JAVQMNY0DQSV4WA26TFYAMWG"
+    },
+    {
+      "id": "01M20J9KYYP6C30W2NW5MRN8DP",
+      "name": "Scheduled Emails",
+      "status": "operational",
+      "created_at": "2026-09-08T13:11:08Z",
+      "updated_at": "2026-09-29T13:56:37Z",
+      "position": 3,
+      "page_id": "01JAVQMNY0DQSV4WA26TFYAMWG"
+    },
+    {
+      "id": "01JBC9MT401XKH67TV03711ZEK",
+      "name": "SMTP",
+      "status": "operational",
+      "created_at": "2024-10-29T14:07:30Z",
+      "updated_at": "2026-09-08T13:11:08Z",
+      "position": 4,
+      "description": "SMTP service for sending emails using standard email clients and libraries",
+      "page_id": "01JAVQMNY0DQSV4WA26TFYAMWG"
+    },
+    {
+      "id": "01K48K3D9YJBGX1PSPN9GMMPGS",
+      "name": "General API",
+      "status": "operational",
+      "created_at": "2025-09-03T20:08:14Z",
+      "updated_at": "2026-09-08T13:11:08Z",
+      "position": 5,
+      "description": "Core REST API service for managing domains, accounts, and retrieving platform data",
+      "page_id": "01JAVQMNY0DQSV4WA26TFYAMWG"
+    },
+    {
+      "id": "01JAVQSTAM5ENJFQH4D2ZR2ZBE",
+      "name": "Email Events",
+      "status": "operational",
+      "created_at": "2024-10-23T03:47:49Z",
+      "updated_at": "2026-09-08T13:11:08Z",
+      "position": 6,
+      "description": "Service that processes and delivers email event notifications",
+      "page_id": "01JAVQMNY0DQSV4WA26TFYAMWG"
+    },
+    {
+      "id": "01KVQNFKM1Q2JSEPGVGP6BEYDD",
+      "name": "Automations",
+      "status": "operational",
+      "created_at": "2026-06-22T12:39:29Z",
+      "updated_at": "2026-09-08T13:11:08Z",
+      "position": 7,
+      "description": "Service for creating and running event-triggered email automation workflows",
+      "page_id": "01JAVQMNY0DQSV4WA26TFYAMWG"
+    },
+    {
+      "id": "01K48K3D9YZ9SAZN1T0R8FNN70",
+      "name": "Webhooks",
+      "status": "operational",
+      "created_at": "2025-09-03T20:08:14Z",
+      "updated_at": "2026-09-08T13:11:08Z",
+      "position": 8,
+      "description": "System for delivering real-time event notifications to customer endpoints",
+      "page_id": "01JAVQMNY0DQSV4WA26TFYAMWG"
+    },
+    {
+      "id": "01JAVQMPBQFRAV12Y5AC6BQWR5",
+      "name": "Dashboard",
+      "status": "operational",
+      "created_at": "2024-10-23T03:45:01Z",
+      "updated_at": "2026-09-08T13:11:08Z",
+      "position": 9,
+      "description": "Web application for managing emails, domains, and account settings",
+      "page_id": "01JAVQMNY0DQSV4WA26TFYAMWG"
+    },
+    {
+      "id": "01K48K3D9YZTJPA8FCJJRD0PEM",
+      "name": "Website",
+      "status": "operational",
+      "created_at": "2025-09-03T20:08:14Z",
+      "updated_at": "2026-09-08T13:11:08Z",
+      "position": 10,
+      "description": "Public website and marketing pages",
+      "page_id": "01JAVQMNY0DQSV4WA26TFYAMWG"
+    },
+    {
+      "id": "01M1W8YPHPSC634D3TK0KXG7ZC",
+      "name": "MCP Server",
+      "status": "operational",
+      "created_at": "2026-09-06T21:10:55Z",
+      "updated_at": "2026-09-08T13:11:08Z",
+      "position": 11,
+      "description": "Service that connects AI agents to Resend",
+      "page_id": "01JAVQMNY0DQSV4WA26TFYAMWG"
+    }
+  ]
+}

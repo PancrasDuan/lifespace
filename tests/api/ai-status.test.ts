@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs'
 import app from './authenticated-app'
 import { aiStatusResultSchema } from '../../src/shared/ai-status-contracts'
 import officialPageSummary from '../fixtures/ai-status/openai-page-summary.json'
+import resendSummary from '../fixtures/ai-status/resend-summary.json'
 
 const officialFeed = readFileSync(new URL('../fixtures/ai-status/xai-feed.xml', import.meta.url), 'utf8')
 const normalOpenAI = { summary: { ...officialPageSummary.summary, affected_components: [], ongoing_incidents: [] } }
@@ -16,6 +17,7 @@ const sources = (openai: unknown = normalOpenAI, xai = officialFeed) => {
     const url = String(input); urls.push(url)
     if (url === 'https://status.openai.com/proxy/status.openai.com') return Response.json(openai)
     if (url === 'https://status.x.ai/feed.xml') return new Response(xai)
+    if (url === 'https://resend-status.com/api/v2/summary.json') return Response.json(resendSummary)
     return new Response('Unexpected upstream', { status: 404 })
   })
   return urls
@@ -36,16 +38,16 @@ test('真实 xAI 官方 RSS 回放：成功取得已解决事件，当前状态�
   const data = await result()
   expect(data.providers[1]).toMatchObject({ status: 'normal', incidents: [], error: null })
   expect(data.providers[1].description).toBe('无未解决官方事件，按事件规则可用')
-  expect(urls).toEqual(['https://status.openai.com/proxy/status.openai.com', 'https://status.x.ai/feed.xml'])
+  expect(urls).toEqual(['https://status.openai.com/proxy/status.openai.com', 'https://status.x.ai/feed.xml', 'https://resend-status.com/api/v2/summary.json'])
 })
 
-test('两家正常时合并状态正常，保留各家官方链接和真实检查时间', async () => {
+test('三家正常时合并状态正常，保留各家官方链接和真实检查时间', async () => {
   vi.useFakeTimers(); vi.setSystemTime(new Date('2026-10-07T02:00:00Z'))
   sources()
   const data = await result()
   expect(data.status).toBe('normal')
-  expect(data.providers.map(provider => provider.statusUrl)).toEqual(['https://status.openai.com/', 'https://status.x.ai/'])
-  expect(data.providers.map(provider => provider.checkedAt)).toEqual(['2026-10-07T02:00:00.000Z', '2026-10-07T02:00:00.000Z'])
+  expect(data.providers.map(provider => provider.statusUrl)).toEqual(['https://status.openai.com/', 'https://status.x.ai/', 'https://resend-status.com/'])
+  expect(data.providers.map(provider => provider.checkedAt)).toEqual(Array(3).fill('2026-10-07T02:00:00.000Z'))
 })
 
 test('OpenAI 官网五个分组独立计算子状态，只有包含异常组件的 ChatGPT 异常', async () => {
@@ -82,13 +84,14 @@ test.each([
   ['abnormal', 'unknown', 'abnormal'], ['unknown', 'abnormal', 'abnormal'], ['abnormal', 'abnormal', 'abnormal'],
 ])('两家组合状态 %s 与 %s 合并为 %s', async (openaiState, xaiState, expected) => {
   vi.stubGlobal('fetch', async (input: URL | string | Request) => {
+    if (String(input) === 'https://resend-status.com/api/v2/summary.json') return Response.json(resendSummary)
     const openai = String(input).includes('openai.com'); const state = openai ? openaiState : xaiState
     if (state === 'unknown') return new Response('blocked-private-detail', { status: 403 })
     return openai ? Response.json(state === 'abnormal' ? officialPageSummary : normalOpenAI) : new Response(state === 'abnormal' ? activeFeed : officialFeed)
   })
   const data = await result()
   expect(data.status).toBe(expected)
-  expect(data.providers.map(provider => provider.status)).toEqual([openaiState, xaiState])
+  expect(data.providers.map(provider => provider.status)).toEqual([openaiState, xaiState, 'normal'])
   expect(JSON.stringify(data)).not.toContain('blocked-private-detail')
 })
 
@@ -96,7 +99,7 @@ test.each([403, 500])('来源获取失败显示未知，且不暴露来源响应
   vi.stubGlobal('fetch', async () => new Response('private-detail', { status }))
   const data = await result()
   expect(data.status).toBe('unknown')
-  expect(data.providers.map(provider => provider.status)).toEqual(['unknown', 'unknown'])
+  expect(data.providers.map(provider => provider.status)).toEqual(['unknown', 'unknown', 'unknown'])
   expect(JSON.stringify(data)).not.toContain('private-detail')
 })
 
@@ -104,7 +107,7 @@ test('来源字段变化不伪装为正常，HTML 错误页不作为有效 RSS',
   sources({}, '<html><body>Blocked</body></html>')
   const data = await result()
   expect(data.status).toBe('unknown')
-  expect(data.providers.map(provider => provider.status)).toEqual(['unknown', 'unknown'])
+  expect(data.providers.map(provider => provider.status)).toEqual(['unknown', 'unknown', 'normal'])
 })
 
 test('RSS 含外部实体或无法识别的事件状态时报告未知', async () => {
@@ -122,7 +125,7 @@ test('xAI 无未解决事件则三组14个子模块均可用，只请求RSS不�
   const modules = provider.subStatuses.flatMap(group => group.components)
   expect(modules).toHaveLength(14)
   expect(modules.every(module => module.status === 'normal' && module.statusLabel === '可用')).toBe(true)
-  expect(urls).toEqual(['https://status.openai.com/proxy/status.openai.com', 'https://status.x.ai/feed.xml'])
+  expect(urls).toEqual(['https://status.openai.com/proxy/status.openai.com', 'https://status.x.ai/feed.xml', 'https://resend-status.com/api/v2/summary.json'])
 })
 
 test('xAI 有未解决事件只标记涉及模块异常，其余模块可用，其他分组不受影响', async () => {
@@ -167,4 +170,46 @@ test('同一事件多服务条目保留最新官方说明而非只保留第一�
   const provider = (await result()).providers[1]
   expect(provider.incidents[0].description).toBe('We are monitoring the recovery.')
   expect(provider.incidents[0].updatedAt).toBe('2026-10-07T02:20:00.000Z')
+})
+
+const resendResult = async (summary: unknown) => {
+  sources()
+  const original = globalThis.fetch
+  vi.stubGlobal('fetch', (input: URL | string | Request, init?: RequestInit) => String(input) === 'https://resend-status.com/api/v2/summary.json' ? Promise.resolve(Response.json(summary)) : original(input, init))
+  return result()
+}
+const changeResend = (name: string, status: string) => ({ ...resendSummary, components: resendSummary.components.map(component => component.name === name ? { ...component, status } : component) })
+const resendEvent = { id: 'dashboard-event', name: 'Dashboard unavailable', status: 'investigating', updated_at: '2026-10-12T02:00:00Z', components: [{ id: 'dashboard', name: 'Dashboard', status: 'major_outage' }], incident_updates: [{ body: 'Monitoring recovery', created_at: '2026-10-12T02:00:00Z' }, { body: 'Investigating', created_at: '2026-10-12T01:00:00Z' }] }
+
+test.each(['SMTP', 'General API', 'Single Email'])('Resend %s 异常影响三家汇总', async name => {
+  const data = await resendResult(changeResend(name, 'partial_outage'))
+  expect(data.status).toBe('abnormal')
+  expect(data.providers[2]).toMatchObject({ status: 'abnormal', affectedServices: [name] })
+})
+
+test('Resend Dashboard 故障与事件仅在详情保留，不影响发信状态汇总', async () => {
+  const data = await resendResult({ ...changeResend('Dashboard', 'major_outage'), incidents: [resendEvent, { ...resendEvent, id: 'resolved', status: 'resolved' }] })
+  expect(data.status).toBe('normal')
+  expect(data.providers[2].subStatuses.find(component => component.name === 'Dashboard')?.status).toBe('abnormal')
+  expect(data.providers[2].incidents).toHaveLength(1)
+  expect(data.providers[2].incidents[0]).toMatchObject({ description: 'Monitoring recovery', affectedServices: ['Dashboard'] })
+})
+
+test('Resend 关键组件缺失或新增未知状态不能误报正常，其他已确认故障优先', async () => {
+  const missing = { ...resendSummary, components: resendSummary.components.filter(component => component.name !== 'SMTP') }
+  for (const summary of [missing, changeResend('SMTP', 'future-state')]) {
+    const data = await resendResult(summary)
+    expect(data.status).toBe('unknown')
+    expect(data.providers.slice(0, 2).every(provider => provider.status === 'normal')).toBe(true)
+  }
+  expect((await resendResult({ ...missing, components: missing.components.map(component => component.name === 'General API' ? { ...component, status: 'major_outage' } : component) })).status).toBe('abnormal')
+})
+
+test('Resend 无组件归属事件和空说明保留，更新时间排序，来源字段失效显示未知', async () => {
+  const data = await resendResult({ ...resendSummary, incidents: [{ ...resendEvent, components: undefined, incident_updates: [{ body: null, created_at: resendEvent.updated_at }] }] })
+  expect(data.providers[2].incidents[0]).toMatchObject({ description: '原因待公布', affectedServices: [] })
+  expect(data.status).toBe('normal')
+  const invalid = await resendResult({ components: [] })
+  expect(invalid.providers[2]).toMatchObject({ status: 'unknown', error: '官方状态获取失败，请刷新重试或查看官方状态页' })
+  expect(invalid.providers.slice(0, 2).every(provider => provider.status === 'normal')).toBe(true)
 })
