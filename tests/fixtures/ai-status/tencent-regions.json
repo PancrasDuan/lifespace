@@ -1,0 +1,135 @@
+{
+  "Response": {
+    "RequestId": "2f056865-453b-42cb-bf42-880c1de77e0e",
+    "Data": {
+      "AreaDetailList": [
+        {
+          "AreaName": "\u4e2d\u4e1c\u5730\u533a",
+          "RegionList": [
+            {
+              "RegionName": "\u5229\u96c5\u5f97",
+              "RegionId": "me-saudi-arabia",
+              "EventsIn": false
+            }
+          ],
+          "AreaId": ""
+        },
+        {
+          "AreaName": "\u4e2d\u56fd",
+          "RegionList": [
+            {
+              "RegionName": "\u5317\u4eac",
+              "RegionId": "ap-beijing",
+              "EventsIn": false
+            },
+            {
+              "RegionName": "\u6210\u90fd",
+              "RegionId": "ap-chengdu",
+              "EventsIn": false
+            },
+            {
+              "RegionName": "\u91cd\u5e86",
+              "RegionId": "ap-chongqing",
+              "EventsIn": false
+            },
+            {
+              "RegionName": "\u5e7f\u5dde",
+              "RegionId": "ap-guangzhou",
+              "EventsIn": false
+            },
+            {
+              "RegionName": "\u4e2d\u56fd\u9999\u6e2f",
+              "RegionId": "ap-hongkong",
+              "EventsIn": false
+            },
+            {
+              "RegionName": "\u5357\u4eac",
+              "RegionId": "ap-nanjing",
+              "EventsIn": false
+            },
+            {
+              "RegionName": "\u4e0a\u6d77",
+              "RegionId": "ap-shanghai",
+              "EventsIn": false
+            }
+          ],
+          "AreaId": ""
+        },
+        {
+          "AreaName": "\u4e9a\u592a\u5730\u533a",
+          "RegionList": [
+            {
+              "RegionName": "\u66fc\u8c37",
+              "RegionId": "ap-bangkok",
+              "EventsIn": false
+            },
+            {
+              "RegionName": "\u96c5\u52a0\u8fbe",
+              "RegionId": "ap-jakarta",
+              "EventsIn": false
+            },
+            {
+              "RegionName": "\u9996\u5c14",
+              "RegionId": "ap-seoul",
+              "EventsIn": false
+            },
+            {
+              "RegionName": "\u65b0\u52a0\u5761",
+              "RegionId": "ap-singapore",
+              "EventsIn": false
+            },
+            {
+              "RegionName": "\u4e1c\u4eac",
+              "RegionId": "ap-tokyo",
+              "EventsIn": false
+            }
+          ],
+          "AreaId": ""
+        },
+        {
+          "AreaName": "\u6b27\u6d32\u5730\u533a",
+          "RegionList": [
+            {
+              "RegionName": "\u6cd5\u5170\u514b\u798f",
+              "RegionId": "eu-frankfurt",
+              "EventsIn": false
+            }
+          ],
+          "AreaId": ""
+        },
+        {
+          "AreaName": "\u7f8e\u6d32\u5730\u533a",
+          "RegionList": [
+            {
+              "RegionName": "\u5f17\u5409\u5c3c\u4e9a",
+              "RegionId": "na-ashburn",
+              "EventsIn": false
+            },
+            {
+              "RegionName": "\u7845\u8c37",
+              "RegionId": "na-siliconvalley",
+              "EventsIn": false
+            },
+            {
+              "RegionName": "\u5723\u4fdd\u7f57",
+              "RegionId": "sa-saopaulo",
+              "EventsIn": false
+            }
+          ],
+          "AreaId": ""
+        },
+        {
+          "AreaName": "\u975e\u533a\u57df\u6027",
+          "RegionList": [
+            {
+              "RegionName": "\u975e\u533a\u57df\u6027",
+              "RegionId": "non-regional",
+              "EventsIn": false
+            }
+          ],
+          "AreaId": ""
+        }
+      ]
+    }
+  }
+}

@@ -92,7 +92,7 @@ npm run test:browser
 
 - `GET /api/tasks/today?timeZone=<IANA 时区>`：今日待办。
 - `GET /api/domains`：DNSHE 账户内全部域名的展示信息。
-- `GET /api/ai-status`：OpenAI、xAI、Resend、GitHub、Cloudflare、Supabase 与 Notion 的整体状态及按提供方归属的当前异常。
+- `GET /api/ai-status`：OpenAI、xAI、Resend、GitHub、Cloudflare、Supabase、Notion、Tailscale 与腾讯云的整体状态及按提供方归属的当前异常。
 - `GET /api/weather/locations?q=<城市关键词>`：城市搜索。
 - `GET /api/weather?latitude=<纬度>&longitude=<经度>&timeZone=<IANA 时区>`：城市当地当天天气。
 - `GET /api/weather/detail?latitude=<纬度>&longitude=<经度>&timeZone=<IANA 时区>`：当前天气、未来 24 小时与七日预报。
@@ -103,13 +103,13 @@ npm run test:browser
 
 ## 服务状态
 
-首页一张卡片汇总 OpenAI、xAI、Resend、GitHub、Cloudflare、Supabase 与 Notion 的官方状态；一级卡片为单列，每行只显示系统名称与当前状态，正常系统也保留。点击查看各家状态、官网子状态、异常说明、受影响服务、历史结果、检查时间和官方链接；说明文字仅位于详情主标题下，首页卡片不展示该说明。打开或返回主页时刷新，支持手动刷新；页面保持打开时每小时刷新，恢复可见时更新。
+首页一张卡片汇总 OpenAI、xAI、Resend、GitHub、Cloudflare、Supabase、Notion、Tailscale 与腾讯云的官方状态；一级卡片为单列，每行只显示系统名称与当前状态，正常系统也保留。点击查看各家状态、官网子状态、异常说明、受影响服务、历史结果、检查时间和官方链接；说明文字仅位于详情主标题下，首页卡片不展示该说明。打开或返回主页时刷新，支持手动刷新；页面保持打开时每小时刷新，恢复可见时更新。
 
 获取失败显示未知，保留的旧结果标注原成功时间。官方未提供说明时显示“原因待公布”。公开来源无需账户凭据。OpenAI 展示官网五组状态；xAI 以官方 RSS 未解决事件判定整体和子模块：有事件则整体异常，涉及模块异常，其余可用；无事件则可用，获取或解析失败则未知。xAI 显示“按官方事件判定”，不声称组件快照。
 
 Resend 读取公开的 [状态摘要接口](https://resend-status.com/api/v2/summary.json)，无需 API Key；仅 SMTP、General API、Single Email 参与汇总，详情展示全部组件和当前事件。缺失或无法识别的发信组件状态显示未知；其他组件异常不影响发信状态汇总。刷新及失败处理与原卡片一致。
 
-GitHub、Cloudflare、Notion 读取各自官方状态摘要；Supabase 读取官网完整快照，包含产品分组、区域和独立组件。新增四家均按官方全平台范围汇总，不能据此判断个人网络或具体项目健康。
+GitHub、Cloudflare、Notion 读取各自官方状态摘要；Supabase、Tailscale 读取官网完整快照，包含产品分组、区域和独立组件。这些来源按官方全平台范围汇总，不能据此判断个人网络或具体项目健康。
 
 新增来源核验见 [服务状态来源](docs/service-status-sources.md)。
 

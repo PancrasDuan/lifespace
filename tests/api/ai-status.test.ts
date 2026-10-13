@@ -7,6 +7,11 @@ import resendSummary from '../fixtures/ai-status/resend-summary.json'
 import githubSummary from '../fixtures/ai-status/github-summary.json'
 import cloudflareSummary from '../fixtures/ai-status/cloudflare-summary.json'
 import notionSummary from '../fixtures/ai-status/notion-summary.json'
+import tailscaleSummary from '../fixtures/ai-status/tailscale-summary.json'
+import tailscalePage from '../fixtures/ai-status/tailscale-page-summary.json'
+import tencentRegions from '../fixtures/ai-status/tencent-regions.json'
+import tencentSnapshot from '../fixtures/ai-status/tencent-beijing.json'
+const tencentMetadata = { Response: { Data: { AreaDetailList: [{ RegionList: tencentRegions.Response.Data.AreaDetailList[1].RegionList.slice(0, 1) }] } } }
 import supabasePage from '../fixtures/ai-status/supabase-page-summary.json'
 const normalPage = (page: typeof githubSummary | typeof cloudflareSummary | typeof notionSummary) => ({ ...page, components: page.components.map(component => ({ ...component, status: 'operational' })), incidents: [] })
 const additionalSources = new Map<string, unknown>([
@@ -14,6 +19,8 @@ const additionalSources = new Map<string, unknown>([
   ['https://www.cloudflarestatus.com/api/v2/summary.json', normalPage(cloudflareSummary)],
   ['https://status.supabase.com/proxy/status.supabase.com', supabasePage],
   ['https://www.notion-status.com/api/v2/summary.json', normalPage(notionSummary)],
+  ['https://status.tailscale.com/proxy/status.tailscale.com', tailscalePage],
+  ['https://status.cloud.tencent.com/v1/api/status/DescribeRegions', tencentMetadata],
 ])
 
 
@@ -27,6 +34,7 @@ const sources = (openai: unknown = normalOpenAI, xai = officialFeed) => {
   const urls: string[] = []
   vi.stubGlobal('fetch', async (input: URL | string | Request) => {
     const url = String(input); urls.push(url)
+    if (url.includes('status.cloud.tencent.com/v1/api/status/DescribeProductEventForRegionInPeriod')) return Response.json(tencentSnapshot)
     if (additionalSources.has(url)) return Response.json(additionalSources.get(url))
     if (url === 'https://status.openai.com/proxy/status.openai.com') return Response.json(openai)
     if (url === 'https://status.x.ai/feed.xml') return new Response(xai)
@@ -51,16 +59,16 @@ test('真实 xAI 官方 RSS 回放：成功取得已解决事件，当前状态�
   const data = await result()
   expect(data.providers[1]).toMatchObject({ status: 'normal', incidents: [], error: null })
   expect(data.providers[1].description).toBe('无未解决官方事件，按事件规则可用')
-  expect(urls).toEqual(['https://status.openai.com/proxy/status.openai.com', 'https://status.x.ai/feed.xml', 'https://resend-status.com/api/v2/summary.json', ...additionalSources.keys()])
+  expect(urls.filter(url => !url.includes('DescribeProductEventForRegionInPeriod'))).toEqual(['https://status.openai.com/proxy/status.openai.com', 'https://status.x.ai/feed.xml', 'https://resend-status.com/api/v2/summary.json', ...additionalSources.keys()])
 })
 
-test('七家正常时合并状态正常，保留各家官方链接和真实检查时间', async () => {
+test('九家正常时合并状态正常，保留各家官方链接和真实检查时间', async () => {
   vi.useFakeTimers(); vi.setSystemTime(new Date('2026-10-07T02:00:00Z'))
   sources()
   const data = await result()
   expect(data.status).toBe('normal')
-  expect(data.providers.map(provider => provider.statusUrl)).toEqual(['https://status.openai.com/', 'https://status.x.ai/', 'https://resend-status.com/', 'https://www.githubstatus.com/', 'https://www.cloudflarestatus.com/', 'https://status.supabase.com/', 'https://www.notion-status.com/'])
-  expect(data.providers.map(provider => provider.checkedAt)).toEqual(Array(7).fill('2026-10-07T02:00:00.000Z'))
+  expect(data.providers.map(provider => provider.statusUrl)).toEqual(['https://status.openai.com/', 'https://status.x.ai/', 'https://resend-status.com/', 'https://www.githubstatus.com/', 'https://www.cloudflarestatus.com/', 'https://status.supabase.com/', 'https://www.notion-status.com/', 'https://status.tailscale.com/', 'https://status.cloud.tencent.com/'])
+  expect(data.providers.map(provider => provider.checkedAt)).toEqual(Array(9).fill('2026-10-07T02:00:00.000Z'))
 })
 
 test('OpenAI 官网五个分组独立计算子状态，只有包含异常组件的 ChatGPT 异常', async () => {
@@ -97,6 +105,7 @@ test.each([
   ['abnormal', 'unknown', 'abnormal'], ['unknown', 'abnormal', 'abnormal'], ['abnormal', 'abnormal', 'abnormal'],
 ])('两家组合状态 %s 与 %s 合并为 %s', async (openaiState, xaiState, expected) => {
   vi.stubGlobal('fetch', async (input: URL | string | Request) => {
+    if (String(input).includes('status.cloud.tencent.com/v1/api/status/DescribeProductEventForRegionInPeriod')) return Response.json(tencentSnapshot)
     if (additionalSources.has(String(input))) return Response.json(additionalSources.get(String(input)))
     if (String(input) === 'https://resend-status.com/api/v2/summary.json') return Response.json(resendSummary)
     const openai = String(input).includes('openai.com'); const state = openai ? openaiState : xaiState
@@ -105,7 +114,7 @@ test.each([
   })
   const data = await result()
   expect(data.status).toBe(expected)
-  expect(data.providers.map(provider => provider.status)).toEqual([openaiState, xaiState, ...Array(5).fill('normal')])
+  expect(data.providers.map(provider => provider.status)).toEqual([openaiState, xaiState, ...Array(7).fill('normal')])
   expect(JSON.stringify(data)).not.toContain('blocked-private-detail')
 })
 
@@ -113,7 +122,7 @@ test.each([403, 500])('来源获取失败显示未知，且不暴露来源响应
   vi.stubGlobal('fetch', async () => new Response('private-detail', { status }))
   const data = await result()
   expect(data.status).toBe('unknown')
-  expect(data.providers.map(provider => provider.status)).toEqual(Array(7).fill('unknown'))
+  expect(data.providers.map(provider => provider.status)).toEqual(Array(9).fill('unknown'))
   expect(JSON.stringify(data)).not.toContain('private-detail')
 })
 
@@ -121,7 +130,7 @@ test('来源字段变化不伪装为正常，HTML 错误页不作为有效 RSS',
   sources({}, '<html><body>Blocked</body></html>')
   const data = await result()
   expect(data.status).toBe('unknown')
-  expect(data.providers.map(provider => provider.status)).toEqual(['unknown', 'unknown', ...Array(5).fill('normal')])
+  expect(data.providers.map(provider => provider.status)).toEqual(['unknown', 'unknown', ...Array(7).fill('normal')])
 })
 
 test('RSS 含外部实体或无法识别的事件状态时报告未知', async () => {
@@ -139,7 +148,7 @@ test('xAI 无未解决事件则三组14个子模块均可用，只请求RSS不�
   const modules = provider.subStatuses.flatMap(group => group.components)
   expect(modules).toHaveLength(14)
   expect(modules.every(module => module.status === 'normal' && module.statusLabel === '可用')).toBe(true)
-  expect(urls).toEqual(['https://status.openai.com/proxy/status.openai.com', 'https://status.x.ai/feed.xml', 'https://resend-status.com/api/v2/summary.json', ...additionalSources.keys()])
+  expect(urls.filter(url => !url.includes('DescribeProductEventForRegionInPeriod'))).toEqual(['https://status.openai.com/proxy/status.openai.com', 'https://status.x.ai/feed.xml', 'https://resend-status.com/api/v2/summary.json', ...additionalSources.keys()])
 })
 
 test('xAI 有未解决事件只标记涉及模块异常，其余模块可用，其他分组不受影响', async () => {
@@ -257,10 +266,10 @@ test('Supabase 官网完整快照包含全部产品区域及 Auth 等独立组�
 })
 async function resultWithSources() { sources(); return result() }
 
-test.each([...additionalSources.keys()])('新增来源 %s 字段失效只影响本家，其他六家保持正常', async url => {
+test.each([...additionalSources.keys()])('新增来源 %s 字段失效只影响本家，其他八家保持正常', async url => {
   const data = await extraResult(url, {})
   expect(data.providers.filter(provider => provider.status === 'unknown')).toHaveLength(1)
-  expect(data.providers.filter(provider => provider.status === 'normal')).toHaveLength(6)
+  expect(data.providers.filter(provider => provider.status === 'normal')).toHaveLength(8)
   expect(data.status).toBe('unknown')
 })
 
@@ -293,6 +302,94 @@ test('Supabase 有效项与字段漂移项混合或组件元数据缺失时，�
   ]) {
     const data = await extraResult('https://status.supabase.com/proxy/status.supabase.com', { summary: { ...original, structure } })
     expect(data.providers[5]).toMatchObject({ status: 'unknown', subStatuses: [], subStatusError: '官网子状态暂不可获取' })
-    expect(data.providers.filter(provider => provider.status === 'normal')).toHaveLength(6)
+    expect(data.providers.filter(provider => provider.status === 'normal')).toHaveLength(8)
   }
+})
+
+
+test('Tailscale 官网完整样本回放保留全部18个子服务与当前事件', async () => {
+  const provider = (await extraResult('https://status.tailscale.com/proxy/status.tailscale.com', tailscalePage)).providers[7]
+  expect(provider).toMatchObject({ name: 'Tailscale', status: 'normal', incidents: [], statusUrl: 'https://status.tailscale.com/' })
+  const names = provider.subStatuses.flatMap(group => group.components.length ? group.components.map(component => component.name) : [group.name]).sort()
+  expect(names).toEqual(tailscaleSummary.components.map(component => component.name).sort())
+})
+
+test.each([['major_outage', 'abnormal'], ['future-state', 'unknown']])('Tailscale 协调服务 %s 汇总为 %s，其他八家独立', async (state, expected) => {
+  const id = tailscalePage.summary.structure.items.find(item => item.component?.name === 'Coordination service')!.component!.component_id
+  const data = await extraResult('https://status.tailscale.com/proxy/status.tailscale.com', { summary: { ...tailscalePage.summary, affected_components: [{ component_id: id, status: state }] } })
+  expect(data.status).toBe(expected)
+  expect(data.providers[7].status).toBe(expected)
+  expect(data.providers.filter(provider => provider.id !== 'tailscale').every(provider => provider.status === 'normal')).toBe(true)
+})
+
+test('Tailscale 组件恢复正常但官方事件未解决时仍保留事件，已解决后移除', async () => {
+  const original = officialPageSummary.summary.ongoing_incidents[0]
+  for (const [state, expected] of [['monitoring', 'abnormal'], ['resolved', 'normal']] as const) {
+    const data = await extraResult('https://status.tailscale.com/proxy/status.tailscale.com', { summary: { ...tailscalePage.summary, ongoing_incidents: [{ ...original, status: state }] } })
+    expect(data.providers[7].status).toBe(expected)
+    expect(data.providers[7].incidents).toHaveLength(state === 'resolved' ? 0 : 1)
+  }
+})
+
+const tencentResult = async (regions: typeof tencentRegions.Response.Data.AreaDetailList[1]['RegionList'], data: unknown) => {
+  sources()
+  const original = globalThis.fetch
+  vi.stubGlobal('fetch', (input: URL | string | Request, init?: RequestInit) => {
+    const url = new URL(String(input))
+    if (url.pathname.endsWith('/DescribeRegions')) return Promise.resolve(Response.json({ Response: { Data: { AreaDetailList: [{ RegionList: regions }] } } }))
+    if (url.pathname.endsWith('/DescribeProductEventForRegionInPeriod')) return Promise.resolve(Response.json(data))
+    return original(input, init)
+  })
+  return result()
+}
+
+test('腾讯云多个地域均有独立产品快照，保留 CVM 与轻量应用服务器', async () => {
+  const regions = tencentRegions.Response.Data.AreaDetailList[1].RegionList.filter(region => ['ap-beijing', 'ap-shanghai'].includes(region.RegionId))
+  const provider = (await tencentResult(regions, tencentSnapshot)).providers[8]
+  expect(provider.status).toBe('normal')
+  expect(provider.subStatuses.map(region => region.name)).toEqual(['北京', '上海'])
+  expect(provider.subStatuses[0].components.some(product => product.name === '云服务器')).toBe(true)
+  expect(provider.subStatuses[0].components.some(product => product.name === '轻量应用服务器')).toBe(true)
+})
+
+test.each([['NOTIFY', 'abnormal'], ['ABNORMAL', 'abnormal'], ['future-state', 'unknown']])('腾讯云当前产品 %s 正确映射 %s，不伪造事件时间', async (state, expected) => {
+  const snapshot = structuredClone(tencentSnapshot)
+  snapshot.Response.Data.CategoryList[0].ProductList[0].CurrentStatus = state
+  const data = await tencentResult(tencentRegions.Response.Data.AreaDetailList[1].RegionList.slice(0, 1), snapshot)
+  expect(data.providers[8].status).toBe(expected)
+  if (state !== 'future-state') expect(data.providers[8].incidents[0]).toMatchObject({ kind: 'component-status', updatedAt: null, affectedServices: ['北京 / 云服务器'] })
+  expect(data.providers.slice(0, 8).every(provider => provider.status === 'normal')).toBe(true)
+})
+
+test('腾讯云快照缺少产品或计数不完整时整家未知，不影响其他八家', async () => {
+  const snapshot = structuredClone(tencentSnapshot)
+  snapshot.Response.Data.CategoryList[0].ProductList.shift()
+  const data = await tencentResult(tencentRegions.Response.Data.AreaDetailList[1].RegionList.slice(0, 1), snapshot)
+  expect(data.providers[8]).toMatchObject({ status: 'unknown', subStatuses: [] })
+  expect(data.providers.slice(0, 8).every(provider => provider.status === 'normal')).toBe(true)
+})
+
+test('腾讯云历史记录不改变当前正常产品状态，重复地域拒绝', async () => {
+  const snapshot = structuredClone(tencentSnapshot)
+  const products = snapshot.Response.Data.CategoryList[0].ProductList
+  const replay = { Response: { Data: { ...snapshot.Response.Data, CategoryList: [{ ...snapshot.Response.Data.CategoryList[0], ProductList: products.map((product, i) => i ? product : { ...product, EventListGroupByZoneAndDate: [{ RecordStatus: 'ABNORMAL' }] }) }, ...snapshot.Response.Data.CategoryList.slice(1)] } } }
+  const regions = tencentRegions.Response.Data.AreaDetailList[1].RegionList.slice(0, 1)
+  expect((await tencentResult(regions, replay)).providers[8].status).toBe('normal')
+  expect((await tencentResult([...regions, ...regions], snapshot)).providers[8].status).toBe('unknown')
+})
+
+test('腾讯云某个地域请求失败不能返回其余地域为完整正常，其他八家不受影响', async () => {
+  sources()
+  const original = globalThis.fetch
+  const regions = tencentRegions.Response.Data.AreaDetailList[1].RegionList.filter(region => ['ap-beijing', 'ap-shanghai'].includes(region.RegionId))
+  vi.stubGlobal('fetch', (input: URL | string | Request, init?: RequestInit) => {
+    const url = new URL(String(input))
+    if (url.pathname.endsWith('/DescribeRegions')) return Promise.resolve(Response.json({ Response: { Data: { AreaDetailList: [{ RegionList: regions }] } } }))
+    if (url.pathname.endsWith('/DescribeProductEventForRegionInPeriod') && url.searchParams.get('RegionId') === 'ap-shanghai') return Promise.resolve(new Response('private-response-detail', { status: 503 }))
+    return original(input, init)
+  })
+  const data = await result()
+  expect(data.providers[8]).toMatchObject({ status: 'unknown', subStatuses: [] })
+  expect(data.providers.slice(0, 8).every(provider => provider.status === 'normal')).toBe(true)
+  expect(JSON.stringify(data)).not.toContain('private-response-detail')
 })

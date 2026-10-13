@@ -4,6 +4,8 @@ import { readXAI } from './xai-status'
 import { readResend } from './resend-status'
 import { readStatuspage } from './statuspage-status'
 import { readSupabase } from './supabase-status'
+import { readIncidentPage } from './incident-page-status'
+import { readTencent } from './tencent-status'
 import { xaiEventSubStatuses } from './xai-event-substatuses'
 import type { AiProvider, AiStatusResult } from '../src/shared/ai-status-contracts'
 
@@ -15,13 +17,16 @@ const providers = [
   { id: 'cloudflare', name: 'Cloudflare', statusUrl: 'https://www.cloudflarestatus.com/' },
   { id: 'supabase', name: 'Supabase', statusUrl: 'https://status.supabase.com/' },
   { id: 'notion', name: 'Notion', statusUrl: 'https://www.notion-status.com/' },
+  { id: 'tailscale', name: 'Tailscale', statusUrl: 'https://status.tailscale.com/' },
+  { id: 'tencent', name: '腾讯云', statusUrl: 'https://status.cloud.tencent.com/' },
 ] as const
 
 const readers = {
-  openai: readOpenAI, xai: readXAI, resend: readResend, supabase: readSupabase,
+  openai: readOpenAI, xai: readXAI, resend: readResend, supabase: readSupabase, tencent: readTencent,
   github: () => readStatuspage('https://www.githubstatus.com/api/v2/summary.json'),
   cloudflare: () => readStatuspage('https://www.cloudflarestatus.com/api/v2/summary.json'),
   notion: () => readStatuspage('https://www.notion-status.com/api/v2/summary.json'),
+  tailscale: () => readIncidentPage('https://status.tailscale.com/proxy/status.tailscale.com', '官方全平台状态，不代表个人 tailnet 或设备在线状态。'),
 }
 
 async function readProvider(provider: typeof providers[number]): Promise<AiProvider> {

@@ -242,17 +242,17 @@ test('Resend 发信组件未知时仍展示已取得的当前事件与其余组�
 
 const extendedProviders = [
   ...normal.providers, resend,
-  ...[{ id: 'github', name: 'GitHub', statusUrl: 'https://www.githubstatus.com/' }, { id: 'cloudflare', name: 'Cloudflare', statusUrl: 'https://www.cloudflarestatus.com/' }, { id: 'supabase', name: 'Supabase', statusUrl: 'https://status.supabase.com/' }, { id: 'notion', name: 'Notion', statusUrl: 'https://www.notion-status.com/' }].map(provider => ({ ...provider, statusBasis: 'official-components', status: 'normal', checkedAt, description: '官方全平台状态', error: null, incidents: [], affectedServices: [], subStatusError: null,
+  ...[{ id: 'github', name: 'GitHub', statusUrl: 'https://www.githubstatus.com/' }, { id: 'cloudflare', name: 'Cloudflare', statusUrl: 'https://www.cloudflarestatus.com/' }, { id: 'supabase', name: 'Supabase', statusUrl: 'https://status.supabase.com/' }, { id: 'notion', name: 'Notion', statusUrl: 'https://www.notion-status.com/' }, { id: 'tailscale', name: 'Tailscale', statusUrl: 'https://status.tailscale.com/' }, { id: 'tencent', name: '腾讯云', statusUrl: 'https://status.cloud.tencent.com/' }].map(provider => ({ ...provider, statusBasis: 'official-components', status: 'normal', checkedAt, description: '官方全平台状态', error: null, incidents: [], affectedServices: [], subStatusError: null,
     subStatuses: [{ id: 'group', name: 'Services', status: 'normal', statusLabel: '正常', components: Array.from({ length: provider.id === 'cloudflare' ? 300 : 3 }, (_, i) => ({ id: String(i), name: `Service ${i}`, status: i === 1 ? 'abnormal' : 'normal', statusLabel: i === 1 ? '部分故障' : '正常' })) }],
   })),
 ]
 
-test('七家独立服务卡片，子服务默认收起，分组可键盘展开，各家独立收起', async ({ page }) => {
+test('九家独立服务卡片，子服务默认收起，分组可键盘展开，各家独立收起', async ({ page }) => {
   await page.route('**/api/ai-status', route => route.fulfill({ json: { ...normal, providers: extendedProviders } }))
   await page.goto('/')
   await page.getByRole('button', { name: '查看服务状态详情' }).click()
   const dialog = page.getByRole('dialog')
-  await expect(dialog.locator('.service-provider-card')).toHaveCount(7)
+  await expect(dialog.locator('.service-provider-card')).toHaveCount(9)
   await expect(dialog.locator('.service-substatus-fold[open]')).toHaveCount(0)
   const cloudflare = dialog.getByRole('region', { name: 'Cloudflare 状态' })
   await expect(cloudflare).toContainText('300 项')
@@ -269,7 +269,7 @@ test('七家独立服务卡片，子服务默认收起，分组可键盘展开�
   await expect(cloudflare.getByText('Service 299', { exact: true })).not.toBeVisible()
 })
 
-test('七家详情在电脑与手机无横向溢出，服务边界清晰且异常事件不随子服务折叠', async ({ page }) => {
+test('九家详情在电脑与手机无横向溢出，服务边界清晰且异常事件不随子服务折叠', async ({ page }) => {
   await page.route('**/api/ai-status', route => route.fulfill({ json: { ...normal, providers: extendedProviders } }))
   for (const width of [1440, 390]) {
     await page.setViewportSize({ width, height: 950 })
@@ -287,14 +287,14 @@ test('七家详情在电脑与手机无横向溢出，服务边界清晰且异�
 })
 
 
-test('一级七个系统各占一行，仅显示标题和状态，正常系统可见且手机不溢出', async ({ page }) => {
+test('一级九个系统各占一行，仅显示标题和状态，正常系统可见且手机不溢出', async ({ page }) => {
   await page.route('**/api/ai-status', route => route.fulfill({ json: { ...normal, providers: extendedProviders } }))
   for (const width of [1440, 390]) {
     await page.setViewportSize({ width, height: 950 })
     await page.goto('/')
     const card = page.getByRole('button', { name: '查看服务状态详情' })
     const rows = card.locator('.service-status-row')
-    await expect(rows).toHaveCount(7)
+    await expect(rows).toHaveCount(9)
     for (let i = 0; i < extendedProviders.length; i++) {
       await expect(rows.nth(i).locator('strong')).toHaveText(extendedProviders[i].name)
       await expect(rows.nth(i).locator('.ai-state')).toBeVisible()
@@ -308,4 +308,35 @@ test('一级七个系统各占一行，仅显示标题和状态，正常系统�
     expect(await card.evaluate(element => element.scrollWidth <= element.clientWidth + 1)).toBe(true)
     if (width === 1440) await page.screenshot({ path: '.cache/service-status-primary.png', fullPage: true })
   }
+})
+
+
+test('Tailscale 一级仅名称与状态，二级独立分区默认收起并可打开官方链接', async ({ page }) => {
+  const provider = { ...extendedProviders[7], subStatuses: ['Coordination service', 'DERP relay servers', 'API (api.tailscale.com)'].map(name => ({ id: name, name, status: 'normal', statusLabel: '正常', components: [] })) }
+  await page.route('**/api/ai-status', route => route.fulfill({ json: { ...normal, providers: extendedProviders.map(current => current.id === 'tailscale' ? provider : current) } }))
+  await page.goto('/')
+  const card = page.getByRole('button', { name: '查看服务状态详情' })
+  await expect(card.getByRole('region', { name: 'Tailscale 状态' })).toHaveText('Tailscale正常')
+  await expect(card).not.toContainText('DERP relay servers')
+  await card.click()
+  const region = page.getByRole('dialog').getByRole('region', { name: 'Tailscale 状态' })
+  await expect(region.locator('.service-substatus-fold')).not.toHaveAttribute('open', '')
+  await region.locator('summary[aria-label="Tailscale 子服务"]').click()
+  await expect(region.getByText('DERP relay servers', { exact: true })).toBeVisible()
+  await expect(region.getByRole('link', { name: 'Tailscale 官方状态页' })).toHaveAttribute('href', 'https://status.tailscale.com/')
+})
+
+
+test('腾讯云一级只显示名称状态，二级区分当前产品提示与事件时间', async ({ page }) => {
+  const provider = { ...extendedProviders[8], status: 'abnormal', incidents: [{ id: 'ap-beijing:cvm', kind: 'component-status', title: '北京 / 云服务器', status: 'NOTIFY', description: '官方当前状态：服务提示', affectedServices: ['北京 / 云服务器'], updatedAt: null, updates: [] }], subStatuses: [] }
+  await page.route('**/api/ai-status', route => route.fulfill({ json: { ...normal, status: 'abnormal', providers: extendedProviders.map(current => current.id === 'tencent' ? provider : current) } }))
+  await page.goto('/')
+  const card = page.getByRole('button', { name: '查看服务状态详情' })
+  await expect(card.getByRole('region', { name: '腾讯云 状态' })).toHaveText('腾讯云存在异常')
+  await expect(card).not.toContainText('北京 / 云服务器')
+  await card.click()
+  const region = page.getByRole('dialog').getByRole('region', { name: '腾讯云 状态' })
+  await expect(region).toContainText('当前服务状态提示')
+  await expect(region).not.toContainText('事件更新')
+  await expect(region.getByRole('link', { name: '腾讯云 官方状态页' })).toHaveAttribute('href', 'https://status.cloud.tencent.com/')
 })
