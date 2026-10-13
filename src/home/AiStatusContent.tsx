@@ -26,13 +26,15 @@ const identities = {
   resend: { mark: 'R', category: '邮件服务' }, github: { mark: 'G', category: '代码与协作' },
   cloudflare: { mark: 'C', category: '云与网络' }, supabase: { mark: 'S', category: '数据平台' },
   notion: { mark: 'N', category: '知识与办公' },
+  tailscale: { mark: 'T', category: '网络服务' },
+  tencent: { mark: '云', category: '云与网络' },
 }
 
 
 function Incidents({ provider, detail = false }: { provider: AiProvider; detail?: boolean }) {
   return <ul className="ai-incidents">{provider.incidents.map(event => <li key={event.id}>
     <strong>{event.title}</strong><p>{event.description}</p>
-    {detail && <><p>受影响服务：{event.affectedServices.join('、') || '官方未列出'}</p><small>事件更新：{time(event.updatedAt)}</small>
+    {detail && <><p>受影响服务：{event.affectedServices.join('、') || '官方未列出'}</p><small>{event.kind === 'component-status' ? '当前服务状态提示' : `事件更新：${event.updatedAt ? time(event.updatedAt) : '官方未提供'}`} </small>
       {event.updates.length > 1 && <details><summary>官方更新记录</summary>{event.updates.map((update, index) => <div key={index}><small>{time(update.createdAt)}</small><p>{update.body}</p></div>)}</details>}</>}
   </li>)}</ul>
 }
@@ -108,6 +110,6 @@ export function AiStatusDetail({ view }: { view: StatusView }) {
   return <>
     {view.query.isError && <p className="inline-error">本次获取失败，当前状态未知</p>}
     {view.query.data && <div className="service-detail-overview"><span>已接入 <strong>{view.query.data.providers.length}</strong> 个服务</span><span>子服务默认收起 · 按需展开</span></div>}
-    {view.query.data ? <Providers view={view} detail /> : <p>状态尚未获取。<a href="https://status.openai.com/" target="_blank" rel="noopener noreferrer">OpenAI 官方状态页</a> · <a href="https://status.x.ai/" target="_blank" rel="noopener noreferrer">xAI 官方状态页</a> · <a href="https://resend-status.com/" target="_blank" rel="noopener noreferrer">Resend 官方状态页</a> · <a href="https://www.githubstatus.com/" target="_blank" rel="noopener noreferrer">GitHub 官方状态页</a> · <a href="https://www.cloudflarestatus.com/" target="_blank" rel="noopener noreferrer">Cloudflare 官方状态页</a> · <a href="https://status.supabase.com/" target="_blank" rel="noopener noreferrer">Supabase 官方状态页</a> · <a href="https://www.notion-status.com/" target="_blank" rel="noopener noreferrer">Notion 官方状态页</a></p>}
+    {view.query.data ? <Providers view={view} detail /> : <p>状态尚未获取。<a href="https://status.openai.com/" target="_blank" rel="noopener noreferrer">OpenAI 官方状态页</a> · <a href="https://status.x.ai/" target="_blank" rel="noopener noreferrer">xAI 官方状态页</a> · <a href="https://resend-status.com/" target="_blank" rel="noopener noreferrer">Resend 官方状态页</a> · <a href="https://www.githubstatus.com/" target="_blank" rel="noopener noreferrer">GitHub 官方状态页</a> · <a href="https://www.cloudflarestatus.com/" target="_blank" rel="noopener noreferrer">Cloudflare 官方状态页</a> · <a href="https://status.supabase.com/" target="_blank" rel="noopener noreferrer">Supabase 官方状态页</a> · <a href="https://www.notion-status.com/" target="_blank" rel="noopener noreferrer">Notion 官方状态页</a> · <a href="https://status.tailscale.com/" target="_blank" rel="noopener noreferrer">Tailscale 官方状态页</a> · <a href="https://status.cloud.tencent.com/" target="_blank" rel="noopener noreferrer">腾讯云 官方状态页</a></p>}
   </>
 }

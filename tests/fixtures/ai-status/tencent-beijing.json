@@ -1,0 +1,1104 @@
+{
+  "Response": {
+    "RequestId": "c478c3e0-a5b9-4373-9cc0-9f814a646db1",
+    "Data": {
+      "Summary": {
+        "NormalCount": 91,
+        "NotifyCount": 0,
+        "AbnormalCount": 0
+      },
+      "CategoryList": [
+        {
+          "CategoryName": "计算",
+          "ProductList": [
+            {
+              "ProductId": "cvm",
+              "ProductName": "云服务器",
+              "EventListGroupByZoneAndDate": [],
+              "ProductEventTitle": "",
+              "CurrentStatus": "NORMAL",
+              "CurrentEvent": null,
+              "Rss": "https://status.cloud.tencent.com/rss/zh/ap-beijing/cvm",
+              "TimeRegion": ""
+            },
+            {
+              "ProductId": "lighthouse",
+              "ProductName": "轻量应用服务器",
+              "EventListGroupByZoneAndDate": [],
+              "ProductEventTitle": "",
+              "CurrentStatus": "NORMAL",
+              "CurrentEvent": null,
+              "Rss": "https://status.cloud.tencent.com/rss/zh/ap-beijing/lighthouse",
+              "TimeRegion": ""
+            },
+            {
+              "ProductId": "cdh",
+              "ProductName": "专用宿主机",
+              "EventListGroupByZoneAndDate": [],
+              "ProductEventTitle": "",
+              "CurrentStatus": "NORMAL",
+              "CurrentEvent": null,
+              "Rss": "https://status.cloud.tencent.com/rss/zh/ap-beijing/cdh",
+              "TimeRegion": ""
+            },
+            {
+              "ProductId": "as",
+              "ProductName": "弹性伸缩",
+              "EventListGroupByZoneAndDate": [],
+              "ProductEventTitle": "",
+              "CurrentStatus": "NORMAL",
+              "CurrentEvent": null,
+              "Rss": "https://status.cloud.tencent.com/rss/zh/ap-beijing/as",
+              "TimeRegion": ""
+            },
+            {
+              "ProductId": "tat",
+              "ProductName": "自动化助手",
+              "EventListGroupByZoneAndDate": [],
+              "ProductEventTitle": "",
+              "CurrentStatus": "NORMAL",
+              "CurrentEvent": null,
+              "Rss": "https://status.cloud.tencent.com/rss/zh/ap-beijing/tat",
+              "TimeRegion": ""
+            }
+          ]
+        },
+        {
+          "CategoryName": "高性能计算",
+          "ProductList": [
+            {
+              "ProductId": "batch",
+              "ProductName": "批量计算",
+              "EventListGroupByZoneAndDate": [],
+              "ProductEventTitle": "",
+              "CurrentStatus": "NORMAL",
+              "CurrentEvent": null,
+              "Rss": "https://status.cloud.tencent.com/rss/zh/ap-beijing/batch",
+              "TimeRegion": ""
+            }
+          ]
+        },
+        {
+          "CategoryName": "分布式云",
+          "ProductList": [
+            {
+              "ProductId": "cdc",
+              "ProductName": "本地专用集群",
+              "EventListGroupByZoneAndDate": [],
+              "ProductEventTitle": "",
+              "CurrentStatus": "NORMAL",
+              "CurrentEvent": null,
+              "Rss": "https://status.cloud.tencent.com/rss/zh/ap-beijing/cdc",
+              "TimeRegion": ""
+            },
+            {
+              "ProductId": "cdz",
+              "ProductName": "专属可用区",
+              "EventListGroupByZoneAndDate": [],
+              "ProductEventTitle": "",
+              "CurrentStatus": "NORMAL",
+              "CurrentEvent": null,
+              "Rss": "https://status.cloud.tencent.com/rss/zh/ap-beijing/cdz",
+              "TimeRegion": ""
+            },
+            {
+              "ProductId": "chc",
+              "ProductName": "云托付物理服务器",
+              "EventListGroupByZoneAndDate": [],
+              "ProductEventTitle": "",
+              "CurrentStatus": "NORMAL",
+              "CurrentEvent": null,
+              "Rss": "https://status.cloud.tencent.com/rss/zh/ap-beijing/chc",
+              "TimeRegion": ""
+            }
+          ]
+        },
+        {
+          "CategoryName": "容器",
+          "ProductList": [
+            {
+              "ProductId": "tke",
+              "ProductName": "容器服务",
+              "EventListGroupByZoneAndDate": [],
+              "ProductEventTitle": "",
+              "CurrentStatus": "NORMAL",
+              "CurrentEvent": null,
+              "Rss": "https://status.cloud.tencent.com/rss/zh/ap-beijing/tke",
+              "TimeRegion": ""
+            },
+            {
+              "ProductId": "tkeserverless",
+              "ProductName": "Serverless 容器服务",
+              "EventListGroupByZoneAndDate": [],
+              "ProductEventTitle": "",
+              "CurrentStatus": "NORMAL",
+              "CurrentEvent": null,
+              "Rss": "https://status.cloud.tencent.com/rss/zh/ap-beijing/tkeserverless",
+              "TimeRegion": ""
+            },
+            {
+              "ProductId": "tcm",
+              "ProductName": "服务网格",
+              "EventListGroupByZoneAndDate": [],
+              "ProductEventTitle": "",
+              "CurrentStatus": "NORMAL",
+              "CurrentEvent": null,
+              "Rss": "https://status.cloud.tencent.com/rss/zh/ap-beijing/tcm",
+              "TimeRegion": ""
+            },
+            {
+              "ProductId": "tcr",
+              "ProductName": "容器镜像服务",
+              "EventListGroupByZoneAndDate": [],
+              "ProductEventTitle": "",
+              "CurrentStatus": "NORMAL",
+              "CurrentEvent": null,
+              "Rss": "https://status.cloud.tencent.com/rss/zh/ap-beijing/tcr",
+              "TimeRegion": ""
+            },
+            {
+              "ProductId": "ags",
+              "ProductName": "Agent Runtime",
+              "EventListGroupByZoneAndDate": [],
+              "ProductEventTitle": "",
+              "CurrentStatus": "NORMAL",
+              "CurrentEvent": null,
+              "Rss": "https://status.cloud.tencent.com/rss/zh/ap-beijing/ags",
+              "TimeRegion": ""
+            }
+          ]
+        },
+        {
+          "CategoryName": "中间件",
+          "ProductList": [
+            {
+              "ProductId": "trocket",
+              "ProductName": "消息队列 RocketMQ 版",
+              "EventListGroupByZoneAndDate": [],
+              "ProductEventTitle": "",
+              "CurrentStatus": "NORMAL",
+              "CurrentEvent": null,
+              "Rss": "https://status.cloud.tencent.com/rss/zh/ap-beijing/trocket",
+              "TimeRegion": ""
+            },
+            {
+              "ProductId": "trabbit",
+              "ProductName": "消息队列 RabbitMQ 版",
+              "EventListGroupByZoneAndDate": [],
+              "ProductEventTitle": "",
+              "CurrentStatus": "NORMAL",
+              "CurrentEvent": null,
+              "Rss": "https://status.cloud.tencent.com/rss/zh/ap-beijing/trabbit",
+              "TimeRegion": ""
+            },
+            {
+              "ProductId": "tpulsar",
+              "ProductName": "消息队列 Pulsar 版",
+              "EventListGroupByZoneAndDate": [],
+              "ProductEventTitle": "",
+              "CurrentStatus": "NORMAL",
+              "CurrentEvent": null,
+              "Rss": "https://status.cloud.tencent.com/rss/zh/ap-beijing/tpulsar",
+              "TimeRegion": ""
+            },
+            {
+              "ProductId": "tcmq",
+              "ProductName": "消息队列 CMQ 版",
+              "EventListGroupByZoneAndDate": [],
+              "ProductEventTitle": "",
+              "CurrentStatus": "NORMAL",
+              "CurrentEvent": null,
+              "Rss": "https://status.cloud.tencent.com/rss/zh/ap-beijing/tcmq",
+              "TimeRegion": ""
+            },
+            {
+              "ProductId": "ckafka",
+              "ProductName": "消息队列 CKafka 版",
+              "EventListGroupByZoneAndDate": [],
+              "ProductEventTitle": "",
+              "CurrentStatus": "NORMAL",
+              "CurrentEvent": null,
+              "Rss": "https://status.cloud.tencent.com/rss/zh/ap-beijing/ckafka",
+              "TimeRegion": ""
+            }
+          ]
+        },
+        {
+          "CategoryName": "微服务",
+          "ProductList": [
+            {
+              "ProductId": "tem",
+              "ProductName": "弹性微服务",
+              "EventListGroupByZoneAndDate": [],
+              "ProductEventTitle": "",
+              "CurrentStatus": "NORMAL",
+              "CurrentEvent": null,
+              "Rss": "https://status.cloud.tencent.com/rss/zh/ap-beijing/tem",
+              "TimeRegion": ""
+            },
+            {
+              "ProductId": "tse",
+              "ProductName": "微服务引擎 TSE",
+              "EventListGroupByZoneAndDate": [],
+              "ProductEventTitle": "",
+              "CurrentStatus": "NORMAL",
+              "CurrentEvent": null,
+              "Rss": "https://status.cloud.tencent.com/rss/zh/ap-beijing/tse",
+              "TimeRegion": ""
+            },
+            {
+              "ProductId": "tsf",
+              "ProductName": "微服务平台 TSF",
+              "EventListGroupByZoneAndDate": [],
+              "ProductEventTitle": "",
+              "CurrentStatus": "NORMAL",
+              "CurrentEvent": null,
+              "Rss": "https://status.cloud.tencent.com/rss/zh/ap-beijing/tsf",
+              "TimeRegion": ""
+            }
+          ]
+        },
+        {
+          "CategoryName": "Serverless",
+          "ProductList": [
+            {
+              "ProductId": "scf",
+              "ProductName": "云函数",
+              "EventListGroupByZoneAndDate": [],
+              "ProductEventTitle": "",
+              "CurrentStatus": "NORMAL",
+              "CurrentEvent": null,
+              "Rss": "https://status.cloud.tencent.com/rss/zh/ap-beijing/scf",
+              "TimeRegion": ""
+            }
+          ]
+        },
+        {
+          "CategoryName": "基础存储服务",
+          "ProductList": [
+            {
+              "ProductId": "cos",
+              "ProductName": "对象存储",
+              "EventListGroupByZoneAndDate": [],
+              "ProductEventTitle": "",
+              "CurrentStatus": "NORMAL",
+              "CurrentEvent": null,
+              "Rss": "https://status.cloud.tencent.com/rss/zh/ap-beijing/cos",
+              "TimeRegion": ""
+            },
+            {
+              "ProductId": "cbs",
+              "ProductName": "云硬盘",
+              "EventListGroupByZoneAndDate": [],
+              "ProductEventTitle": "",
+              "CurrentStatus": "NORMAL",
+              "CurrentEvent": null,
+              "Rss": "https://status.cloud.tencent.com/rss/zh/ap-beijing/cbs",
+              "TimeRegion": ""
+            },
+            {
+              "ProductId": "cfs",
+              "ProductName": "文件存储",
+              "EventListGroupByZoneAndDate": [],
+              "ProductEventTitle": "",
+              "CurrentStatus": "NORMAL",
+              "CurrentEvent": null,
+              "Rss": "https://status.cloud.tencent.com/rss/zh/ap-beijing/cfs",
+              "TimeRegion": ""
+            },
+            {
+              "ProductId": "chdfs",
+              "ProductName": "云 HDFS",
+              "EventListGroupByZoneAndDate": [],
+              "ProductEventTitle": "",
+              "CurrentStatus": "NORMAL",
+              "CurrentEvent": null,
+              "Rss": "https://status.cloud.tencent.com/rss/zh/ap-beijing/chdfs",
+              "TimeRegion": ""
+            }
+          ]
+        },
+        {
+          "CategoryName": "存储数据服务",
+          "ProductList": [
+            {
+              "ProductId": "smh",
+              "ProductName": "智能媒资托管",
+              "EventListGroupByZoneAndDate": [],
+              "ProductEventTitle": "",
+              "CurrentStatus": "NORMAL",
+              "CurrentEvent": null,
+              "Rss": "https://status.cloud.tencent.com/rss/zh/ap-beijing/smh",
+              "TimeRegion": ""
+            }
+          ]
+        },
+        {
+          "CategoryName": "智能数据处理",
+          "ProductList": [
+            {
+              "ProductId": "ci",
+              "ProductName": "数据万象",
+              "EventListGroupByZoneAndDate": [],
+              "ProductEventTitle": "",
+              "CurrentStatus": "NORMAL",
+              "CurrentEvent": null,
+              "Rss": "https://status.cloud.tencent.com/rss/zh/ap-beijing/ci",
+              "TimeRegion": ""
+            }
+          ]
+        },
+        {
+          "CategoryName": "数据处理与分析",
+          "ProductList": [
+            {
+              "ProductId": "cls",
+              "ProductName": "日志服务",
+              "EventListGroupByZoneAndDate": [],
+              "ProductEventTitle": "",
+              "CurrentStatus": "NORMAL",
+              "CurrentEvent": null,
+              "Rss": "https://status.cloud.tencent.com/rss/zh/ap-beijing/cls",
+              "TimeRegion": ""
+            }
+          ]
+        },
+        {
+          "CategoryName": "关系型数据库",
+          "ProductList": [
+            {
+              "ProductId": "cynosdb",
+              "ProductName": "TDSQL-C MySQL 版",
+              "EventListGroupByZoneAndDate": [],
+              "ProductEventTitle": "",
+              "CurrentStatus": "NORMAL",
+              "CurrentEvent": null,
+              "Rss": "https://status.cloud.tencent.com/rss/zh/ap-beijing/cynosdb",
+              "TimeRegion": ""
+            },
+            {
+              "ProductId": "cdb",
+              "ProductName": "云数据库 MySQL",
+              "EventListGroupByZoneAndDate": [],
+              "ProductEventTitle": "",
+              "CurrentStatus": "NORMAL",
+              "CurrentEvent": null,
+              "Rss": "https://status.cloud.tencent.com/rss/zh/ap-beijing/cdb",
+              "TimeRegion": ""
+            },
+            {
+              "ProductId": "tdsql",
+              "ProductName": "云数据库 MariaDB",
+              "EventListGroupByZoneAndDate": [],
+              "ProductEventTitle": "",
+              "CurrentStatus": "NORMAL",
+              "CurrentEvent": null,
+              "Rss": "https://status.cloud.tencent.com/rss/zh/ap-beijing/tdsql",
+              "TimeRegion": ""
+            },
+            {
+              "ProductId": "sqlserver",
+              "ProductName": "云数据库 SQL Server",
+              "EventListGroupByZoneAndDate": [],
+              "ProductEventTitle": "",
+              "CurrentStatus": "NORMAL",
+              "CurrentEvent": null,
+              "Rss": "https://status.cloud.tencent.com/rss/zh/ap-beijing/sqlserver",
+              "TimeRegion": ""
+            },
+            {
+              "ProductId": "postgres",
+              "ProductName": "云数据库 PostgreSQL",
+              "EventListGroupByZoneAndDate": [],
+              "ProductEventTitle": "",
+              "CurrentStatus": "NORMAL",
+              "CurrentEvent": null,
+              "Rss": "https://status.cloud.tencent.com/rss/zh/ap-beijing/postgres",
+              "TimeRegion": ""
+            }
+          ]
+        },
+        {
+          "CategoryName": "企业级分布式数据库",
+          "ProductList": [
+            {
+              "ProductId": "dcdb",
+              "ProductName": "TDSQL MySQL 版",
+              "EventListGroupByZoneAndDate": [],
+              "ProductEventTitle": "",
+              "CurrentStatus": "NORMAL",
+              "CurrentEvent": null,
+              "Rss": "https://status.cloud.tencent.com/rss/zh/ap-beijing/dcdb",
+              "TimeRegion": ""
+            },
+            {
+              "ProductId": "tbase",
+              "ProductName": "TDSQL PostgreSQL 版",
+              "EventListGroupByZoneAndDate": [],
+              "ProductEventTitle": "",
+              "CurrentStatus": "NORMAL",
+              "CurrentEvent": null,
+              "Rss": "https://status.cloud.tencent.com/rss/zh/ap-beijing/tbase",
+              "TimeRegion": ""
+            }
+          ]
+        },
+        {
+          "CategoryName": "NoSQL 数据库",
+          "ProductList": [
+            {
+              "ProductId": "crs",
+              "ProductName": "腾讯云分布式缓存数据库",
+              "EventListGroupByZoneAndDate": [],
+              "ProductEventTitle": "",
+              "CurrentStatus": "NORMAL",
+              "CurrentEvent": null,
+              "Rss": "https://status.cloud.tencent.com/rss/zh/ap-beijing/crs",
+              "TimeRegion": ""
+            },
+            {
+              "ProductId": "mongodb",
+              "ProductName": "云数据库 MongoDB",
+              "EventListGroupByZoneAndDate": [],
+              "ProductEventTitle": "",
+              "CurrentStatus": "NORMAL",
+              "CurrentEvent": null,
+              "Rss": "https://status.cloud.tencent.com/rss/zh/ap-beijing/mongodb",
+              "TimeRegion": ""
+            },
+            {
+              "ProductId": "ctsdb",
+              "ProductName": "时序数据库 CTSDB",
+              "EventListGroupByZoneAndDate": [],
+              "ProductEventTitle": "",
+              "CurrentStatus": "NORMAL",
+              "CurrentEvent": null,
+              "Rss": "https://status.cloud.tencent.com/rss/zh/ap-beijing/ctsdb",
+              "TimeRegion": ""
+            },
+            {
+              "ProductId": "tcaplusdb",
+              "ProductName": "游戏数据库 TcaplusDB",
+              "EventListGroupByZoneAndDate": [],
+              "ProductEventTitle": "",
+              "CurrentStatus": "NORMAL",
+              "CurrentEvent": null,
+              "Rss": "https://status.cloud.tencent.com/rss/zh/ap-beijing/tcaplusdb",
+              "TimeRegion": ""
+            },
+            {
+              "ProductId": "keewidb",
+              "ProductName": "云数据库 KeeWiDB",
+              "EventListGroupByZoneAndDate": [],
+              "ProductEventTitle": "",
+              "CurrentStatus": "NORMAL",
+              "CurrentEvent": null,
+              "Rss": "https://status.cloud.tencent.com/rss/zh/ap-beijing/keewidb",
+              "TimeRegion": ""
+            }
+          ]
+        },
+        {
+          "CategoryName": "数据库软硬一体",
+          "ProductList": [
+            {
+              "ProductId": "tdata",
+              "ProductName": "数据库一体机 TData",
+              "EventListGroupByZoneAndDate": [],
+              "ProductEventTitle": "",
+              "CurrentStatus": "NORMAL",
+              "CurrentEvent": null,
+              "Rss": "https://status.cloud.tencent.com/rss/zh/ap-beijing/tdata",
+              "TimeRegion": ""
+            },
+            {
+              "ProductId": "dbdc",
+              "ProductName": "云数据库独享集群",
+              "EventListGroupByZoneAndDate": [],
+              "ProductEventTitle": "",
+              "CurrentStatus": "NORMAL",
+              "CurrentEvent": null,
+              "Rss": "https://status.cloud.tencent.com/rss/zh/ap-beijing/dbdc",
+              "TimeRegion": ""
+            }
+          ]
+        },
+        {
+          "CategoryName": "数据库 SaaS 服务",
+          "ProductList": [
+            {
+              "ProductId": "dts",
+              "ProductName": "数据传输服务",
+              "EventListGroupByZoneAndDate": [],
+              "ProductEventTitle": "",
+              "CurrentStatus": "NORMAL",
+              "CurrentEvent": null,
+              "Rss": "https://status.cloud.tencent.com/rss/zh/ap-beijing/dts",
+              "TimeRegion": ""
+            },
+            {
+              "ProductId": "dbbrain",
+              "ProductName": "数据库智能管家 DBbrain",
+              "EventListGroupByZoneAndDate": [],
+              "ProductEventTitle": "",
+              "CurrentStatus": "NORMAL",
+              "CurrentEvent": null,
+              "Rss": "https://status.cloud.tencent.com/rss/zh/ap-beijing/dbbrain",
+              "TimeRegion": ""
+            },
+            {
+              "ProductId": "dbs",
+              "ProductName": "数据库备份服务",
+              "EventListGroupByZoneAndDate": [],
+              "ProductEventTitle": "",
+              "CurrentStatus": "NORMAL",
+              "CurrentEvent": null,
+              "Rss": "https://status.cloud.tencent.com/rss/zh/ap-beijing/dbs",
+              "TimeRegion": ""
+            },
+            {
+              "ProductId": "dmc",
+              "ProductName": "数据库管理",
+              "EventListGroupByZoneAndDate": [],
+              "ProductEventTitle": "",
+              "CurrentStatus": "NORMAL",
+              "CurrentEvent": null,
+              "Rss": "https://status.cloud.tencent.com/rss/zh/ap-beijing/dmc",
+              "TimeRegion": ""
+            }
+          ]
+        },
+        {
+          "CategoryName": "网络",
+          "ProductList": [
+            {
+              "ProductId": "clb",
+              "ProductName": "负载均衡",
+              "EventListGroupByZoneAndDate": [],
+              "ProductEventTitle": "",
+              "CurrentStatus": "NORMAL",
+              "CurrentEvent": null,
+              "Rss": "https://status.cloud.tencent.com/rss/zh/ap-beijing/clb",
+              "TimeRegion": ""
+            },
+            {
+              "ProductId": "vpc",
+              "ProductName": "私有网络",
+              "EventListGroupByZoneAndDate": [],
+              "ProductEventTitle": "",
+              "CurrentStatus": "NORMAL",
+              "CurrentEvent": null,
+              "Rss": "https://status.cloud.tencent.com/rss/zh/ap-beijing/vpc",
+              "TimeRegion": ""
+            },
+            {
+              "ProductId": "dc",
+              "ProductName": "专线接入",
+              "EventListGroupByZoneAndDate": [],
+              "ProductEventTitle": "",
+              "CurrentStatus": "NORMAL",
+              "CurrentEvent": null,
+              "Rss": "https://status.cloud.tencent.com/rss/zh/ap-beijing/dc",
+              "TimeRegion": ""
+            },
+            {
+              "ProductId": "ccn",
+              "ProductName": "云联网",
+              "EventListGroupByZoneAndDate": [],
+              "ProductEventTitle": "",
+              "CurrentStatus": "NORMAL",
+              "CurrentEvent": null,
+              "Rss": "https://status.cloud.tencent.com/rss/zh/ap-beijing/ccn",
+              "TimeRegion": ""
+            },
+            {
+              "ProductId": "nat",
+              "ProductName": "NAT 网关",
+              "EventListGroupByZoneAndDate": [],
+              "ProductEventTitle": "",
+              "CurrentStatus": "NORMAL",
+              "CurrentEvent": null,
+              "Rss": "https://status.cloud.tencent.com/rss/zh/ap-beijing/nat",
+              "TimeRegion": ""
+            },
+            {
+              "ProductId": "pc",
+              "ProductName": "对等连接",
+              "EventListGroupByZoneAndDate": [],
+              "ProductEventTitle": "",
+              "CurrentStatus": "NORMAL",
+              "CurrentEvent": null,
+              "Rss": "https://status.cloud.tencent.com/rss/zh/ap-beijing/pc",
+              "TimeRegion": ""
+            },
+            {
+              "ProductId": "vpn",
+              "ProductName": "VPN 连接",
+              "EventListGroupByZoneAndDate": [],
+              "ProductEventTitle": "",
+              "CurrentStatus": "NORMAL",
+              "CurrentEvent": null,
+              "Rss": "https://status.cloud.tencent.com/rss/zh/ap-beijing/vpn",
+              "TimeRegion": ""
+            },
+            {
+              "ProductId": "fl",
+              "ProductName": "网络流日志",
+              "EventListGroupByZoneAndDate": [],
+              "ProductEventTitle": "",
+              "CurrentStatus": "NORMAL",
+              "CurrentEvent": null,
+              "Rss": "https://status.cloud.tencent.com/rss/zh/ap-beijing/fl",
+              "TimeRegion": ""
+            },
+            {
+              "ProductId": "eip",
+              "ProductName": "弹性公网 IP",
+              "EventListGroupByZoneAndDate": [],
+              "ProductEventTitle": "",
+              "CurrentStatus": "NORMAL",
+              "CurrentEvent": null,
+              "Rss": "https://status.cloud.tencent.com/rss/zh/ap-beijing/eip",
+              "TimeRegion": ""
+            }
+          ]
+        },
+        {
+          "CategoryName": "云渲染",
+          "ProductList": [
+            {
+              "ProductId": "gs",
+              "ProductName": "云游戏",
+              "EventListGroupByZoneAndDate": [],
+              "ProductEventTitle": "",
+              "CurrentStatus": "NORMAL",
+              "CurrentEvent": null,
+              "Rss": "https://status.cloud.tencent.com/rss/zh/ap-beijing/gs",
+              "TimeRegion": ""
+            },
+            {
+              "ProductId": "cvd",
+              "ProductName": "云桌面",
+              "EventListGroupByZoneAndDate": [],
+              "ProductEventTitle": "",
+              "CurrentStatus": "NORMAL",
+              "CurrentEvent": null,
+              "Rss": "https://status.cloud.tencent.com/rss/zh/ap-beijing/cvd",
+              "TimeRegion": ""
+            }
+          ]
+        },
+        {
+          "CategoryName": "数据安全",
+          "ProductList": [
+            {
+              "ProductId": "cloudhsm",
+              "ProductName": "云加密机",
+              "EventListGroupByZoneAndDate": [],
+              "ProductEventTitle": "",
+              "CurrentStatus": "NORMAL",
+              "CurrentEvent": null,
+              "Rss": "https://status.cloud.tencent.com/rss/zh/ap-beijing/cloudhsm",
+              "TimeRegion": ""
+            },
+            {
+              "ProductId": "kms",
+              "ProductName": "密钥管理系统",
+              "EventListGroupByZoneAndDate": [],
+              "ProductEventTitle": "",
+              "CurrentStatus": "NORMAL",
+              "CurrentEvent": null,
+              "Rss": "https://status.cloud.tencent.com/rss/zh/ap-beijing/kms",
+              "TimeRegion": ""
+            },
+            {
+              "ProductId": "ssm",
+              "ProductName": "凭据管理系统",
+              "EventListGroupByZoneAndDate": [],
+              "ProductEventTitle": "",
+              "CurrentStatus": "NORMAL",
+              "CurrentEvent": null,
+              "Rss": "https://status.cloud.tencent.com/rss/zh/ap-beijing/ssm",
+              "TimeRegion": ""
+            },
+            {
+              "ProductId": "casb",
+              "ProductName": "云访问安全代理",
+              "EventListGroupByZoneAndDate": [],
+              "ProductEventTitle": "",
+              "CurrentStatus": "NORMAL",
+              "CurrentEvent": null,
+              "Rss": "https://status.cloud.tencent.com/rss/zh/ap-beijing/casb",
+              "TimeRegion": ""
+            }
+          ]
+        },
+        {
+          "CategoryName": "业务安全",
+          "ProductList": [
+            {
+              "ProductId": "tms",
+              "ProductName": "内容安全平台",
+              "EventListGroupByZoneAndDate": [],
+              "ProductEventTitle": "",
+              "CurrentStatus": "NORMAL",
+              "CurrentEvent": null,
+              "Rss": "https://status.cloud.tencent.com/rss/zh/ap-beijing/tms",
+              "TimeRegion": ""
+            },
+            {
+              "ProductId": "tds",
+              "ProductName": "设备安全",
+              "EventListGroupByZoneAndDate": [],
+              "ProductEventTitle": "",
+              "CurrentStatus": "NORMAL",
+              "CurrentEvent": null,
+              "Rss": "https://status.cloud.tencent.com/rss/zh/ap-beijing/tds",
+              "TimeRegion": ""
+            }
+          ]
+        },
+        {
+          "CategoryName": "云安全",
+          "ProductList": [
+            {
+              "ProductId": "waf",
+              "ProductName": "Web 应用防火墙",
+              "EventListGroupByZoneAndDate": [],
+              "ProductEventTitle": "",
+              "CurrentStatus": "NORMAL",
+              "CurrentEvent": null,
+              "Rss": "https://status.cloud.tencent.com/rss/zh/ap-beijing/waf",
+              "TimeRegion": ""
+            },
+            {
+              "ProductId": "llmsgw",
+              "ProductName": "AI Agent安全网关",
+              "EventListGroupByZoneAndDate": [],
+              "ProductEventTitle": "",
+              "CurrentStatus": "NORMAL",
+              "CurrentEvent": null,
+              "Rss": "https://status.cloud.tencent.com/rss/zh/ap-beijing/llmsgw",
+              "TimeRegion": ""
+            }
+          ]
+        },
+        {
+          "CategoryName": "应用安全",
+          "ProductList": [
+            {
+              "ProductId": "bsca",
+              "ProductName": "二进制软件成分分析",
+              "EventListGroupByZoneAndDate": [],
+              "ProductEventTitle": "",
+              "CurrentStatus": "NORMAL",
+              "CurrentEvent": null,
+              "Rss": "https://status.cloud.tencent.com/rss/zh/ap-beijing/bsca",
+              "TimeRegion": ""
+            }
+          ]
+        },
+        {
+          "CategoryName": "数据分析",
+          "ProductList": [
+            {
+              "ProductId": "emr",
+              "ProductName": "弹性 MapReduce",
+              "EventListGroupByZoneAndDate": [],
+              "ProductEventTitle": "",
+              "CurrentStatus": "NORMAL",
+              "CurrentEvent": null,
+              "Rss": "https://status.cloud.tencent.com/rss/zh/ap-beijing/emr",
+              "TimeRegion": ""
+            },
+            {
+              "ProductId": "es",
+              "ProductName": "Elasticsearch Service",
+              "EventListGroupByZoneAndDate": [],
+              "ProductEventTitle": "",
+              "CurrentStatus": "NORMAL",
+              "CurrentEvent": null,
+              "Rss": "https://status.cloud.tencent.com/rss/zh/ap-beijing/es",
+              "TimeRegion": ""
+            },
+            {
+              "ProductId": "cdwpg",
+              "ProductName": "腾讯云数据仓库 TCHouse-P",
+              "EventListGroupByZoneAndDate": [],
+              "ProductEventTitle": "",
+              "CurrentStatus": "NORMAL",
+              "CurrentEvent": null,
+              "Rss": "https://status.cloud.tencent.com/rss/zh/ap-beijing/cdwpg",
+              "TimeRegion": ""
+            },
+            {
+              "ProductId": "cdwch",
+              "ProductName": "腾讯云数据仓库 TCHouse-C",
+              "EventListGroupByZoneAndDate": [],
+              "ProductEventTitle": "",
+              "CurrentStatus": "NORMAL",
+              "CurrentEvent": null,
+              "Rss": "https://status.cloud.tencent.com/rss/zh/ap-beijing/cdwch",
+              "TimeRegion": ""
+            },
+            {
+              "ProductId": "cdwdoris",
+              "ProductName": "腾讯云数据仓库 TCHouse-D",
+              "EventListGroupByZoneAndDate": [],
+              "ProductEventTitle": "",
+              "CurrentStatus": "NORMAL",
+              "CurrentEvent": null,
+              "Rss": "https://status.cloud.tencent.com/rss/zh/ap-beijing/cdwdoris",
+              "TimeRegion": ""
+            },
+            {
+              "ProductId": "oceanus",
+              "ProductName": "流计算 Oceanus",
+              "EventListGroupByZoneAndDate": [],
+              "ProductEventTitle": "",
+              "CurrentStatus": "NORMAL",
+              "CurrentEvent": null,
+              "Rss": "https://status.cloud.tencent.com/rss/zh/ap-beijing/oceanus",
+              "TimeRegion": ""
+            },
+            {
+              "ProductId": "dlc",
+              "ProductName": "数据湖计算 DLC",
+              "EventListGroupByZoneAndDate": [],
+              "ProductEventTitle": "",
+              "CurrentStatus": "NORMAL",
+              "CurrentEvent": null,
+              "Rss": "https://status.cloud.tencent.com/rss/zh/ap-beijing/dlc",
+              "TimeRegion": ""
+            }
+          ]
+        },
+        {
+          "CategoryName": "数据开发与治理",
+          "ProductList": [
+            {
+              "ProductId": "wedata",
+              "ProductName": "数据开发治理平台 WeData",
+              "EventListGroupByZoneAndDate": [],
+              "ProductEventTitle": "",
+              "CurrentStatus": "NORMAL",
+              "CurrentEvent": null,
+              "Rss": "https://status.cloud.tencent.com/rss/zh/ap-beijing/wedata",
+              "TimeRegion": ""
+            }
+          ]
+        },
+        {
+          "CategoryName": "AI 应用产品",
+          "ProductList": [
+            {
+              "ProductId": "faceid",
+              "ProductName": "人脸核身",
+              "EventListGroupByZoneAndDate": [],
+              "ProductEventTitle": "",
+              "CurrentStatus": "NORMAL",
+              "CurrentEvent": null,
+              "Rss": "https://status.cloud.tencent.com/rss/zh/ap-beijing/faceid",
+              "TimeRegion": ""
+            }
+          ]
+        },
+        {
+          "CategoryName": "语音技术",
+          "ProductList": [
+            {
+              "ProductId": "asr",
+              "ProductName": "语音识别",
+              "EventListGroupByZoneAndDate": [],
+              "ProductEventTitle": "",
+              "CurrentStatus": "NORMAL",
+              "CurrentEvent": null,
+              "Rss": "https://status.cloud.tencent.com/rss/zh/ap-beijing/asr",
+              "TimeRegion": ""
+            },
+            {
+              "ProductId": "tts",
+              "ProductName": "语音合成",
+              "EventListGroupByZoneAndDate": [],
+              "ProductEventTitle": "",
+              "CurrentStatus": "NORMAL",
+              "CurrentEvent": null,
+              "Rss": "https://status.cloud.tencent.com/rss/zh/ap-beijing/tts",
+              "TimeRegion": ""
+            }
+          ]
+        },
+        {
+          "CategoryName": "AI 基础产品",
+          "ProductList": [
+            {
+              "ProductId": "ocr",
+              "ProductName": "文字识别",
+              "EventListGroupByZoneAndDate": [],
+              "ProductEventTitle": "",
+              "CurrentStatus": "NORMAL",
+              "CurrentEvent": null,
+              "Rss": "https://status.cloud.tencent.com/rss/zh/ap-beijing/ocr",
+              "TimeRegion": ""
+            }
+          ]
+        },
+        {
+          "CategoryName": "AI 平台服务",
+          "ProductList": [
+            {
+              "ProductId": "tione",
+              "ProductName": "腾讯云大模型训推平台TI-ONE",
+              "EventListGroupByZoneAndDate": [],
+              "ProductEventTitle": "",
+              "CurrentStatus": "NORMAL",
+              "CurrentEvent": null,
+              "Rss": "https://status.cloud.tencent.com/rss/zh/ap-beijing/tione",
+              "TimeRegion": ""
+            }
+          ]
+        },
+        {
+          "CategoryName": "自然语言处理",
+          "ProductList": [
+            {
+              "ProductId": "tmt",
+              "ProductName": "机器翻译",
+              "EventListGroupByZoneAndDate": [],
+              "ProductEventTitle": "",
+              "CurrentStatus": "NORMAL",
+              "CurrentEvent": null,
+              "Rss": "https://status.cloud.tencent.com/rss/zh/ap-beijing/tmt",
+              "TimeRegion": ""
+            }
+          ]
+        },
+        {
+          "CategoryName": "监控与运维",
+          "ProductList": [
+            {
+              "ProductId": "tmp",
+              "ProductName": "Prometheus 监控服务",
+              "EventListGroupByZoneAndDate": [],
+              "ProductEventTitle": "",
+              "CurrentStatus": "NORMAL",
+              "CurrentEvent": null,
+              "Rss": "https://status.cloud.tencent.com/rss/zh/ap-beijing/tmp",
+              "TimeRegion": ""
+            },
+            {
+              "ProductId": "tcpm",
+              "ProductName": "云监控",
+              "EventListGroupByZoneAndDate": [],
+              "ProductEventTitle": "",
+              "CurrentStatus": "NORMAL",
+              "CurrentEvent": null,
+              "Rss": "https://status.cloud.tencent.com/rss/zh/ap-beijing/tcpm",
+              "TimeRegion": ""
+            },
+            {
+              "ProductId": "apm",
+              "ProductName": "应用性能观测",
+              "EventListGroupByZoneAndDate": [],
+              "ProductEventTitle": "",
+              "CurrentStatus": "NORMAL",
+              "CurrentEvent": null,
+              "Rss": "https://status.cloud.tencent.com/rss/zh/ap-beijing/apm",
+              "TimeRegion": ""
+            }
+          ]
+        },
+        {
+          "CategoryName": "云资源管理",
+          "ProductList": [
+            {
+              "ProductId": "api",
+              "ProductName": "云 API",
+              "EventListGroupByZoneAndDate": [],
+              "ProductEventTitle": "",
+              "CurrentStatus": "NORMAL",
+              "CurrentEvent": null,
+              "Rss": "https://status.cloud.tencent.com/rss/zh/ap-beijing/api",
+              "TimeRegion": ""
+            }
+          ]
+        },
+        {
+          "CategoryName": "域名与网站",
+          "ProductList": [
+            {
+              "ProductId": "privatedns",
+              "ProductName": "私有域解析 Private DNS",
+              "EventListGroupByZoneAndDate": [],
+              "ProductEventTitle": "",
+              "CurrentStatus": "NORMAL",
+              "CurrentEvent": null,
+              "Rss": "https://status.cloud.tencent.com/rss/zh/ap-beijing/privatedns",
+              "TimeRegion": ""
+            }
+          ]
+        },
+        {
+          "CategoryName": "云通信",
+          "ProductList": [
+            {
+              "ProductId": "sms",
+              "ProductName": "短信",
+              "EventListGroupByZoneAndDate": [],
+              "ProductEventTitle": "",
+              "CurrentStatus": "NORMAL",
+              "CurrentEvent": null,
+              "Rss": "https://status.cloud.tencent.com/rss/zh/ap-beijing/sms",
+              "TimeRegion": ""
+            }
+          ]
+        },
+        {
+          "CategoryName": "区块链",
+          "ProductList": [
+            {
+              "ProductId": "tbaas",
+              "ProductName": "腾讯云区块链服务平台 TBaaS",
+              "EventListGroupByZoneAndDate": [],
+              "ProductEventTitle": "",
+              "CurrentStatus": "NORMAL",
+              "CurrentEvent": null,
+              "Rss": "https://status.cloud.tencent.com/rss/zh/ap-beijing/tbaas",
+              "TimeRegion": ""
+            }
+          ]
+        },
+        {
+          "CategoryName": "建筑服务",
+          "ProductList": [
+            {
+              "ProductId": "weilingwith",
+              "ProductName": "微瓴同业开放平台",
+              "EventListGroupByZoneAndDate": [],
+              "ProductEventTitle": "",
+              "CurrentStatus": "NORMAL",
+              "CurrentEvent": null,
+              "Rss": "https://status.cloud.tencent.com/rss/zh/ap-beijing/weilingwith",
+              "TimeRegion": ""
+            }
+          ]
+        },
+        {
+          "CategoryName": "教育服务",
+          "ProductList": [
+            {
+              "ProductId": "tiw",
+              "ProductName": "互动白板",
+              "EventListGroupByZoneAndDate": [],
+              "ProductEventTitle": "",
+              "CurrentStatus": "NORMAL",
+              "CurrentEvent": null,
+              "Rss": "https://status.cloud.tencent.com/rss/zh/ap-beijing/tiw",
+              "TimeRegion": ""
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

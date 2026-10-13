@@ -1,0 +1,178 @@
+{
+  "page": {
+    "id": "01JVZBX1ZXHYQ4Z6ATG7AQDZ6N",
+    "name": "Tailscale",
+    "url": "https://status.tailscale.com/",
+    "updated_at": "2026-09-08T23:29:22Z"
+  },
+  "status": {
+    "description": "All Systems Operational",
+    "indicator": "none"
+  },
+  "components": [
+    {
+      "id": "01JVZBX28CQV3BX7N5031VY303",
+      "name": "Admin console (console.tailscale.com)",
+      "status": "operational",
+      "created_at": "2025-05-23T20:03:41Z",
+      "updated_at": "2026-09-08T23:29:22Z",
+      "position": 0,
+      "description": "https://console.tailscale.com",
+      "page_id": "01JVZBX1ZXHYQ4Z6ATG7AQDZ6N"
+    },
+    {
+      "id": "01JVZBX28CG8FMGHKFXHPKTC41",
+      "name": "API (api.tailscale.com)",
+      "status": "operational",
+      "created_at": "2025-05-23T20:03:41Z",
+      "updated_at": "2026-09-08T23:29:22Z",
+      "position": 1,
+      "page_id": "01JVZBX1ZXHYQ4Z6ATG7AQDZ6N"
+    },
+    {
+      "id": "01JWDQXXDD4EDC6X7WP1A282G3",
+      "name": "Coordination service",
+      "status": "operational",
+      "created_at": "2025-05-29T10:03:14Z",
+      "updated_at": "2026-09-08T23:29:22Z",
+      "position": 2,
+      "page_id": "01JVZBX1ZXHYQ4Z6ATG7AQDZ6N"
+    },
+    {
+      "id": "01JWDQXXDDZ4Z393WKG4Q0T9RC",
+      "name": "DERP relay servers",
+      "status": "operational",
+      "created_at": "2025-05-29T10:03:14Z",
+      "updated_at": "2026-09-08T23:29:22Z",
+      "position": 3,
+      "page_id": "01JVZBX1ZXHYQ4Z6ATG7AQDZ6N"
+    },
+    {
+      "id": "01JWDQXXDD35JRFFT38XSMT9NS",
+      "name": "Certificates",
+      "status": "operational",
+      "created_at": "2025-05-29T10:03:14Z",
+      "updated_at": "2026-09-08T23:29:22Z",
+      "position": 4,
+      "page_id": "01JVZBX1ZXHYQ4Z6ATG7AQDZ6N"
+    },
+    {
+      "id": "01JWDQXXDDDV8064KSKPN3K467",
+      "name": "Mullvad exit nodes",
+      "status": "operational",
+      "created_at": "2025-05-29T10:03:14Z",
+      "updated_at": "2026-09-08T23:29:22Z",
+      "position": 5,
+      "page_id": "01JVZBX1ZXHYQ4Z6ATG7AQDZ6N"
+    },
+    {
+      "id": "01JWDQXXDDC9VMDPVW4MM69YBD",
+      "name": "Homepage and Documentation (tailscale.com)",
+      "status": "operational",
+      "created_at": "2025-05-29T10:03:14Z",
+      "updated_at": "2026-09-08T23:29:22Z",
+      "position": 6,
+      "page_id": "01JVZBX1ZXHYQ4Z6ATG7AQDZ6N"
+    },
+    {
+      "id": "01JWDQXXDDAS890SGFDTJ6KEAP",
+      "name": "Package server (pkgs.tailscale.com)",
+      "status": "operational",
+      "created_at": "2025-05-29T10:03:14Z",
+      "updated_at": "2026-09-08T23:29:22Z",
+      "position": 7,
+      "page_id": "01JVZBX1ZXHYQ4Z6ATG7AQDZ6N"
+    },
+    {
+      "id": "01KGN0AR0EB6SX0PVJQ1S82GWK",
+      "name": "Funnel",
+      "status": "operational",
+      "created_at": "2026-02-04T18:58:41Z",
+      "updated_at": "2026-09-08T23:29:22Z",
+      "position": 8,
+      "page_id": "01JVZBX1ZXHYQ4Z6ATG7AQDZ6N"
+    },
+    {
+      "id": "01KYHR339W6B6BHWF7K8D0XA31",
+      "name": "Aperture",
+      "status": "operational",
+      "created_at": "2026-07-27T12:16:44Z",
+      "updated_at": "2026-09-08T23:29:22Z",
+      "position": 9,
+      "description": "https://aperture.tailscale.com",
+      "page_id": "01JVZBX1ZXHYQ4Z6ATG7AQDZ6N"
+    },
+    {
+      "id": "01KM0EDRT9T0F4XY127JS4D1XY",
+      "name": "Tailscale Support",
+      "status": "operational",
+      "created_at": "2026-03-18T12:23:44Z",
+      "updated_at": "2026-09-08T23:29:22Z",
+      "position": 10,
+      "page_id": "01JVZBX1ZXHYQ4Z6ATG7AQDZ6N"
+    },
+    {
+      "id": "01M21NNMW995YE0RARZ1X8BJHW",
+      "name": "API (US)",
+      "status": "operational",
+      "created_at": "2026-09-08T23:29:22Z",
+      "updated_at": "2026-09-08T23:29:22Z",
+      "position": 11,
+      "page_id": "01JVZBX1ZXHYQ4Z6ATG7AQDZ6N"
+    },
+    {
+      "id": "01M21NNMW961TWQ8JQT4KQAX5E",
+      "name": "API (EU)",
+      "status": "operational",
+      "created_at": "2026-09-08T23:29:22Z",
+      "updated_at": "2026-09-08T23:29:22Z",
+      "position": 12,
+      "page_id": "01JVZBX1ZXHYQ4Z6ATG7AQDZ6N"
+    },
+    {
+      "id": "01M21NNMW9PT853EP2ETMWFJ5Z",
+      "name": "Portal",
+      "status": "operational",
+      "created_at": "2026-09-08T23:29:22Z",
+      "updated_at": "2026-09-08T23:29:22Z",
+      "position": 13,
+      "page_id": "01JVZBX1ZXHYQ4Z6ATG7AQDZ6N"
+    },
+    {
+      "id": "01M21NNMW9GYK1B1KAP5SAEB3Y",
+      "name": "Tunnel",
+      "status": "operational",
+      "created_at": "2026-09-08T23:29:22Z",
+      "updated_at": "2026-09-08T23:29:22Z",
+      "position": 14,
+      "page_id": "01JVZBX1ZXHYQ4Z6ATG7AQDZ6N"
+    },
+    {
+      "id": "01M21NNMW9MKKJM8CQ7CWV15W2",
+      "name": "Tunnel (EU)",
+      "status": "operational",
+      "created_at": "2026-09-08T23:29:22Z",
+      "updated_at": "2026-09-08T23:29:22Z",
+      "position": 15,
+      "page_id": "01JVZBX1ZXHYQ4Z6ATG7AQDZ6N"
+    },
+    {
+      "id": "01M21NNMW96ACRW4YYAHSANHP4",
+      "name": "Website",
+      "status": "operational",
+      "created_at": "2026-09-08T23:29:22Z",
+      "updated_at": "2026-09-08T23:29:22Z",
+      "position": 16,
+      "page_id": "01JVZBX1ZXHYQ4Z6ATG7AQDZ6N"
+    },
+    {
+      "id": "01M21NNMW940GVRP7CA18434NF",
+      "name": "HTTP Socket",
+      "status": "operational",
+      "created_at": "2026-09-08T23:29:22Z",
+      "updated_at": "2026-09-08T23:29:22Z",
+      "position": 17,
+      "page_id": "01JVZBX1ZXHYQ4Z6ATG7AQDZ6N"
+    }
+  ]
+}
