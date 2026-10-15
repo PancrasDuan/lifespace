@@ -41,10 +41,18 @@ export function Home() {
     queryFn: ({ signal }) => api.weatherDetail(weatherCity, signal), staleTime: 300000 })
   const updated = (value?: string) => value ? `更新 ${clock(new Date(value), deviceZone)}` : '尚未获取'
   const save = (value: Settings) => { persistSettings(value); if (value.mode !== settings.mode) location.invalidate(); setSettings(value) }
+  const submitSearch = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    if (!search.trim()) return
+    const url = new URL('https://www.google.com/search')
+    url.searchParams.set('q', search)
+    window.open(url.toString(), '_blank', 'noopener,noreferrer')
+    setSearch('')
+  }
   return <AppLayout page="home" openSettings={() => setSettingsOpen(true)}><div className="home-page"><header className="masthead">
     <div className="page-kicker"><span className="live-dot" />我的每日空间</div><button className="top-settings" aria-label="首页设置" onClick={() => setSettingsOpen(true)}><Settings2 size={18} /></button>
     <h1 className="wordmark">Life<span>Space</span><i /></h1><p className="header-date">把今天放在眼前</p>
-    <form className="search-box" role="search" action="https://www.google.com/search" method="get" target="_blank" rel="noopener noreferrer" onSubmit={event => { if (!search.trim()) event.preventDefault() }}><span className="google-mark" aria-hidden="true">G</span><input name="q" aria-label="Google 搜索" placeholder="搜索一下，找到你想知道的" value={search} onChange={event => setSearch(event.target.value)} /><span className="search-hint">Google</span><button aria-label="搜索"><Search size={20} /></button></form>
+    <form className="search-box" role="search" action="https://www.google.com/search" method="get" target="_blank" rel="noopener noreferrer" onSubmit={submitSearch}><span className="google-mark" aria-hidden="true">G</span><input name="q" aria-label="Google 搜索" placeholder="搜索一下，找到你想知道的" value={search} onChange={event => setSearch(event.target.value)} /><span className="search-hint">Google</span><button aria-label="搜索"><Search size={20} /></button></form>
   </header><section className="glass-grid" aria-label="每日信息"><Panel kind="time" open={() => setActiveCard('time')}><TimeContent now={now} localZone={localZone} localName={city.name} overseas={settings.overseas} /></Panel>
   <Panel kind="weather" open={() => setActiveCard('weather')} footer={<><a href="https://open-meteo.com/" target="_blank" rel="noopener noreferrer">Open-Meteo</a> · {updated(weatherQuery.data?.fetchedAt)}</>} refresh={() => { void weatherQuery.refetch() }} loading={weatherQuery.isFetching}><WeatherContent query={weatherQuery} city={weatherCity} locationStatus={weatherLocation.pending ? '正在定位，暂时显示北京天气' : weatherLocation.error} /></Panel>
   <Panel kind="tasks" open={() => setActiveCard('tasks')} footer={`Supabase · ${updated(taskQuery.data?.fetchedAt)}`} refresh={() => { void taskQuery.refetch() }} loading={taskQuery.isFetching}><TaskContent query={taskQuery} localZone={localZone} /></Panel>
