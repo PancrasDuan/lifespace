@@ -1,9 +1,10 @@
 import { useQuery } from '@tanstack/react-query'
-import { useEffect, useRef } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { ChevronDown, ExternalLink } from 'lucide-react'
 import { api } from './api'
 import type { AiProvider } from '../shared/ai-status-contracts'
 import './ai-status.css'
+import { loadServiceSelection, normalizeServiceSelection, saveServiceSelection, serviceStatusOptions, type ServiceStatusId } from './service-status-settings'
 
 export const aiStatusDescription = '官方状态为汇总信息，具体是否影响工作请结合受影响服务自行判断。'
 
@@ -11,13 +12,27 @@ const labels = { normal: '正常', abnormal: '存在异常', unknown: '状态未
 const time = (value: string) => new Date(value).toLocaleString('zh-CN', { hour12: false })
 
 export function useAiStatus() {
-  const query = useQuery({ queryKey: ['ai-status'], queryFn: ({ signal }) => api.aiStatus(signal), staleTime: 3600000, refetchOnMount: 'always', refetchOnWindowFocus: 'always', refetchInterval: 3600000, refetchIntervalInBackground: false })
+  const [enabled, setEnabled] = useState(loadServiceSelection)
+  const [unsaved, setUnsaved] = useState(false)
+  const rawQuery = useQuery({ enabled: enabled.length > 0, queryKey: ['ai-status'], queryFn: ({ signal }) => api.aiStatus(signal), staleTime: 3600000, refetchOnMount: 'always', refetchOnWindowFocus: 'always', refetchInterval: 3600000, refetchIntervalInBackground: false })
+  const data = useMemo(() => {
+    if (!rawQuery.data) return undefined
+    const providers = rawQuery.data.providers.filter(provider => enabled.includes(provider.id))
+    const status = providers.some(provider => provider.status === 'abnormal') ? 'abnormal' : !providers.length || providers.some(provider => provider.status === 'unknown') ? 'unknown' : 'normal'
+    return { ...rawQuery.data, providers, status } satisfies typeof rawQuery.data
+  }, [rawQuery.data, enabled])
+  const query = { ...rawQuery, data }
+  const change = (id: ServiceStatusId, checked: boolean) => {
+    const next = normalizeServiceSelection(checked ? [...enabled, id] : enabled.filter(value => value !== id))
+    setEnabled(next)
+    try { saveServiceSelection(next); setUnsaved(false) } catch { setUnsaved(true) }
+  }
   const previous = useRef(new Map<string, AiProvider>())
   useEffect(() => {
     if (query.isError) return
     for (const provider of query.data?.providers ?? []) if (provider.status !== 'unknown') previous.current.set(provider.id, provider)
   }, [query.data, query.isError])
-  return { query, previous: previous.current }
+  return { query, previous: previous.current, enabled, change, unsaved }
 }
 
 type StatusView = ReturnType<typeof useAiStatus>
@@ -93,6 +108,7 @@ function SubStatuses({ provider, stale }: { provider: AiProvider; stale: boolean
 
 export function AiStatusContent({ view }: { view: StatusView }) {
   const { query } = view
+  if (!view.enabled.length) return <div className="data-message">尚未选择服务</div>
   const status = query.isError || !query.data ? 'unknown' : query.data.status
   return <div className="ai-content service-primary-content">
     <div className={`ai-overall ai-state-${status}`}><strong>{query.isPending ? '正在获取' : labels[status]}</strong></div>
@@ -107,9 +123,10 @@ export function AiStatusContent({ view }: { view: StatusView }) {
 }
 
 export function AiStatusDetail({ view }: { view: StatusView }) {
+  if (!view.enabled.length) return <p>尚未选择服务，请关闭详情后通过右上角“设置服务”选择。</p>
   return <>
     {view.query.isError && <p className="inline-error">本次获取失败，当前状态未知</p>}
     {view.query.data && <div className="service-detail-overview"><span>已接入 <strong>{view.query.data.providers.length}</strong> 个服务</span><span>子服务默认收起 · 按需展开</span></div>}
-    {view.query.data ? <Providers view={view} detail /> : <p>状态尚未获取。<a href="https://status.openai.com/" target="_blank" rel="noopener noreferrer">OpenAI 官方状态页</a> · <a href="https://status.x.ai/" target="_blank" rel="noopener noreferrer">xAI 官方状态页</a> · <a href="https://resend-status.com/" target="_blank" rel="noopener noreferrer">Resend 官方状态页</a> · <a href="https://www.githubstatus.com/" target="_blank" rel="noopener noreferrer">GitHub 官方状态页</a> · <a href="https://www.cloudflarestatus.com/" target="_blank" rel="noopener noreferrer">Cloudflare 官方状态页</a> · <a href="https://status.supabase.com/" target="_blank" rel="noopener noreferrer">Supabase 官方状态页</a> · <a href="https://www.notion-status.com/" target="_blank" rel="noopener noreferrer">Notion 官方状态页</a> · <a href="https://status.tailscale.com/" target="_blank" rel="noopener noreferrer">Tailscale 官方状态页</a> · <a href="https://status.cloud.tencent.com/" target="_blank" rel="noopener noreferrer">腾讯云 官方状态页</a></p>}
+    {view.query.data ? <Providers view={view} detail /> : <p>状态尚未获取。{serviceStatusOptions.filter(option => view.enabled.includes(option.id)).map(option => <a className="service-fallback-link" key={option.id} href={option.url} target="_blank" rel="noopener noreferrer">{option.name} 官方状态页</a>)}</p>}
   </>
 }

@@ -15,6 +15,7 @@ import { TaskContent, TaskDetail } from './TaskContent'
 import { WeatherContent } from './WeatherContent'
 import { WeatherDetail } from './WeatherDetail'
 import { loadWeatherSettings, saveWeatherSettings } from './weather-city'
+import { ServiceStatusSettings } from './ServiceStatusSettings'
 import { DomainContent, DomainDetail, DNSHELoginLink } from './DomainContent'
 
 export function Home() {
@@ -24,6 +25,7 @@ export function Home() {
   const [now, setNow] = useState(() => new Date())
   const [activeCard, setActiveCard] = useState<CardKind | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [serviceSettingsOpen, setServiceSettingsOpen] = useState(false)
   const [search, setSearch] = useState('')
   const aiStatus = useAiStatus()
   useEffect(() => { const timer = setInterval(() => setNow(new Date()), 1000); return () => clearInterval(timer) }, [])
@@ -47,7 +49,8 @@ export function Home() {
   <Panel kind="weather" open={() => setActiveCard('weather')} footer={<><a href="https://open-meteo.com/" target="_blank" rel="noopener noreferrer">Open-Meteo</a> · {updated(weatherQuery.data?.fetchedAt)}</>} refresh={() => { void weatherQuery.refetch() }} loading={weatherQuery.isFetching}><WeatherContent query={weatherQuery} city={weatherCity} locationStatus={weatherLocation.pending ? '正在定位，暂时显示北京天气' : weatherLocation.error} /></Panel>
   <Panel kind="tasks" open={() => setActiveCard('tasks')} footer={`Supabase · ${updated(taskQuery.data?.fetchedAt)}`} refresh={() => { void taskQuery.refetch() }} loading={taskQuery.isFetching}><TaskContent query={taskQuery} localZone={localZone} /></Panel>
   <Panel kind="calendar" open={() => setActiveCard('calendar')} footer="tyme4ts · 本地生成"><CalendarContent now={now} timeZone={localZone} /></Panel>
-  <Panel kind="domains" open={() => setActiveCard('domains')} footer={<><DNSHELoginLink /> · {updated(domainQuery.data?.fetchedAt)}</>} refresh={() => { void domainQuery.refetch() }} loading={domainQuery.isFetching}><DomainContent query={domainQuery} now={now} localZone={deviceZone} /></Panel><Panel kind="ai" open={() => setActiveCard('ai')} footer={aiStatus.query.data ? `检查 ${clock(new Date(aiStatus.query.data.checkedAt), deviceZone)}` : '尚未获取'} refresh={() => { void aiStatus.query.refetch() }} loading={aiStatus.query.isFetching}><AiStatusContent view={aiStatus} /></Panel></section><p className="page-note">生活有自己的节奏，今天也一样。</p></div>
+  <Panel kind="domains" open={() => setActiveCard('domains')} footer={<><DNSHELoginLink /> · {updated(domainQuery.data?.fetchedAt)}</>} refresh={() => { void domainQuery.refetch() }} loading={domainQuery.isFetching}><DomainContent query={domainQuery} now={now} localZone={deviceZone} /></Panel><Panel kind="ai" actions={<button type="button" className="service-settings-button" onClick={() => setServiceSettingsOpen(true)}><Settings2 size={14} aria-hidden="true" />设置服务</button>} open={() => setActiveCard('ai')} footer={!aiStatus.enabled.length ? '尚未选择服务' : aiStatus.query.data ? `检查 ${clock(new Date(aiStatus.query.data.checkedAt), deviceZone)}` : '尚未获取'} refresh={aiStatus.enabled.length ? () => { void aiStatus.query.refetch() } : undefined} loading={aiStatus.query.isFetching}><AiStatusContent view={aiStatus} /></Panel></section><p className="page-note">生活有自己的节奏，今天也一样。</p></div>
+    {serviceSettingsOpen && <ServiceStatusSettings enabled={aiStatus.enabled} change={aiStatus.change} unsaved={aiStatus.unsaved} close={() => setServiceSettingsOpen(false)} />}
     {activeCard === 'ai' && <Modal title="服务状态" description={aiStatusDescription} close={() => setActiveCard(null)}><div className="detail-content"><AiStatusDetail view={aiStatus} /></div></Modal>}
     {activeCard === 'time' && <Modal title="世界时间" close={() => setActiveCard(null)}><div className="detail-content"><TimeDetail now={now} localZone={localZone} localName={city.name} overseas={settings.overseas} /></div></Modal>}
     {activeCard === 'calendar' && <Modal title="日历" className="calendar-modal" expandable close={() => setActiveCard(null)}><CalendarDetail now={now} timeZone={localZone} /></Modal>}

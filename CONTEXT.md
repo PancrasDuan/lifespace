@@ -54,7 +54,9 @@ LifeSpace 是围绕个人日常信息的工作台。此文件统一项目中的�
 
 **服务状态卡片**：每日首页中呈现 OpenAI、xAI、Resend、GitHub、Cloudflare、Supabase、Notion、Tailscale 与腾讯云官方运行状态、详情按提供方分组的信息卡片，用于辅助使用者判断官方异常是否可能影响工作。
 
-**服务整体状态**：汇总所覆盖提供方的已确认状态规则后得到的状态，包括正常、存在异常和状态未知。OpenAI 依据官网组件与事件，xAI 依据官方未解决事件，Resend 依据 SMTP、General API 与 Single Email 三个组件；GitHub、Cloudflare、Supabase、Notion、Tailscale 与腾讯云依据官方全平台状态。异常优先于未知，未知优先于正常。
+**展示服务**：使用者通过“设置服务”选定、同时出现在一级卡片和二级详情中的服务；初始选择为 OpenAI 与 xAI。
+
+**服务整体状态**：汇总当前展示服务的已确认状态规则后得到的状态，包括正常、存在异常和状态未知。OpenAI 依据官网组件与事件，xAI 依据官方未解决事件，Resend 依据 SMTP、General API 与 Single Email 三个组件；GitHub、Cloudflare、Supabase、Notion、Tailscale 与腾讯云依据官方全平台状态。异常优先于未知，未知优先于正常。
 
 **服务异常事件**：服务提供方在官方状态页公布的运行异常，以独立事件呈现，并按提供方分组展示。
 

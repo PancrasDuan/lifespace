@@ -1,5 +1,10 @@
 import { expect, test } from './authenticated-test'
 
+// 既有来源与布局回归显式选择全部服务；默认选择在 service-status-settings.test.ts 单独验证。
+test.beforeEach(async ({ context }) => {
+  await context.addInitScript(() => localStorage.setItem('lifespace.service-status.providers.v1', JSON.stringify(['openai', 'xai', 'resend', 'github', 'cloudflare', 'supabase', 'notion', 'tailscale', 'tencent'])))
+})
+
 const checkedAt = '2026-10-07T02:00:00Z'
 const xai = { id: 'xai', name: 'xAI', statusBasis: 'official-events', status: 'normal', statusUrl: 'https://status.x.ai/', checkedAt, description: '无未解决官方事件，按事件规则可用', incidents: [], affectedServices: [], error: null }
 const normal = { status: 'normal', checkedAt, providers: [{ id: 'openai', name: 'OpenAI', status: 'normal', statusUrl: 'https://status.openai.com/', checkedAt, description: 'All Systems Operational', incidents: [], affectedServices: [], error: null }, xai] }
