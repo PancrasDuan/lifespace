@@ -1,6 +1,6 @@
 # 服务状态来源
 
-本期覆盖 OpenAI、xAI、Resend、GitHub、Cloudflare、Supabase、Notion、Tailscale 与腾讯云，均读取官方公开信息，无需新增账户凭据。刷新与失败处理沿用现有服务状态卡片。
+本期覆盖 OpenAI、xAI、Resend、GitHub、Cloudflare、Supabase、Notion、Tailscale 与腾讯云，均读取官方公开信息，无需新增账户凭据。默认只展示 OpenAI、xAI；右上角“设置服务”控制一级与二级展示，汇总仅包含所选服务。选择保存在当前浏览器，后端采集接口不变。刷新与失败处理沿用现有服务状态卡片。
 
 | 提供方 | 读取来源 | 汇总口径 |
 |---|---|---|
