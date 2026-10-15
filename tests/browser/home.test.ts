@@ -24,7 +24,7 @@ test('正式首页显示独立日期与 UTC 时差，设置刷新后保留', asy
   await expect(page.getByRole('dialog')).toContainText('UTC+5:30')
 })
 
-test('Google 搜索支持 Enter 和按钮，空关键词保持当前页面', async ({ page, context }) => {
+test('Google 搜索支持 Enter 和按钮，提交后清空关键词，空关键词保持当前页面', async ({ page, context }) => {
   await page.route(/\/api\/(?!auth\/)/, route => route.fulfill({ status: 503, json: { error: { code: 'TASKS_NOT_CONFIGURED', message: '任务来源尚未配置' } } }))
   await context.route('https://www.google.com/search?**', route => route.fulfill({ body: '搜索结果' }))
   await page.goto('/')
@@ -38,7 +38,11 @@ test('Google 搜索支持 Enter 和按钮，空关键词保持当前页面', asy
     const popup = await popupPromise
     await popup.waitForURL('https://www.google.com/search?**')
     expect(new URL(popup.url()).searchParams.get('q')).toBe('LifeSpace 中文 搜索')
+    await expect(page.getByRole('textbox', { name: 'Google 搜索' })).toHaveValue('')
     await popup.close()
+    await page.getByRole('textbox', { name: 'Google 搜索' }).press('Enter')
+    await page.getByRole('button', { name: '搜索', exact: true }).click()
+    expect(context.pages()).toHaveLength(1)
   }
 })
 
