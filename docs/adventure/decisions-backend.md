@@ -1,0 +1,11 @@
+# 后端实施默认选择
+
+- **存储边界**：使用现有 Supabase Data API 独立 `adventure_states`。备选为关系表/RPC、新 D1、浏览器存储；本期遵循 D03 的单账户聚合与版本 CAS。`journal` 和领域状态同一次条件更新，不独立提交。
+- **owner 外键**：不设置 `auth.users` 外键。备选为外键级联；选择无 FK 避免把账户删除语义和现有 Auth 模型扩展到本期，且便于事务回滚的独立随机 owner 验证。每次访问仍必须先在线验证用户 UUID，并由 Worker 强制 owner 条件；无 FK 不代表允许跨账户访问。
+- **权限**：新表开启 RLS、无浏览器策略，明确撤回 PUBLIC、anon、authenticated 的所有权限；Worker service_role 只授予 SELECT/INSERT/UPDATE，不能 DELETE。备选浏览器 JWT 直连被拒绝。服务角色绕过 RLS，故 owner 过滤是必须的第二层授权。
+- **幂等**：journal 键为 `request:<requestId>`，避免对象原型属性名污染；摘要对严格校验后的命令按对象键排序、保留数组顺序做 SHA-256，不包含 expectedVersion。备选摘要整个 envelope 会使未知结果后刷新版本的同命令无法重放。相同语义命令使用原 key 返回稳定结果与最新状态，异命令返回 409。永久保留 journal，不裁剪后允许旧请求重复生效。
+- **CAS 冲突**：普通命令不重算；CAS 失败后只读一次以识别同时到达的相同 key，否则 409。refresh 最多 3 次读取/重算。备选无限重试会增加请求成本，最后写覆盖会丢失数据。
+- **读写限制**：客户端 JSON 命令最大 128 KiB、5 秒读取；外部存储响应最大 32 MB、10 秒读取，请求10秒超时，全部原始错误脱敏。每次初始化或 CAS 在提交前按 UTF-8 序列化完整候选行（含 owner、state、version、journal、updated_at）校验最大 8 MB 的紧凑行预算，给 PostgREST/JSONB 格式及 Worker 解析、克隆留至少四倍读取余量；不允许调用方提高生产上限。超限返回明确容量错误且不发送写请求，旧状态保持可读。备选无界读取不适合 Worker 内存；裁剪 journal/历史会破坏幂等和追溯，因此不采用。这里是有界容量而非无限历史保证，超过预算需要另行设计分区/存储迁移，不删除记录或丢弃部分动作。
+- **时间**：请求进入命令边界后统一取服务端 `Temporal.Now.instant()`，固定 Asia/Shanghai。当次有限CAS重算保留同一权威时间，用户不得上传 today/owner/state/XP。
+- **迁移执行**：CLI 不在当前 PATH，本期保存 plain SQL `db/adventure/create-state.sql`，通过获授权的 `apply_migration` 记录远端迁移，不伪造 Supabase CLI 时间戳迁移目录。权限验证独立 SQL 只使用隔离随机行与回滚事务，不读取现有用户内容。
+- **真实验证与凭据最小化**：收到用户对新增专用表及权限的明确授权后执行迁移。实际HTTP使用事前确认不存在的随机owner，进程内仅复用必要service-role键和公开URL；不覆盖任何.env、不复制无关凭据、不创建key或账号。备选复制整份本地配置被排除；临时增加service_role DELETE grant也不采用。finally通过MCP仅清理自己测试行并独立读回不存在，真实CAS与ignore-duplicates已证实。预览所需公开Auth配置和邮箱由主agent另行安排。

@@ -1,6 +1,6 @@
 # LifeSpace
 
-个人每日首页：Google 搜索、本地与海外时间、Open-Meteo 天气与预报、Supabase 今日待办、本地黄历、DNSHE 域名信息及服务状态。采用已确认的浅色布局，卡片与详情均为只读。
+个人日常工作台，包含首页、新闻与人生冒险。首页提供：Google 搜索、本地与海外时间、Open-Meteo 天气与预报、Supabase 今日待办、本地黄历、DNSHE 域名信息及服务状态。采用浅色布局；首页卡片与详情只读，人生冒险提供个人规划与成长记录。
 
 访问采用邮箱白名单与 Supabase Auth，前端 SDK 管理登录及续期，Worker 逐次在线验证会话和准入。配置及真实邮件验收见 [认证接入](docs/auth-setup.md)，职责与撤销边界见 [认证决策](docs/adr/0001-supabase-auth.md)。
 
@@ -17,6 +17,16 @@ npm run dev
 
 打开 `http://127.0.0.1:5174/`。首页地区与海外时区在首页设置中配置；天气城市在天气详情中独立选择，两张天气卡片共用该城市，互不影响其他模块。设置保存在当前浏览器；天气默认北京；可在天气详情切回自动定位，定位模式独立保存、每次进入页面重新定位，定位坐标不写入存储。海外时间默认纽约和伦敦。任务来源尚未配置时显示明确提示，其他卡片正常使用。
 
+## 人生冒险
+
+通过侧边导航进入 `/adventure`，管理主线、支线、目标、一次性与周期任务，查看经验、等级、成就和成长明细。正式账户从 Lv.1、0 XP 开始；内容按当前已验证账户隔离保存，与首页现有只读任务来源分开。
+
+创建任务、完成与撤销、目标达成、周期暂停／恢复／结束及规则调整均经服务端校验。规划日期固定使用 Asia/Shanghai，不随首页地区变化。进入页面先读取／初始化个人状态，再发送 `refresh` 命令追赶昨天及更早的三类未结算奖励；读取接口本身不结算。结果未知时使用原请求编号重试，版本冲突须重新读取后确认操作。
+
+持久化使用现有 Supabase 专用 `adventure_states`，浏览器无直接表访问权限。部署代码不会自动执行数据库迁移；本次专用表迁移及权限验证已执行，版本 `20261019035109`，证据见 [后端验证](docs/adventure/qa-backend.md)。完整账户行预算为8,000,000 UTF-8 bytes，超限拒绝本次写入并保留原数据，不裁剪历史或幂等记录；该预算不承诺无限历史容量。
+
+有效需求见 [冒险规格](docs/adventure/spec.md)，选项与理由见 [默认决策](docs/adventure/decisions.md)，当前验证范围及未证项见 [覆盖记录](docs/adventure/coverage.md)。全站夜间主题 #52 和原型演示工具不随本期接入正式页面。
+
 ## 接入任务来源
 
 项目已配置 `personal_os` 的 Supabase URL。运行以下命令，在终端隐藏输入已有服务端 secret key；也兼容 legacy service_role。
@@ -27,7 +37,7 @@ npm run setup:supabase
 
 密钥保存于本地 `.dev.vars`，由 Git 忽略；重新启动开发服务器使配置生效。模板见 [.dev.vars.example](.dev.vars.example)。
 
-今日待办筛选设备本地当天 `planned_at`、`status=todo`、`is_deleted=false`，按计划时间排序。首页最多显示三条，详情展示全部。时间字段使用 Unix 秒，接口仅执行读取。
+今日待办筛选首页有效地区时区当天 `planned_at`、`status=todo`、`is_deleted=false`，按计划时间排序。首页最多显示三条，详情展示全部。时间字段使用 Unix 秒，接口仅执行读取。
 
 ## 接入 DNSHE
 
@@ -41,7 +51,7 @@ npm run setup:dnshe
 
 首页展示 DNSHE 账户内全部域名的数量、名称、状态和剩余天数，点击查看全部域名及到期日期，[DNSHE 登录页](https://my.dnshe.com/clientarea.php) 在新标签页打开。永久有效、到期日期未知、未接入和空列表分别显示。来源日期不含时区，剩余天数仅按本地当天与来源到期日期计算。域名状态采用 DNSHE 返回值。
 
-首页免登录，域名展示字段允许公开。数量是账户内注册域名去重后的数量；`lifespace.onepeace.cc.cd` 等自行创建的 DNS 记录不计作独立注册域名。凭据仅留在服务端，公开响应不包含账户标识、DNS 记录或其他上游字段。接口仅查询，不执行续期或修改解析。上线前需在 Worker 配置同名 secrets，并完成真实只读联调。
+首页与域名业务数据须通过登录及白名单准入；公开静态页面外壳不包含这些数据。数量是账户内注册域名去重后的数量；`lifespace.onepeace.cc.cd` 等自行创建的 DNS 记录不计作独立注册域名。凭据仅留在服务端，业务响应不包含上游账户标识、DNS 记录或其他上游字段。接口仅查询，不执行续期或修改解析。上线前需在 Worker 配置同名 secrets，并完成真实只读联调。
 
 接口依据 [DNSHE 官方 API V2.0 文档](https://api005.dnshe.com/knowledgebase/13/DNSHE-Free-Domain-API-User-Guide-V2.0.html)，使用请求头认证，按页读取全部域名，仅返回域名、状态、到期日期和永久标记。
 
@@ -80,6 +90,7 @@ npm run test:browser
 |---|---|
 | `src/home/` | 首页、信息卡片与设置 |
 | `src/app/`、`src/news/` | 共享导航、新闻页与请求队列 |
+| `src/adventure/`、`src/shared/adventure/` | 人生冒险页面与共享领域命令 |
 | `src/shared/` | 前后端数据契约 |
 | `worker/` | Hono 接口与数据来源接入 |
 | `tests/api/`、`tests/browser/` | HTTP 与浏览器验收测试 |
@@ -90,7 +101,10 @@ npm run test:browser
 
 ## 接口
 
-- `GET /api/tasks/today?timeZone=<IANA 时区>`：今日待办。
+- 以下业务接口均须携带当前会话，Worker 在线验证账户及白名单。
+- `GET /api/adventure`：读取／初始化当前账户冒险状态、版本与规划日期，不结算。
+- `POST /api/adventure/commands`：执行带 `requestId`、`expectedVersion` 的领域命令，包括 `refresh` 次日结算；不接受客户端整包状态、owner、经验或模拟日期。
+- `GET /api/tasks/today?timeZone=<IANA 时区>`：首页只读今日待办。
 - `GET /api/domains`：DNSHE 账户内全部域名的展示信息。
 - `GET /api/ai-status`：OpenAI、xAI、Resend、GitHub、Cloudflare、Supabase、Notion、Tailscale 与腾讯云的整体状态及按提供方归属的当前异常。
 - `GET /api/weather/locations?q=<城市关键词>`：城市搜索。
@@ -128,7 +142,7 @@ xAI 模块目录独立维护于 `src/shared/xai-modules.json`，2026-10-07 从�
 - `GET /api/news/sources`：28 个受控来源的名称、默认启用标记和固定顺序。
 - `GET /api/news/source?id=<source_id>`：Worker 只读访问 NewsNow 或 AIHOT 官方热点 API，返回规范化榜单及获取、上游报告时间；网页仅访问同源接口。AIHOT 未提供榜单更新时间，显示“上游未报告时间”。
 - 成功快照内部保留最多 24 小时，前 5 分钟新鲜命中保留原获取时间。超过新鲜期重新读取，失败时若有未满 24 小时的有效快照，返回带警告的“上次成功结果”；不覆盖快照、不续期，保留原时间。没有可用快照时返回稳定错误。缓存是节点本地的，可能被提前清理。
-- `NEWS_READ_LIMITER` 在 `wrangler.jsonc` 配置每节点每分钟 30 次上游尝试；新鲜缓存与元数据免计数。保护不可用时停止读取，公开接口保持 `no-store`。
+- `NEWS_READ_LIMITER` 在 `wrangler.jsonc` 配置每节点每分钟 30 次上游尝试；新鲜缓存与元数据免计数。保护不可用时停止读取，业务接口保持 `no-store`。
 
 当前交付范围见 [默认五源新闻页 #7](https://github.com/PancrasDuan/lifespace/issues/7) 与 [Worker 失败回退 #8](https://github.com/PancrasDuan/lifespace/issues/8)，AIHOT 接入见 [热点榜 #21](https://github.com/PancrasDuan/lifespace/issues/21)，完整规格见 [新闻页规格 #6](https://github.com/PancrasDuan/lifespace/issues/6)。
 

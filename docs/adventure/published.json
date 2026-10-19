@@ -1,0 +1,128 @@
+{
+  "parent": {
+    "number": 53,
+    "url": "https://github.com/PancrasDuan/lifespace/issues/53",
+    "blockedBy": []
+  },
+  "tickets": [
+    {
+      "local": 1,
+      "number": 54,
+      "url": "https://github.com/PancrasDuan/lifespace/issues/54",
+      "file": "01-account-planning.md",
+      "id": 5916088497,
+      "blockedBy": [],
+      "nativeDependenciesVerified": true
+    },
+    {
+      "local": 2,
+      "number": 55,
+      "url": "https://github.com/PancrasDuan/lifespace/issues/55",
+      "file": "02-daily-actions.md",
+      "id": 5916089137,
+      "blockedBy": [
+        54
+      ],
+      "nativeDependenciesVerified": true
+    },
+    {
+      "local": 3,
+      "number": 56,
+      "url": "https://github.com/PancrasDuan/lifespace/issues/56",
+      "file": "03-recurring-schedule.md",
+      "id": 5916089954,
+      "blockedBy": [
+        55
+      ],
+      "nativeDependenciesVerified": true
+    },
+    {
+      "local": 4,
+      "number": 57,
+      "url": "https://github.com/PancrasDuan/lifespace/issues/57",
+      "file": "04-recurring-lifecycle.md",
+      "id": 5916090965,
+      "blockedBy": [
+        56
+      ],
+      "nativeDependenciesVerified": true
+    },
+    {
+      "local": 5,
+      "number": 58,
+      "url": "https://github.com/PancrasDuan/lifespace/issues/58",
+      "file": "05-month-rewards.md",
+      "id": 5916091279,
+      "blockedBy": [
+        57
+      ],
+      "nativeDependenciesVerified": true
+    },
+    {
+      "local": 6,
+      "number": 59,
+      "url": "https://github.com/PancrasDuan/lifespace/issues/59",
+      "file": "06-goal-completion.md",
+      "id": 5916092985,
+      "blockedBy": [
+        58
+      ],
+      "nativeDependenciesVerified": true
+    },
+    {
+      "local": 7,
+      "number": 60,
+      "url": "https://github.com/PancrasDuan/lifespace/issues/60",
+      "file": "07-archive-migrate.md",
+      "id": 5916093476,
+      "blockedBy": [
+        59
+      ],
+      "nativeDependenciesVerified": true
+    },
+    {
+      "local": 8,
+      "number": 61,
+      "url": "https://github.com/PancrasDuan/lifespace/issues/61",
+      "file": "08-action-followups.md",
+      "id": 5916094185,
+      "blockedBy": [
+        58,
+        59,
+        60
+      ],
+      "nativeDependenciesVerified": true
+    },
+    {
+      "local": 9,
+      "number": 62,
+      "url": "https://github.com/PancrasDuan/lifespace/issues/62",
+      "file": "09-growth-achievements.md",
+      "id": 5916094746,
+      "blockedBy": [
+        59,
+        60,
+        61
+      ],
+      "nativeDependenciesVerified": true
+    },
+    {
+      "local": 10,
+      "number": 63,
+      "url": "https://github.com/PancrasDuan/lifespace/issues/63",
+      "file": "10-integrate-deliver.md",
+      "id": 5916095196,
+      "blockedBy": [
+        62
+      ],
+      "nativeDependenciesVerified": true
+    }
+  ],
+  "nativeDependenciesVerified": true,
+  "verifiedAt": "2026-10-19T01:14:55.847753+00:00",
+  "prototypeSource": {
+    "branch": "codex/adventure-prototype-source",
+    "sha": "eee88c38f273da3e8d4aad3b7c43b9275fb781b8"
+  },
+  "baseMainSha": "b816cafa402136e5a173ae046a2fc8cf5ca22127"
+}

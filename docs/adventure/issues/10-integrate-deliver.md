@@ -1,0 +1,26 @@
+# 10：完成安全回归、浏览器验收与生产交付
+
+## Parent
+
+https://github.com/PancrasDuan/lifespace/issues/53
+
+## What to build
+
+把完整人生冒险模块以可验收PR交付，证明持久化、账户隔离、时间边界和并发奖励在真实环境一致。
+
+## Acceptance criteria
+
+- [ ] 全量需求覆盖矩阵有当前证据；不存在原型28天、内存或测试假仓库替代正式能力。
+- [ ] 服务端拒绝越权、客户端时间伪造、跨天改历史、重复发奖；并发真实事务与数据库 CAS 回读已验证。
+- [ ] 密钥扫描先行，接口、安全、类型、构建、现有首页新闻浏览器与冒险关键工作流全部通过。
+- [ ] gpt-6-astra 完成规范与需求双轴 review，修正阻断问题；中文交付记录明确测试范围和风险。
+- [ ] 主动打开功能分支本地预览供用户验收并保持运行；具体PR用户明确合并确认前不合并。
+- [ ] 获准合并后核验Cloudflare部署对应SHA、正式页面和只读API及隔离，最后关闭相关Issues；部署失败不声称完成。
+
+## Blocked by
+
+- https://github.com/PancrasDuan/lifespace/issues/62
+
+状态：ready-for-agent
+
+覆盖规格用户故事：39, 40。
