@@ -1,0 +1,54 @@
+// 讨论原型：用三种布局比较规划、行动和成长的主次。仅内存状态，刷新重置。
+import { useEffect, useState, type ReactNode } from 'react'
+import { createRoot } from 'react-dom/client'
+import { ArrowLeft, ArrowRight, ArrowUpRight, Check, ChevronRight, Compass, Flag, House, Mountain, Newspaper, Plus, Sparkles, Target, Trophy, Zap } from 'lucide-react'
+import './prototype.css'
+
+type Goal = { id: number; field: string; title: string; note: string; done: number; total: number; active: boolean; side?: boolean }
+const initialGoals: Goal[] = [
+  { id: 1, field: '职业成长', title: '让个人项目真正上线', note: '把一个想法，变成别人能使用的作品。', done: 7, total: 12, active: true },
+  { id: 2, field: '健康活力', title: '建立稳定的运动节奏', note: '每周运动三次，给身体一点长期主义。', done: 18, total: 24, active: true },
+  { id: 3, field: '探索支线', title: '用镜头记录一次城市漫步', note: '带着好奇心，重新认识熟悉的城市。', done: 1, total: 4, active: true, side: true },
+  { id: 4, field: '财务积累', title: '梳理自己的资产与现金流', note: '清楚地知道钱从哪里来、到哪里去。', done: 0, total: 6, active: false },
+]
+const initialTasks = [
+  { id: 1, goal: 1, text: '梳理目标页面的核心使用流程', repeat: false, done: false },
+  { id: 2, goal: 2, text: '完成一次 30 分钟轻松跑', repeat: true, done: false },
+  { id: 3, goal: 3, text: '选好周末漫步路线', repeat: false, done: false },
+]
+const names = ['冒险概览', '主线地图', '角色档案']
+function App() {
+  const [variant, setVariant] = useState(() => { const v = new URLSearchParams(location.search).get('variant'); return v === 'B' ? 1 : v === 'C' ? 2 : 0 })
+  const [tab, setTab] = useState('概览')
+  const [goals, setGoals] = useState(initialGoals)
+  const [tasks, setTasks] = useState(initialTasks)
+  const [xp, setXp] = useState(128)
+  const [attributes, setAttributes] = useState([42, 36, 18])
+  const [rating, setRating] = useState<number | null>(null)
+  const [logs, setLogs] = useState<string[]>([])
+  const [notice, setNotice] = useState('')
+  const [detail, setDetail] = useState<Goal | null>(null)
+  function switchVariant(next: number) { const n = (next + 3) % 3; setVariant(n); const url = new URL(location.href); url.searchParams.set('variant', String.fromCharCode(65 + n)); history.replaceState(null, '', url); setTab('概览'); window.scrollTo(0, 0) }
+  useEffect(() => { const handler = (e: KeyboardEvent) => { if ((e.target as HTMLElement).closest('input,textarea,select,[contenteditable]') || e.altKey || e.ctrlKey || e.metaKey) return; if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') { e.preventDefault(); switchVariant(variant + (e.key === 'ArrowRight' ? 1 : -1)) } }; window.addEventListener('keydown', handler); return () => window.removeEventListener('keydown', handler) }, [variant])
+  function complete(score: number) {
+    const task = tasks.find(t => t.id === rating); if (!task || task.done) return
+    setTasks(tasks.map(t => t.id === rating ? { ...t, done: true } : t)); setXp(xp + 1)
+    setGoals(goals.map(g => g.id === task.goal ? { ...g, done: g.done + 1 } : g))
+    const index = task.goal === 2 ? 1 : 0
+    setAttributes(attributes.map((a, i) => i === index ? a + score : a))
+    setLogs([`${task.text} · 经验 +1 · ${index === 1 ? '健康活力' : '职业成长'} +${score}`, ...logs]); setRating(null); setNotice('任务完成，成长已记下。')
+  }
+  function toggleGoal(goal: Goal) { if (!goal.active && goals.filter(g => g.active).length >= 3) { setNotice('当前已有 3 个焦点。先暂停一个，再开始新的挑战。'); return } setGoals(goals.map(g => g.id === goal.id ? { ...g, active: !g.active } : g)); setNotice(goal.active ? '已暂停，进度保留。' : '已加入当前焦点。') }
+  const active = goals.filter(g => g.active)
+  function heading(kicker: string, title: string, description: string) { return <div className="section-heading"><div><span className="eyebrow">{kicker}</span><h2>{title}</h2><p>{description}</p></div></div> }
+  function goalCard(g: Goal, compact = false) { return <article className={`goal-card field-${g.id} ${compact ? 'compact' : ''}`} key={g.id}><div className="goal-top"><span className="tag">{g.side ? <Compass size={13}/> : <Flag size={13}/>} {g.field}</span><span className="muted">{g.active ? '进行中' : '待开启'}</span></div><button className="goal-title" onClick={() => setDetail(g)}>{g.title}<ArrowUpRight size={17}/></button><p>{g.note}</p><div className="progress"><i style={{ width: `${g.done / g.total * 100}%` }}/></div><div className="goal-bottom"><span>{g.done} / {g.total} {g.id === 2 ? '次计划行动' : '项任务'}</span><button onClick={() => toggleGoal(g)}>{g.active ? '暂停' : '激活'}<ChevronRight size={12}/></button></div></article> }
+  const focus = <section>{heading('FOCUS / 当前焦点', '把注意力，留给重要的事。', '不必同时走遍所有道路。今天，先向前一小步。')}<div className="focus-label"><span><i className="live-dot"/> {active.length} / 3 个焦点</span><button onClick={() => setTab('规划')}>调整规划 <ArrowUpRight size={14}/></button></div><div className="focus-grid">{active.map(g => goalCard(g))}</div></section>
+  const actions = <section className="actions panel"><div className="section-line"><h3>今日行动 <span>{tasks.filter(t => !t.done).length}</span></h3><span className="muted">让计划发生</span></div>{tasks.map(t => <div className={`task ${t.done ? 'done' : ''}`} key={t.id}><button className="check" aria-label={`完成${t.text}`} disabled={t.done} onClick={() => setRating(t.id)}>{t.done && <Check size={14}/>}</button><div><strong>{t.text}</strong><small>{goals.find(g => g.id === t.goal)?.field} <span>· {t.repeat ? '重复事项 · 本周 2 / 3 次' : '一次性任务'}</span></small></div><span className="xp-tag">{t.done ? '已完成' : '+1 XP'}</span></div>)}<p className="footnote">示例任务可点击完成；刷新页面后恢复初始数据。</p></section>
+  const stats = <section className="stats"><div className="xp-number"><Zap size={19}/><strong>{xp}</strong><span>累计经验</span></div>{['职业成长', '健康活力', '财务积累'].map((a, i) => <div className="stat" key={a}><span>{a}</span><strong>{attributes[i]}<small>成就感</small></strong><div className="attribute-bar"><i style={{ width: `${attributes[i]}%` }}/></div></div>)}</section>
+  const achievements = <section className="panel achievements"><div className="section-line"><h3>沿途的里程碑</h3><Trophy size={18}/></div><div className="badge-row"><div className="badge"><span>✦</span><strong>迈出第一步</strong><small>完成第一个任务</small></div><div className="badge"><span>⚑</span><strong>第一次抵达</strong><small>完成第一个阶段</small></div><div className="badge locked"><span>◇</span><strong>时间的复利</strong><small>3 个月 · 完成率 ≥ 90%</small></div></div><p className="footnote">示例成就 · 解锁条件待讨论 · 成就不额外加分</p></section>
+  const planning = <section>{heading('QUEST MAP / 长期规划', '每条主线，都有自己的节奏。', '展示顺序代表示例优先级，激活状态独立。')}{goals.map((g, i) => <div className="map-row" key={g.id}><div className="map-track"><span>0{i + 1}</span><div/><small>{g.side ? '支线' : '主线'}</small></div>{goalCard(g, true)}</div>)}</section>
+  const growth = <>{heading('GROWTH / 成长记录', '你走过的路，都算数。', '属性记录主观成就感，经验记录完成积累。')}{stats}{achievements}<section className="panel"><h3>经验日志</h3>{logs.length ? logs.map((log, i) => <p className="log" key={i}>{log}</p>) : <p className="muted">试着完成一项今日行动，这里会出现本次记录。</p>}<div className="reward-note"><Sparkles size={18}/><div><strong>持续运动 · 周期奖励预览</strong><p>3 个月 × 92% 完成率 × 奖励基数</p><small>奖励基数、时长单位和结算规则尚未确定，本原型不结算。</small></div></div></section></>
+  return <div className={`prototype-shell variant-${variant}`}><aside className="side"><div className="brand">L<span>LifeSpace</span></div><nav><div><House size={19}/><span>首页</span></div><div><Newspaper size={19}/><span>新闻</span></div><div className="selected"><Mountain size={19}/><span>人生冒险</span></div></nav><div className="side-bottom"><span className="avatar">P</span><span>我的地球 Online<small>个人冒险日志</small></span></div></aside><main><header><span>我的空间 <ChevronRight size={13}/> 人生冒险</span><span className="demo-label">讨论原型 · 示例数据</span></header><div className="content"><div className="page-heading"><div><span className="eyebrow">EARTH ONLINE / 人生冒险</span><h1>{variant === 2 ? '成为你想成为的人。' : variant === 1 ? '你的世界，慢慢展开。' : '专注当下，积累成长。'}</h1><p>这是你的冒险。主线由你定义，节奏由你决定。</p></div><button className="outline" onClick={() => setNotice('先讨论新增入口：目标所属主线、名称、优先级。此处暂不创建。')}><Plus size={16}/>记录新想法</button></div><div className="tabs">{['概览', '规划', '成长'].map((t, i) => <button className={tab === t ? 'active' : ''} onClick={() => setTab(t)} key={t}>{['冒险概览', '主线与支线', '成长记录'][i]}</button>)}</div>{tab === '规划' ? planning : tab === '成长' ? growth : variant === 0 ? <>{stats}{focus}<div className="lower-grid">{actions}{achievements}</div></> : variant === 1 ? <div className="map-layout"><div>{planning}</div><aside className="map-actions"><div className="mini-focus"><Target size={20}/><strong>{active.length} / 3</strong><span>当前激活 · 留出专注</span></div>{actions}<button className="text-button" onClick={() => setTab('成长')}>查看角色成长 <ArrowUpRight size={14}/></button></aside></div> : <div className="profile-layout"><aside className="character panel"><div className="character-symbol">✦</div><span className="eyebrow">你的角色</span><h2>长期主义的探索者</h2><p>所有微小的行动，<br/>都在慢慢塑造你。</p>{stats}<button className="text-button" onClick={() => setTab('成长')}>查看完整成长记录 →</button></aside><div>{actions}{focus}{achievements}</div></div>}{notice && <div className="notice" role="status">{notice}<button aria-label="关闭提示" onClick={() => setNotice('')}>×</button></div>}<details className="state"><summary>查看原型状态 · 仅本次会话</summary><pre>{JSON.stringify({ variant: String.fromCharCode(65 + variant), xp, attributes, activeGoals: active.map(g => g.title), tasks, logs }, null, 2)}</pre></details></div></main>{import.meta.env.DEV && <div className="switcher"><span>布局对比</span><button aria-label="上一个布局" onClick={() => switchVariant(variant - 1)}><ArrowLeft size={17}/></button><strong>{String.fromCharCode(65 + variant)} · {names[variant]}</strong><button aria-label="下一个布局" onClick={() => switchVariant(variant + 1)}><ArrowRight size={17}/></button></div>}{rating !== null && <Modal close={() => setRating(null)}><span className="eyebrow">任务完成 / +1 XP</span><h2>这一步，给你多少成就感？</h2><p>只增加一个主要属性。支线示例暂归职业成长。</p><div className="rating-buttons">{['一般', '明显', '很强'].map((s, i) => <button onClick={() => complete(i + 1)} key={s}>{s}<strong>+{i + 1}</strong></button>)}</div><button className="text-button" onClick={() => complete(1)}>跳过评价，按默认 +1 记录</button></Modal>}{detail && <Modal close={() => setDetail(null)}><span className="eyebrow">{detail.field} / 阶段详情示例</span><h2>{detail.title}</h2><p>{detail.note}</p><div className="reward-note">已完成 {goals.find(g => g.id === detail.id)?.done} / {detail.total} 次行动</div><h3>阶段完成时</h3><p>额外经验 = 成就系数（1 / 2 / 3）× 实际完成次数。属性另加 1 / 2 / 3。</p><p className="muted">这里用于比较信息层级，阶段结算与任务编辑尚未模拟。</p></Modal>}</div>
+}
+function Modal({ children, close }: { children: ReactNode; close: () => void }) { return <div className="modal-backdrop" onClick={close}><section className="modal" role="dialog" aria-modal="true" aria-label="原型交互" onClick={e => e.stopPropagation()}><button className="modal-close" aria-label="关闭弹窗" onClick={close}>×</button>{children}</section></div> }
+createRoot(document.getElementById('root')!).render(<App/> )

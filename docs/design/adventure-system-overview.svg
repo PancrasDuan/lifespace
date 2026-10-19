@@ -1,0 +1,147 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="3496" viewBox="0 0 1440 3496" style="max-width:100%;height:auto" role="img" aria-labelledby="title desc">
+<title id="title">LifeSpace 人生冒险：任务系统与奖励机制</title><desc id="desc">使用者可创建最多5条主线，每条有多个目标、最多聚焦3个，不设全局3个上限。最多10条在用支线，每条最多1个目标，可先创建空壳再挂目标，完成或归档不占名额；转换成功退出在用列表、保留来源且不能恢复成支线，失败不改变原状态；支持转为新主线或移入已有主线，主线目标不能降级为支线。任务按独立成果或完整活动拆分，检查清单不单独计奖，同一行动不重复计奖；计奖任务完成加一点经验，目标达成另奖经验。周期任务按任务月、80%达标门槛与10XP基数结算，每累计3个完整达标月，下一任务月起系数复利增长10%。暂停顺延。当天和未来任务可修改，次日刷新只处理前一天及更早未结算记录，已结算不重复发奖。初始Lv.1、0XP，每级从20XP起增加5XP，等级仅提供进度、升级提示与里程碑回顾。</desc>
+<defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0 L8 4 L0 8" fill="none" stroke="#829580" stroke-width="1.4"/></marker></defs>
+<rect width="1440" height="3496" fill="#f4f6f0"/>
+<g font-family="PingFang SC,Microsoft YaHei,Noto Sans CJK SC,sans-serif">
+<text x="48" y="43" font-size="14" fill="#74816e" font-weight="600">LIFESPACE  /  需求讨论快照</text>
+<text x="48" y="91" font-size="35" fill="#304639" font-weight="650">人生冒险：从整体规划，到看见成长</text>
+<text x="48" y="127" font-size="20" fill="#74816e" font-weight="400">目的：给很多想做的事安排方向、聚焦当前目标，并留下成长反馈。</text>
+<rect x="1168" y="49" width="224" height="43" rx="15" fill="#e7eee0" stroke="#d8e0d2"/>
+<text x="1189" y="77" font-size="16" fill="#58724c" font-weight="600">已确认规则 · 非开发规格</text>
+<rect x="32" y="160" width="1376" height="525" rx="15" fill="#fffefa" stroke="#d8e0d2"/>
+<text x="58" y="199" font-size="23" fill="#304639" font-weight="600">01  任务系统：方向长期保留，注意力只给少数目标</text>
+<rect x="60" y="222" width="620" height="100" rx="15" fill="#eaf0e3" stroke="#d8e0d2"/>
+<text x="82" y="254" font-size="23" fill="#304639" font-weight="600">主线：自定义长期方向，最多 5 条</text>
+<text x="82" y="286" font-size="19" fill="#74816e" font-weight="400">先建空壳，再挂多个目标；名称由使用者定义</text>
+<rect x="760" y="222" width="620" height="100" rx="15" fill="#f4eddf" stroke="#d8e0d2"/>
+<text x="782" y="254" font-size="23" fill="#304639" font-weight="600">支线：独立探索 / 短期挑战</text>
+<text x="782" y="286" font-size="19" fill="#74816e" font-weight="400">先建空壳，再挂目标；每条最多 1 个，在用最多 10 条</text>
+<path d="M370 323 L370 351" fill="none" stroke="#829580" stroke-width="2" marker-end="url(#arrow)"/>
+<rect x="60" y="355" width="620" height="95" rx="15" fill="#f0f4e9" stroke="#d8e0d2"/>
+<text x="82" y="391" font-size="22" fill="#304639" font-weight="600">目标：一个阶段想达成的结果</text>
+<text x="82" y="425" font-size="19" fill="#74816e" font-weight="400">按完成标准确认结果；优先级与聚焦状态分开</text>
+<path d="M680 400 L748 400" fill="none" stroke="#829580" stroke-width="2" marker-end="url(#arrow)"/>
+<path d="M1385 323 V475 H1300 V491" fill="none" stroke="#829580" stroke-width="2" marker-end="url(#arrow)"/>
+<rect x="760" y="355" width="620" height="95" rx="15" fill="#dfead6" stroke="#a2b792"/>
+<text x="782" y="391" font-size="24" fill="#395632" font-weight="650">聚焦：每条主线最多 3 个目标</text>
+<text x="782" y="425" font-size="19" fill="#647d58" font-weight="400">按主线分别计数，不设全局 3 个聚焦上限</text>
+<path d="M370 452 L370 491" fill="none" stroke="#829580" stroke-width="2" marker-end="url(#arrow)"/>
+<path d="M1070 452 L1070 491" fill="none" stroke="#829580" stroke-width="2" marker-end="url(#arrow)"/>
+<rect x="60" y="496" width="1320" height="158" rx="15" fill="#fafbf6" stroke="#d8e0d2"/>
+<text x="82" y="530" font-size="21" fill="#304639" font-weight="600">执行层：按独立成果 / 完整活动拆分，细步骤放检查清单</text>
+<rect x="83" y="550" width="563" height="80" rx="15" fill="#fffefa" stroke="#d8e0d2"/>
+<text x="105" y="582" font-size="21" fill="#304639" font-weight="600">一次性任务</text>
+<text x="105" y="610" font-size="18" fill="#74816e" font-weight="400">完成一次即结束</text>
+<rect x="684" y="550" width="672" height="80" rx="15" fill="#fffefa" stroke="#d8e0d2"/>
+<text x="706" y="582" font-size="21" fill="#304639" font-weight="600">周期任务</text>
+<text x="706" y="610" font-size="18" fill="#74816e" font-weight="400">按周期安排；每次实际完成都记录</text>
+<text x="82" y="647" font-size="16" fill="#74816e" font-weight="400">检查清单不单独获得经验，不计目标奖励次数；同一工作不按细步骤与整体任务重复计奖。</text>
+<rect x="32" y="709" width="875" height="354" rx="15" fill="#fffefa" stroke="#d8e0d2"/>
+<text x="58" y="748" font-size="23" fill="#304639" font-weight="600">02  经验值：完成积累 + 阶段与周期奖励</text>
+<rect x="58" y="770" width="821" height="63" rx="15" fill="#eaf0e3" stroke="#d8e0d2"/>
+<text x="80" y="810" font-size="23" fill="#47633b" font-weight="600">完成一个计奖任务 / 一次周期活动 → 经验 +1</text>
+<text x="60" y="866" font-size="22" fill="#304639" font-weight="600">目标奖励 = 成就系数 × 计奖任务实际完成次数</text>
+<text x="60" y="899" font-size="18" fill="#74816e" font-weight="400">系数为 1 / 2 / 3，跳过默认 1；周期活动按独立真实完成计数。</text>
+<text x="60" y="926" font-size="18" fill="#74816e" font-weight="400">例：计奖任务完成 10 次，系数 3 → 目标另奖 30 XP；</text>
+<text x="60" y="953" font-size="18" fill="#74816e" font-weight="400">加上平时已获得的 10 XP，合计 40 XP。</text>
+<path d="M60 973 H879" stroke="#e0e6d9"/>
+<text x="60" y="1006" font-size="20" fill="#304639" font-weight="600">三类经验可共存：单次完成 + 周期积累 + 目标达成</text>
+<text x="60" y="1038" font-size="21" fill="#58724c" font-weight="600">记录保留来源、日期、奖励、评价及可选感想；过去日期记录冻结。</text>
+<rect x="931" y="709" width="477" height="354" rx="15" fill="#fffefa" stroke="#d8e0d2"/>
+<text x="957" y="748" font-size="23" fill="#304639" font-weight="600">03  成长记录：每份经验有来源</text>
+<text x="957" y="792" font-size="18" fill="#74816e" font-weight="400">记录事项来源、日期与奖励。</text>
+<text x="957" y="830" font-size="18" fill="#74816e" font-weight="400">目标完成时保留成就感评价，可附感想。</text>
+<text x="957" y="868" font-size="18" fill="#74816e" font-weight="400">当天和未来任务可修改；过去记录冻结。</text>
+<text x="957" y="906" font-size="18" fill="#74816e" font-weight="400">次日结算前一天及更早未结算记录。</text>
+<text x="957" y="944" font-size="18" fill="#74816e" font-weight="400">成长由累计经验、等级与自动成就呈现。</text>
+<text x="957" y="982" font-size="18" fill="#74816e" font-weight="400">本期暂不引入属性、属性加分及展示。</text>
+<text x="957" y="1020" font-size="18" fill="#74816e" font-weight="400">目标和支线无需选择属性归属。</text>
+<rect x="32" y="1087" width="1376" height="340" rx="15" fill="#eaf0e3" stroke="#ccdabc"/>
+<text x="58" y="1128" font-size="23" fill="#304639" font-weight="600">04  周期任务：任务月结算，累计达标推动复利增长</text>
+<text x="58" y="1170" font-size="22" fill="#47633b" font-weight="600">基础奖励 = 10 XP × 本任务月完成率</text>
+<text x="58" y="1204" font-size="19" fill="#74816e" font-weight="400">P ＞ 0 时：R = min(计奖完成次数 ÷ 计划次数 P, 1)</text>
+<text x="58" y="1238" font-size="19" fill="#304639" font-weight="600">R ≥ 80%：奖励 = floor(10 × R × K)；累计一个达标月</text>
+<text x="58" y="1272" font-size="18" fill="#74816e" font-weight="400">R ＜ 80%：只发 floor(10 × R)；不增加达标月，档位保留</text>
+<text x="58" y="1306" font-size="21" fill="#47633b" font-weight="600">长期系数 K = 1.1 ^ floor(M / 3)</text>
+<text x="58" y="1340" font-size="18" fill="#74816e" font-weight="400">M 为本任务月开始前累计的完整达标月数，不要求连续。</text>
+<text x="58" y="1374" font-size="17" fill="#74816e" font-weight="400">满 3 个达标月后，下一个任务月起用 ×1.1；再满 3 月用 ×1.21。</text>
+<text x="760" y="1170" font-size="21" fill="#304639" font-weight="600">任务月：例如 1 月 15 日 → 2 月 15 日</text>
+<text x="760" y="1204" font-size="18" fill="#74816e" font-weight="400">结算、完成率统计与长期积累使用同一周期。</text>
+<text x="760" y="1238" font-size="18" fill="#74816e" font-weight="400">暂停期间不安排任务次数；结束日期按暂停时长顺延。</text>
+<text x="760" y="1272" font-size="18" fill="#74816e" font-weight="400">暂停不清零已有达标月份与长期系数。</text>
+<text x="760" y="1306" font-size="19" fill="#304639" font-weight="600">每个周期任务统一基数 10 XP。</text>
+<text x="760" y="1340" font-size="18" fill="#74816e" font-weight="400">完整任务月不再乘自然月有效时长。</text>
+<text x="760" y="1374" font-size="17" fill="#74816e" font-weight="400">例：M = 3、R = 90% → floor(9.9) = 9 XP。</text>
+<rect x="32" y="1451" width="660" height="179" rx="15" fill="#fffefa" stroke="#d8e0d2"/>
+<text x="58" y="1492" font-size="23" fill="#304639" font-weight="600">05  自动成就：三类共 10 个条件，不额外加分</text>
+<text x="58" y="1530" font-size="18" fill="#74816e" font-weight="400">行动积累：1 / 10 / 50 / 100 次；目标达成：1 / 3 / 10 个。</text>
+<text x="58" y="1559" font-size="18" fill="#74816e" font-weight="400">长期坚持：单个周期任务累计 3 / 6 / 12 个达标月。</text>
+<text x="58" y="1588" font-size="18" fill="#74816e" font-weight="400">次日结算后解锁；坚持类同类徽章合并展示。</text>
+<rect x="716" y="1451" width="692" height="179" rx="15" fill="#eaf0e3" stroke="#d8e0d2"/>
+<text x="742" y="1492" font-size="23" fill="#304639" font-weight="600">贯穿全系统的约束</text>
+<text x="742" y="1530" font-size="18" fill="#74816e" font-weight="400">不扣经验，不掉等级；中断不触发惩罚。</text>
+<text x="742" y="1559" font-size="18" fill="#74816e" font-weight="400">最多 5 条自建主线，每条最多聚焦 3 个目标。</text>
+<text x="742" y="1588" font-size="18" fill="#74816e" font-weight="400">当天和未来任务可修改；过去记录冻结，已结算不重发。</text>
+<rect x="32" y="1654" width="1376" height="442" rx="15" fill="#eaf0e3" stroke="#ccdabc"/>
+<text x="58" y="1695" font-size="23" fill="#304639" font-weight="600">06  已确认的结算边界</text>
+<text x="58" y="1734" font-size="19" fill="#74816e" font-weight="400">未满任务月结束：不发未满周期的周期性奖励，不增加达标月；单次已得奖励保留。</text>
+<text x="58" y="1766" font-size="19" fill="#74816e" font-weight="400">目标奖励：只有达到完成标准才发放，结束任务本身不等于目标达成。</text>
+<text x="58" y="1798" font-size="19" fill="#74816e" font-weight="400">月末日期：保留原始起始日；缺少对应日期时取月末，后续恢复原始日期锚点。</text>
+<text x="58" y="1830" font-size="19" fill="#74816e" font-weight="400">经验取整：最终每笔向下取整为整数，中途不提前取整；例如 9.9 XP 实发 9 XP。</text>
+<text x="58" y="1862" font-size="19" fill="#74816e" font-weight="400">可修改范围：当天和未来的任务；过去记录冻结，不允许跨天补记 / 撤销。</text>
+<text x="58" y="1894" font-size="19" fill="#74816e" font-weight="400">次日刷新：处理前一天及更早未结算记录；更新进度、奖励、成就与已到期任务月。</text>
+<text x="58" y="1926" font-size="19" fill="#74816e" font-weight="400">重复刷新跳过已结算记录，不重复发奖；例如 10 月 19 日处理 10 月 18 日及更早记录。</text>
+<text x="58" y="1958" font-size="19" fill="#74816e" font-weight="400">计划为 0：完成率不适用，不发周期奖励、不增加达标月；已有积累保留，周期正常推进。</text>
+<text x="58" y="1990" font-size="19" fill="#74816e" font-weight="400">超额完成：完成率封顶 100%，额外真实完成仍单次 +1；每任务月最多增加一个达标月。</text>
+<text x="58" y="2022" font-size="19" fill="#74816e" font-weight="400">计奖粒度：独立成果或完整活动；检查清单不计奖，同一行动不重复计奖。</text>
+<text x="58" y="2054" font-size="19" fill="#74816e" font-weight="400">目标奖励只计计奖任务真实完成次数；撤销再完成同一记录不新增次数。</text>
+<rect x="32" y="2120" width="1376" height="220" rx="15" fill="#eaf0e3" stroke="#ccdabc"/>
+<text x="58" y="2161" font-size="23" fill="#304639" font-weight="600">07  角色等级：积累里程碑，不改变奖励或功能</text>
+<text x="58" y="2200" font-size="22" fill="#47633b" font-weight="600">初始 Lv.1、0 XP；升下一级需要 20 + 5 × (L − 1) XP</text>
+<text x="58" y="2232" font-size="18" fill="#74816e" font-weight="400">前五次升级需要：20 / 25 / 30 / 35 / 40 XP。</text>
+<text x="58" y="2264" font-size="18" fill="#74816e" font-weight="400">累计门槛：Lv.2 = 20，Lv.3 = 45，Lv.4 = 75，Lv.5 = 110。</text>
+<text x="58" y="2296" font-size="18" fill="#74816e" font-weight="400">例：累计 52 XP → Lv.3，本级进度 7 / 30 XP；累计经验保留。</text>
+<text x="760" y="2200" font-size="19" fill="#304639" font-weight="600">单次、目标、周期奖励统一进入总经验。</text>
+<text x="760" y="2232" font-size="18" fill="#74816e" font-weight="400">展示等级、进度和差额；次日结算后提示升级。</text>
+<text x="760" y="2264" font-size="18" fill="#74816e" font-weight="400">跨多级合并提示；里程碑回顾目标、行动与经验积累。</text>
+<text x="760" y="2296" font-size="18" fill="#74816e" font-weight="400">不额外加分或提高倍率，不限制功能使用。</text>
+<rect x="32" y="2364" width="1376" height="240" rx="15" fill="#eaf0e3" stroke="#ccdabc"/>
+<text x="58" y="2405" font-size="23" fill="#304639" font-weight="600">08  成就解锁与展示：让里程碑关联真实经历</text>
+<text x="58" y="2444" font-size="19" fill="#304639" font-weight="600">次日刷新结算后自动判断；多个解锁合并提示。</text>
+<text x="58" y="2476" font-size="18" fill="#74816e" font-weight="400">行动 / 目标各里程碑只解锁一次，清单与重复计奖排除。</text>
+<text x="58" y="2508" font-size="18" fill="#74816e" font-weight="400">坚持类按单个周期任务判断，不跨任务合并达标月。</text>
+<text x="58" y="2540" font-size="18" fill="#74816e" font-weight="400">不要求连续；解锁后不因暂停或后续未达标而收回。</text>
+<text x="58" y="2572" font-size="18" fill="#74816e" font-weight="400">成就不额外增加经验。</text>
+<text x="760" y="2444" font-size="19" fill="#304639" font-weight="600">顶部成就横排：10 个已解锁 / 未解锁小徽章。</text>
+<text x="760" y="2476" font-size="18" fill="#74816e" font-weight="400">成长页：分组查看完整记录及下一个里程碑进度。</text>
+<text x="760" y="2508" font-size="18" fill="#74816e" font-weight="400">详情：条件、日期、关联任务 / 目标 / 达标任务月。</text>
+<text x="760" y="2540" font-size="18" fill="#74816e" font-weight="400">坚持类同类徽章合并，详情列出哪些任务已达成。</text>
+<text x="760" y="2572" font-size="18" fill="#74816e" font-weight="400">小徽章可点击；完整条件与来源在成长页查看。</text>
+<rect x="32" y="2628" width="1376" height="240" rx="15" fill="#fffefa" stroke="#d8e0d2"/>
+<text x="58" y="2669" font-size="23" fill="#304639" font-weight="600">09  已确认的顶部展示：个人形象 + 统计 + 成就</text>
+<rect x="60" y="2692" width="620" height="100" rx="12" fill="#eaf0e3" stroke="#d8e0d2"/>
+<text x="82" y="2724" font-size="20" fill="#304639" font-weight="600">像素小人个人形象 + 等级</text>
+<text x="82" y="2754" font-size="17" fill="#74816e" font-weight="400">本级进度、累计经验；经验条采用短而细的紧凑样式</text>
+<rect x="82" y="2767" width="155" height="4" rx="2" fill="#d4dfc7"/>
+<rect x="82" y="2767" width="110" height="4" rx="2" fill="#8ba970"/>
+<rect x="760" y="2692" width="620" height="100" rx="12" fill="#f0f4e9" stroke="#d8e0d2"/>
+<text x="782" y="2724" font-size="20" fill="#304639" font-weight="600">右侧 dashboard：总体统计</text>
+<text x="782" y="2754" font-size="17" fill="#74816e" font-weight="400">今日完成 / 累计行动 / 目标达成 / 当前焦点 / 待结算经验</text>
+<text x="782" y="2778" font-size="15" fill="#74816e" font-weight="400">今日完成即时展示，累计数据已结算；待结算经验分开标注</text>
+<rect x="60" y="2808" width="1320" height="36" rx="8" fill="#f4eddf" stroke="#e2d7bf"/>
+<text x="82" y="2832" font-size="18" fill="#8a7955" font-weight="400">下方成就横排：10 个小 logo / 徽章，已解锁与未解锁区分；点击查看条件与关联记录</text>
+<rect x="32" y="2892" width="1376" height="294" rx="15" fill="#eaf0e3" stroke="#ccdabc"/>
+<text x="58" y="2933" font-size="23" fill="#304639" font-weight="600">10  支线升级：保留目标与记录，暂不支持反向降级</text>
+<text x="58" y="2972" font-size="19" fill="#74816e" font-weight="400">方式一：支线转为新主线，保留原目标；占用最多 5 条主线中的一个名额。</text>
+<text x="58" y="3004" font-size="19" fill="#74816e" font-weight="400">方式二：支线目标移入已有主线，不增加主线数量；不重复计数，不重复发奖。</text>
+<text x="58" y="3036" font-size="19" fill="#74816e" font-weight="400">聚焦继承：保留原状态；目标主线已聚焦 3 个时提示先调整，不自动挤掉其他目标。</text>
+<text x="58" y="3068" font-size="19" fill="#74816e" font-weight="400">转换成功后退出在用列表、释放支线名额；保留来源，不留下可继续加目标的空容器。</text>
+<text x="58" y="3100" font-size="19" fill="#74816e" font-weight="400">原目标、任务、完成标准与历史保留；任务月、达标月和长期系数不重置，不重复发奖。</text>
+<text x="58" y="3132" font-size="19" fill="#74816e" font-weight="400">先校验名额与聚焦条件；失败或取消不改变原状态，不提前释放支线名额。</text>
+<text x="58" y="3164" font-size="19" fill="#74816e" font-weight="400">转换后的来源记录只供回看，不能恢复成支线；主线目标暂不支持降级。</text>
+<rect x="32" y="3210" width="1376" height="190" rx="15" fill="#faf2e3" stroke="#dfcba7"/>
+<text x="58" y="3251" font-size="23" fill="#8a6b35" font-weight="600">本期范围与待定事项</text>
+<text x="58" y="3290" font-size="19" fill="#8b795a" font-weight="400">暂不引入属性体系；顶部展示已确认，下方目标与任务布局仍待讨论。</text>
+<text x="48" y="3442" font-size="18" fill="#74816e" font-weight="400">顶部展示已确认；A 目标工作台 / B 极简任务台 / C 主线任务地图仍供比较。</text>
+<text x="48" y="3472" font-size="15" fill="#8c9785" font-weight="400">讨论结论同步 · 2026-10-18  |  本图记录需求结论，尚未进入正式开发。</text>
+</g></svg>
