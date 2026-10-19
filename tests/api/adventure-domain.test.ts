@@ -7,6 +7,7 @@ import {
   levelForXP,
   calculateCycleReward,
   taskCapabilities,
+  commandCapability,
   forecastCycleChange,
 } from "../../src/shared/adventure";
 import type { AdventureState } from "../../src/shared/adventure/model";
@@ -469,18 +470,21 @@ test("周期奖精确处理79/80%、P0、超额、三六月复利边界与逐笔
     rate: 0.79,
     qualified: false,
     multiplier: "1.1",
+    appliedMultiplier: "1",
     reward: 7,
   });
   expect(calculateCycleReward(100, 80, 3)).toEqual({
     rate: 0.8,
     qualified: true,
     multiplier: "1.1",
+    appliedMultiplier: "1.1",
     reward: 8,
   });
   expect(calculateCycleReward(0, 4, 6)).toEqual({
     rate: null,
     qualified: false,
     multiplier: "1.21",
+    appliedMultiplier: "1",
     reward: 0,
   });
   expect(calculateCycleReward(10, 30, 2).reward).toBe(10);
@@ -1061,3 +1065,142 @@ test("虚拟计划槽必须使用唯一规范日期，拒绝时间后缀绕过sl
     }),
   ).toThrow();
 });
+
+test("任务与周期按钮的只读能力查询不读取成长账本，也不复制全状态", () => {
+  let state = setup();
+  const goalId = state.goals[0].id;
+  state = run(state, {
+    type: "createTask",
+    goalId,
+    title: "当天行动",
+    date: "2026-01-01",
+    checklist: ["步骤"],
+  });
+  state = run(state, {
+    type: "createCycle",
+    goalId,
+    title: "每日活动",
+    startDate: "2026-01-01",
+    cadence: "daily",
+    weekdays: [],
+    checklist: [],
+  });
+  Object.defineProperty(state, "ledger", {
+    get() {
+      throw new Error("能力查询不应读取无关成长历史");
+    },
+    configurable: true,
+  });
+  expect(taskCapabilities(state, state.tasks[0], "2026-01-01")).toMatchObject({
+    edit: true,
+    complete: true,
+    undo: false,
+    checklist: true,
+    reschedule: false,
+  });
+  expect(
+    commandCapability(
+      state,
+      { type: "extraComplete", cycleId: state.cycles[0].id, confirmed: true },
+      "2026-01-01",
+    ).allowed,
+  ).toBe(true);
+  const cycleId = state.cycles[0].id;
+  expect(
+    commandCapability(state, { type: "pauseCycle", id: cycleId }, "2026-01-01")
+      .allowed,
+  ).toBe(true);
+  expect(
+    commandCapability(state, { type: "endCycle", id: cycleId }, "2026-01-01")
+      .allowed,
+  ).toBe(true);
+  expect(
+    commandCapability(
+      state,
+      {
+        type: "editCycle",
+        id: cycleId,
+        effectiveFrom: "2026-01-01",
+        cadence: "daily",
+        weekdays: [],
+      },
+      "2026-01-01",
+    ).allowed,
+  ).toBe(true);
+  expect(
+    commandCapability(state, { type: "resumeCycle", id: cycleId }, "2026-01-01")
+      .allowed,
+  ).toBe(false);
+});
+
+test.each([
+  { actual: 15, applied: "1", reward: 5 },
+  { actual: 24, applied: "1.1", reward: 8 },
+])(
+  "Q3后第四月完成$actual/30：累计K和实际倍率分别冻结，预览与结算一致",
+  ({ actual, applied, reward }) => {
+    let state = setup();
+    state = run(state, {
+      type: "createCycle",
+      goalId: state.goals[0].id,
+      title: "倍率区分",
+      startDate: "2026-01-01",
+      cadence: "daily",
+      weekdays: [],
+      checklist: [],
+    });
+    const cycleId = state.cycles[0].id;
+    for (const task of queryTasks(state, "2026-01-01", "2026-03-31"))
+      state = run(state, { type: "completeTask", id: task.id }, task.date);
+    state = run(state, { type: "refresh" }, "2026-04-02");
+    expect(state.cycles[0].qualifiedMonths).toBe(3);
+    const april = queryTasks(state, "2026-04-02", "2026-04-30").slice(
+      0,
+      actual,
+    );
+    for (const task of april)
+      state = run(state, { type: "completeTask", id: task.id }, task.date);
+    const today = actual === 15 ? "2026-04-17" : "2026-04-26";
+    const forecast = forecastCycleChange(
+      state,
+      {
+        type: "editCycle",
+        id: cycleId,
+        effectiveFrom: today,
+        cadence: "daily",
+        weekdays: [],
+      },
+      today,
+    );
+    expect(forecast.before.month).toMatchObject({
+      planned: 30,
+      actual,
+      multiplier: "1.1",
+      appliedMultiplier: applied,
+      reward,
+    });
+    expect(forecast.after.month).toMatchObject({
+      planned: 30,
+      actual,
+      multiplier: "1.1",
+      appliedMultiplier: applied,
+      reward,
+    });
+    state = run(state, { type: "refresh" }, "2026-05-02");
+    const entry = state.ledger.find(
+      (e) => e.kind === "cycle" && e.month?.index === 3,
+    )!;
+    expect(entry).toMatchObject({
+      amount: reward,
+      month: { multiplier: "1.1", appliedMultiplier: applied },
+    });
+    expect(entry.calculation).toContain("× " + applied + ")");
+    const legacy = structuredClone(state);
+    delete legacy.ledger.find((e) => e.id === entry.id)!.month!
+      .appliedMultiplier;
+    const before = structuredClone(legacy.ledger);
+    expect(run(legacy, { type: "refresh" }, "2026-05-02").ledger).toEqual(
+      before,
+    );
+  },
+);

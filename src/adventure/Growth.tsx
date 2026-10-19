@@ -16,6 +16,7 @@ import type {
   Achievement,
 } from '../shared/adventure/model'
 import type { OpenDialog } from './types'
+import { MonthMultiplierDetails } from './MonthMultipliers'
 import { Empty } from './ui'
 
 const badges = [
@@ -186,9 +187,9 @@ export function LedgerDetail({
               : `${Math.round(entry.month.rate * 100)}%`}
           </p>
           <p>
-            达标月 {entry.month.qualifiedBefore} → {entry.month.qualifiedAfter}{' '}
-            · 适用系数 ×{entry.month.multiplier}
+            达标月 {entry.month.qualifiedBefore} → {entry.month.qualifiedAfter}
           </p>
+          <MonthMultiplierDetails month={entry.month} />
         </div>
       )}
       <h3>结算时任务快照</h3>

@@ -110,7 +110,10 @@ export type LedgerEntry = {
     rate: number | null;
     qualifiedBefore: number;
     qualifiedAfter: number;
+    /** Accumulated long-term coefficient at settlement; not necessarily applied. */
     multiplier: string;
+    /** Missing in older snapshots: leave unknown instead of deriving from current state. */
+    appliedMultiplier?: string;
   };
 };
 export type Achievement = {
@@ -149,7 +152,10 @@ export type CycleMonth = {
   actual: number;
   rate: number | null;
   qualified: boolean;
+  /** Accumulated long-term coefficient K. */
   multiplier: string;
+  /** Actual multiplier: K only for qualified months, otherwise 1. */
+  appliedMultiplier: string;
   reward: number;
   complete: boolean;
 };

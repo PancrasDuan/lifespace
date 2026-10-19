@@ -11,31 +11,35 @@
 | 周期任务创建 | 通过表单创建未来开始、每周二／四、带结束日期和清单的周期；预览包含正确执行日；首个任务月计划 10 次；未来任务不可提前完成、可编辑安排与清单内容；开始前额外完成入口禁用。 |
 | 编辑、聚焦与排序 | 编辑目标取消不保存；第四个聚焦被拒；上下移动可用 Enter，拖动改变顺序且保留聚焦。 |
 | 支线两种转换 | 聚焦已满时迁入失败保留来源；调整后迁入已有主线；未归档的已达成目标可升级新主线，目标与奖励不重复；转换来源只读。 |
-| 归档 | 确认前列目标／周期、全部未来一次性安排和待结算影响；包含 60 天后的任务；归档后只读、主线继续占名额、来源保留。 |
+| 归档 | 已达成并保留周期继续的 A 目标可单独归档，B 目标仍可聚焦；A 周期停止，已完成行动与已确认目标次日仍结算，冻结奖励不变。确认前列目标／周期、全部未来一次性安排和待结算影响；包含 60 天后的任务；归档后只读、主线继续占名额、来源保留。 |
 | 日期和范围 | 今天／未来／过去可切换；过去漏做的一次性任务重新安排后保留来源与新安排关联。 |
 | 周期生命周期 | 暂停停止安排，恢复继续；额外真实完成增加实际次数与待结算单次经验；重复规则可取消或保存。 |
 | 任务能力边界 | 未来清单不可勾执行但可改内容；暂停当天已完成任务可撤销，清单仍不可执行；能力由同一领域命令投影提供。 |
 | 重复规则预览 | 11 月 25 日生效时正确展示第 2 个任务月 11 月 19 日→12 月 19 日；计划 30→9、未来 31 天安排 31→4，撤下旧实体化槽位不被额外计数；实际、完成率及奖励有数值对照；取消保留原安排。 |
 | 目标达成与撤销 | 按实际完成标准确认；每个周期必须分别选继续／结束；系数 2 时奖励冻结；继续任务保持，结束任务停止；当天撤销恢复周期原状态。 |
-| 三类奖励与成长 | 单次、目标、到期任务月同批结算；0 XP 月仍有明确记录；账本展示日期、计算和快照；成就展示解锁日期及关联经验记录；重复刷新不追加。 |
+| 三类奖励与成长 | 零 XP 但解锁目标成就时显示“本次结算未增加经验 · 解锁 1 项成就”，不伪造 +0 XP。单次、目标、到期任务月同批结算；0 XP 月仍有明确记录；账本展示日期、计算和快照；成就展示解锁日期及关联经验记录；重复刷新不追加。 |
+| 累计与实际系数 | Q=3、第四月 15/30 时，当前详情、预测和账本分别显示累计 ×1.1、实际 ×1，奖励 5 XP；历史缺少实际字段时明确未单独记录，保留原公式，不借当前状态推断。 |
 | 安全重试与冲突 | 丢失保存响应后沿用同一个 requestId，仅创建一次；挂起写请求 15 秒后解除忙碌，可用同一个请求编号重试；409 要求重新读取，不能覆盖另一页面的编辑。 |
 | 账户边界 | 真实 SDK `setSession` 无 SIGNED_OUT 切换 A→B、B 在线验证延迟时，旧 A 表单立即不可用，不能携带 B token 写入；旧 A 响应晚到也不重新显示 A 数据。 |
 | 弹窗与窄屏 | 新建切换表单后 Tab 正确进入字段，Escape 关闭并返回入口；任务详情关闭回到原目标；390px 无页面横向溢出，焦点内容保留，成就可横向浏览。 |
 
-对应文件：`tests/browser/adventure.spec.ts`、`tests/browser/adventure-management.spec.ts`；夹具 `tests/browser/adventure-fixture.ts` 复用真实鉴权函数、冒险 HTTP handler、领域命令和 owner/version CAS 适配器，仅替换外部 Auth／PostgREST 及时间。
+对应文件：`tests/browser/adventure.spec.ts`、`tests/browser/adventure-management.spec.ts`、`tests/browser/adventure-review.spec.ts`；夹具 `tests/browser/adventure-fixture.ts` 复用真实鉴权函数、冒险 HTTP handler、领域命令和 owner/version CAS 适配器，仅替换外部 Auth／PostgREST 及时间。
 
 ## 执行证据
 
 全部命令使用 `/Users/pancras/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin` 在 PATH 前端。
 
-- `npm run test:browser`：139 项通过，2.4 分钟，会话 `9708`。该次完整回归覆盖现有首页、新闻、认证和当时的 13 项冒险场景；发生在随后“未来周期额外完成禁用、弹窗焦点与第 14 项创建周期表单验证”小修之前。
-- `npm run test:browser -- tests/browser/adventure-management.spec.ts --grep '从统一入口创建'`：最新创建流程单项通过，会话 `73524`。
-- `npm run typecheck`：最终前端小修后通过。
-- `npm run test:browser -- tests/browser/adventure.spec.ts tests/browser/adventure-management.spec.ts`：最终小修后 14 项全部通过，32.3 秒，会话 `4037`，退出码 0。没有将先前 139 项与后续单项拼称为本地完整 140 项回归。
+- 最终完整回归：主agent执行`npm run test:browser`，**144项全部通过**，2.5分钟，会话`19035`，退出码0；包含全部18项冒险场景及现有首页、新闻、认证回归。
+- 最终构建：主agent`npm run build`（会话`89224`）退出码0，包含完整typecheck；全API189／189通过（会话`59392`）。
+- 前端专项：`npm run test:browser -- tests/browser/adventure.spec.ts tests/browser/adventure-management.spec.ts tests/browser/adventure-review.spec.ts`，18项通过，会话`52147`，退出码0。完整144项是其后统一回归，不将阶段结果相加。
+- UI与服务端命令共用`commandCapability`／`taskCapabilities`只读前置校验，不再通过完整状态克隆判断按钮能力，也未复制第二套前端业务规则。
+- 评审整改真实红绿：完成目标归档与零XP成就通知先失败（`4373`），累计系数误标先失败（`64894`），旧历史实际系数误标先失败（`79402`）；修复后的四项先整组通过（`58293`），再纳入18项和完整144项。
 
 真实红绿证据：SDK A→B 延迟验证用例在修复前实际捕获“旧 A 表单内容 + B token”的错误请求并失败（`49457`），撤销 verified scope、绑定页面 owner 后通过（`47838`），后纳入全部回归。首次缺少 Chromium 的失败属于环境失败，不算功能红灯；已安装项目指定浏览器后重跑。
 
 ## 视觉检查
+
+本轮已实际查看 `.cache/adventure-review-completed-archive.png`、`.cache/adventure-review-multipliers-current.png`、`.cache/adventure-review-multipliers-ledger.png`，核对 A／B 目标隔离、累计与实际系数、5 XP 及原始公式清楚可读。
 
 已实际打开并检查以下截图：
 

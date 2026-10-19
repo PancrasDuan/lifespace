@@ -135,6 +135,14 @@ export async function adventureFixture(
     loseNextResponse() {
       loseResponse = true
     },
+    seedHistoricalState(state: AdventureState) {
+      row = {
+        owner_id: owner,
+        state: structuredClone(state),
+        version: 0,
+        journal: {},
+      }
+    },
     seed(commands: AdventureCommand[], seedDay = day) {
       let state: AdventureState = row?.state || initialState()
       let result

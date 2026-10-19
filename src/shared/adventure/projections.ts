@@ -1,4 +1,5 @@
-import type { AdventureCommand } from "./commands";
+import { commandSchema, type AdventureCommand } from "./commands";
+import { validateCommand } from "./preconditions";
 import type { AdventureState, CycleMonth, Task } from "./model";
 import { executeCommand } from "./engine";
 import { add, cmp, DomainError, fail } from "./dates";
@@ -17,7 +18,9 @@ export function commandCapability(
   today: string,
 ): { allowed: boolean; reason?: string; code?: string } {
   try {
-    executeCommand(state, command, context(today));
+    const parsed = commandSchema.safeParse(command);
+    if (!parsed.success) fail("命令字段无效");
+    validateCommand(state, parsed.data, today);
     return { allowed: true };
   } catch (error) {
     if (error instanceof DomainError)

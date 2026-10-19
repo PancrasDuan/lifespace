@@ -7,6 +7,11 @@ import type {
   Cycle,
 } from '../shared/adventure/model'
 import { queryTasks, forecastCycleChange } from '../shared/adventure'
+import {
+  cumulativeMultiplier,
+  appliedMultiplier,
+  displayMultiplier,
+} from './MonthMultipliers'
 import type { AdventureAction } from './useAdventure'
 import { addDays, OwnerSelect, GoalSelect } from './ui'
 
@@ -493,6 +498,32 @@ export function CycleRuleForm({
                     <th scope="row">完成率</th>
                     <td>{formatRate(preview.before.month.rate)}</td>
                     <td>{formatRate(preview.after.month.rate)}</td>
+                  </tr>
+                  <tr>
+                    <th scope="row">累计长期系数</th>
+                    <td>
+                      {displayMultiplier(
+                        cumulativeMultiplier(preview.before.month),
+                      )}
+                    </td>
+                    <td>
+                      {displayMultiplier(
+                        cumulativeMultiplier(preview.after.month),
+                      )}
+                    </td>
+                  </tr>
+                  <tr>
+                    <th scope="row">本期实际适用系数</th>
+                    <td>
+                      {displayMultiplier(
+                        appliedMultiplier(preview.before.month),
+                      )}
+                    </td>
+                    <td>
+                      {displayMultiplier(
+                        appliedMultiplier(preview.after.month),
+                      )}
+                    </td>
                   </tr>
                   <tr>
                     <th scope="row">周期奖励预估</th>

@@ -28,9 +28,20 @@ export function useAdventure() {
       return
     current.current = value
     setData(value)
-    if (value.result?.reward)
+    const result = value.result
+    if (result && (result.reward > 0 || result.achievementIds.length > 0))
       setNotice(
-        `本次结算 +${value.result.reward} XP${value.result.levelAfter > value.result.levelBefore ? ` · 升至 Lv.${value.result.levelAfter}` : ''}${value.result.achievementIds.length ? ` · 解锁 ${value.result.achievementIds.length} 项成就` : ''}`,
+        [
+          result.reward > 0
+            ? `本次结算 +${result.reward} XP`
+            : '本次结算未增加经验',
+          ...(result.levelAfter > result.levelBefore
+            ? [`升至 Lv.${result.levelAfter}`]
+            : []),
+          ...(result.achievementIds.length
+            ? [`解锁 ${result.achievementIds.length} 项成就`]
+            : []),
+        ].join(' · '),
       )
   }
   const send = useCallback(

@@ -6,6 +6,7 @@ import type {
 } from "./model";
 import { commandSchema, type AdventureCommand } from "./commands";
 import { day, fail } from "./dates";
+import { validateCommand } from "./preconditions";
 import { createOperations } from "./operations";
 import { planning } from "./planning";
 import { actions } from "./actions";
@@ -42,6 +43,7 @@ export function executeCommand(
   const parsed = commandSchema.safeParse(raw);
   if (!parsed.success) fail("命令字段无效");
   day(ctx.today);
+  validateCommand(input, parsed.data, ctx.today);
   const state = structuredClone(input);
   applyNaturalEnds(state, ctx.today);
   const result: CommandResult = {

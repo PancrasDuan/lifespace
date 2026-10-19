@@ -7,6 +7,7 @@ import {
   taskCapabilities,
   commandCapability,
 } from '../shared/adventure'
+import { MonthMultiplierDetails, displayMultiplier } from './MonthMultipliers'
 import type { AdventureAction } from './useAdventure'
 import type { OpenDialog } from './types'
 import {
@@ -305,8 +306,10 @@ export function Cycles({
           owner?.convertedTo ||
           cycle.status === 'ended'
         let summary = '任务月数据正在准备'
+        let longTermMultiplier: string | undefined
         try {
           const month = cycleMonth(state, cycle.id, cycle.monthsSettled, today)
+          longTermMultiplier = month.multiplier
           summary = `${month.start} → ${month.end} · 计划 ${month.planned} 次 · 实际 ${month.actual} 次 · 完成率 ${month.rate === null ? '不适用' : `${Math.round(month.rate * 100)}%`}`
         } catch {
           /* 历史异常由详情提供重新读取入口。 */
@@ -330,8 +333,8 @@ export function Cycles({
               </p>
               <small>{summary}</small>
               <p className="adventure-hint">
-                累计达标 {cycle.qualifiedMonths} 个月 · 长期系数 ×
-                {(1.1 ** Math.floor(cycle.qualifiedMonths / 3)).toFixed(2)}
+                累计达标 {cycle.qualifiedMonths} 个月 · 累计长期系数{' '}
+                {displayMultiplier(longTermMultiplier)}
                 （本月达标才使用）
               </p>
             </div>
@@ -434,10 +437,8 @@ export function CycleDetail({
               ? '无计划，不参与结算'
               : `${Math.round(month.rate * 100)}%`}
           </p>
-          <p>
-            80% 达标 · 本期适用系数 ×{month.multiplier} · 奖励预估{' '}
-            {month.reward} XP
-          </p>
+          <MonthMultiplierDetails month={month} />
+          <p>达标门槛 80% · 奖励预估 {month.reward} XP</p>
           <small>
             未满月不发周期奖励；到期后的次日统一结算。实际超额仍获得单次经验，完成率封顶
             100%。

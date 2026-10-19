@@ -8,6 +8,7 @@ import {
   ArrowUpRight,
 } from 'lucide-react'
 import type { AdventureState, Goal, Container } from '../shared/adventure/model'
+import { commandCapability } from '../shared/adventure'
 import type { AdventureAction } from './useAdventure'
 import type { OpenDialog } from './types'
 import { Empty, More, goalWritable } from './ui'
@@ -238,56 +239,77 @@ function ContainerCard({
               </div>
               <div className="adventure-goal-actions">
                 {goalWritable(state, goal) && (
-                  <>
-                    <button
-                      disabled={busy}
-                      aria-pressed={goal.focused}
-                      onClick={() => {
-                        void action({
-                          type: 'focusGoal',
-                          id: goal.id,
-                          focused: !goal.focused,
-                        })
-                      }}
-                    >
-                      {goal.focused ? '取消聚焦' : '聚焦'}
-                    </button>
-                    <More name={goal.title}>
+                  <button
+                    disabled={busy}
+                    aria-pressed={goal.focused}
+                    onClick={() => {
+                      void action({
+                        type: 'focusGoal',
+                        id: goal.id,
+                        focused: !goal.focused,
+                      })
+                    }}
+                  >
+                    {goal.focused ? '取消聚焦' : '聚焦'}
+                  </button>
+                )}
+                {(goalWritable(state, goal) ||
+                  commandCapability(
+                    state,
+                    { type: 'archive', kind: 'goal', id: goal.id },
+                    today,
+                  ).allowed) && (
+                  <More name={goal.title}>
+                    {goalWritable(state, goal) && (
+                      <>
+                        <button
+                          disabled={busy}
+                          onClick={() =>
+                            open({ kind: 'editGoal', id: goal.id })
+                          }
+                        >
+                          编辑目标
+                        </button>
+                        <button
+                          disabled={busy}
+                          onClick={() =>
+                            open({ kind: 'completeGoal', id: goal.id })
+                          }
+                        >
+                          确认目标达成
+                        </button>
+                      </>
+                    )}
+                    {commandCapability(
+                      state,
+                      { type: 'archive', kind: 'goal', id: goal.id },
+                      today,
+                    ).allowed && (
                       <button
-                        onClick={() => open({ kind: 'editGoal', id: goal.id })}
-                      >
-                        编辑目标
-                      </button>
-                      <button
-                        onClick={() =>
-                          open({ kind: 'completeGoal', id: goal.id })
-                        }
-                      >
-                        确认目标达成
-                      </button>
-                      <button
+                        disabled={busy}
                         onClick={() =>
                           open({ kind: 'archive', entity: 'goal', id: goal.id })
                         }
                       >
                         归档目标
                       </button>
-                    </More>
-                  </>
+                    )}
+                  </More>
                 )}
-                {goal.completion &&
-                  !goal.completion.settled &&
-                  goal.completion.date === today &&
-                  !locked && (
-                    <button
-                      disabled={busy}
-                      onClick={() => {
-                        void action({ type: 'undoGoal', id: goal.id })
-                      }}
-                    >
-                      撤销达成
-                    </button>
-                  )}
+                {commandCapability(
+                  state,
+                  { type: 'undoGoal', id: goal.id },
+                  today,
+                ).allowed && (
+                  <button
+                    disabled={busy}
+                    onClick={() => {
+                      void action({ type: 'undoGoal', id: goal.id })
+                    }}
+                  >
+                    撤销达成
+                  </button>
+                )}
               </div>
             </div>
           </li>

@@ -13,7 +13,7 @@
 
 ## 当前证据
 
-执行：Node 24.19.0；`npx vitest run tests/api/adventure-domain.test.ts`，**30 项通过**；`npm run typecheck` 通过。红绿日志位于工作区 `.scratch/adventure-delivery/domain-red-01.log` 至 `domain-red-18.log` 及对应 green 文件；各切片先验证行为失败再实现，不以最后绿色掩盖先前缺口。
+执行：Node 24.19.0；`npx vitest run tests/api/adventure-domain.test.ts`，**33 项通过**；`npm run typecheck` 通过。已包含原有 30 项与本次只读能力、Q3 未达标／达标倍率快照回归。红绿日志位于工作区 `.scratch/adventure-delivery/domain-red-01.log` 至 `domain-red-18.log` 及对应 green 文件；各切片先验证行为失败再实现，不以最后绿色掩盖先前缺口。
 
 | 领域行为 | 测试中的独立验收例 |
 |---|---|
@@ -31,3 +31,19 @@
 | 安全与纯预览 | 严格 schema 拒绝 owner／XP／任意 state；非法日期为 DomainError；能力与预览均不改源 state |
 
 暂停周期允许当天纠错撤销；结束与归档仍只读。目标撤销配额、迟到结束的历史冻结和已达成支线迁移均有专门回归。新增默认及备选理由见 `decisions-domain.md`。
+
+## 能力查询性能与倍率快照
+
+本次回归增加：任务和周期按钮查询遇到不可读取的 ledger 仍正常判断，证明查询不读取无关成长历史；正式命令先执行共享 `validateCommand`，access 层保留规范虚拟槽、归档只读、自然结束、暂停、日期冻结和目标冻结校验。
+
+倍率例：前三月均达标后，第四月 15/30，累计 K=1.1、实际 ×1、5 XP；第四月 24/30，累计 K=1.1、实际 ×1.1、8 XP。预测和新账本都保留两个倍率；旧记录缺字段保持未知，重复刷新不补写。
+
+复测命令（Node 24）：`node src/shared/adventure/capabilities-benchmark.mjs`。夹具与 Astra 原基准相同：1 主线、1 目标、50 条当天任务各 1 项清单，另有 1,000／5,000 条已结算任务和完整经验快照；不含构造或打包时间，不使用跨轮缓存。周期按钮另测 50 次合法额外完成能力查询。
+
+| 历史条数／状态字节 | 原实现三轮任务查询（Astra 在 856dd33 实测，ms） | 只读实现三轮任务查询（ms） | 50 个周期按钮三轮（ms） |
+|---|---|---|---|
+| 0／9,540 | 21／12／12 | 7／3／2 | 0.84／0.52／1.18 |
+| 1,000／640,099 | 494／491／482 | 4／4／4 | 0.39／0.39／0.36 |
+| 5,000／3,188,099 | 2,528／2,549／2,530 | 11／11／12 | 0.45／0.38／1.24 |
+
+原始复测：`.scratch/adventure-delivery/capability-benchmark-complete.jsonl`；相同 Astra 原脚本复测另存 `capability-benchmark-after.jsonl`（5,000 条为 13／12／10 ms）。基准仅提供当前机器证据，不作为跨机器性能保证；没有将基准伪装为无业务断言的测试。

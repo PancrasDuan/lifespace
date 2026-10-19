@@ -126,7 +126,13 @@ export function calculateCycleReward(
           (BigInt(planned) * (qualified ? k.den : 1n)),
       )
     : 0;
-  return { rate, qualified, multiplier: k.text, reward };
+  return {
+    rate,
+    qualified,
+    multiplier: k.text,
+    appliedMultiplier: qualified ? k.text : "1",
+    reward,
+  };
 }
 export function cycleMonth(
   s: AdventureState,
@@ -170,11 +176,8 @@ export function cycleMonth(
         e.month.index < index,
     )
     .reduce((v, e) => Math.max(v, e.month!.qualifiedAfter), 0);
-  const { rate, qualified, multiplier, reward } = calculateCycleReward(
-    p,
-    a,
-    prior,
-  );
+  const { rate, qualified, multiplier, appliedMultiplier, reward } =
+    calculateCycleReward(p, a, prior);
   const lastRule = c.rules[c.rules.length - 1],
     cutoff =
       c.endedAt ?? (lastRule.endDate ? add(lastRule.endDate, 1) : undefined);
@@ -188,6 +191,7 @@ export function cycleMonth(
     rate,
     qualified,
     multiplier,
+    appliedMultiplier,
     reward,
     complete,
   };

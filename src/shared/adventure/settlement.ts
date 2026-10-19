@@ -107,7 +107,7 @@ export function settlement(o: Operations, c: AdventureCommand): boolean {
             settledOn: ctx.today,
             amount: m.reward,
             calculation: m.planned
-              ? `floor(10 × min(${m.actual}/${m.planned}, 1) × ${m.qualified ? m.multiplier : "1"})`
+              ? `floor(10 × min(${m.actual}/${m.planned}, 1) × ${m.appliedMultiplier})`
               : "无计划次数，不参与周期奖励",
             snapshots: s.tasks
               .filter(
@@ -128,6 +128,7 @@ export function settlement(o: Operations, c: AdventureCommand): boolean {
               qualifiedBefore: before,
               qualifiedAfter: cy.qualifiedMonths,
               multiplier: m.multiplier,
+              appliedMultiplier: m.appliedMultiplier,
             },
           };
         }
