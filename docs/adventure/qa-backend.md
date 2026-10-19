@@ -1,5 +1,7 @@
 # 后端验证
 
+> 适用范围：以下保留既有实现的测试、评审或发布映射证据，不作为当前新规范的通过声明。2026-10-19 已确认的独立目标、5 条在用主线、结束只读、双向迁移、实时奖励与冲正、到期当日结算尚待实现和重新验证。当前要求以 [规格](spec.md) 及本地任务正文为准；本次不运行新验收或同步远端 Issue。
+
 ## 本地命令与容量
 
 Node 24.19.0、Vitest v5.0.3：`npx vitest run tests/api/adventure-storage.test.ts tests/api/adventure-http.test.ts`，2 files / 11 tests passed（296 ms）；`npm run typecheck` 通过。后续集成修改仍须最终复跑，不将此结果当作生产验收。

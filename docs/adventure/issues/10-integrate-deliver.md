@@ -1,5 +1,7 @@
 # 10：完成安全回归、浏览器验收与生产交付
 
+状态：2026-10-19 本地验收要求；新规范待实现，本次不启动开发，远端 Issue 正文尚未同步。旧测试不证明新规则通过。
+
 ## Parent
 
 https://github.com/PancrasDuan/lifespace/issues/53
@@ -10,7 +12,7 @@ https://github.com/PancrasDuan/lifespace/issues/53
 
 ## Acceptance criteria
 
-- [ ] 全量需求覆盖矩阵有当前证据；不存在原型28天、内存或测试假仓库替代正式能力。
+- [ ] 系统独立区、5 条在用普通主线、目标必填、分组聚焦、目标终态及其下属只读、迁移与历史归属均有新证据；奖励结算在独立规范明确后另行验收；全量需求覆盖矩阵有当前证据；不存在原型28天、内存或测试假仓库替代正式能力。
 - [ ] 服务端拒绝越权、客户端时间伪造、跨天改历史、重复发奖；并发真实事务与数据库 CAS 回读已验证。
 - [ ] 密钥扫描先行，接口、安全、类型、构建、现有首页新闻浏览器与冒险关键工作流全部通过。
 - [ ] gpt-6-astra 完成规范与需求双轴 review，修正阻断问题；中文交付记录明确测试范围和风险。
@@ -21,6 +23,6 @@ https://github.com/PancrasDuan/lifespace/issues/53
 
 - https://github.com/PancrasDuan/lifespace/issues/62
 
-状态：ready-for-agent
+状态：需求已更新，待实现；不恢复开发。
 
 覆盖规格用户故事：39, 40。
