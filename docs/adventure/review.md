@@ -22,7 +22,7 @@ Astra复查源码并复跑33项领域测试确认关闭；主agent统一189项AP
 
 ## 证据边界
 
-- 本地检查与review不能替代最终PR CI、真实登录用户浏览器验收、具体PR合并授权和生产发布验收。
-- 真实数据库权限／CAS／隔离探针已证；真实用户JWT的生产完整业务隔离仍未证明。
-- 8MB聚合接近预算时的128MB Worker内存峰值未测；构建大chunk警告仍保留。
-- 所有Issue保持开放，只有发布验收完成后才处理关闭。
+- 本review限定于源码提交5ce1b0c的需求与规范；实际CI、人工验收、具体合并授权和生产状态见[PR #64](https://github.com/PancrasDuan/lifespace/pull/64)与[父规格 #53](https://github.com/PancrasDuan/lifespace/issues/53)。
+- 真实数据库权限／CAS／隔离探针证明持久层边界，不等于真实用户JWT的生产完整业务隔离验收。
+- 基准不覆盖8MB聚合接近预算时的128MB Worker内存峰值；构建大chunk警告保留。
+- Issue按仓库流程仅在发布验收完成后关闭。

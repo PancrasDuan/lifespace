@@ -17,7 +17,7 @@
 
 ## 已取得的证据
 
-以下是当前证据范围，不代表最终集成、用户验收或生产交付已完成。
+以下记录实现与检查的固定证据范围；交付状态以[PR #64](https://github.com/PancrasDuan/lifespace/pull/64)、[最新检查](https://github.com/PancrasDuan/lifespace/pull/64/checks)及[父规格 #53](https://github.com/PancrasDuan/lifespace/issues/53)为准。
 
 | 范围 | 当前证据 | 能证明与不能证明 |
 |---|---|---|
@@ -43,7 +43,7 @@
 | `npm run test:secrets` | 1项密钥扫描自测通过 |
 | `npm run build` | 最终源码冻结后复跑通过，包含完整typecheck |
 
-构建未注入真实凭据，missing-secrets提示为预期；主客户端1,196.06 KB、gzip365.54 KB，Worker710.10 KB、gzip177.13 KB的大chunk警告保留。未据此宣称性能优化或8MB聚合的真实Worker峰值已验证。最终整改后完整浏览器回归144／144通过，2.5分钟（主agent会话19035，退出码0），包含全部18项冒险场景和现有首页、新闻、认证回归；不依赖拼接早期阶段结果。构建会话89224与API会话59392均已退出0。详见 [前端验收](qa-frontend.md)。针对源码提交5ce1b0c的独立二轴复查已完成，需求轴新增finding0、原三项关闭；规范轴硬违规0、性能P2关闭，接受一个非阻塞维护性P3。详见[评审记录](review.md)，PR CI及用户验收仍未证明。
+构建未注入真实凭据，missing-secrets提示为预期；主客户端1,196.06 KB、gzip365.54 KB，Worker710.10 KB、gzip177.13 KB的大chunk警告保留。未据此宣称性能优化或8MB聚合的真实Worker峰值已验证。最终整改后完整浏览器回归144／144通过，2.5分钟（主agent会话19035，退出码0），包含全部18项冒险场景和现有首页、新闻、认证回归；不依赖拼接早期阶段结果。构建会话89224与API会话59392均已退出0。详见 [前端验收](qa-frontend.md)。针对源码提交5ce1b0c的独立二轴复查已完成，需求轴新增finding0、原三项关闭；规范轴硬违规0、性能P2关闭，接受一个非阻塞维护性P3。详见[评审记录](review.md)；实时交付状态见PR和父规格。
 
 只读能力查询已改为正式命令与界面共同使用的轻量前置校验，不再逐按钮克隆完整成长历史。主agent复测5,000条历史、50个任务按钮三轮为12／11／12 ms，原实现约2,530 ms；作者完整基准见 [领域验收](domain-validation.md)，脚本`src/shared/adventure/capabilities-benchmark.mjs`可复跑。该测量不是跨机器保证或8MB真实Worker峰值证明。
 
@@ -64,15 +64,12 @@
 - 01–10开发票依次为 #54–#63，均为 ready-for-agent，票正文包含真实父规格及阻塞链接。
 - 发布状态与原生依赖回读证据见 published.json；原稿保留在 .scratch，正式可提交副本在隔离工作树 docs/adventure。
 
-## 尚未证明的交付证据
+## 交付门禁
 
-- 最终PR CI；本地144项完整浏览器已通过，后续源码改变须重新核对受影响检查。
-- PR CI和用户验收仍需完成；被审源码5ce1b0c的需求与规范双轴复查已完成，当前接受的P3与证据边界见review.md。
-- 实际页面的账户会话切换、未知结果重试、版本冲突、多标签页、窄屏与键盘操作，以及用户本地浏览器验收。
-- 用户已提供本地准入邮箱，仅用于运行时配置，不写入任何Git文件或本文；不复制整份`.dev.vars`，不读取或覆盖生产secret，真实用户登录及页面验收仍须实际完成。
-- 功能分支实现提交856dd33和修复提交5ce1b0c已完成，并经二轴复查；PR及CI、真实用户验收、具体PR合并确认和生产发布验收尚待完成。
-
-父规格及10票已经发布，不以Issue存在、局部绿色测试或真实数据库探针代替完整交付证据；Issue关闭须在发布验收后完成。
+- [PR #64](https://github.com/PancrasDuan/lifespace/pull/64)维护变更、审阅与真实用户验收反馈，[checks](https://github.com/PancrasDuan/lifespace/pull/64/checks)为最新HEAD的CI权威结果。
+- [父规格 #53](https://github.com/PancrasDuan/lifespace/issues/53)维护人工验收、具体PR合并授权、部署SHA及生产验证清单；外部交付状态变化只更新PR／Issue，不反复提交源码记录追逐状态。
+- 合并需要用户对具体PR明确授权；关联Issue仅在发布验收后关闭。本覆盖表、数据库探针和自动测试均不能替代这些门禁。
+- 真实JWT初始空态、创建目标占位、取消不保存及重新加载已验证，见[前端验收](qa-frontend.md)；该范围不等于真实账户实体创建与完整人工验收。
 
 ## 交付基线与原型来源
 
