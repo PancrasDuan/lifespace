@@ -25,7 +25,7 @@ npm run dev
 
 目标名称、完成标准必填，按实际结果手动达成；达成或结束后下属任务全部停止只读，历史成果保留。主线仅手动结束，目标和主线终态不可撤销；进行中目标可迁移，下属任务随行，历史归属不改写。终态目标默认隐藏，可手动显示；已结束主线仍可查看历史。
 
-奖励结算和取消完成后的成长调整待独立梳理；完成记录逻辑删除已经确定。正式个人内容与首页共享只读任务分开。持久化沿用专用 `adventure_states` 和版本 CAS，浏览器无直接表权限；完整账户行预算为 8,000,000 UTF-8 bytes，超限拒绝且保留原数据，不裁剪历史、逻辑删除记录或幂等证据。
+成长与奖励在本期实现：任务完成实时获得 1 点，目标按有效计奖行动次数乘系数，零行动目标固定奖励 1 点；取消完成与任务奖励同时逻辑删除。等级及七个成就实时计算，不保存解锁状态或日期。完整公式、页面和案例见 [成长与奖励](docs/adventure/growth-rewards.md)。正式个人内容与首页共享只读任务分开。持久化沿用专用 `adventure_states` 和版本 CAS，浏览器无直接表权限；完整账户行预算为 8,000,000 UTF-8 bytes，超限拒绝且保留原数据，不裁剪历史、逻辑删除记录或幂等证据。
 
 有效需求见 [冒险规格](docs/adventure/spec.md)，领域规则见 [领域选择](docs/adventure/decisions-domain.md)，本地任务与既有验证边界见 [覆盖记录](docs/adventure/coverage.md)。本次仅同步文档，未修改数据库、远端 Issue 或发布状态。
 
@@ -105,7 +105,7 @@ npm run test:browser
 
 - 以下业务接口均须携带当前会话，Worker 在线验证账户及白名单。
 - `GET /api/adventure`：读取／初始化当前账户冒险状态、版本与规划日期，不结算。
-- `POST /api/adventure/commands`：执行带 `requestId`、`expectedVersion` 的领域命令，包括 `refresh`；本期仅支持一次性任务规则，奖励触发细节待独立梳理，代码尚待同步；不接受客户端整包状态、owner、经验或模拟日期。
+- `POST /api/adventure/commands`：执行带 `requestId`、`expectedVersion` 的领域命令，包括 `refresh`；本期仅支持一次性任务规则，事实与奖励实时提交、等级成就实时计算，代码尚待同步；不接受客户端整包状态、owner、经验或模拟日期。
 - `GET /api/tasks/today?timeZone=<IANA 时区>`：首页只读今日待办。
 - `GET /api/domains`：DNSHE 账户内全部域名的展示信息。
 - `GET /api/ai-status`：OpenAI、xAI、Resend、GitHub、Cloudflare、Supabase、Notion、Tailscale 与腾讯云的整体状态及按提供方归属的当前异常。
