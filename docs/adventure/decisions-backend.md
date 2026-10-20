@@ -1,23 +1,24 @@
 # 后端设计约定
 
-状态：2026-10-20 按用户最新方向采用多物理表设计稿，暂不实现。字段和事务入口供评审，HTTP 契约留到接口定义阶段；旧单表代码与测试不代表新设计已实现。
+状态：2026-10-20 五表设计稿，暂不实现；当前代码和旧单表测试不代表本设计通过。表名、字段及事务入口供评审，HTTP 契约留到接口定义阶段。
 
-- [数据库设计](backend-database.md)：十张真实物理表、PostgreSQL 列类型、默认值、外键、唯一索引、快照与样例行。
-- [业务逻辑](backend-business-logic.md)：后端事务 Module、命令幂等、完成／取消、目标计奖、迁移、终态和一致读取。
-- [前端设计](decisions-frontend.md) 与 [成长与奖励](growth-rewards.md)：已确认的消费及业务规则。
+- [数据库设计](backend-database.md)：五张真实表、PostgreSQL 类型、外键、索引、事件与样例。
+- [业务逻辑](backend-business-logic.md)：事务、完成／取消、目标奖励、迁移、终态、能力与验收。
+- [前端设计](decisions-frontend.md)、[成长与奖励](growth-rewards.md)：已确认的消费和计算规则。
 
 | 事项 | 本期设计 |
 |---|---|
-| 存储 | 十张 public.adventure_ 前缀关系表，业务状态和关联分别存列；JSONB 仅用于不可变内容快照和稳定回执。 |
-| 约束 | 复合 owner 外键隔离引用，部分唯一索引约束有效完成；跨行配额、终态及事实一致性由事务入口校验。 |
-| 写入 | 服务端专用 SECURITY INVOKER 数据库 RPC，单事务提交事实、奖励、关联、账户 revision 和回执，不能逐表 REST 散写。 |
-| 并发 | 保留账户级 expectedVersion，先锁账户行，再查回执和版本；普通冲突不自动重放。多表不等于不同任务独立并发写。 |
-| 幂等 | command_receipts(owner_id,request_id) 主键，命令摘要不含 expectedVersion；未知结果原 key 重试，无物理删除。 |
-| 读取 | 短事务共享锁保障多表一致；后端生成能力、原因、预览及全量成长，列表分页但不截断汇总。 |
-| 权限 | 全部表 RLS 开启且无浏览器直接权限；后端角色最小 SELECT／INSERT／UPDATE，事务函数仅后端 EXECUTE，固定 search_path，不以角色权限替代 owner 过滤。 |
-| 成长 | 无等级表、成就表或解锁状态；实时根据有效奖励、完成和达成事实计算，不保存到回执。 |
-| 时区 | 后端事务确定 Asia/Shanghai 业务日期；不接受客户端 owner、today、经验或整包状态。 |
-| 容量 | 移除单行 8 MB 及全账户 JSON 读取上限的设计依赖，改为单记录长度、分页和事务返回预算；具体数值在接口设计确认，超限不能部分提交或裁剪历史。 |
-| 实施 | 当前代码与旧 DDL 仍为单表实现；本次不改代码、SQL、现有表／数据或权限，不自动迁移清理，不同步远端 Issue。 |
+| 物理表 | accounts、mainlines、goals、tasks、events 五张 public.adventure_ 表；不建安排、完成、奖励或回执分表。 |
+| 账户汇总 | accounts.total_xp 保存当前有效奖励之和，事务维护并与未失效 reward 事件核对；等级、成就实时计算。 |
+| 独立结构 | 首次独立目标或任务按需创建并复用独立主线；独立任务引用唯一 inbox 目标。inbox 不展示、不聚焦、不达成、不计目标奖励／成就。 |
+| 任务 | tasks 只保存当前 planned_on 和当前状态；改期原日期、归属、完成及历史在 events。task id 稳定，改期不换行动。 |
+| 事件 | events 保存操作历史、完成、取消、奖励、计奖依据、快照和成功回执；幂等查询包含已失效事件。 |
+| 奖励 | reward_task／reward_goal 事件与完成／达成同事务；取消只失效对应任务奖励，不撤销目标奖励，不追加负数冲正。 |
+| 事务 | 后端专用 SECURITY INVOKER 数据库 RPC，锁 accounts 后校验 revision、事实、total_xp 和回执；不能逐表 REST 散写。 |
+| 并发 | 保留账户级 expectedVersion；同账户不同任务仍可能冲突，五表不等于按任务独立并发。 |
+| 读取 | 短事务账户共享锁保证当前对象、revision、事件汇总和成长一致；内部可写 POST RPC，不用 READ ONLY GET。 |
+| 权限 | 五表启用 RLS，无浏览器直接权限；后端角色最小 SELECT／INSERT／UPDATE，无物理 DELETE，事务函数仅后端可执行。 |
+| 容量 | 取消整账户 JSON 8 MB 依赖；分记录长度、分页、返回量和事务预算，超限整笔拒绝，不裁剪事件或回执。 |
+| 实施 | 本次只改设计；当前代码和 DDL 仍为单表旧实现，不创建表／函数、不迁移数据、不修改权限或发布。 |
 
-原存储决策文档已更新为当前 [关系表事务决策](../adr/0002-adventure-owner-state.md)。旧验证只保留其注明的历史范围，不作为十表、外键或 RPC 事务通过证据。
+原关系表决策已更新为当前 [五表决策](../adr/0002-adventure-owner-state.md)；旧验证仅保留其历史范围。
