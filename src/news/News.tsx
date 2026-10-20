@@ -2,13 +2,14 @@ import { AppLayout } from '../app/AppLayout'
 import { useQueries, useQuery, type Query } from '@tanstack/react-query'
 import { api } from '../home/api'
 import { newsFreshMs, type NewsResult } from '../shared/news-contracts'
-import { NewsCard } from './NewsCard'
 import { RotateCw, Settings2 } from 'lucide-react'
 import './news.css'
 import { useState } from 'react'
 import { createNewsReader } from './read-news'
 import { NewsSourceSettings } from './NewsSourceSettings'
 import { loadSourceSelection, saveSourceSelection } from './source-selection'
+import { loadSourceOrder, mergeVisibleOrder, resolveSourceOrder, saveSourceOrder } from './source-order'
+import { NewsSortableGrid } from './NewsSortableGrid'
 
 function freshness(query: Query<NewsResult>) {
   const data = query.state.data
@@ -21,20 +22,29 @@ export function News() {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [selection, setSelection] = useState(loadSourceSelection)
   const [unsaved, setUnsaved] = useState(false)
+  const [savedOrder, setSavedOrder] = useState(loadSourceOrder)
+  const [orderUnsaved, setOrderUnsaved] = useState(false)
   const metadata = useQuery({ queryKey: ['news-sources'], queryFn: ({ signal }) => api.newsSources(signal), staleTime: Infinity, retry: false, refetchOnWindowFocus: false, refetchOnReconnect: false })
   const allSources = metadata.data?.sources.slice().sort((a, b) => a.order - b.order) ?? []
   const sources = allSources.filter(source => selection === null ? source.defaultEnabled : selection.includes(source.id))
   const enabled = sources.map(source => source.id)
+  const order = resolveSourceOrder(allSources, savedOrder)
   const change = (id: string, checked: boolean) => {
     const next = checked ? [...new Set([...enabled, id])] : enabled.filter(value => value !== id)
     setSelection(next)
     setUnsaved(!saveSourceSelection(next))
   }
+  const applyOrder = (next: string[]) => {
+    setSavedOrder(next)
+    setOrderUnsaved(!saveSourceOrder(next))
+  }
+  // 查询始终按元数据顺序建立，拖动预览不重排观察者或触发取数。
   const queries = useQueries({ queries: sources.map(source => ({
     queryKey: ['news', source.id],
     queryFn: ({ signal }: { signal: AbortSignal }) => readNews(source.id, signal),
     staleTime: freshness, retry: false as const, refetchOnWindowFocus: false, refetchOnReconnect: false,
   })) })
+  const entries = new Map(sources.map((source, index) => [source.id, { source, query: queries[index] }]))
   const refreshing = queries.some(query => query.isFetching)
   return <AppLayout page="news" openSettings={() => setSettingsOpen(true)}><div className="news-page"><header className="masthead">
     <div className="page-kicker"><span className="live-dot" />LifeSpace · 每日阅读</div>
@@ -47,8 +57,11 @@ export function News() {
     {metadata.isPending && <p className="news-page-state">正在读取新闻来源…</p>}
     {metadata.isError && <div role="alert" className="news-page-state"><p>{metadata.error.message}</p><button onClick={() => { void metadata.refetch() }}>重试新闻来源</button></div>}
     {unsaved && <p role="alert" className="news-error">来源选择未保存，仅在当前页面生效。</p>}
+    {orderUnsaved && <p role="alert" className="news-order-error">卡片顺序未保存，仅在当前页面生效。</p>}
     {metadata.isSuccess && !sources.length && <div className="news-page-state"><h2>未启用来源</h2><p>打开来源设置，选择要浏览的榜单。</p><button onClick={() => setSettingsOpen(true)}>打开新闻来源设置</button></div>}
-    <section className="news-grid" aria-label="新闻榜单">{sources.map((source, index) => <NewsCard key={source.id} source={source} query={queries[index]} />)}</section>
-    {settingsOpen && <NewsSourceSettings sources={allSources} enabled={enabled} change={change} unsaved={unsaved} close={() => setSettingsOpen(false)} />}
+    <NewsSortableGrid entries={order.flatMap(id => { const entry = entries.get(id); return entry ? [entry] : [] })}
+      changeOrder={visible => applyOrder(mergeVisibleOrder(order, visible))} />
+    {settingsOpen && <NewsSourceSettings sources={allSources} enabled={enabled} change={change} unsaved={unsaved}
+      orderUnsaved={orderUnsaved} resetOrder={() => applyOrder(resolveSourceOrder(allSources, null))} close={() => setSettingsOpen(false)} />}
   </div></AppLayout>
 }
