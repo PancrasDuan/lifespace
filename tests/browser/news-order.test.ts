@@ -179,6 +179,27 @@ test('浏览器拒绝读取顺序配置时默认展示，不影响来源选择',
 
 test.describe('手机触控排序', () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true })
+  test('拖到屏幕边缘自动滚动，触控取消不保存且恢复原顺序', async ({ page, context }) => {
+    await fixture(page)
+    await page.goto('/news')
+    await expect(headings(page)).toHaveText(defaultLabels)
+    const handle = (await page.getByRole('button', { name: '拖动百度热搜', exact: true }).boundingBox())!
+    const x = handle.x + handle.width / 2
+    const y = handle.y + handle.height / 2
+    const cdp = await context.newCDPSession(page)
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y }] })
+    await page.waitForTimeout(240)
+    await expect(page.locator('.news-drag-overlay')).toBeVisible()
+    for (let step = 1; step <= 12; step++) {
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x, y: y + (828 - y) * step / 12 }] })
+    }
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(100)
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchCancel', touchPoints: [] })
+    await expect(page.locator('.news-drag-overlay')).toHaveCount(0)
+    await expect(headings(page)).toHaveText(defaultLabels)
+    expect(await stored(page)).toBeNull()
+  })
+
   test('手柄拖动并保存，单列无横向溢出', async ({ page, context }) => {
     await fixture(page)
     await page.goto('/news')
