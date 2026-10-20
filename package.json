@@ -27,6 +27,9 @@
     "setup:browser": "PLAYWRIGHT_BROWSERS_PATH=.cache/playwright playwright install chromium"
   },
   "dependencies": {
+    "@dnd-kit/core": "6.3.1",
+    "@dnd-kit/sortable": "10.0.0",
+    "@dnd-kit/utilities": "3.2.2",
     "@js-temporal/polyfill": "0.5.1",
     "@photostructure/tz-lookup": "11.7.0",
     "@supabase/supabase-js": "2.117.3",

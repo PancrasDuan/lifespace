@@ -36,3 +36,31 @@
 .news-page-state{padding:30px;text-align:center;color:var(--quiet);font-size:13px}
 @media(max-width:1120px){.news-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:720px){.news-grid{grid-template-columns:minmax(0,1fr);gap:16px}.news-page h1{font-size:32px}.news-toolbar{font-size:10px;gap:10px}.news-toolbar button{padding:8px 10px;font-size:11px}.news-list{height:330px}.news-card-heading{padding-top:17px}}
+
+/* 卡片顶部的灵动岛手柄：视觉保持轻巧，触控区域保留 44px 高度。 */
+.news-sortable{min-width:0;position:relative}
+.news-sortable>.news-card{position:relative;overflow:visible}
+.news-sortable .news-card-footer,.news-drag-overlay .news-card-footer{border-radius:0 0 20px 20px}
+.news-handle-lane{position:absolute;z-index:2;top:-22px;left:0;right:0;height:44px;display:flex;justify-content:center;pointer-events:none}
+.news-drag-handle{position:relative;pointer-events:auto;display:flex;align-items:center;justify-content:center;gap:0;width:48px;height:44px;padding:0;border:0;background:none;color:#f8fbf5;touch-action:none;cursor:grab;isolation:isolate;transition:width .3s cubic-bezier(.2,.9,.25,1.15),gap .25s}
+.news-drag-handle:before{content:'';position:absolute;inset:10px 0;z-index:-1;border:1px solid rgba(255,255,255,.28);border-radius:99px;background:rgba(104,132,99,.9);box-shadow:0 7px 20px rgba(73,103,71,.16),inset 0 1px 0 rgba(255,255,255,.28);backdrop-filter:blur(10px) saturate(1.08);transition:background .18s}
+.news-drag-handle span{max-width:0;overflow:hidden;opacity:0;white-space:nowrap;font-size:10px;color:#f1f7ee;transition:max-width .3s,opacity .2s}
+@media(hover:hover){.news-drag-handle:hover{width:102px;gap:7px}.news-drag-handle:hover span{max-width:65px;opacity:1}.news-drag-handle:hover:before{background:rgba(81,111,80,.95)}}
+.news-drag-handle:active{cursor:grabbing}
+.news-drag-handle-active{width:102px;gap:7px;cursor:grabbing}
+.news-drag-handle-active span{max-width:65px;opacity:1}
+.news-drag-handle-active:before{background:rgba(81,111,80,.95)}
+.news-sortable-dragging{opacity:.23;outline:2px dashed #8aa87d;outline-offset:3px;border-radius:20px}
+.news-drag-overlay{pointer-events:none}
+.news-drag-overlay .news-card{position:relative;overflow:visible;box-shadow:0 22px 64px #304d3938;outline:2px solid #89a77b}
+.news-grid{row-gap:28px}
+.news-order-error{margin:0 0 18px;padding:10px 12px;border:1px solid #ead4c7;border-radius:10px;background:#f8eee8;color:#9c5a3d;font-size:11px;line-height:1.7}
+.news-order-settings{margin-top:22px;padding-top:18px;border-top:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:16px;font-size:12px}
+.news-order-settings>span{flex-shrink:0}
+.news-order-settings button{display:inline-flex;justify-content:center;align-items:center;gap:6px;border:1px solid var(--line);border-radius:9px;background:white;color:var(--accent);font-size:11px;padding:9px 12px}
+.news-order-confirm{text-align:right}
+.news-order-confirm p{margin:0 0 10px;font-size:11px;color:var(--quiet);line-height:1.7}
+.news-order-confirm>div{display:flex;justify-content:flex-end;gap:8px}
+.news-order-settings .news-order-confirm-button{background:#52764f;color:white;border-color:#52764f}
+.news-source-settings>.news-order-error{margin:14px 0 0}
+@media(prefers-reduced-motion:reduce){.news-drag-handle,.news-drag-handle:before,.news-drag-handle span{transition:none}}
