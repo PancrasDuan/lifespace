@@ -137,7 +137,7 @@ erDiagram
 | `id` | `uuid` | 否 | `gen_random_uuid()` | 主键 |
 | `owner_id` | `uuid` | 否 | 无 | 引用 adventure_accounts.owner_id |
 | `event_group_id` | `uuid` | 否 | 无 | 同一次成功命令的事件组；多事件事务共用 |
-| `kind` | `text` | 否 | 无 | CHECK：task_created／task_rescheduled／task_migrated／task_ended／task_deleted／task_completed／task_completion_cancelled／goal_created／goal_updated／goal_focused／goal_reordered／goal_migrated／goal_achieved／goal_ended／mainline_created／mainline_updated／mainline_ended／reward_task／reward_goal |
+| `kind` | `text` | 否 | 无 | CHECK：task_created／task_updated／task_rescheduled／task_migrated／task_ended／task_deleted／task_completed／task_completion_cancelled／goal_created／goal_updated／goal_focused／goal_reordered／goal_migrated／goal_achieved／goal_ended／mainline_created／mainline_updated／mainline_ended／reward_task／reward_goal |
 | `entity_type` | `text` | 否 | 无 | CHECK IN ('account','mainline','goal','task') |
 | `entity_id` | `uuid` | 是 | `NULL` | 相关当前对象；账户级回执可为空 |
 | `task_id` | `uuid` | 是 | `NULL` | 任务类事件引用稳定 task；不是任务事件为空 |
@@ -158,6 +158,8 @@ erDiagram
 | `invalidated_at` | `timestamptz` | 是 | `NULL` | 取消完成／奖励时逻辑失效；非奖励事件通常为空 |
 | `invalidated_by_event_id` | `uuid` | 是 | `NULL` | 取消事件的稳定追溯 |
 | `created_at` | `timestamptz` | 否 | `now()` | 事件写入时间 |
+
+task_updated 记录待完成任务名称／说明编辑的前后内容和发生时归属，不覆盖已有历史快照；与当前任务、revision 和成功回执同事务提交。
 
 事件表既是业务历史与奖励来源，也是成功命令的幂等回执。奖励事件不另建表：`kind=reward_task` 或 `reward_goal`，amount 和 calculation 冻结来源；完成事实由 task_completed 事件承载，取消完成由 task_completion_cancelled 事件和 invalidated_at 标记共同表达。
 

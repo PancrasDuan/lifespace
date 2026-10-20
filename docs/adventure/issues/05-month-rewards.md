@@ -1,7 +1,21 @@
-# 05：周期奖励
+# 待办：任务月与周期奖励
 
-状态：不在本期一次性任务范围内，不作为本期开发、验收或交付前置条件。
+状态：2026-10-20 Issue #58 保留开放待办，已移除 ready-for-agent，不阻塞本期一次性任务。
 
-保留 Issue #58 的本地索引（https://github.com/PancrasDuan/lifespace/issues/58），本次不修改远端正文或依赖。当前有效需求与本地执行顺序见 [规格](../spec.md) 和 [任务映射](../coverage.md)。
+## 父规格
 
-相关定义、已确认规则及待决边界统一保存在 [周期性任务与周期奖励待办](../backlog.md)，不放入本期验收清单。
+https://github.com/PancrasDuan/lifespace/issues/53
+
+## 当前状态
+
+待办，本期不实施，不属于 ready-for-agent。当前父规格只包含一次性任务及其实时成长奖励，本任务不阻塞任何本期任务。
+
+## 保留范围
+
+任务月与周期奖励。恢复前需依据届时有效规格重新确认规则、验收及任务依赖；旧周期、次日结算和单表实现的验收不作为可直接执行的要求。
+
+## 待办关联
+
+- https://github.com/PancrasDuan/lifespace/issues/57
+
+相关周期定义与待决事项见 [周期性任务待办](../backlog.md)。
