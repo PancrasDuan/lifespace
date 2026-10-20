@@ -20,7 +20,7 @@
 
 - 备选：Supabase 全关系表／事务 RPC；Supabase 独立账户状态行＋版本 CAS；新增 D1；浏览器本地存储。
 - 选择：现有 Supabase 独立 adventure_states(owner_id PK, state jsonb, version bigint)，Worker 严格领域命令与 PostgREST owner＋version PATCH CAS，初始化 ignore-duplicates，客户端不得整包写状态。
-- 理由：复用现有服务、无需新增运行时或大规模 RPC 权限；整账户状态单行原子提交可同时约束奖励、配额、聚焦与迁移；普通命令冲突返回409，仅refresh有限重读重算，不能最后写覆盖。
+- 理由：复用现有服务、无需新增运行时或大规模 RPC 权限；整账户状态单行原子提交可同时约束奖励、配额、聚焦与迁移；普通命令冲突返回409，不能最后写覆盖；读取刷新不执行延迟结算。
 - 状态：主 agent 已核对并冻结本期默认。
 
 ## D04 隔离
@@ -61,7 +61,7 @@
 ## D16 版本冲突与命令幂等
 
 - 备选：所有冲突自动重算；最后写覆盖；普通变更明确版本失败、结算有限重算。
-- 选择：普通创建、编辑、规则、排序等用户命令带 expectedVersion，失配 409，不重放旧视图意图；仅刷新结算可有限 CAS 重算。owner＋requestId journal 保存 payload 摘要和稳定结果，与 state 原子提交；同 key 异 payload 拒绝，未知结果用原 key 重试。响应给最新 state＋稳定 command 结果，客户端按版本避免倒序回写。
+- 选择：普通创建、编辑、排序等用户命令带 expectedVersion，失配 409，不重放旧视图意图；读取刷新不补发奖励或写业务 journal。owner＋requestId journal 保存 payload 摘要和稳定事实回执，不持久保存等级或成就状态，与 state 原子提交；同 key 异 payload 拒绝，未知结果用原 key 重试。响应给最新 state＋稳定 command 结果，客户端按版本避免倒序回写。
 - 理由：防止多标签页修改被旧视图悄悄覆盖，兼顾安全重试和结算幂等。
 - 状态：主 agent 与 Astra review 已冻结。
 

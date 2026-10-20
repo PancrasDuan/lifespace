@@ -81,6 +81,8 @@
 
 ## 服务端与数据边界
 
+物理表与内部事实结构见 [后端数据库设计](backend-database.md)，命令、能力、预览及原子性见 [后端业务逻辑](backend-business-logic.md)。两份文档为设计稿，暂不实现；完整 HTTP 契约在接口定义阶段确定。
+
 - 个人内容按真实账户隔离持久保存，首页共享 tasks／schedules 不迁入。模块尚未上线，没有需要兼容的线上用户历史；本次不操作本地或验收数据。
 - 沿用现有 adventure_states(owner_id,state,version,journal) 和版本 CAS。Worker 在线验证身份，仅访问当前 owner；浏览器无直接表权限，禁止客户端整包写状态或指定 owner、经验、规划日期。
 - 普通变更带 expectedVersion，失配返回 409，刷新后重新确认，不自动重放。owner＋requestId 与命令摘要、状态同次 CAS 提交，同 key 异 payload 拒绝，未知结果保留原 key 重试；响应给最新状态和稳定命令结果，客户端防倒序覆盖。
