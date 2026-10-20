@@ -1,6 +1,6 @@
 # 01：创建主线与目标并持久保存
 
-状态：2026-10-20 已发布至 Issue #54，正文和原生阻塞关系已回读核验。ready-for-agent；前置未完成时不领取，当前实现仍待按本版重新验证。
+状态：2026-10-20 本地已实现，验证见 [本票验收](../qa-planning.md)。远端 Issue #54 保持开放，正文及依赖未改动；人工验收与发布完成后再关闭。
 
 Issue：https://github.com/PancrasDuan/lifespace/issues/54
 

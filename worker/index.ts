@@ -1,5 +1,5 @@
 import { Hono } from 'hono'
-import { getAdventure, adventureCommand } from './adventure/http'
+import { readPlanning, previewPlanning, commandPlanning } from './adventure/planning'
 import { readTasks } from './tasks'
 import { ApiError } from './upstream'
 import { readWeather, searchLocations } from './weather'
@@ -26,8 +26,9 @@ app.use('/api/*', async (c, next) => {
   await next()
 })
 app.get('/api/auth/me', c => c.json({ user: c.get('identity') }))
-app.get('/api/adventure', getAdventure)
-app.post('/api/adventure/commands', adventureCommand)
+app.get('/api/adventure', readPlanning)
+app.post('/api/adventure/preview', previewPlanning)
+app.post('/api/adventure/commands', commandPlanning)
 app.get('/api/tasks/today', async c => c.json(await readTasks(c.env, c.req.query('timeZone'))))
 app.get('/api/domains', async c => c.json(await readDomainCard(c.env)))
 app.get('/api/ai-status', async c => c.json(await readAiStatus()))

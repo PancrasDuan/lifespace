@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { BodyLimitError, readBoundedBody } from './read-body'
 
 export class ApiError extends Error {
-  constructor(readonly code: string, message: string, readonly status: 400 | 401 | 403 | 429 | 502 | 503 | 504) { super(message) }
+  constructor(readonly code: string, message: string, readonly status: 400 | 401 | 403 | 404 | 409 | 429 | 502 | 503 | 504) { super(message) }
 }
 
 // 第三方响应限制体积与读取时间；原始响应及凭据不进入用户错误信息。

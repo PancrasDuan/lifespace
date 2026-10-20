@@ -1,6 +1,6 @@
 # 人生冒险使用五张关系表和事务事件
 
-状态：2026-10-20 用户确认五表方向，设计稿，暂不实现。
+状态：2026-10-20 已采纳；五表与 #54 创建／编辑切片已实施。
 
 ## 决定
 
@@ -24,4 +24,4 @@
 
 ## 范围
 
-字段见 [数据库设计](../adventure/backend-database.md)，事务见 [业务逻辑](../adventure/backend-business-logic.md)。当前代码、DDL 和数据库尚未改变；本次不建表、不执行函数、不生成迁移、不清理数据或调整权限。首页 tasks／schedules 不变。
+字段见 [数据库设计](../adventure/backend-database.md)，事务见 [业务逻辑](../adventure/backend-business-logic.md)。五表及 #54 专用 RPC 已通过迁移 `20261020130750_adventure_planning` 建立，接口和验证分别见 [接口契约](../adventure/planning-api.md) 与 [本票验收](../adventure/qa-planning.md)。其余命令按实施票交付。旧单表及已有数据保留，不导入或清理；首页 tasks／schedules 不变。

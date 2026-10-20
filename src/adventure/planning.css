@@ -1,0 +1,58 @@
+.planning-page { max-width: 1400px; }
+.planning-page .adventure-heading { margin-bottom: 8px; }
+.planning-page .adventure-heading h1 { font-size: 30px; margin: 8px 0; }
+.planning-page .adventure-heading p { font-size: 13px; }
+.planning-workbench { display: grid; grid-template-columns: minmax(0,1fr) 280px; gap: 24px; align-items: start; }
+.planning-main { min-width: 0; }
+.planning-hero { display: grid; grid-template-columns: 1fr 45%; min-height: 245px; margin-bottom: 24px; border: 1px solid #d8e0cc; border-radius: 12px; overflow: hidden; background: #eaf0de; }
+.planning-hero > div:first-child { padding: 30px; }
+.planning-hero h2 { font-family: Georgia, "Songti SC", serif; font-size: 32px; line-height: 1.45; margin: 20px 0 10px; }
+.planning-hero p { font-size: 12px; color: #70815f; }
+.planning-landscape { position: relative; display: grid; place-items: end center; background: radial-gradient(circle at 78% 22%,#f6f2cc 0 12%,transparent 13%),repeating-linear-gradient(0deg,transparent 0 23px,#90a17312 24px),repeating-linear-gradient(90deg,transparent 0 23px,#90a17312 24px); isolation: isolate; }
+.planning-landscape::before { content: ""; position: absolute; bottom: -60px; left: -10%; width: 120%; height: 165px; border-radius: 50%; background: #b4bf98; z-index: -1; }
+.planning-landscape img { height: 215px; max-width: 100%; object-fit: contain; image-rendering: pixelated; }
+.planning-section { padding: 22px; margin-bottom: 22px; background: #fffffc; border: 1px solid var(--adventure-border); border-radius: 12px; }
+.planning-section > header { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 12px; }
+.planning-section h2, .planning-section h3 { display: flex; align-items: center; gap: 8px; }
+.planning-section h2 { font-size: 17px; }
+.planning-section h3 { font-size: 14px; }
+.planning-mainlines { display: flex; flex-direction: column; gap: 10px; }
+.planning-mainlines article { display: flex; align-items: center; gap: 10px; border-top: 1px solid #edf0e4; padding-top: 12px; }
+.planning-mainlines h3 { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.planning-active { font-size: 10px; color: #748b60; padding: 4px 7px; background: #edf3e4; border-radius: 4px; }
+.planning-goals { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; }
+.planning-goal { border: 1px solid #e0e6d7; padding: 18px; border-radius: 9px; min-width: 0; }
+.planning-destination { display: inline-block; color: #748064; background: #f0f3e9; border-radius: 4px; padding: 4px 7px; font-size: 11px; max-width: 100%; overflow-wrap: anywhere; }
+.adventure-page .planning-goal-title { display: block; border: 0; padding: 12px 0 0; font-weight: 600; text-align: left; color: #2e402e; background: none; overflow-wrap: anywhere; }
+.planning-goal > p { font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; color: #7d8b70; }
+.planning-goal footer { display: flex; align-items: center; justify-content: space-between; border-top: 1px solid #edf0e4; padding-top: 12px; gap: 8px; font-size: 11px; color: #849472; }
+.planning-pagination { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding-top: 18px; }
+.planning-pagination > div { display: flex; gap: 6px; }
+.planning-sidebar .planning-level { display: flex; align-items: center; gap: 14px; margin: 20px 0; font-size: 12px; }
+.planning-level > strong { background: #e6ecd8; padding: 18px 10px; border-radius: 12px; font-size: 20px; color: #75885b; white-space: nowrap; }
+.planning-sidebar progress { width: 100%; height: 6px; border: 0; accent-color: #8b9d6e; }
+.planning-sidebar progress::-webkit-progress-bar { background: #e7ebdf; border-radius: 4px; }
+.planning-sidebar progress::-webkit-progress-value { background: #8b9d6e; border-radius: 4px; }
+.planning-sidebar dl { display: grid; grid-template-columns: repeat(3,1fr); text-align: center; gap: 10px; margin: 24px 0 0; }
+.planning-sidebar dd { font-size: 22px; color: #71805c; margin: 0 0 8px; }
+.planning-sidebar dt { font-size: 10px; color: #8f977f; }
+.planning-sidebar blockquote { margin: 36px 10px; color: #9ba78d; line-height: 2; font-family: Georgia, "Songti SC", serif; }
+.planning-locked { background: #fbfcf7; }
+.planning-create-options { display: grid; gap: 12px; }
+.adventure-dialog .planning-create-options button { display: grid; grid-template-columns: 30px 1fr; text-align: left; justify-content: start; padding: 18px; }
+.planning-create-options small { grid-column: 2; font-size: 12px; color: #819075; }
+.planning-detail h3,.planning-detail p { white-space: pre-wrap; overflow-wrap: anywhere; }
+.planning-detail .adventure-inline { flex-wrap: wrap; }
+@media (max-width: 1050px) { .planning-workbench { grid-template-columns: minmax(0,1fr) 240px; gap: 16px; } .planning-goals { grid-template-columns: 1fr; } .planning-hero h2 { font-size: 26px; } .planning-hero > div:first-child { padding: 22px; } }
+@media (max-width: 760px) { .planning-workbench { grid-template-columns: 1fr; } .planning-sidebar { display: grid; grid-template-columns: 1fr; } .planning-page .adventure-tabs > div { gap: 18px; } .planning-page .adventure-tabs small { display: none; } .planning-hero { min-height: 220px; grid-template-columns: 1fr 40%; } .planning-landscape img { height: 185px; } .planning-hero h2 { font-size: 24px; } .planning-hero > div:first-child { padding: 20px 12px 20px 18px; } .planning-section { padding: 16px; } .planning-mainlines article { flex-wrap: wrap; } .planning-mainlines h3 { flex-basis: 50%; } .planning-mainlines article > svg { display: none; } .planning-section header > button { flex-shrink: 0; } .planning-pagination { flex-wrap: wrap; } }
+@media (max-width: 480px) {
+  .planning-hero { display: block; position: relative; min-height: 235px; }
+  .planning-hero > div:first-child { padding: 20px 16px 32px; position: relative; z-index: 1; }
+  .planning-hero h2 { font-size: 21px; line-height: 1.55; white-space: nowrap; }
+  .planning-hero p { max-width: 130px; font-size: 11px; }
+  .planning-landscape { position: absolute; right: 0; bottom: 0; width: 95px; height: 130px; }
+  .planning-landscape img { height: 125px; }
+  .planning-section > header { flex-wrap: wrap; }
+  .planning-section > header > div { flex-basis: 100%; }
+  .planning-section > header > div h2 { white-space: nowrap; }
+}

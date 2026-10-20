@@ -1,6 +1,6 @@
 # 后端数据库设计
 
-状态：2026-10-20 五表设计稿，供评审，暂不实现。用户已确认以五张物理表承载账户、主线、目标、任务和事件；下列表名、字段、索引及事务入口为本轮设计，不表示表或函数已经创建，也不提前确定完整 HTTP 契约。
+状态：2026-10-20 五表及 #54 创建／编辑事务已实现；其他业务命令仍按任务依赖实施。已应用迁移 `20261020130750_adventure_planning`，未改动旧单表或已有验收数据。当前接口见 [主线与目标接口](planning-api.md)。
 
 五表设计保留当前业务对象的独立身份和数据库关联，不为历史安排、完成、奖励和请求回执分别建表。等级、本级进度、七个成就和操作能力仍实时计算，不单独建表。完整业务规则见 [规格](spec.md) 和 [成长与奖励](growth-rewards.md)，事务与命令见 [后端业务逻辑](backend-business-logic.md)。
 
@@ -169,7 +169,7 @@ reward_task 的 reward_task_id 必须对应一个有效 task_completed 事件（
 
 ## 外键、唯一性与检查
 
-以下约束均为关系表设计，尚未创建。主键之外增加必要的同 owner 复合唯一键，供子表复合外键使用。
+以下约束已随五表迁移建立；未交付命令的跨行业务校验仍须随对应任务实施。主键之外增加必要的同 owner 复合唯一键，供子表复合外键使用。
 
 | 表／约束 | 数据库保证 |
 |---|---|
@@ -435,6 +435,6 @@ reward_task 的 reward_task_id 必须对应一个有效 task_completed 事件（
 
 ## 实施边界与依据
 
-本设计替换旧 adventure_states 单行 JSON 方案，但当前代码和 `db/adventure/create-state.sql` 尚未修改；本次不建表、不写函数、不生成迁移、不删除或转换数据，不调整真实权限。模块无线上用户历史，不把旧版迁移作为本期前置；现有验收数据须另行明确处理，不能自动清理。
+新页面和 #54 创建／编辑命令已使用五表事务。旧 `adventure_states`、`db/adventure/create-state.sql` 及既有验收数据保留，不导入或清理。其余业务事务仍按任务逐步实现；本次仅新增五表及专用 RPC 权限，不扩大浏览器权限。
 
-参考 [PostgreSQL 约束](https://www.postgresql.org/docs/current/ddl-constraints.html)、[部分索引](https://www.postgresql.org/docs/current/indexes-partial.html)、[Supabase 数据库函数](https://supabase.com/docs/guides/database/functions) 与 [PostgREST 事务](https://docs.postgrest.org/en/stable/references/transactions.html)。只做设计与静态校对，没有连接数据库、执行 SQL、创建表／函数、迁移数据或修改权限。
+参考 [PostgreSQL 约束](https://www.postgresql.org/docs/current/ddl-constraints.html)、[部分索引](https://www.postgresql.org/docs/current/indexes-partial.html)、[Supabase 数据库函数](https://supabase.com/docs/guides/database/functions) 与 [PostgREST 事务](https://docs.postgrest.org/en/stable/references/transactions.html)。本票真实事务及权限验证见 [验收记录](qa-planning.md)。
