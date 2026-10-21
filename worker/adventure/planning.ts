@@ -4,7 +4,7 @@ import type { AuthEnv, Identity } from '../auth'
 import { readBoundedBody, BodyLimitError } from '../read-body'
 import { ApiError } from '../upstream'
 import {
-  planningEnvelopeSchema, planningPageSchema, planningReceiptSchema,
+  planningEnvelopeSchema, planningPageSchema, planningReceiptSchema, taskRangeSchema,
   planningPreviewInputSchema, planningPreviewSchema,
 } from '../../src/shared/adventure-planning'
 
@@ -16,6 +16,9 @@ const errors = {
   MAINLINE_LIMIT: [400, '最多保留 5 条在用主线'],
   NOT_FOUND: [404, '内容不存在或不属于当前账户'],
   READ_ONLY: [400, '内容已进入终态，只能查看'],
+  DATE_LOCKED: [400, '仅能完成今天的安排或取消今天的完成'],
+  TASK_NOT_PENDING: [400, '仅待完成任务可以执行此操作'],
+  COMPLETION_CHANGED: [409, '这次完成已变化，请重新读取后确认'],
   INVALID_COMMAND: [400, '输入字段或内容无效'],
   CAPACITY_REACHED: [400, '操作超出当前容量限制，未保存任何变更'],
 } as const
@@ -70,9 +73,11 @@ export async function readPlanning(c: PlanningContext) {
   const parsed = z.object({
     page: z.coerce.number().int().min(1).max(1_000_000).default(1),
     pageSize: z.coerce.number().int().min(1).max(50).default(20),
+    taskRange: taskRangeSchema.default('today'),
+    taskPage: z.coerce.number().int().min(1).max(1_000_000).default(1),
   }).strict().safeParse(c.req.query())
   if (!parsed.success) throw new ApiError('INVALID_QUERY', '分页参数无效', 400)
-  return c.json(await rpc(c, 'adventure_planning_read', { p_page: parsed.data.page, p_page_size: parsed.data.pageSize }, planningPageSchema))
+  return c.json(await rpc(c, 'adventure_workspace_read', { p_page: parsed.data.page, p_page_size: parsed.data.pageSize, p_task_range: parsed.data.taskRange, p_task_page: parsed.data.taskPage }, planningPageSchema))
 }
 
 export async function previewPlanning(c: PlanningContext) {

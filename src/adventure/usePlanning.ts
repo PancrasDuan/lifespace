@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useVerifiedIdentity } from '../auth/identity'
-import type { PlanningCommand, PlanningEnvelope, PlanningPage } from '../shared/adventure-planning'
+import type { PlanningCommand, PlanningEnvelope, PlanningPage, TaskRange } from '../shared/adventure-planning'
 import { planningApi, PlanningError } from './planning-api'
 
 export function usePlanning() {
@@ -19,26 +19,30 @@ export function usePlanning() {
   const pending = useRef<PlanningEnvelope | undefined>(undefined)
   const minimumVersion = useRef(0)
   const page = useRef(1)
+  const taskRange = useRef<TaskRange>('today')
+  const taskPage = useRef(1)
   const signal = () => AbortSignal.any([lifecycle.current.signal, identity.signal, AbortSignal.timeout(15_000)])
 
-  const refresh = useCallback(async (nextPage = page.current, requestSignal = signal()) => {
-    const result = await planningApi.load(identity.ownerId, nextPage, requestSignal)
+  const refresh = useCallback(async (nextPage = page.current, requestSignal = signal(), nextRange = taskRange.current, nextTaskPage = taskPage.current) => {
+    const result = await planningApi.load(identity.ownerId, nextPage, requestSignal, nextRange, nextTaskPage)
     requestSignal.throwIfAborted()
     if (result.version < minimumVersion.current) throw new PlanningError('数据尚未更新到已保存版本，请重新读取', 409)
     minimumVersion.current = result.version
     current.current = result
     page.current = nextPage
+    taskRange.current = nextRange
+    taskPage.current = nextTaskPage
     setData(result)
     setReadRequired(false)
   }, [identity.ownerId, identity.signal])
 
-  const load = useCallback(async (nextPage = page.current) => {
+  const load = useCallback(async (nextPage = page.current, nextRange = taskRange.current, nextTaskPage = taskPage.current) => {
     if (active.current || pending.current) return
     const epoch = lifecycle.current
     active.current = true
     setBusy(true)
     setError('')
-    try { await refresh(nextPage) }
+    try { await refresh(nextPage, signal(), nextRange, nextTaskPage) }
     catch { if (!epoch.signal.aborted && !identity.signal.aborted) { setReadRequired(true); setError('暂时无法读取人生冒险，请检查连接后重新读取。') } }
     finally { if (lifecycle.current === epoch && !epoch.signal.aborted) { active.current = false; setBusy(false) } }
   }, [refresh, identity.signal])
@@ -80,12 +84,36 @@ export function usePlanning() {
     }
   }, [identity.ownerId, identity.signal, refresh])
 
-  const command = useCallback(async (command: PlanningCommand) => {
+  const command = useCallback(async (command: PlanningCommand, expectedVersion?: number) => {
     if (active.current || pending.current || !current.current || current.current.version < minimumVersion.current) return false
-    const envelope = { requestId: crypto.randomUUID(), expectedVersion: current.current.version, command }
+    const envelope = { requestId: crypto.randomUUID(), expectedVersion: expectedVersion ?? current.current.version, command }
     pending.current = envelope
     return send(envelope)
   }, [send])
+
+  const preview = useCallback(async (command: PlanningCommand) => {
+    if (active.current || pending.current || !current.current || readRequired) return
+    const epoch = lifecycle.current
+    const requestSignal = signal()
+    active.current = true
+    setBusy(true)
+    setError('')
+    try {
+      const result = await planningApi.preview(identity.ownerId, current.current.version, command, requestSignal)
+      requestSignal.throwIfAborted()
+      if (result.version !== current.current.version) throw new PlanningError('数据已更新，请重新读取后预览', 409)
+      return result
+    } catch (failure) {
+      if (!epoch.signal.aborted && !identity.signal.aborted) {
+        setError(failure instanceof PlanningError ? failure.message : '暂时无法预览，请重试')
+        if (failure instanceof PlanningError && failure.status === 409) {
+          try { await refresh(page.current, requestSignal) } catch { setReadRequired(true) }
+        }
+      }
+    } finally {
+      if (lifecycle.current === epoch && !epoch.signal.aborted && !identity.signal.aborted) { active.current = false; setBusy(false) }
+    }
+  }, [identity.ownerId, identity.signal, readRequired, refresh])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -94,6 +122,8 @@ export function usePlanning() {
     pending.current = undefined
     minimumVersion.current = 0
     page.current = 1
+    taskRange.current = 'today'
+    taskPage.current = 1
     active.current = false
     setData(undefined)
     setError('')
@@ -104,6 +134,6 @@ export function usePlanning() {
     return () => controller.abort()
   }, [load])
 
-  return { data, busy, error, clearError, notice, clearNotice, uncertain, readRequired, command, load,
+  return { data, busy, error, clearError, notice, clearNotice, uncertain, readRequired, command, load, preview,
     retry: () => pending.current ? send(pending.current) : Promise.resolve(false) }
 }

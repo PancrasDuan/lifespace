@@ -1,6 +1,6 @@
 # 后端数据库设计
 
-状态：2026-10-20 五表及 #54 创建／编辑事务已实现；其他业务命令仍按任务依赖实施。空库初始化统一使用 `db/adventure/create-planning.sql`；不保留未上线阶段的重复升级链，本轮不操作现有数据库或验收数据。当前接口见 [主线与目标接口](planning-api.md)。
+状态：2026-10-21 五表、#54 创建／编辑及 #55 任务完成／取消事务已在本地实现；#55 现有验收库函数与索引尚未同步，其他业务命令仍按任务依赖实施。空库初始化统一使用 `db/adventure/create-planning.sql`；不保留未上线阶段的重复升级链，本轮不操作现有数据库或验收数据。当前接口见 [主线与目标接口](planning-api.md)。
 
 五表设计保留当前业务对象的独立身份和数据库关联，不为历史安排、完成、奖励和请求回执分别建表。等级、本级进度、七个成就和操作能力仍实时计算，不单独建表。完整业务规则见 [规格](spec.md) 和 [成长与奖励](growth-rewards.md)，事务与命令见 [后端业务逻辑](backend-business-logic.md)。
 
@@ -435,6 +435,6 @@ reward_task 的 reward_task_id 必须对应一个有效 task_completed 事件（
 
 ## 实施边界与依据
 
-新页面和 #54 创建／编辑命令已使用五表事务。现有验收数据不导入或清理，不重建已由用户删除的旧 `adventure_states` 表。其余业务事务仍按任务逐步实现；本次仅新增五表及专用 RPC 权限，不扩大浏览器权限。
+新页面、#54 创建／编辑和 #55 任务命令已使用五表事务；有效任务完成及任务奖励各有同 owner／task 的部分唯一索引，不重复计奖。现有验收数据不导入或清理，不重建已由用户删除的旧 `adventure_states` 表。其余业务事务仍按任务逐步实现；本次仅新增五表及专用 RPC 权限，不扩大浏览器权限。
 
 参考 [PostgreSQL 约束](https://www.postgresql.org/docs/current/ddl-constraints.html)、[部分索引](https://www.postgresql.org/docs/current/indexes-partial.html)、[Supabase 数据库函数](https://supabase.com/docs/guides/database/functions) 与 [PostgREST 事务](https://docs.postgrest.org/en/stable/references/transactions.html)。本票真实事务及权限验证见 [验收记录](qa-planning.md)。

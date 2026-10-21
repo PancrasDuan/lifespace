@@ -1,6 +1,6 @@
 # 02：执行一次性任务并实时入账与取消
 
-状态：2026-10-20 已发布至 Issue #55，正文和原生阻塞关系已回读核验。ready-for-agent；前置未完成时不领取，当前实现仍待按本版重新验证。
+状态：2026-10-21 本地实现及隔离真实 PostgreSQL／PostgREST 验收已完成，见 [本票验收](../qa-actions.md)。现有 Supabase 验收库尚未同步函数；用户账户验收、发布和 Issue 关闭仍按交付门禁执行。
 
 Issue：https://github.com/PancrasDuan/lifespace/issues/55
 

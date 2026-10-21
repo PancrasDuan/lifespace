@@ -1,15 +1,16 @@
 import type { BrowserContext } from '@playwright/test'
-import type { PlanningEnvelope, PlanningPage } from '../../src/shared/adventure-planning'
+import type { PlanningEnvelope, PlanningPage, PlanningPreview } from '../../src/shared/adventure-planning'
 
 export const mainlineId = '00000000-0000-4000-8000-000000000054'
 export const goalId = '00000000-0000-4000-8000-000000000055'
 export const allowed = { allowed: true }
 export const later = { allowed: false, reason: '此操作尚未交付' }
 export const emptyPlanning: PlanningPage = {
+  tasks: [], totalTasks: 0, taskPage: 1, taskRange: 'today',
   version: 0, today: '2026-10-20', mainlines: [], goals: [],
   destinations: [],
   page: 1, pageSize: 20, totalGoals: 0,
-  growth: { level: 1, totalXp: 0, progress: 0, needed: 20, remaining: 20, actions: 0, achievedGoals: 0 },
+  growth: { level: 1, totalXp: 0, progress: 0, needed: 20, remaining: 20, actions: 0, achievedGoals: 0, achievements: [] },
   capabilities: { createMainline: allowed, createGoal: allowed, createTask: later, growth: later },
   limits: { name: 200, standard: 4000, standards: 50 },
 }
@@ -35,6 +36,8 @@ export async function planningFixture(context: BrowserContext, initial = emptyPl
   let queryDelay = 0
   let commandDelay = 0
   const envelopes: PlanningEnvelope[] = []
+  const previews: unknown[] = []
+  let previewResult: PlanningPreview | undefined
   await context.route('**/api/adventure**', async route => {
     if (route.request().method() === 'GET') {
       const delay = queryDelay
@@ -45,6 +48,11 @@ export async function planningFixture(context: BrowserContext, initial = emptyPl
         return route.fulfill({ status: 503, json: { error: { message: '读取失败' } } })
       }
       return route.fulfill({ json: stale ? initial : page })
+    }
+    if (new URL(route.request().url()).pathname.endsWith('/preview')) {
+      previews.push(route.request().postDataJSON())
+      if (!previewResult) throw new Error('必须显式配置预览结果')
+      return route.fulfill({ json: previewResult })
     }
     envelopes.push(route.request().postDataJSON())
     const delay = commandDelay
@@ -62,7 +70,8 @@ export async function planningFixture(context: BrowserContext, initial = emptyPl
     return route.fulfill({ json: { version: saved.version, result: { entityId: mainlineId, message: '已保存' } } })
   })
   return {
-    envelopes,
+    envelopes, previews,
+    preview(value: PlanningPreview) { previewResult = structuredClone(value) },
     saved(value: PlanningPage) { saved = structuredClone(value) },
     show(value: PlanningPage) { page = structuredClone(value) },
     failNextQuery() { queryFailures++ },

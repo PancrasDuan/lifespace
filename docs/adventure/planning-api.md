@@ -1,12 +1,12 @@
-# 主线与目标接口
+# 规划与一次性任务接口
 
-适用 Issue #54。页面读取和四种创建／编辑操作使用五表事务；账户、规划日期、版本、能力和成长由后端返回。浏览器不能直接调用表或 RPC。
+适用 Issue #54、#55；实现与本机隔离验收已完成，现有 Supabase 验收库尚未同步 #55 函数。页面读取、创建／编辑与任务完成／取消使用五表事务；账户、规划日期、版本、能力和成长由后端返回。浏览器不能直接调用表或 RPC。
 
 ## 页面查询
 
-`GET /api/adventure?page=1&pageSize=20`
+`GET /api/adventure?page=1&pageSize=20&taskRange=today&taskPage=1`
 
-参数仅允许 `page`（1–1,000,000）和 `pageSize`（1–50，默认 20）。首次查询安全初始化账户，不预建独立区，不导入旧单表或演示数据，不触发结算。
+参数仅允许目标页 `page`（1–1,000,000）、共享页容量 `pageSize`（1–50，默认 20）、任务日期范围 `taskRange`（today／future／past，默认 today）和任务页 `taskPage`（1–1,000,000，默认 1）。首次查询安全初始化账户，不预建独立区，不导入旧单表或演示数据，不触发结算。
 
 响应由 `src/shared/adventure-planning.ts` 定义：
 
@@ -15,10 +15,11 @@
 - `goals`：本页进行中真实目标，包含名称、`standards` 标准数组、归属、创建时间及操作能力；不返回 inbox。
 - `page`、`pageSize`、`totalGoals`：当前页及全量目标总数；列表为空不代表总数为零。
 - `destinations`：可用普通主线 ID；归属留空即默认独立目标，不显示独立身份选项。
-- `growth`：总经验、等级、本级进度、升级所需经验、有效行动数和达成目标数。
+- `tasks`、`totalTasks`、`taskPage`、`taskRange`：当前范围和页的任务、全量总数；每项含名称、说明、执行日、状态、真实目标或独立身份、当前具体完成事件 ID、服务端逾期标记及操作能力。
+- `growth`：总经验、等级、本级进度、升级所需经验、有效行动数、达成目标数，以及七个实时成就的当前计数和点亮结果。
 - `capabilities`、`limits`：页面能力、禁用原因及输入限额。当前未交付操作返回 `allowed=false` 和原因。
 
-主线按创建时间及 ID 排序；本票目标按保存的 `sort_order`、ID 排序。聚焦和手动排序操作不在本票开放。
+内部使用 `adventure_workspace_read`，持有与基础规划读取相同的账户共享锁；以锁后一次日期统一任务范围、逾期及能力，成长由单一 SQL 函数计算。任务按执行日、创建时间及 ID 排序；主线按创建时间及 ID 排序；目标按保存的 `sort_order`、ID 排序。聚焦和手动排序操作不在本票开放。
 
 ## 操作预览
 
@@ -31,7 +32,7 @@
 }
 ```
 
-预览校验输入、当前版本、归属和配额，返回 `version`、`today`、`allowed=true`、`requiresConfirmation=false` 及说明。不初始化账户、不写业务行或回执、不推进版本。失败返回与命令相同的业务错误；提交仍重新校验。
+预览校验输入、当前版本、归属和配额，返回 `version`、`today`、`allowed=true`、`requiresConfirmation=false` 及说明。不初始化账户、不写业务行或回执、不推进版本。取消任务完成时 `requiresConfirmation=true`，同时返回具体 `completionId`、`growthBefore`、`growthAfter`；两者含经验、等级、行动数和七个成就结果。确认命令使用此预览版本；409 后重读并重新预览，不静默换用新版本。失败返回与命令相同的业务错误；提交仍重新校验。
 
 ## 业务命令
 
@@ -51,10 +52,16 @@
 | `renameMainline` | `id`、`name` |
 | `createGoal` | `destination`（空字符串默认独立目标，或普通主线 UUID）、`title`、`standards` |
 | `editGoal` | `id`、`destination`（规则同上）、`title`、`standards` |
+| `createTask` | `title`、`description`（可空）、`plannedOn`（有效 YYYY-MM-DD）、`destination`（必须明确为 independent 或真实目标 UUID） |
+| `editTask` | `id`、`title`、`description`（可空）；只编辑待完成任务的名称与说明 |
+| `completeTask` | `id`；只允许服务端上海当天的待完成安排 |
+| `cancelTaskCompletion` | `completionId`；定位具体完成事件，不接受仅凭任务 ID 取消 |
 
 名称去除首尾空白后必填，最多 200 个 UTF-16 码元。完成标准为 1–50 项数组；空白项由前端在提交前排除；后端接收最多 50 项并同样过滤空白项，过滤后至少保留一项，每项去除首尾空白后最多 4,000 个 UTF-16 码元。`id` 必须为 UUID；`requestId` 为 8–128 位英文、数字、下划线或连字符。版本必须为非负 JavaScript 安全整数。封套和命令均拒绝额外字段，不接受客户端 owner、日期、经验、事件或整包状态。
 
 前端目标归属默认显示“默认独立目标”，提交空字符串；后端负责创建或复用唯一独立主线及 inbox，再写入真实目标。普通主线 ID 必须属于当前账户且在用。编辑目标可清空归属转为独立目标；不能把真实目标直接指向 inbox。
+
+任务说明最多 4,000 个 UTF-16 码元。`plannedOn` 是用户安排的执行日期；权威当天、完成时间、经验和状态均由后端确定。过去／未来安排可查询，但不得补写或提前完成；过去尚未完成仍是待完成。独立任务由后端复用 inbox，不展示为真实目标。
 
 成功仅返回稳定回执：
 
@@ -64,6 +71,8 @@
   "result": {"entityId": "00000000-0000-4000-8000-000000000054", "message": "已创建"}
 }
 ```
+
+任务命令的 `result` 另含 `growthChange`：服务端经验变化、成长前后结果及点亮／不再点亮的成就名称；提示文案由后端返回。完成同时写 task_completed 与 1 点 reward_task；取消保留旧记录并将完成／奖励一起逻辑失效。取消后再完成生成新事件，旧成功请求仍返回原回执，不影响新事件。当前及完成发生时上级终态、过去完成均锁定取消。
 
 同一账户按账户行锁串行写入。数据库规范化 JSONB 并计算命令摘要；相同 requestId 和命令返回原回执，即使当前账户已有更新，也不重做操作。同 key 异命令拒绝。实体、事件、版本和成功回执同事务提交，任何中途失败全部回滚。
 
@@ -77,10 +86,10 @@
 
 | HTTP | code |
 |---|---|
-| 400 | `INVALID_QUERY`、`INVALID_COMMAND`、`COMMAND_TOO_LARGE`、`MAINLINE_LIMIT`、`READ_ONLY`、`CAPACITY_REACHED` |
+| 400 | `INVALID_QUERY`、`INVALID_COMMAND`、`COMMAND_TOO_LARGE`、`MAINLINE_LIMIT`、`READ_ONLY`、`DATE_LOCKED`、`TASK_NOT_PENDING`、`CAPACITY_REACHED` |
 | 401／403 | 现有 `AUTH_*` 身份和准入错误 |
 | 404 | `NOT_FOUND`；不区分他人内容与不存在 |
-| 409 | `VERSION_CONFLICT`、`REQUEST_ID_REUSED` |
+| 409 | `VERSION_CONFLICT`、`REQUEST_ID_REUSED`、`COMPLETION_CHANGED` |
 | 503 | `ADVENTURE_UNAVAILABLE`；不返回数据库原文、上下文或凭据 |
 
 命令／预览请求体最多 32 KiB，读取请求体最多等待 5 秒；内部 RPC 响应读取上限 1 MiB，数据库页面序列化预算 1,000,000 字节。超限拒绝，不裁剪历史或回执。数据库账户锁最多等待 3 秒；Worker 上游请求及响应体读取各设 10 秒上限，页面操作总等待最多 15 秒。超时后的命令按结果未知处理。
