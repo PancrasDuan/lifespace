@@ -1,5 +1,5 @@
 import { useCallback, useState, type FormEvent, type KeyboardEvent } from 'react'
-import { Flag, Map, Plus, RotateCw, Sprout, Star, Trash2 } from 'lucide-react'
+import { Flag, Map, Plus, Sprout, Star, Trash2 } from 'lucide-react'
 import { AppLayout } from '../app/AppLayout'
 import { useVerifiedIdentity } from '../auth/identity'
 import type { PlanningCommand, PlanningGoal, PlanningPage } from '../shared/adventure-planning'
@@ -87,7 +87,6 @@ function Workspace() {
     <header className="adventure-heading">
       <div><span className="adventure-kicker">LIFESPACE / YOUR NEXT STEP</span><h1>人生冒险</h1><p>把想做的事，慢慢变成现实。</p></div>
       <div className="adventure-heading-actions">
-        <button aria-label="刷新规划" disabled={busy || uncertain} onClick={() => { void model.load() }}><RotateCw size={16} /></button>
         <button className="adventure-primary" disabled={!data || blocked} onClick={() => setDialog({ kind: 'new' })}><Plus size={17} />新建</button>
       </div>
     </header>

@@ -88,6 +88,7 @@ test('目标卡片整体进入详情，外层没有操作按钮；新建入口�
   await expect(page.getByRole('dialog', { name: '目标详情' })).toBeVisible()
   await page.keyboard.press('Escape')
   await expect(page.getByRole('button', { name: '新建', exact: true })).toHaveCount(1)
+  await expect(page.getByRole('button', { name: '刷新规划' })).toHaveCount(0)
   await expect(page.getByRole('button', { name: '创建主线', exact: true })).toHaveCount(0)
   await expect(page.getByRole('button', { name: '创建目标', exact: true })).toHaveCount(0)
   await expect(page.getByRole('button', { name: '添加任务', exact: true })).toHaveCount(0)
