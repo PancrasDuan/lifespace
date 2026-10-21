@@ -30,7 +30,7 @@ create table public.adventure_goals (
   mainline_id uuid not null,
   kind text not null default 'real' check (kind in ('real','inbox')),
   title varchar(200) not null check (length(btrim(title)) > 0),
-  standard text not null check (length(btrim(standard)) between 1 and 4000),
+  standards jsonb not null check (jsonb_typeof(standards) = 'array' and jsonb_array_length(standards) between 1 and 50),
   status text not null default 'active' check (status in ('active','achieved','ended')),
   focused boolean not null default false,
   sort_order bigint not null default 0 check (sort_order between 0 and 9007199254740991),
@@ -168,8 +168,8 @@ begin
   case v_type
     when 'createMainline' then v_keys := array['type','name'];
     when 'renameMainline' then v_keys := array['type','id','name'];
-    when 'createGoal' then v_keys := array['type','destination','title','standard'];
-    when 'editGoal' then v_keys := array['type','id','title','standard'];
+    when 'createGoal' then v_keys := array['type','destination','title','standards'];
+    when 'editGoal' then v_keys := array['type','id','destination','title','standards'];
     else raise exception 'INVALID_COMMAND';
   end case;
   if p_command - v_keys <> '{}'::jsonb or not (p_command ?& v_keys)
@@ -180,8 +180,12 @@ begin
   else
     if jsonb_typeof(p_command->'title') is distinct from 'string'
       or length(btrim(p_command->>'title')) not between 1 and 200
-      or jsonb_typeof(p_command->'standard') is distinct from 'string'
-      or length(btrim(p_command->>'standard')) not between 1 and 4000 then raise exception 'INVALID_COMMAND'; end if;
+      or jsonb_typeof(p_command->'standards') is distinct from 'array'
+      or jsonb_array_length(p_command->'standards') not between 1 and 50
+      or exists(select 1 from jsonb_array_elements(p_command->'standards') item
+        where jsonb_typeof(item) is distinct from 'string'
+          or length(btrim(item #>> '{}')) not between 1 and 4000)
+      then raise exception 'INVALID_COMMAND'; end if;
   end if;
   if v_type = 'createMainline' and
     (select count(*) from public.adventure_mainlines where owner_id = p_owner and kind = 'normal' and status = 'active') >= 5
@@ -201,11 +205,18 @@ begin
   end if;
   if v_type = 'createGoal' then
     if jsonb_typeof(p_command->'destination') is distinct from 'string' then raise exception 'INVALID_COMMAND'; end if;
-    if p_command->>'destination' <> 'independent' then
+    if coalesce(p_command->>'destination','') <> '' and p_command->>'destination' <> 'independent' then
       select * into v_main from public.adventure_mainlines where owner_id = p_owner and id = (p_command->>'destination')::uuid and kind = 'normal';
       if not found then raise exception 'NOT_FOUND'; end if;
       if v_main.status <> 'active' then raise exception 'READ_ONLY'; end if;
     end if;
+  end if;
+  if v_type = 'editGoal' and coalesce(p_command->>'destination','') <> ''
+    and p_command->>'destination' <> 'independent' then
+    select * into v_main from public.adventure_mainlines where owner_id = p_owner
+      and id = (p_command->>'destination')::uuid and kind = 'normal';
+    if not found then raise exception 'NOT_FOUND'; end if;
+    if v_main.status <> 'active' then raise exception 'READ_ONLY'; end if;
   end if;
   return jsonb_build_object('allowed',true);
 exception when invalid_text_representation then raise exception 'INVALID_COMMAND';
@@ -239,7 +250,7 @@ begin
       'capabilities',jsonb_build_object('rename',v_edit,'end',v_later)) order by created_at,id)
       from public.adventure_mainlines where owner_id = p_owner and kind = 'normal' and status = 'active'),'[]'),
     'goals',coalesce((select jsonb_agg(item order by sort_order,id) from (
-      select g.id,g.sort_order,jsonb_build_object('id',g.id,'title',g.title,'standard',g.standard,
+      select g.id,g.sort_order,jsonb_build_object('id',g.id,'title',g.title,'standards',g.standards,
         'mainlineId',m.id,'mainlineName',m.name,'independent',m.kind = 'independent','createdAt',g.created_at,
         'capabilities',jsonb_build_object('edit',v_edit,'focus',v_later,'reorder',v_later,'migrate',v_later,
           'achieve',v_later,'end',v_later,'createTask',v_later)) item
@@ -258,7 +269,7 @@ begin
       'createMainline',case when (select count(*) from public.adventure_mainlines where owner_id = p_owner and kind = 'normal' and status = 'active') < 5
         then v_edit else '{"allowed":false,"reason":"最多保留 5 条在用主线"}'::jsonb end,
       'createGoal',v_edit,'createTask',v_later,'growth',v_later,'focus',v_later,'progress',v_later),
-    'limits',jsonb_build_object('name',200,'standard',4000)
+    'limits',jsonb_build_object('name',200,'standard',4000,'standards',50)
   ) into v_result;
   if octet_length(v_result::text) > 1000000 then raise exception 'CAPACITY_REACHED'; end if;
   return v_result;
@@ -332,23 +343,41 @@ begin
         if not found then
           insert into public.adventure_mainlines(owner_id,kind,name,created_at,updated_at)
             values(p_owner,'independent','独立区',v_now,v_now) returning * into v_main;
-          insert into public.adventure_goals(owner_id,mainline_id,kind,title,standard,created_at,updated_at)
-            values(p_owner,v_main.id,'inbox','独立任务','系统收纳目标，仅承接独立任务。',v_now,v_now);
+          insert into public.adventure_goals(owner_id,mainline_id,kind,title,standards,created_at,updated_at)
+            values(p_owner,v_main.id,'inbox','独立任务','["系统收纳目标，仅承接独立任务。"]'::jsonb,v_now,v_now);
         end if;
       else
-        select * into strict v_main from public.adventure_mainlines where owner_id = p_owner and id = (p_command->>'destination')::uuid;
+        select * into strict v_main from public.adventure_mainlines where owner_id = p_owner
+          and id = case when coalesce(p_command->>'destination','') = '' then
+            (select id from public.adventure_mainlines where owner_id = p_owner and kind = 'independent')
+            else (p_command->>'destination')::uuid end;
+      end if;
+      if v_main.kind = 'independent' and not exists(
+        select 1 from public.adventure_goals where owner_id = p_owner and mainline_id = v_main.id and kind = 'inbox'
+      ) then
+        insert into public.adventure_goals(owner_id,mainline_id,kind,title,standards,created_at,updated_at)
+          values(p_owner,v_main.id,'inbox','独立任务','["系统收纳目标，仅承接独立任务。"]'::jsonb,v_now,v_now);
       end if;
       select coalesce(max(sort_order),-1)+1 into v_order from public.adventure_goals
         where owner_id = p_owner and mainline_id = v_main.id and kind = 'real';
       if v_order > 9007199254740991 then raise exception 'CAPACITY_REACHED'; end if;
-      insert into public.adventure_goals(owner_id,mainline_id,title,standard,sort_order,created_at,updated_at)
-        values(p_owner,v_main.id,btrim(p_command->>'title'),btrim(p_command->>'standard'),v_order,v_now,v_now) returning * into v_goal;
+      insert into public.adventure_goals(owner_id,mainline_id,title,standards,sort_order,created_at,updated_at)
+        values(p_owner,v_main.id,btrim(p_command->>'title'),p_command->'standards',v_order,v_now,v_now) returning * into v_goal;
       v_entity := v_goal.id; v_main_id := v_main.id; v_goal_id := v_goal.id; v_kind := 'goal_created';
       v_after := to_jsonb(v_goal) - 'owner_id';
     when 'editGoal' then
       select * into strict v_goal from public.adventure_goals where owner_id = p_owner and id = (p_command->>'id')::uuid;
       v_before := to_jsonb(v_goal) - 'owner_id';
-      update public.adventure_goals set title = btrim(p_command->>'title'), standard = btrim(p_command->>'standard'), updated_at = v_now
+      if p_command->>'destination' <> 'independent' then
+        select * into strict v_main from public.adventure_mainlines where owner_id = p_owner
+          and id = case when coalesce(p_command->>'destination','') = '' then
+            (select id from public.adventure_mainlines where owner_id = p_owner and kind = 'independent')
+            else (p_command->>'destination')::uuid end;
+      else
+        select * into strict v_main from public.adventure_mainlines where owner_id = p_owner and id = v_goal.mainline_id;
+      end if;
+      update public.adventure_goals set title = btrim(p_command->>'title'), standards = p_command->'standards',
+        mainline_id = v_main.id, updated_at = v_now
         where owner_id = p_owner and id = v_goal.id returning * into v_goal;
       v_entity := v_goal.id; v_main_id := v_goal.mainline_id; v_goal_id := v_goal.id; v_kind := 'goal_updated';
       v_after := to_jsonb(v_goal) - 'owner_id';

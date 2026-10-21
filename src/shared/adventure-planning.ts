@@ -2,12 +2,14 @@ import { z } from 'zod'
 
 const version = z.number().int().nonnegative().safe()
 const name = z.string().trim().min(1).max(200)
-const standard = z.string().trim().min(1).max(4000)
+const standards = z.array(z.string().trim().max(4000)).min(1).max(50)
+  .transform(values => values.filter(Boolean))
+  .pipe(z.array(z.string().min(1)).min(1).max(50))
 export const planningCommandSchema = z.discriminatedUnion('type', [
   z.strictObject({ type: z.literal('createMainline'), name }),
   z.strictObject({ type: z.literal('renameMainline'), id: z.uuid(), name }),
-  z.strictObject({ type: z.literal('createGoal'), destination: z.union([z.literal('independent'), z.uuid()]), title: name, standard }),
-  z.strictObject({ type: z.literal('editGoal'), id: z.uuid(), title: name, standard }),
+  z.strictObject({ type: z.literal('createGoal'), destination: z.union([z.literal(''), z.literal('independent'), z.uuid()]), title: name, standards }),
+  z.strictObject({ type: z.literal('editGoal'), id: z.uuid(), destination: z.union([z.literal(''), z.literal('independent'), z.uuid()]), title: name, standards }),
 ])
 export type PlanningCommand = z.infer<typeof planningCommandSchema>
 export const planningEnvelopeSchema = z.strictObject({
@@ -29,7 +31,7 @@ export const planningPageSchema = z.object({
     id: z.uuid(), name: z.string(), capabilities,
   })).max(5),
   goals: z.array(z.object({
-    id: z.uuid(), title: z.string(), standard: z.string(),
+    id: z.uuid(), title: z.string(), standards: z.array(z.string()).min(1).max(50),
     mainlineId: z.uuid(), mainlineName: z.string(), independent: z.boolean(),
     createdAt: z.string(), capabilities,
   })).max(50),
@@ -39,7 +41,7 @@ export const planningPageSchema = z.object({
     needed: version, remaining: version, actions: version, achievedGoals: version,
   }),
   capabilities,
-  limits: z.object({ name: z.literal(200), standard: z.literal(4000) }),
+  limits: z.object({ name: z.literal(200), standard: z.literal(4000), standards: z.literal(50) }),
 })
 export type PlanningPage = z.infer<typeof planningPageSchema>
 export type PlanningGoal = PlanningPage['goals'][number]

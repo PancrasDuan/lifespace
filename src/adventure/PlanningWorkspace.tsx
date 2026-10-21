@@ -1,10 +1,11 @@
-import { useCallback, useState, type FormEvent } from 'react'
-import { Flag, Map, Plus, RotateCw, Sprout, Star } from 'lucide-react'
+import { useCallback, useState, type FormEvent, type KeyboardEvent } from 'react'
+import { Flag, Map, Plus, RotateCw, Sprout, Star, Trash2 } from 'lucide-react'
 import { AppLayout } from '../app/AppLayout'
 import { useVerifiedIdentity } from '../auth/identity'
 import type { PlanningCommand, PlanningGoal, PlanningPage } from '../shared/adventure-planning'
 import { Modal } from './ui'
 import { usePlanning } from './usePlanning'
+import { PlanningToast } from './PlanningToast'
 import explorer from './pixel-explorer.png'
 import './adventure.css'
 import './planning.css'
@@ -18,14 +19,28 @@ function PlanningForm({ dialog, data, action, busy, close }: {
 }) {
   const goal = dialog.kind === 'goal' ? dialog.goal : undefined
   const [name, setName] = useState(dialog.kind === 'mainline' ? dialog.name ?? '' : goal?.title ?? '')
-  const [standard, setStandard] = useState(goal?.standard ?? '')
-  const [destination, setDestination] = useState('')
+  const [standards, setStandards] = useState(goal?.standards.length ? goal.standards : [''])
+  const [destination, setDestination] = useState(goal?.independent ? '' : goal?.mainlineId ?? '')
+  const filled = standards.map(value => value.trim()).filter(Boolean)
+  const addStandard = (after: number) => setStandards(current => {
+    if (current.length >= data.limits.standards) return current
+    const next = [...current]
+    next.splice(after + 1, 0, '')
+    return next
+  })
+  const removeStandard = (index: number) => setStandards(current => current.length === 1 ? [''] : current.filter((_, i) => i !== index))
+  const standardKey = (event: KeyboardEvent<HTMLInputElement>, index: number) => {
+    if (event.key === 'Enter' && !event.nativeEvent.isComposing) {
+      event.preventDefault()
+      addStandard(index)
+    }
+  }
   const submit = async (event: FormEvent) => {
     event.preventDefault()
     const command: PlanningCommand = dialog.kind === 'mainline'
       ? dialog.id ? { type: 'renameMainline', id: dialog.id, name } : { type: 'createMainline', name }
-      : goal ? { type: 'editGoal', id: goal.id, title: name, standard }
-        : { type: 'createGoal', title: name, standard, destination }
+      : goal ? { type: 'editGoal', id: goal.id, title: name, destination, standards: filled }
+        : { type: 'createGoal', title: name, destination, standards: filled }
     if (await action(command)) close()
   }
   return <form onSubmit={event => { void submit(event) }}>
@@ -34,16 +49,24 @@ function PlanningForm({ dialog, data, action, busy, close }: {
         <input required autoComplete="off" maxLength={data.limits.name} value={name} onChange={event => setName(event.target.value)} />
       </label>
       {dialog.kind === 'goal' && <>
-        <label>完成标准<textarea required rows={4} maxLength={data.limits.standard} value={standard} onChange={event => setStandard(event.target.value)} /></label>
-        {goal ? <p className="adventure-hint">当前归属：{goal.independent ? '独立目标' : goal.mainlineName}</p> :
-          <label>目标归属<select required value={destination} onChange={event => setDestination(event.target.value)}>
-            <option value="" disabled>请选择归属</option>
-            {data.destinations.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
-          </select></label>}
+        <fieldset className="planning-standards"><legend>完成标准</legend>
+          {standards.map((value, index) => <div className="planning-standard-row" key={index}>
+            <input required aria-label={`完成标准 ${index + 1}`} autoComplete="off" maxLength={data.limits.standard}
+              value={value} onChange={event => setStandards(current => current.map((item, i) => i === index ? event.target.value : item))}
+              onKeyDown={event => standardKey(event, index)} />
+            <button type="button" aria-label={`在完成标准 ${index + 1} 后添加`} disabled={standards.length >= data.limits.standards} onClick={() => addStandard(index)}><Plus size={17} /></button>
+            <button type="button" aria-label={`删除完成标准 ${index + 1}`} onClick={() => removeStandard(index)}><Trash2 size={16} /></button>
+          </div>)}
+          {filled.length === 0 && <small className="planning-field-hint">至少填写一项非空标准</small>}
+        </fieldset>
+        <label>目标归属<select value={goal?.independent ? '' : destination} onChange={event => setDestination(event.target.value)}>
+          <option value="">默认独立目标</option>
+          {data.destinations.filter(item => item.id !== 'independent').map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
+        </select></label>
       </>}
       <div className="adventure-form-footer">
         <button type="button" onClick={close}>取消</button>
-        <button className="adventure-primary" type="submit">{busy ? '正在保存…' : dialog.kind === 'mainline' ? dialog.id ? '保存名称' : '创建主线' : goal ? '保存目标' : '创建目标'}</button>
+        <button className="adventure-primary" type="submit" disabled={busy || (dialog.kind === 'goal' && filled.length === 0)}>{busy ? '正在保存…' : dialog.kind === 'mainline' ? dialog.id ? '保存名称' : '创建主线' : goal ? '保存目标' : '创建目标'}</button>
       </div>
     </fieldset>
   </form>
@@ -76,7 +99,7 @@ function Workspace() {
     {model.error && <div className="adventure-error" role="alert"><p>{model.error}</p>
       <button disabled={busy} onClick={() => { void (uncertain ? model.retry() : model.load()) }}>{uncertain ? '安全重试同一次操作' : '重新读取'}</button>
     </div>}
-    {model.notice && <p className="adventure-notice" role="status">{model.notice}</p>}
+    {model.notice && <PlanningToast key={model.notice.id} message={model.notice.message} close={model.clearNotice} />}
     {!data && !model.error && <p role="status" className="adventure-empty">正在读取你的冒险…</p>}
     {data && <div className="planning-workbench">
       <div className="planning-main">
@@ -85,8 +108,7 @@ function Workspace() {
           <div className="planning-landscape"><img src={explorer} alt="背着行囊的像素冒险者" /></div>
         </section>}
         <section className="planning-section">
-          <header><h2><Map size={19} />我的主线</h2><button disabled={blocked || !data.capabilities.createMainline?.allowed} title={data.capabilities.createMainline?.reason}
-            onClick={() => setDialog({ kind: 'mainline' })}>创建主线</button></header>
+          <header><h2><Map size={19} />我的主线</h2></header>
           {data.mainlines.length === 0 ? <p className="adventure-empty">还没有主线。为长期经营的方向起一个名字。</p> :
             <div className="planning-mainlines">{data.mainlines.map(mainline => <article key={mainline.id} aria-label={`主线：${mainline.name}`}>
               <Flag size={18} /><h3>{mainline.name}</h3><span className="planning-active">在用</span>
@@ -96,20 +118,21 @@ function Workspace() {
           {!data.capabilities.createMainline?.allowed && <p className="adventure-hint">{data.capabilities.createMainline?.reason}</p>}
         </section>
         <section className="planning-section">
-          <header><div><h2><Sprout size={20} />正在生长的目标</h2><p className="adventure-hint">以完成标准定义成果，每个目标都可以从零开始。</p></div>
-            <button disabled={blocked || !data.capabilities.createGoal?.allowed} onClick={() => setDialog({ kind: 'goal' })}>创建目标</button></header>
+          <header><div><h2><Sprout size={20} />正在生长的目标</h2><p className="adventure-hint">以完成标准定义成果，每个目标都可以从零开始。</p></div></header>
           {goals?.length === 0 ? <p className="adventure-empty">{data.totalGoals ? '本页没有目标，请返回上一页。' : '还没有目标。创建独立目标，或选择一条主线。'}</p> :
-            <div className="planning-goals">{goals?.map(goal => <article className="planning-goal" key={goal.id} aria-label={`目标：${goal.title}`}>
+            <div className="planning-goals">{goals?.map(goal => <article className="planning-goal" key={goal.id} role="button" tabIndex={0}
+              aria-label={`目标：${goal.title}`} onClick={() => setDialog({ kind: 'detail', goal })}
+              onKeyDown={event => { if ((event.key === 'Enter' || event.key === ' ') && !event.nativeEvent.isComposing) { event.preventDefault(); setDialog({ kind: 'detail', goal }) } }}>
               <span className="planning-destination">{goal.independent ? '独立目标' : goal.mainlineName}</span>
-              <button className="planning-goal-title" onClick={() => setDialog({ kind: 'detail', goal })}>{goal.title}</button>
-              <p>{goal.standard}</p><footer><span>进行中</span><button disabled={blocked || !goal.capabilities.edit?.allowed} onClick={() => setDialog({ kind: 'goal', goal })}>编辑目标</button></footer>
+              <h3>{goal.title}</h3><ul>{goal.standards.map((standard, index) => <li key={index}>{standard}</li>)}</ul>
+              <footer><span>进行中</span><span aria-hidden="true">查看详情 ›</span></footer>
             </article>)}</div>}
           <footer className="planning-pagination"><small>共 {data.totalGoals} 个目标 · 第 {data.page} 页</small><div>
             <button disabled={blocked || data.page <= 1} onClick={() => { void model.load(data.page - 1) }}>上一页</button>
             <button disabled={blocked || data.page * data.pageSize >= data.totalGoals} onClick={() => { void model.load(data.page + 1) }}>下一页</button>
           </div></footer>
         </section>
-        <section className="planning-section planning-locked"><header><h2>一次性任务</h2><button disabled title={data.capabilities.createTask?.reason}>添加任务</button></header><p className="adventure-hint">{data.capabilities.createTask?.reason}</p></section>
+        <section className="planning-section planning-locked"><header><h2>一次性任务</h2></header><p className="adventure-hint">{data.capabilities.createTask?.reason}</p></section>
       </div>
       <aside className="planning-sidebar">
         <section className="planning-section"><h2>每一步，都算数</h2><div className="planning-level"><strong>Lv.{data.growth.level}</strong><p>正在成为更好的自己<br /><small>距下一级 {data.growth.remaining} 点经验</small></p></div>
@@ -128,7 +151,7 @@ function Workspace() {
         <button disabled title={data.capabilities.createTask?.reason}><Plus size={20} /><strong>一次性任务</strong><small>{data.capabilities.createTask?.reason}</small></button>
       </div> : dialog.kind === 'detail' ? detailGoal ? <div className="planning-detail">
         <span className="planning-destination">{detailGoal.independent ? '独立目标' : detailGoal.mainlineName}</span><h3>{detailGoal.title}</h3>
-        <h4>完成标准</h4><p>{detailGoal.standard}</p><p className="adventure-hint">创建时间：{new Date(detailGoal.createdAt).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })}</p>
+        <h4>完成标准</h4><ul>{detailGoal.standards.map((standard, index) => <li key={index}>{standard}</li>)}</ul><p className="adventure-hint">创建时间：{new Date(detailGoal.createdAt).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })}</p>
         <div className="adventure-inline">
           <button disabled={blocked || !detailGoal.capabilities.edit?.allowed} onClick={() => setDialog({ kind: 'goal', goal: detailGoal })}>编辑目标</button>
           {(['focus', 'migrate', 'achieve', 'end'] as const).map((operation, i) => <button key={operation} disabled title={detailGoal.capabilities[operation]?.reason}>{['聚焦', '迁移', '确认达成', '结束'][i]}</button>)}

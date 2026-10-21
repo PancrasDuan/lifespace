@@ -25,7 +25,7 @@ it('页面查询通过账户隔离 RPC 返回空规划，不调用旧单表或�
       page: 1, pageSize: 20, totalGoals: 0,
       growth: { level: 1, totalXp: 0, progress: 0, needed: 20, remaining: 20, actions: 0, achievedGoals: 0 },
       capabilities: { createMainline: { allowed: true }, createGoal: { allowed: true }, createTask: { allowed: false, reason: '此操作尚未交付' } },
-      limits: { name: 200, standard: 4000 },
+      limits: { name: 200, standard: 4000, standards: 50 },
     })
   })
   const response = await app.request('/api/adventure', { headers }, env)
@@ -62,14 +62,32 @@ it('严格拒绝客户端身份、日期、经验、额外字段和本票未交�
     { ...base, owner }, { ...base, today: '2030-01-01' }, { ...base, state: {} },
     { ...base, command: { ...base.command, xp: 500 } },
     { ...base, command: { type: 'refresh' } },
-    { ...base, command: { type: 'createGoal', title: '目标', standard: '标准' } },
+    { ...base, command: { type: 'createGoal', title: '目标', standards: ['标准'] } },
     { ...base, command: { type: 'createMainline', name: '   ' } },
     { ...base, command: { type: 'createMainline', name: '字'.repeat(201) } },
-    { ...base, command: { type: 'createGoal', destination: 'independent', title: '目标', standard: '字'.repeat(4001) } },
+    { ...base, command: { type: 'createGoal', destination: '', title: '目标', standards: ['字'.repeat(4001)] } },
   ]) {
     expect((await app.request('/api/adventure/commands', { method: 'POST', headers, body: JSON.stringify(payload) }, env)).status).toBe(400)
   }
   expect(upstream.mock.calls).toHaveLength(9)
+})
+
+it('创建目标允许省略归属并过滤空白标准；空标准与超过 50 项被拒绝', async () => {
+  const calls: { body: Record<string, any> }[] = []
+  vi.stubGlobal('fetch', async (input: string | URL | Request, init: RequestInit = {}) => {
+    if (new URL(input instanceof Request ? input.url : input).pathname === '/auth/v1/user')
+      return Response.json({ id: owner, email: 'planning@example.com', email_confirmed_at: '2026-10-20', is_anonymous: false })
+    calls.push({ body: JSON.parse(String(init.body)) })
+    return Response.json({ version: 1, result: { entityId: owner, message: '已创建' } })
+  })
+  const command = { type: 'createGoal', destination: '', title: '阅读', standards: ['读完一本', ' ', '写下笔记'] }
+  const envelope = { requestId: 'goal-default-1', expectedVersion: 0, command }
+  expect((await app.request('/api/adventure/commands', { method: 'POST', headers, body: JSON.stringify(envelope) }, env)).status).toBe(200)
+  expect(calls[0].body.p_command).toEqual({ ...command, standards: ['读完一本', '写下笔记'] })
+  for (const standards of [[], [' ', '\n'], Array.from({ length: 51 }, () => '标准')]) {
+    const invalid = { ...envelope, requestId: 'goal-invalid-1', command: { ...command, standards } }
+    expect((await app.request('/api/adventure/commands', { method: 'POST', headers, body: JSON.stringify(invalid) }, env)).status).toBe(400)
+  }
 })
 
 it('预览使用独立 RPC，传递版本但不创建成功请求回执', async () => {

@@ -12,9 +12,9 @@
 
 - `version`、`today`：账户版本及服务端上海日期。
 - `mainlines`：全部在用普通主线；最多五条，包含改名／结束能力。
-- `goals`：本页进行中真实目标，包含名称、标准、归属、创建时间及操作能力；不返回 inbox。
+- `goals`：本页进行中真实目标，包含名称、`standards` 标准数组、归属、创建时间及操作能力；不返回 inbox。
 - `page`、`pageSize`、`totalGoals`：当前页及全量目标总数；列表为空不代表总数为零。
-- `destinations`：显式独立身份 `independent` 及可用普通主线 ID，不默认选择归属。
+- `destinations`：可用普通主线 ID；归属留空即默认独立目标，不显示独立身份选项。
 - `growth`：总经验、等级、本级进度、升级所需经验、有效行动数和达成目标数。
 - `capabilities`、`limits`：页面能力、禁用原因及输入限额。当前未交付操作返回 `allowed=false` 和原因。
 
@@ -49,10 +49,12 @@
 |---|---|
 | `createMainline` | `name` |
 | `renameMainline` | `id`、`name` |
-| `createGoal` | `destination`（`independent` 或普通主线 UUID）、`title`、`standard` |
-| `editGoal` | `id`、`title`、`standard`；本操作不修改归属 |
+| `createGoal` | `destination`（空字符串默认独立目标，或普通主线 UUID）、`title`、`standards` |
+| `editGoal` | `id`、`destination`（规则同上）、`title`、`standards` |
 
-名称和标准去除首尾空白后必填，名称最多 200、标准最多 4,000 个 UTF-16 码元。`id` 必须为 UUID；`requestId` 为 8–128 位英文、数字、下划线或连字符。版本必须为非负 JavaScript 安全整数。封套和命令均拒绝额外字段，不接受客户端 owner、日期、经验、事件或整包状态。
+名称去除首尾空白后必填，最多 200 个 UTF-16 码元。完成标准为 1–50 项数组；空白项由前端在提交前排除，后端也拒绝空项和超过 50 项，每项去除首尾空白后最多 4,000 个 UTF-16 码元。`id` 必须为 UUID；`requestId` 为 8–128 位英文、数字、下划线或连字符。版本必须为非负 JavaScript 安全整数。封套和命令均拒绝额外字段，不接受客户端 owner、日期、经验、事件或整包状态。
+
+前端目标归属默认显示“默认独立目标”，提交空字符串；后端负责创建或复用唯一独立主线及 inbox，再写入真实目标。普通主线 ID 必须属于当前账户且在用。编辑目标可清空归属转为独立目标；不能把真实目标直接指向 inbox。
 
 成功仅返回稳定回执：
 

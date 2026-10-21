@@ -8,7 +8,8 @@ export function usePlanning() {
   const [data, setData] = useState<PlanningPage>()
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
-  const [notice, setNotice] = useState('')
+  const [notice, setNotice] = useState<{ id: string; message: string }>()
+  const clearNotice = useCallback(() => setNotice(undefined), [])
   const [uncertain, setUncertain] = useState(false)
   const [readRequired, setReadRequired] = useState(true)
   const lifecycle = useRef(new AbortController())
@@ -55,7 +56,7 @@ export function usePlanning() {
       minimumVersion.current = Math.max(minimumVersion.current, receipt.version)
       pending.current = undefined
       setUncertain(false)
-      setNotice(receipt.result.message)
+      setNotice({ id: envelope.requestId, message: receipt.result.message })
       setReadRequired(true)
       try { await refresh(page.current, requestSignal) }
       catch { if (!epoch.signal.aborted && !identity.signal.aborted) setError('操作已成功，页面更新失败。请重新读取。') }
@@ -95,13 +96,13 @@ export function usePlanning() {
     active.current = false
     setData(undefined)
     setError('')
-    setNotice('')
+    setNotice(undefined)
     setUncertain(false)
     setReadRequired(true)
     void load()
     return () => controller.abort()
   }, [load])
 
-  return { data, busy, error, notice, uncertain, readRequired, command, load,
+  return { data, busy, error, notice, clearNotice, uncertain, readRequired, command, load,
     retry: () => pending.current ? send(pending.current) : Promise.resolve(false) }
 }

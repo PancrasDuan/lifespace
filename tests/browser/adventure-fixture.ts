@@ -7,11 +7,11 @@ export const allowed = { allowed: true }
 export const later = { allowed: false, reason: '此操作尚未交付' }
 export const emptyPlanning: PlanningPage = {
   version: 0, today: '2026-10-20', mainlines: [], goals: [],
-  destinations: [{ id: 'independent', name: '独立目标' }],
+  destinations: [],
   page: 1, pageSize: 20, totalGoals: 0,
   growth: { level: 1, totalXp: 0, progress: 0, needed: 20, remaining: 20, actions: 0, achievedGoals: 0 },
   capabilities: { createMainline: allowed, createGoal: allowed, createTask: later, growth: later },
-  limits: { name: 200, standard: 4000 },
+  limits: { name: 200, standard: 4000, standards: 50 },
 }
 export const withMainline: PlanningPage = {
   ...emptyPlanning, version: 1,
@@ -20,7 +20,7 @@ export const withMainline: PlanningPage = {
 }
 export const withGoal: PlanningPage = {
   ...withMainline, version: 2, totalGoals: 1,
-  goals: [{ id: goalId, title: '五公里', standard: '连续跑完五公里', mainlineId, mainlineName: '健康', independent: false,
+  goals: [{ id: goalId, title: '五公里', standards: ['连续跑完五公里'], mainlineId, mainlineName: '健康', independent: false,
     createdAt: '2026-10-20T04:00:00Z', capabilities: { edit: allowed, focus: later, migrate: later, achieve: later, end: later } }],
 }
 

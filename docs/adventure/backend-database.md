@@ -84,7 +84,7 @@ erDiagram
 | `mainline_id` | `uuid` | 否 | 无 | 同 owner 主线引用 |
 | `kind` | `text` | 否 | `'real'` | CHECK IN ('real','inbox') |
 | `title` | `varchar(200)` | 否 | 无 | 当前名称；真实目标必填，inbox 使用固定系统名称 |
-| `standard` | `text` | 否 | 无 | 当前完成标准；inbox 使用固定系统说明 |
+| `standards` | `jsonb` | 否 | 无 | 当前完成标准数组，1–50 项、每项非空且最多 4,000 字；inbox 使用固定系统说明 |
 | `status` | `text` | 否 | `'active'` | CHECK IN ('active','achieved','ended') |
 | `focused` | `boolean` | 否 | `false` | 仅 real 可为 true；inbox 永 false |
 | `sort_order` | `bigint` | 否 | `0` | 非负安全整数；同归属 real 目标排序 |
@@ -248,7 +248,7 @@ reward_task 的 reward_task_id 必须对应一个有效 task_completed 事件（
       "mainline_id": "20000000-0000-4000-8000-000000000001",
       "kind": "real",
       "title": "完成一次 10 公里越野",
-      "standard": "在户外连续完成 10 公里路线，并记录一次体验。",
+      "standards": ["在户外连续完成 10 公里路线，并记录一次体验。"],
       "status": "achieved",
       "focused": false,
       "sort_order": 0,
@@ -266,7 +266,7 @@ reward_task 的 reward_task_id 必须对应一个有效 task_completed 事件（
       ],
       "attainment_snapshot": {
         "title": "完成一次 10 公里越野",
-        "standard": "在户外连续完成 10 公里路线，并记录一次体验。",
+        "standards": ["在户外连续完成 10 公里路线，并记录一次体验。"],
         "mainlineName": "健康与活力",
         "mainlineKind": "normal"
       }
@@ -277,7 +277,7 @@ reward_task 的 reward_task_id 必须对应一个有效 task_completed 事件（
       "mainline_id": "20000000-0000-4000-8000-000000000002",
       "kind": "inbox",
       "title": "独立任务",
-      "standard": "系统收纳目标，仅承接不依附具体目标的独立任务。",
+      "standards": ["系统收纳目标，仅承接不依附具体目标的独立任务。"],
       "status": "active",
       "focused": false,
       "sort_order": 0,
@@ -411,7 +411,7 @@ reward_task 的 reward_task_id 必须对应一个有效 task_completed 事件（
       },
       "snapshot": {
         "title": "完成一次 10 公里越野",
-        "standard": "在户外连续完成 10 公里路线，并记录一次体验。",
+        "standards": ["在户外连续完成 10 公里路线，并记录一次体验。"],
         "mainlineName": "健康与活力",
         "mainlineKind": "normal"
       },
