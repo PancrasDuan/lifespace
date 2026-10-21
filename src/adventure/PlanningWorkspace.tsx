@@ -51,7 +51,7 @@ function PlanningForm({ dialog, data, action, busy, close }: {
       {dialog.kind === 'goal' && <>
         <fieldset className="planning-standards"><legend>完成标准</legend>
           {standards.map((value, index) => <div className="planning-standard-row" key={index}>
-            <input required aria-label={`完成标准 ${index + 1}`} autoComplete="off" maxLength={data.limits.standard}
+            <input aria-label={`完成标准 ${index + 1}`} autoComplete="off" maxLength={data.limits.standard}
               value={value} onChange={event => setStandards(current => current.map((item, i) => i === index ? event.target.value : item))}
               onKeyDown={event => standardKey(event, index)} />
             <button type="button" aria-label={`在完成标准 ${index + 1} 后添加`} disabled={standards.length >= data.limits.standards} onClick={() => addStandard(index)}><Plus size={17} /></button>
@@ -59,7 +59,7 @@ function PlanningForm({ dialog, data, action, busy, close }: {
           </div>)}
           {filled.length === 0 && <small className="planning-field-hint">至少填写一项非空标准</small>}
         </fieldset>
-        <label>目标归属<select value={goal?.independent ? '' : destination} onChange={event => setDestination(event.target.value)}>
+        <label>目标归属<select className={destination === '' ? 'planning-destination-placeholder' : undefined} value={destination} onChange={event => setDestination(event.target.value)}>
           <option value="">默认独立目标</option>
           {data.destinations.filter(item => item.id !== 'independent').map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
         </select></label>
@@ -79,6 +79,10 @@ function Workspace() {
   const [tab, setTab] = useState<'overview' | 'planning'>('overview')
   const close = useCallback(() => setDialog(undefined), [])
   const blocked = busy || uncertain || model.readRequired
+  const recovery = (uncertain || model.readRequired) && !busy ? <button type="button" onClick={() => {
+    if (uncertain) void model.retry().then(saved => { if (saved) close() })
+    else void model.load()
+  }}>{uncertain ? '安全重试同一次操作' : '重新读取'}</button> : null
   const detailGoal = dialog?.kind === 'detail' ? data?.goals.find(item => item.id === dialog.goal.id) : undefined
   const title = !dialog ? '' : dialog.kind === 'new' ? '新建' : dialog.kind === 'detail' ? '目标详情'
     : dialog.kind === 'mainline' ? dialog.id ? '修改主线名称' : '创建主线' : dialog.goal ? '编辑目标' : '创建目标'
@@ -95,11 +99,10 @@ function Workspace() {
       <button aria-current={tab === 'planning' ? 'page' : undefined} onClick={() => setTab('planning')}>主线与目标</button>
       <button disabled title={data?.capabilities.growth?.reason ?? '此操作尚未交付'}>成长记录</button>
     </div><small>{data?.today}</small></nav>
-    {model.error && <div className="adventure-error" role="alert"><p>{model.error}</p>
-      <button disabled={busy} onClick={() => { void (uncertain ? model.retry() : model.load()) }}>{uncertain ? '安全重试同一次操作' : '重新读取'}</button>
-    </div>}
-    {model.notice && <PlanningToast key={model.notice.id} message={model.notice.message} close={model.clearNotice} />}
-    {!data && !model.error && <p role="status" className="adventure-empty">正在读取你的冒险…</p>}
+    {!dialog && recovery && <div className="planning-recovery">{recovery}</div>}
+    {model.error ? <PlanningToast key={model.error} tone="error" withinDialog={!!dialog && !!data} message={model.error} close={model.clearError} />
+      : !model.readRequired && model.notice && <PlanningToast key={model.notice.id} message={model.notice.message} close={model.clearNotice} />}
+    {!data && busy && <p role="status" className="adventure-empty">正在读取你的冒险…</p>}
     {data && <div className="planning-workbench">
       <div className="planning-main">
         {tab === 'overview' && <section className="planning-hero">
@@ -157,12 +160,7 @@ function Workspace() {
         </div>
       </div> : <p>目标已更新，请关闭后重新读取。</p>
         : <PlanningForm key={dialog.kind === 'mainline' ? dialog.id ?? 'new-mainline' : dialog.goal?.id ?? 'new-goal'} dialog={dialog} data={data} action={model.command} busy={blocked} close={close} />}
-      {model.error && <div role="alert" className="adventure-error"><p>{model.error}</p>
-        <button disabled={busy} onClick={() => {
-          if (uncertain) void model.retry().then(saved => { if (saved) close() })
-          else void model.load()
-        }}>{uncertain ? '安全重试同一次操作' : '重新读取'}</button>
-      </div>}
+      {recovery && <div className="planning-recovery">{recovery}</div>}
     </Modal>}
   </div></AppLayout>
 }

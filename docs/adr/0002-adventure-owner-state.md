@@ -24,4 +24,4 @@
 
 ## 范围
 
-字段见 [数据库设计](../adventure/backend-database.md)，事务见 [业务逻辑](../adventure/backend-business-logic.md)。五表及 #54 专用 RPC 已通过迁移 `20261020130750_adventure_planning` 建立，接口和验证分别见 [接口契约](../adventure/planning-api.md) 与 [本票验收](../adventure/qa-planning.md)。其余命令按实施票交付。旧单表及已有数据保留，不导入或清理；首页 tasks／schedules 不变。
+字段见 [数据库设计](../adventure/backend-database.md)，事务见 [业务逻辑](../adventure/backend-business-logic.md)。五表及 #54 专用 RPC 已建立；未上线阶段的空库初始化入口统一为 `db/adventure/create-planning.sql`，不保留重复升级脚本，接口和验证分别见 [接口契约](../adventure/planning-api.md) 与 [本票验收](../adventure/qa-planning.md)。其余命令按实施票交付。不重建已删除的旧单表，不导入或清理已有验收数据；首页 tasks／schedules 不变。

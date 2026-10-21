@@ -72,7 +72,7 @@ it('严格拒绝客户端身份、日期、经验、额外字段和本票未交�
   expect(upstream.mock.calls).toHaveLength(9)
 })
 
-it('创建目标允许省略归属并过滤空白标准；空标准与超过 50 项被拒绝', async () => {
+it('创建目标允许归属留空并过滤空白标准；空标准与超过 50 项被拒绝', async () => {
   const calls: { body: Record<string, any> }[] = []
   vi.stubGlobal('fetch', async (input: string | URL | Request, init: RequestInit = {}) => {
     if (new URL(input instanceof Request ? input.url : input).pathname === '/auth/v1/user')

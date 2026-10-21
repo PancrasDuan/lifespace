@@ -1,6 +1,6 @@
 # 01：创建主线与目标并持久保存
 
-状态：2026-10-21 创建编辑路径人工验收已完成，复查仍有本票缺口待修复，见 [本票验收](../qa-planning.md)。远端 Issue #54 保持开放，正文及依赖未改动；修复、回归与发布完成后再关闭。
+状态：2026-10-21 按 session `01a15957-e029-7400-a28b-f3a9bf7fdca3` 共识完成本票收尾修复，证据见 [本票验收](../qa-planning.md)。远端 Issue #54 保持开放；本轮不发布应用，关闭仍遵守发布验收门禁。
 
 Issue：https://github.com/PancrasDuan/lifespace/issues/54
 

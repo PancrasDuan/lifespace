@@ -8,6 +8,7 @@ export function usePlanning() {
   const [data, setData] = useState<PlanningPage>()
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const clearError = useCallback(() => setError(''), [])
   const [notice, setNotice] = useState<{ id: string; message: string }>()
   const clearNotice = useCallback(() => setNotice(undefined), [])
   const [uncertain, setUncertain] = useState(false)
@@ -103,6 +104,6 @@ export function usePlanning() {
     return () => controller.abort()
   }, [load])
 
-  return { data, busy, error, notice, clearNotice, uncertain, readRequired, command, load,
+  return { data, busy, error, clearError, notice, clearNotice, uncertain, readRequired, command, load,
     retry: () => pending.current ? send(pending.current) : Promise.resolve(false) }
 }

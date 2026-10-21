@@ -1,5 +1,5 @@
 import { test, expect } from './authenticated-test'
-import { allowed, later, planningFixture, withGoal, withMainline } from './adventure-fixture'
+import { allowed, later, planningFixture, withGoal, withMainline, mainlineId } from './adventure-fixture'
 
 test('主线改名与目标编辑保存后显示新查询事实', async ({ page, context }) => {
   const server = await planningFixture(context, withGoal)
@@ -60,4 +60,32 @@ test('分页只展示服务端当前页，不用本页数量替代总数', async
   await expect(page.getByRole('button', { name: '目标：五公里' })).toHaveCount(0)
   await expect(page.getByRole('button', { name: '下一页' })).toBeDisabled()
   expect(server.envelopes).toHaveLength(0)
+})
+
+
+test('独立目标编辑时归属显示与提交一致，可转入主线及清空', async ({ page, context }) => {
+  const independent = { ...withGoal, goals: [{ ...withGoal.goals[0], independent: true, mainlineName: '独立区' }] }
+  const server = await planningFixture(context, independent)
+  server.saved(withGoal)
+  await page.goto('/adventure')
+  await page.getByRole('button', { name: '目标：五公里' }).click()
+  await page.getByRole('button', { name: '编辑目标', exact: true }).click()
+  const destination = page.getByLabel('目标归属')
+  await expect(destination).toHaveValue('')
+  await expect(destination).toHaveCSS('color', 'rgb(156, 164, 149)')
+  await destination.selectOption(mainlineId)
+  await expect(destination).toHaveValue(mainlineId)
+  await expect(destination).not.toHaveCSS('color', 'rgb(156, 164, 149)')
+  await page.getByRole('button', { name: '保存目标', exact: true }).click()
+  await expect(page.getByRole('dialog')).toBeHidden()
+  expect(server.envelopes[0].command).toMatchObject({ type: 'editGoal', destination: mainlineId })
+  await page.getByRole('button', { name: '目标：五公里' }).click()
+  await page.getByRole('button', { name: '编辑目标', exact: true }).click()
+  await expect(destination).toHaveValue(mainlineId)
+  await destination.selectOption('')
+  server.saved({ ...independent, version: 3 })
+  await page.getByRole('button', { name: '保存目标', exact: true }).click()
+  await expect(page.getByRole('dialog')).toBeHidden()
+  expect(server.envelopes[1].command).toMatchObject({ type: 'editGoal', destination: '' })
+  await expect(page.getByRole('button', { name: '目标：五公里' })).toContainText('独立目标')
 })

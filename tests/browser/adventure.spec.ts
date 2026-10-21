@@ -6,6 +6,10 @@ test('人生冒险读取失败时提供重新读取', async ({ page }) => {
   await expect(page.getByRole('heading', { name: '人生冒险', exact: true })).toBeVisible()
   await expect(page.getByRole('alert')).toContainText('暂时无法读取人生冒险')
   await expect(page.getByRole('button', { name: '重新读取' })).toBeVisible()
+  await page.getByRole('button', { name: '关闭错误提示' }).click()
+  await expect(page.getByRole('alert')).toHaveCount(0)
+  await expect(page.getByRole('status')).toHaveCount(0)
+  await expect(page.getByRole('button', { name: '重新读取' })).toBeVisible()
 })
 
 test('空规划从一级零经验开始，创建主线后查询并刷新回读', async ({ page, context }) => {
@@ -92,4 +96,21 @@ test('目标卡片整体进入详情，外层没有操作按钮；新建入口�
   await expect(page.getByRole('button', { name: '创建主线', exact: true })).toHaveCount(0)
   await expect(page.getByRole('button', { name: '创建目标', exact: true })).toHaveCount(0)
   await expect(page.getByRole('button', { name: '添加任务', exact: true })).toHaveCount(0)
+})
+
+
+test('完成标准保留空框时仅提交非空内容', async ({ page, context }) => {
+  const server = await planningFixture(context, withMainline)
+  server.saved(withGoal)
+  await page.goto('/adventure')
+  await page.getByRole('button', { name: '新建', exact: true }).click()
+  await page.getByRole('dialog').getByRole('button', { name: /阶段成果/ }).click()
+  await page.getByLabel('目标名称').fill('五公里')
+  await page.getByRole('textbox', { name: '完成标准 1', exact: true }).fill('连续跑完五公里')
+  await page.getByRole('button', { name: '在完成标准 1 后添加' }).click()
+  await expect(page.getByRole('textbox', { name: '完成标准 2', exact: true })).toHaveValue('')
+  await page.getByRole('dialog').getByRole('button', { name: '创建目标', exact: true }).click()
+  await expect(page.getByRole('dialog')).toBeHidden()
+  expect(server.envelopes).toHaveLength(1)
+  expect(server.envelopes[0].command).toEqual({ type: 'createGoal', destination: '', title: '五公里', standards: ['连续跑完五公里'] })
 })

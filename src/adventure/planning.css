@@ -54,7 +54,7 @@
 .planning-standard-row > button { width: 36px; height: 36px; padding: 0; }
 .planning-standard-row > button:last-child { color: #916d61; }
 .planning-field-hint { color: #9a9f91; font-size: 12px; }
-.adventure-dialog select:invalid, .adventure-dialog option[value=""] { color: #9ca495; }
+.adventure-dialog select.planning-destination-placeholder, .adventure-dialog option[value=""] { color: #9ca495; }
 .planning-detail .adventure-inline { flex-wrap: wrap; }
 .planning-toast { position: fixed; z-index: 1500; bottom: max(28px,env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; max-width: calc(100vw - 32px); box-sizing: border-box; padding: 12px 14px; border: 1px solid #cad9bd; border-radius: 10px; background: #fcfff8; color: #3d5833; box-shadow: 0 8px 28px #26372c22; font-size: 14px; }
 .planning-toast > svg { flex-shrink: 0; }
@@ -79,3 +79,6 @@
   .planning-section > header > div { flex-basis: 100%; }
   .planning-section > header > div h2 { white-space: nowrap; }
 }
+
+.planning-toast-error { border-color: #dfbdb1; background: #fff9f5; color: #8a4434; }
+.planning-recovery { display: flex; justify-content: flex-end; margin: 12px 0; }
