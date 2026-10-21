@@ -9,7 +9,7 @@ export const planningCommandSchema = z.discriminatedUnion('type', [
   z.strictObject({ type: z.literal('createMainline'), name }),
   z.strictObject({ type: z.literal('renameMainline'), id: z.uuid(), name }),
   z.strictObject({ type: z.literal('createGoal'), destination: z.union([z.literal(''), z.literal('independent'), z.uuid()]), title: name, standards }),
-  z.strictObject({ type: z.literal('createTask'), title: name, description: z.string().trim().max(4000), plannedOn: z.iso.date(), destination: z.union([z.literal('independent'), z.uuid()]) }),
+  z.strictObject({ type: z.literal('createTask'), title: name, description: z.string().trim().max(4000), plannedOn: z.iso.date(), destination: z.union([z.literal(''), z.uuid()]) }),
   z.strictObject({ type: z.literal('editTask'), id: z.uuid(), title: name, description: z.string().trim().max(4000) }),
   z.strictObject({ type: z.literal('completeTask'), id: z.uuid() }),
   z.strictObject({ type: z.literal('cancelTaskCompletion'), completionId: z.uuid() }),

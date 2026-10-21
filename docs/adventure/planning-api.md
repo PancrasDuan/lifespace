@@ -52,7 +52,7 @@
 | `renameMainline` | `id`、`name` |
 | `createGoal` | `destination`（空字符串默认独立目标，或普通主线 UUID）、`title`、`standards` |
 | `editGoal` | `id`、`destination`（规则同上）、`title`、`standards` |
-| `createTask` | `title`、`description`（可空）、`plannedOn`（有效 YYYY-MM-DD）、`destination`（必须明确为 independent 或真实目标 UUID） |
+| `createTask` | `title`、`description`（可空）、`plannedOn`（有效 YYYY-MM-DD）、`destination`（空字符串默认独立任务，或真实目标 UUID） |
 | `editTask` | `id`、`title`、`description`（可空）；只编辑待完成任务的名称与说明 |
 | `completeTask` | `id`；只允许服务端上海当天的待完成安排 |
 | `cancelTaskCompletion` | `completionId`；定位具体完成事件，不接受仅凭任务 ID 取消 |
@@ -61,7 +61,7 @@
 
 前端目标归属默认显示“默认独立目标”，提交空字符串；后端负责创建或复用唯一独立主线及 inbox，再写入真实目标。普通主线 ID 必须属于当前账户且在用。编辑目标可清空归属转为独立目标；不能把真实目标直接指向 inbox。
 
-任务说明最多 4,000 个 UTF-16 码元。`plannedOn` 是用户安排的执行日期；权威当天、完成时间、经验和状态均由后端确定。过去／未来安排可查询，但不得补写或提前完成；过去尚未完成仍是待完成。独立任务由后端复用 inbox，不展示为真实目标。
+任务归属留空即默认独立任务，页面不提供独立身份选项；提交真实目标 UUID 时归属该目标。任务说明最多 4,000 个 UTF-16 码元。`plannedOn` 是用户安排的执行日期；权威当天、完成时间、经验和状态均由后端确定。过去／未来安排可查询，但不得补写或提前完成；过去尚未完成仍是待完成。独立任务由后端复用 inbox，不展示为真实目标。
 
 成功仅返回稳定回执：
 

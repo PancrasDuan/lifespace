@@ -29,7 +29,7 @@ const command = async (owner: string, value: PlanningCommand) => {
   expect(response.status).toBe(200)
   return planningReceiptSchema.parse(await response.json())
 }
-const createTask = async (owner: string, title = '完整行动', plannedOn?: string, destination = 'independent') => {
+const createTask = async (owner: string, title = '完整行动', plannedOn?: string, destination = '') => {
   const today = (await read(owner)).today
   return command(owner, { type: 'createTask', title, description: '行动说明', destination, plannedOn: plannedOn ?? today })
 }
@@ -57,6 +57,7 @@ describe.skipIf(!rpcOrigin)('正式 Worker HTTP → 本机真实 PostgREST → �
     const task = (await createTask(owner)).result.entityId
     await command(owner, { type: 'editTask', id: task, title: '改名后的行动', description: '新的说明' })
     expect((await read(owner)).tasks[0]).toMatchObject({ id: task, title: '改名后的行动', description: '新的说明', independent: true, goalId: null })
+    if ((await send(owner, envelope(3, { type: 'createTask', title: '旧协议', description: '', plannedOn: (await read(owner)).today, destination: 'independent' as never }))).status !== 400) throw new Error('Explicit independent token must be rejected')
     const blocked = await send(other, envelope(0, { type: 'completeTask', id: task }))
     expect(blocked.status).toBe(404)
     const completed = await command(owner, { type: 'completeTask', id: task })

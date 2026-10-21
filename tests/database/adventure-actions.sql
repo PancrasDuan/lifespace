@@ -10,7 +10,7 @@ declare
   v_page jsonb;
 begin
   v_receipt := public.adventure_planning_command(v_owner,'actions-create-01',0,
-    jsonb_build_object('type','createTask','title','今天行动','description','完整行动','plannedOn',v_today,'destination','independent'));
+    jsonb_build_object('type','createTask','title','今天行动','description','完整行动','plannedOn',v_today,'destination',''));
   v_task := (v_receipt->'result'->>'entityId')::uuid;
   v_page := public.adventure_workspace_read(v_owner,1,20,'today',1);
   if v_page->'tasks'->0->>'id' is distinct from v_task::text or v_page->'growth'->>'totalXp' is distinct from '0' then raise exception 'Task create/read failed'; end if;
@@ -62,13 +62,13 @@ begin
   perform public.adventure_planning_read(v_owner,1,20);
   update public.adventure_accounts set total_xp=1 where owner_id=v_owner;
   begin
-    perform public.adventure_planning_command(v_owner,'rollback-task-create',0,jsonb_build_object('type','createTask','title','必须回滚','description','','plannedOn',v_today,'destination','independent'));
+    perform public.adventure_planning_command(v_owner,'rollback-task-create',0,jsonb_build_object('type','createTask','title','必须回滚','description','','plannedOn',v_today,'destination',''));
     raise exception 'Partial task accepted';
   exception when others then if sqlerrm is distinct from 'INCONSISTENT_REWARDS' then raise; end if; end;
   if exists(select 1 from public.adventure_tasks where owner_id=v_owner) or exists(select 1 from public.adventure_mainlines where owner_id=v_owner)
     or exists(select 1 from public.adventure_events where owner_id=v_owner) or (select revision from public.adventure_accounts where owner_id=v_owner)<>0 then raise exception 'Partial task/structure/event survived rollback'; end if;
   update public.adventure_accounts set total_xp=0 where owner_id=v_owner;
-  v_receipt:=public.adventure_planning_command(v_owner,'clock-task-create',0,jsonb_build_object('type','createTask','title','冻结行动','description','','plannedOn',v_today,'destination','independent'));
+  v_receipt:=public.adventure_planning_command(v_owner,'clock-task-create',0,jsonb_build_object('type','createTask','title','冻结行动','description','','plannedOn',v_today,'destination',''));
   v_task:=(v_receipt->'result'->>'entityId')::uuid;
   update public.adventure_accounts set total_xp=1 where owner_id=v_owner;
   begin
@@ -150,7 +150,7 @@ declare
   v_page jsonb;
 begin
   v_receipt:=public.adventure_planning_command(v_owner,'frozen-create-task',0,
-    jsonb_build_object('type','createTask','title','历史规则行动','description','','plannedOn',v_today,'destination','independent'));
+    jsonb_build_object('type','createTask','title','历史规则行动','description','','plannedOn',v_today,'destination',''));
   v_task:=(v_receipt->'result'->>'entityId')::uuid;
   perform public.adventure_planning_command(v_owner,'frozen-complete-task',1,jsonb_build_object('type','completeTask','id',v_task));
   select id into strict v_done from public.adventure_events where owner_id=v_owner and kind='task_completed';
@@ -182,7 +182,7 @@ declare
   v_receipt jsonb;
 begin
   v_receipt:=public.adventure_planning_command(v_owner,'shape-create-task',0,
-    jsonb_build_object('type','createTask','title','约束行动','description','','plannedOn',v_today,'destination','independent'));
+    jsonb_build_object('type','createTask','title','约束行动','description','','plannedOn',v_today,'destination',''));
   v_task:=(v_receipt->'result'->>'entityId')::uuid;
   perform public.adventure_planning_command(v_owner,'shape-complete-task',1,jsonb_build_object('type','completeTask','id',v_task));
   select * into strict v_done from public.adventure_events where owner_id=v_owner and kind='task_completed';
@@ -237,7 +237,7 @@ declare
 begin
   for i in 1..10 loop
     v_result:=public.adventure_planning_command(v_owner,'threshold-create-'||i,v_version,
-      jsonb_build_object('type','createTask','title','临界行动 '||i,'description','','plannedOn',v_today,'destination','independent'));
+      jsonb_build_object('type','createTask','title','临界行动 '||i,'description','','plannedOn',v_today,'destination',''));
     v_task:=(v_result->'result'->>'entityId')::uuid;v_version:=v_version+1;
     if i=10 then
       v_page:=public.adventure_workspace_read(v_owner);

@@ -22,10 +22,9 @@ export function TaskForm({ task, destination: initialDestination, data, action, 
     <label>任务说明<textarea aria-label="任务说明" maxLength={4000} rows={3} value={description} onChange={event => setDescription(event.target.value)} /></label>
     {!task && <>
       <label>执行日期<input required type="date" value={plannedOn} onChange={event => setPlannedOn(event.target.value)} /></label>
-      <label>任务归属<select aria-label="任务归属" required className={destination ? undefined : 'planning-destination-placeholder'} value={destination} onChange={event => { setDestination(event.target.value); setSelectedLabel(event.target.selectedOptions[0].text) }}>
-        <option value="">请选择任务归属</option>
-        <option value="independent">独立任务</option>
-        {destination && destination !== 'independent' && !data.goals.some(goal => goal.id === destination) && <option value={destination}>{selectedLabel}</option>}
+      <label>任务归属<select aria-label="任务归属" className={destination ? undefined : 'planning-destination-placeholder'} value={destination} onChange={event => { setDestination(event.target.value); setSelectedLabel(event.target.selectedOptions[0].text) }}>
+        <option value="">默认独立任务</option>
+        {destination && !data.goals.some(goal => goal.id === destination) && <option value={destination}>{selectedLabel}</option>}
         {data.goals.map(goal => <option key={goal.id} value={goal.id}>{goal.independent ? '独立目标' : goal.mainlineName} / {goal.title}</option>)}
       </select></label>
       {data.totalGoals > data.pageSize && <div className="planning-pagination"><small>目标候选 · 第 {data.page} 页</small><div>

@@ -214,7 +214,7 @@ begin
       or jsonb_typeof(p_command->'destination') is distinct from 'string' then raise exception 'INVALID_COMMAND'; end if;
     v_day:=(p_command->>'plannedOn')::date;
     if v_day::text<>p_command->>'plannedOn' then raise exception 'INVALID_COMMAND'; end if;
-    if p_command->>'destination'='independent' then return jsonb_build_object('allowed',true); end if;
+    if coalesce(p_command->>'destination','')='' then return jsonb_build_object('allowed',true); end if;
     select * into v_goal from public.adventure_goals where owner_id=p_owner and id=(p_command->>'destination')::uuid and kind='real';
     if not found then raise exception 'NOT_FOUND'; end if;
   else
@@ -287,7 +287,7 @@ begin
   perform public.adventure_task_check(p_owner,p_command,v_today);
   v_before_growth:=public.adventure_growth(p_owner);
   if v_type='createTask' then
-    if p_command->>'destination'='independent' then
+    if coalesce(p_command->>'destination','')='' then
       select * into v_main from public.adventure_mainlines where owner_id=p_owner and kind='independent';
       if not found then
         insert into public.adventure_mainlines(owner_id,kind,name,created_at,updated_at) values(p_owner,'independent','独立区',p_now,p_now) returning * into v_main;

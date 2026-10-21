@@ -58,7 +58,8 @@ test.describe('真实任务事务的桌面与手机浏览器验收（受控身�
     } else {
       await page.getByRole('button', { name: '新建', exact: true }).click()
       await page.getByRole('dialog').getByRole('button', { name: /一次性任务/ }).click()
-      await page.getByLabel('任务归属', { exact: true }).selectOption('independent')
+      await expect(page.getByLabel('任务归属', { exact: true })).toHaveValue('')
+      await expect(page.getByLabel('任务归属', { exact: true }).locator('option[value="independent"]')).toHaveCount(0)
     }
     await page.getByLabel('任务名称', { exact: true }).fill(title)
     await page.getByLabel('任务说明', { exact: true }).fill('原始说明')

@@ -138,7 +138,7 @@ it('一次性任务命令传递明确归属和执行日，取消命令定位具�
     return Response.json({ version: 1, result: { entityId: owner, message: '已保存任务' } })
   })
   for (const command of [
-    { type: 'createTask', title: '行动', description: '', plannedOn: '2026-10-21', destination: 'independent' },
+    { type: 'createTask', title: '行动', description: '', plannedOn: '2026-10-21', destination: '' },
     { type: 'cancelTaskCompletion', completionId: owner },
   ]) {
     expect((await app.request('/api/adventure/commands', { method: 'POST', headers,
@@ -146,8 +146,8 @@ it('一次性任务命令传递明确归属和执行日，取消命令定位具�
     expect(calls.at(-1)).toMatchObject({ p_owner: owner, p_command: command })
   }
   for (const command of [
-    { type: 'createTask', title: '行动', description: '', plannedOn: '2026-02-30', destination: 'independent' },
-    { type: 'createTask', title: '行动', description: '', plannedOn: '2026-10-21', destination: '' },
+    { type: 'createTask', title: '行动', description: '', plannedOn: '2026-02-30', destination: '' },
+    { type: 'createTask', title: '行动', description: '', plannedOn: '2026-10-21', destination: 'independent' },
     { type: 'cancelTaskCompletion', id: owner },
     { type: 'completeTask', id: owner, xp: 1 },
   ]) expect((await app.request('/api/adventure/commands', { method: 'POST', headers,
