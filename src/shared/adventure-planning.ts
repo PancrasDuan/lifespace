@@ -30,11 +30,25 @@ export const growthSchema = z.object({
   needed: version, remaining: version, actions: version, achievedGoals: version,
   achievements: z.array(z.object({ id: z.string(), label: z.string(), threshold: version, count: version, unlocked: z.boolean() })).max(7).default([]),
 })
+const rewardAmount = version.refine(value => value > 0)
+export const taskRewardSchema = z.object({
+  amount: rewardAmount,
+  calculation: z.object({ type: z.literal('fixed_task'), completionId: z.uuid(), count: rewardAmount, coefficient: rewardAmount }),
+})
+// Contract for the later goal-achievement slice; no achievement command is exposed here.
+export const goalRewardSchema = z.object({
+  amount: rewardAmount,
+  calculation: z.object({
+    type: z.literal('goal_actions'), actionIds: z.array(z.uuid()), count: version,
+    coefficient: z.number().int().min(1).max(3), fallback: z.boolean(),
+  }).refine(value => value.count === value.actionIds.length && new Set(value.actionIds).size === value.count
+    && value.fallback === (value.count === 0)),
+})
 export const taskRangeSchema = z.enum(['today', 'future', 'past'])
 export type TaskRange = z.infer<typeof taskRangeSchema>
 export const planningTaskSchema = z.object({
   id: z.uuid(), title: z.string(), description: z.string(), plannedOn: z.iso.date(),
-  status: z.enum(['pending', 'completed', 'ended']), completedOn: z.iso.date().nullable(), completionId: z.uuid().nullable(),
+  status: z.enum(['pending', 'completed', 'ended']), completedOn: z.iso.date().nullable(), completionId: z.uuid().nullable(), reward: taskRewardSchema.nullable(),
   goalId: z.uuid().nullable(), goalTitle: z.string().nullable(), mainlineName: z.string(), independent: z.boolean(), overdue: z.boolean(), capabilities,
 })
 export type PlanningTask = z.infer<typeof planningTaskSchema>
@@ -64,13 +78,14 @@ export type PlanningGoal = PlanningPage['goals'][number]
 export const planningReceiptSchema = z.object({
   version,
   result: z.object({ entityId: z.uuid(), message: z.string(),
-    growthChange: z.object({ xpDelta: z.number().int().min(-1).max(1), before: growthSchema, after: growthSchema, unlocked: z.array(z.string()), lost: z.array(z.string()) }).optional(),
+    completionId: z.uuid().nullable().optional(), reward: taskRewardSchema.nullable().optional(),
+    growthChange: z.object({ xpDelta: z.number().int().min(-Number.MAX_SAFE_INTEGER).max(Number.MAX_SAFE_INTEGER), before: growthSchema, after: growthSchema, unlocked: z.array(z.string()), lost: z.array(z.string()) }).optional(),
   }),
 })
 const previewBase = { version, today: z.iso.date(), allowed: z.literal(true), message: z.string() }
 export const planningPreviewSchema = z.discriminatedUnion('requiresConfirmation', [
   z.object({ ...previewBase, requiresConfirmation: z.literal(false) }),
-  z.object({ ...previewBase, requiresConfirmation: z.literal(true), completionId: z.uuid(), growthBefore: growthSchema, growthAfter: growthSchema }),
+  z.object({ ...previewBase, requiresConfirmation: z.literal(true), completionId: z.uuid(), reward: taskRewardSchema, growthBefore: growthSchema, growthAfter: growthSchema }),
 ])
 
 export type PlanningPreview = z.infer<typeof planningPreviewSchema>

@@ -52,6 +52,7 @@ export function PlanningTasks({ data, blocked, changeRange, changePage, edit, co
         <h3>{task.status === 'completed' && <Check size={16} aria-hidden="true" />}{task.title}</h3>
         {task.description && <p>{task.description}</p>}
         <small>{task.plannedOn} · {task.overdue ? '逾期，仍待完成' : task.status === 'completed' ? '已完成' : task.status === 'ended' ? '已结束' : '待完成'}</small>
+        {task.reward && <small>本次奖励 {task.reward.amount} 点经验</small>}
       </div><div className="planning-task-buttons">
         <button disabled={blocked || !task.capabilities.edit?.allowed} title={task.capabilities.edit?.reason} onClick={() => edit(task)}>编辑任务</button>
         {task.status === 'completed' ? <button disabled={blocked || !task.capabilities.cancel?.allowed} title={task.capabilities.cancel?.reason} onClick={() => cancel(task)}>取消完成</button>

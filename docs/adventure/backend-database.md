@@ -33,13 +33,13 @@ erDiagram
 
 `adventure_accounts.total_xp` 是当前有效奖励之和的账户汇总，用于快速展示总经验；等级、本级进度、距升级经验、行动数、达成目标数和七个成就仍从事实实时计算。
 
-每次成功写入必须同事务维护 `total_xp` 与事件：任务完成写入完成和 +1 奖励事件并加总；取消完成把原完成和对应奖励事件标记失效并减总；目标达成写入达成和奖励事件并加总。任意时刻都应满足：
+每次成功写入必须同事务维护 `total_xp` 与事件：任务完成只写一条 task_completed，内嵌冻结奖励并加总；取消只把指定完成事件标记失效，减去其冻结 amount；目标达成只写一条内嵌奖励的 goal_achieved 并加总。任意时刻都应满足：
 
-> total_xp = 未失效、属于奖励类型的事件 amount 之和
+> total_xp = 有效 task_completed／goal_achieved 中冻结 amount 之和
 
 这条等式由事务 Module 校验。事件日志仍是可追溯事实来源，账户汇总不是另一套独立账本；不能先改总经验再异步补事件，也不能只写事件不更新汇总。读取可用汇总展示总值，仍须按事件类型和失效标记实时计算等级、成就与流水。
 
-事件同时承担幂等回执：成功的 request_id 及其命令摘要保存在 event 记录中，即使对应完成或奖励后来逻辑失效也不能物理删除。重试先查全部历史事件，避免已取消的完成被旧请求再次发放。若一个命令新增多条事件（如完成＋奖励），只有首条携带成功回执，其他事件以同一 event_group_id 关联；重试按首条回执返回，不能让分组内每条都触发一次业务回执。
+事件同时承担幂等回执：成功的 request_id 及其命令摘要保存在 event 记录中，即使对应完成或奖励后来逻辑失效也不能物理删除。重试先查全部历史事件，避免已取消的完成被旧请求再次发放。任务完成与目标达成各只有一条事件，奖励直接冻结在该事件内，并由该事件保存回执。event_group_id 保留为同命令业务历史关联，不用于配对奖励。
 
 ## 字段定义
 
@@ -52,7 +52,7 @@ erDiagram
 | 字段 | PostgreSQL 类型 | 可空 | 默认值 | 约束与含义 |
 |---|---|---|---|---|
 | `owner_id` | `uuid` | 否 | 无 | 主键；Worker 在线验证身份取得，不接受客户端传入 |
-| `total_xp` | `bigint` | 否 | `0` | 非负安全整数；当前有效奖励事件 amount 之和 |
+| `total_xp` | `bigint` | 否 | `0` | 非负安全整数；有效完成／达成事件冻结 amount 之和 |
 | `revision` | `bigint` | 否 | `0` | 0..9007199254740991；每次成功命令加一 |
 | `time_zone` | `text` | 否 | `'Asia/Shanghai'` | CHECK 固定为 Asia/Shanghai |
 | `created_at` | `timestamptz` | 否 | `now()` | 账户行创建时间 |
@@ -128,7 +128,7 @@ erDiagram
 
 独立任务仍必须引用一个目标行，实际引用同账户唯一 inbox 目标；接口和页面把其展示为“独立任务”，不把它当作真实目标。真实目标下的任务迁移为独立任务时，只切换 goal_id 到 inbox，task id、当前日期和当前状态保留；历史 event 的 goal_id 与快照不改。
 
-`completed_at`、`completed_on` 与 status 一致；取消完成把状态恢复 pending，并在同一事务清除当前完成时间、逻辑失效完成／奖励事件。旧事件仍保留，因此不把 completed 字段当成可追溯历史。
+`completed_at`、`completed_on` 与 status 一致；取消完成把状态恢复 pending，并在同一事务清除当前完成时间、逻辑失效指定完成事件及其内嵌奖励。旧事件仍保留，因此不把 completed 字段当成可追溯历史。
 
 ### `public.adventure_events`
 
@@ -137,7 +137,7 @@ erDiagram
 | `id` | `uuid` | 否 | `gen_random_uuid()` | 主键 |
 | `owner_id` | `uuid` | 否 | 无 | 引用 adventure_accounts.owner_id |
 | `event_group_id` | `uuid` | 否 | 无 | 同一次成功命令的事件组；多事件事务共用 |
-| `kind` | `text` | 否 | 无 | CHECK：task_created／task_updated／task_rescheduled／task_migrated／task_ended／task_deleted／task_completed／task_completion_cancelled／goal_created／goal_updated／goal_focused／goal_reordered／goal_migrated／goal_achieved／goal_ended／mainline_created／mainline_updated／mainline_ended／reward_task／reward_goal |
+| `kind` | `text` | 否 | 无 | CHECK：task_created／task_updated／task_rescheduled／task_migrated／task_ended／task_deleted／task_completed／task_completion_cancelled／goal_created／goal_updated／goal_focused／goal_reordered／goal_migrated／goal_achieved／goal_ended／mainline_created／mainline_updated／mainline_ended |
 | `entity_type` | `text` | 否 | 无 | CHECK IN ('account','mainline','goal','task') |
 | `entity_id` | `uuid` | 是 | `NULL` | 相关当前对象；账户级回执可为空 |
 | `task_id` | `uuid` | 是 | `NULL` | 任务类事件引用稳定 task；不是任务事件为空 |
@@ -150,26 +150,24 @@ erDiagram
 | `command_hash` | `varchar(64)` | 是 | `NULL` | 规范化命令 SHA-256；与 request_id 成对 |
 | `command_type` | `text` | 是 | `NULL` | 受支持命令类型；仅事件组首条非空 |
 | `applied_revision` | `bigint` | 是 | `NULL` | 成功命令后的账户 revision；仅事件组首条非空 |
-| `amount` | `bigint` | 是 | `NULL` | 仅 reward 事件；正安全整数 |
-| `reward_task_id` | `uuid` | 是 | `NULL` | reward_task 对应 task |
-| `reward_goal_id` | `uuid` | 是 | `NULL` | reward_goal 对应真实目标 |
+| `amount` | `bigint` | 是 | `NULL` | 仅 task_completed／goal_achieved；冻结的正安全整数 |
 | `calculation` | `jsonb` | 是 | `NULL` | 仅奖励；CHECK 根 object；冻结 N、C、计奖 ID 或固定 1 点依据 |
 | `snapshot` | `jsonb` | 是 | `NULL` | 业务历史；CHECK 根 object；名称、说明、标准、原日期、原归属 |
-| `invalidated_at` | `timestamptz` | 是 | `NULL` | 取消完成／奖励时逻辑失效；非奖励事件通常为空 |
+| `invalidated_at` | `timestamptz` | 是 | `NULL` | 仅取消 task_completed 时逻辑失效；goal_achieved 不可失效 |
 | `invalidated_by_event_id` | `uuid` | 是 | `NULL` | 取消事件的稳定追溯 |
 | `created_at` | `timestamptz` | 否 | `now()` | 事件写入时间 |
 
 task_updated 记录待完成任务名称／说明编辑的前后内容和发生时归属，不覆盖已有历史快照；与当前任务、revision 和成功回执同事务提交。
 
-事件表既是业务历史与奖励来源，也是成功命令的幂等回执。奖励事件不另建表：`kind=reward_task` 或 `reward_goal`，amount 和 calculation 冻结来源；完成事实由 task_completed 事件承载，取消完成由 task_completion_cancelled 事件和 invalidated_at 标记共同表达。
+事件表既是业务历史与奖励来源，也是成功命令的幂等回执。`kind=task_completed` 或 `goal_achieved` 的 amount 和 calculation 冻结金额及依据，并保留必要来源快照；其他事件不得带奖励金额和计算依据。取消完成由 task_completion_cancelled 的 snapshot.completionId 和原事件的 invalidated_at／invalidated_by_event_id 共同表达，不追加负数奖励。
 
-reward_task 的 reward_task_id 必须对应一个有效 task_completed 事件（通过事件快照或关联字段）；同一完成事件最多一个未失效 reward_task，取消完成同时失效两者。reward_goal 对应真实目标 goal_achieved 事件，冻结 attainment_action_ids、N、C 与 amount；取消完成不能撤销目标奖励。
+同一 owner、task_id 最多一条有效 task_completed，奖励随完成一起失效；再次完成创建新事件。同一 owner、goal_id 最多一条 goal_achieved，冻结行动 ID、N、C、保底情况与 amount，达成事件不可失效。历史读取和取消均取原事件冻结值，不按当前规则重算。
 
-请求去重字段只出现在每次成功命令的事件组首条，`request_id` 与 command_hash 成对；成功重试先按 request_id 查事件历史，再以 event_group_id 取回同组事件。幂等查询必须包含已失效事件，防止已取消完成被旧 key 重新发奖；不能按事件 kind 或 invalidated_at 过滤掉旧请求。
+请求去重字段只出现在每次成功命令的事件组首条，`request_id` 与 command_hash 成对；成功重试先按 request_id 查全部事件历史，直接返回原事件 snapshot.result。幂等查询必须包含已失效事件，防止已取消完成被旧 key 重新发奖；不能按事件 kind 或 invalidated_at 过滤掉旧请求。
 
 ## 外键、唯一性与检查
 
-以下约束已随五表迁移建立；未交付命令的跨行业务校验仍须随对应任务实施。主键之外增加必要的同 owner 复合唯一键，供子表复合外键使用。
+以下约束由空库初始化脚本建立；未交付命令的跨行业务校验仍须随对应任务实施。主键之外增加必要的同 owner 复合唯一键，供子表复合外键使用。
 
 | 表／约束 | 数据库保证 |
 |---|---|
@@ -180,6 +178,8 @@ reward_task 的 reward_task_id 必须对应一个有效 task_completed 事件（
 | tasks(owner_id,goal_id,status) 普通索引 | 目标下当前任务查询；不是唯一约束 |
 | events UNIQUE(owner_id,request_id) WHERE request_id IS NOT NULL | 同一账户成功请求 ID 唯一 |
 | events(owner_id,id) 及引用复合外键 | 事件历史来源限定同账户 |
+| events(owner_id,task_id) WHERE kind=task_completed AND invalidated_at IS NULL 部分唯一 | 每个任务最多一条有效完成 |
+| events(owner_id,goal_id) WHERE kind=goal_achieved 部分唯一 | 每个目标只达成一次，不能通过失效重开 |
 | events(owner_id,task_id) 普通索引 | 任务完成、改期及取消追溯 |
 | events(owner_id,kind,occurred_at,id) 普通索引 | 有效奖励与成长流水读取 |
 
@@ -191,13 +191,13 @@ reward_task 的 reward_task_id 必须对应一个有效 task_completed 事件（
 
 ## 事务、权限与版本
 
-多表写入必须通过后端专用数据库事务 RPC，不能把多次 PostgREST 独立请求拼成业务事务。建议的入口语义：
+多表写入保持 Worker → Supabase PostgREST → PostgreSQL RPC；单次函数调用是事务边界，不引入运行时 pg 驱动、Hyperdrive、Drizzle、应用层事务管理器或 KV 锁。不能把多次 PostgREST 独立请求拼成业务事务。入口语义：
 
 1. Worker 在线验证身份，得到 owner，严格校验命令封套；浏览器不得直接调用表或事务函数。
 2. 事务以原子 upsert 初始化 accounts，并按需创建独立主线和 inbox；不覆盖已有账户内容。首次读取只初始化账户，不预建独立区。
 3. 写入事务对 accounts 当前 owner 行 FOR UPDATE，之后查 events 的 request_id／command_hash 并核对 expectedVersion 与 revision；保持账户级锁顺序，不逐表独立提交。
 4. 事务内校验当前主线、目标、任务、终态、聚焦、日期、历史锁定和具体输入，写入任务当前字段、事件历史／奖励、账户 total_xp、revision 及 updated_at。
-5. 回执事件与业务事实同一提交；失败全部回滚。网络超时结果未知时原 request_id 重试，不能另建请求重复发奖。所有业务事件和 reward 事件共享 event_group_id，只有首条写入 request_id／command_hash／command_type／applied_revision。
+5. 回执事件与业务事实同一提交；失败全部回滚。网络超时结果未知时原 request_id 重试，不能另建请求重复发奖。完成／达成事件内嵌奖励并保存 request_id／command_hash／command_type／applied_revision；奖励没有独立事件。
 
 所有表启用 RLS，撤回 PUBLIC／anon／authenticated 直接权限，不建立浏览器策略；后端角色仅获必需 SELECT／INSERT／UPDATE，不授予物理 DELETE。事务函数 SECURITY INVOKER，固定 search_path，显式撤回浏览器 EXECUTE，仅 Worker 后端角色可调用。角色权限不替代 owner 过滤与复合外键。
 
@@ -205,7 +205,7 @@ reward_task 的 reward_task_id 必须对应一个有效 task_completed 事件（
 
 ## 样例 JSON（按五张表分组）
 
-以下为同一虚构账户的行集合，不是 HTTP 响应，也不是已经写入数据库的数据。列值均按上表字段；样例展示真实目标达成、独立任务、任务完成、奖励事件及成功回执。任务当前状态仅保留当前日期，改期原日期在 event 快照中。
+以下为同一虚构账户的行集合，不是 HTTP 响应，也不是已经写入数据库的数据。列值均按上表字段；样例展示真实目标达成、目标下的任务完成、系统 inbox 及成功回执。其中目标达成为 #59 设计示例，本轮尚未开放该命令。任务当前状态仅保留当前日期，改期原日期在 event 快照中。
 
 ```json
 {
@@ -248,7 +248,9 @@ reward_task 的 reward_task_id 必须对应一个有效 task_completed 事件（
       "mainline_id": "20000000-0000-4000-8000-000000000001",
       "kind": "real",
       "title": "完成一次 10 公里越野",
-      "standards": ["在户外连续完成 10 公里路线，并记录一次体验。"],
+      "standards": [
+        "在户外连续完成 10 公里路线，并记录一次体验。"
+      ],
       "status": "achieved",
       "focused": false,
       "sort_order": 0,
@@ -266,7 +268,9 @@ reward_task 的 reward_task_id 必须对应一个有效 task_completed 事件（
       ],
       "attainment_snapshot": {
         "title": "完成一次 10 公里越野",
-        "standards": ["在户外连续完成 10 公里路线，并记录一次体验。"],
+        "standards": [
+          "在户外连续完成 10 公里路线，并记录一次体验。"
+        ],
         "mainlineName": "健康与活力",
         "mainlineKind": "normal"
       }
@@ -277,7 +281,9 @@ reward_task 的 reward_task_id 必须对应一个有效 task_completed 事件（
       "mainline_id": "20000000-0000-4000-8000-000000000002",
       "kind": "inbox",
       "title": "独立任务",
-      "standards": ["系统收纳目标，仅承接不依附具体目标的独立任务。"],
+      "standards": [
+        "系统收纳目标，仅承接不依附具体目标的独立任务。"
+      ],
       "status": "active",
       "focused": false,
       "sort_order": 0,
@@ -298,7 +304,7 @@ reward_task 的 reward_task_id 必须对应一个有效 task_completed 事件（
     {
       "id": "40000000-0000-4000-8000-000000000001",
       "owner_id": "10000000-0000-4000-8000-000000000001",
-      "goal_id": "30000000-0000-4000-8000-000000000001",
+      "goal_id": "30000000-0000-4000-8000-000000000002",
       "kind": "once",
       "title": "取回修好的耳机",
       "description": "",
@@ -321,8 +327,8 @@ reward_task 的 reward_task_id 必须对应一个有效 task_completed 事件（
       "entity_type": "task",
       "entity_id": "40000000-0000-4000-8000-000000000001",
       "task_id": "40000000-0000-4000-8000-000000000001",
-      "mainline_id": "20000000-0000-4000-8000-000000000002",
-      "goal_id": "30000000-0000-4000-8000-000000000001",
+      "mainline_id": "20000000-0000-4000-8000-000000000001",
+      "goal_id": "30000000-0000-4000-8000-000000000002",
       "occurred_at": "2026-10-20T04:20:00Z",
       "occurred_on": "2026-10-20",
       "actor_owner_id": "10000000-0000-4000-8000-000000000001",
@@ -330,62 +336,36 @@ reward_task 的 reward_task_id 必须对应一个有效 task_completed 事件（
       "command_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
       "command_type": "completeTask",
       "applied_revision": 8,
-      "amount": null,
-      "reward_task_id": null,
-      "reward_goal_id": null,
-      "calculation": null,
-      "snapshot": {
-        "title": "取回修好的耳机",
-        "description": "",
-        "mainlineName": "独立区",
-        "mainlineKind": "independent",
-        "goalTitle": "独立任务",
-        "goalStandard": "系统收纳目标，仅承接不依附具体目标的独立任务。"
-      },
-      "invalidated_at": null,
-      "invalidated_by_event_id": null,
-      "created_at": "2026-10-20T04:20:00Z"
-    },
-    {
-      "id": "50000000-0000-4000-8000-000000000002",
-      "owner_id": "10000000-0000-4000-8000-000000000001",
-      "kind": "reward_task",
-      "entity_type": "task",
-      "entity_id": "40000000-0000-4000-8000-000000000001",
-      "task_id": "40000000-0000-4000-8000-000000000001",
-      "mainline_id": "20000000-0000-4000-8000-000000000002",
-      "goal_id": "30000000-0000-4000-8000-000000000001",
-      "occurred_at": "2026-10-20T04:20:00Z",
-      "occurred_on": "2026-10-20",
-      "actor_owner_id": "10000000-0000-4000-8000-000000000001",
-      "request_id": null,
-      "command_hash": null,
-      "command_type": null,
-      "applied_revision": null,
       "amount": 1,
-      "reward_task_id": "40000000-0000-4000-8000-000000000001",
-      "reward_goal_id": null,
       "calculation": {
         "type": "fixed_task",
+        "completionId": "50000000-0000-4000-8000-000000000001",
         "count": 1,
         "coefficient": 1
       },
       "snapshot": {
         "title": "取回修好的耳机",
         "description": "",
-        "mainlineName": "独立区",
-        "mainlineKind": "independent",
-        "goalTitle": "独立任务",
-        "goalStandard": "系统收纳目标，仅承接不依附具体目标的独立任务。"
+        "mainlineName": "健康与活力",
+        "mainlineKind": "normal",
+        "goalTitle": "完成一次 10 公里越野",
+        "goalStandards": [
+          "在户外连续完成 10 公里路线，并记录一次体验。"
+        ],
+        "result": {
+          "entityId": "40000000-0000-4000-8000-000000000001",
+          "message": "已完成，获得 1 点经验"
+        }
       },
       "invalidated_at": null,
       "invalidated_by_event_id": null,
-      "created_at": "2026-10-20T04:20:00Z"
+      "created_at": "2026-10-20T04:20:00Z",
+      "event_group_id": "60000000-0000-4000-8000-000000000001"
     },
     {
       "id": "50000000-0000-4000-8000-000000000003",
       "owner_id": "10000000-0000-4000-8000-000000000001",
-      "kind": "reward_goal",
+      "kind": "goal_achieved",
       "entity_type": "goal",
       "entity_id": "30000000-0000-4000-8000-000000000002",
       "task_id": null,
@@ -396,40 +376,46 @@ reward_task 的 reward_task_id 必须对应一个有效 task_completed 事件（
       "actor_owner_id": "10000000-0000-4000-8000-000000000001",
       "request_id": "demo-complete-goal-01",
       "command_hash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
-      "command_type": "completeGoal",
+      "command_type": "achieveGoal",
       "applied_revision": 9,
       "amount": 2,
-      "reward_task_id": null,
-      "reward_goal_id": "30000000-0000-4000-8000-000000000002",
       "calculation": {
         "type": "goal_actions",
-        "actionCount": 1,
-        "coefficient": 2,
         "actionIds": [
           "40000000-0000-4000-8000-000000000001"
-        ]
+        ],
+        "count": 1,
+        "coefficient": 2,
+        "fallback": false
       },
       "snapshot": {
         "title": "完成一次 10 公里越野",
-        "standards": ["在户外连续完成 10 公里路线，并记录一次体验。"],
+        "standards": [
+          "在户外连续完成 10 公里路线，并记录一次体验。"
+        ],
         "mainlineName": "健康与活力",
-        "mainlineKind": "normal"
+        "mainlineKind": "normal",
+        "result": {
+          "entityId": "30000000-0000-4000-8000-000000000002",
+          "message": "已达成，获得 2 点经验"
+        }
       },
       "invalidated_at": null,
       "invalidated_by_event_id": null,
-      "created_at": "2026-10-20T04:30:00Z"
+      "created_at": "2026-10-20T04:30:00Z",
+      "event_group_id": "60000000-0000-4000-8000-000000000002"
     }
   ]
 }
 ```
 
 
-样例中的 `total_xp=3` 等于未失效 reward_task（1）与 reward_goal（2）事件之和；任务 completed、完成时间、目标 achieved 和达成字段分别与事件事实对应。若取消该完成，必须写入 task_completion_cancelled 事件并失效完成／reward_task，同时把账户 total_xp 从 3 调整为 2；目标 reward_goal 不可随任务取消撤销。真实实现还必须保存该示例省略的历史创建／改期事件，样例只展示与核对字段关系相关的记录。
+样例中的 `total_xp=3` 等于有效 task_completed（1）与 goal_achieved（2）的冻结 amount 之和。目标已达成，相关完成受终态锁定，不能取消。一般进行中目标下的合法取消只失效具体完成事件并扣除其冻结金额，不影响其他完成或目标达成；本例省略创建、编辑等历史，只说明字段关系。
 
 ## 查询、索引与容量
 
 - 页面读取主线、目标、任务当前行；event 只用于历史、有效奖励流水、计奖依据和幂等查询。按 owner、event kind、occurred_at、id 做游标分页，不能用当前页计算全量经验或成就。
-- 有效经验以未失效 reward 事件之和为准，同时核对 accounts.total_xp。等级、本级进度、距升级、有效行动数、达成目标数及七个成就实时计算，不存表。
+- 有效经验以有效 task_completed／goal_achieved 冻结 amount 之和为准，同时核对 accounts.total_xp。等级、本级进度、距升级、有效行动数、达成目标数及七个成就实时计算，不存表。
 - 账户行只保留汇总与版本；不采用旧单行 8 MB 上限，改为输入文本长度、分页、事务返回量和锁等待预算。超限整笔拒绝，不部分传播终态或裁剪历史、失效事件及回执。
 - 索引随首次迁移建立，后续根据 EXPLAIN 验收。事件表的 owner／kind／时间索引用于成长流水，task／goal／mainline 外键索引用于追溯；不预设性能通过。
 

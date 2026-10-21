@@ -60,6 +60,8 @@ describe.skipIf(!rpcOrigin)('正式 Worker HTTP → 本机真实 PostgREST → �
     const blocked = await send(other, envelope(0, { type: 'completeTask', id: task }))
     expect(blocked.status).toBe(404)
     const completed = await command(owner, { type: 'completeTask', id: task })
+    expect(completed.result.reward).toEqual({ amount: 1, calculation: { type: 'fixed_task', completionId: completed.result.completionId, count: 1, coefficient: 1 } })
+    expect((await read(owner)).tasks[0]).toMatchObject({ completionId: completed.result.completionId, reward: completed.result.reward })
     expect(completed.result.growthChange).toMatchObject({ xpDelta: 1, unlocked: ['迈出第一步'] })
     expect(await read(owner)).toMatchObject({ totalGoals: 0, mainlines: [], growth: { totalXp: 1, actions: 1 }, tasks: [{ status: 'completed' }] })
     expect(await read(other)).toMatchObject({ tasks: [], growth: { totalXp: 0 } })
@@ -83,15 +85,17 @@ describe.skipIf(!rpcOrigin)('正式 Worker HTTP → 本机真实 PostgREST → �
     const owner = crypto.randomUUID()
     const id = (await createTask(owner)).result.entityId
     const completeA = envelope(1, { type: 'completeTask', id })
-    const receiptA = await (await send(owner, completeA)).json()
+    const receiptA = planningReceiptSchema.parse(await (await send(owner, completeA)).json())
     const completed = await read(owner)
     const completionId = completed.tasks[0].completionId!
     const cancelA = envelope(2, { type: 'cancelTaskCompletion', completionId })
     const preview = await request(owner, '/api/adventure/preview', { expectedVersion: 2, command: cancelA.command })
     expect(preview.status).toBe(200)
-    expect(planningPreviewSchema.parse(await preview.json())).toMatchObject({ version: 2, requiresConfirmation: true, growthBefore: { totalXp: 1, actions: 1 }, growthAfter: { totalXp: 0, actions: 0 } })
+    expect(planningPreviewSchema.parse(await preview.json())).toMatchObject({ version: 2, requiresConfirmation: true, reward: receiptA.result.reward, growthBefore: { totalXp: 1, actions: 1 }, growthAfter: { totalXp: 0, actions: 0 } })
     expect(await read(owner)).toEqual(completed)
-    const cancelled = await (await send(owner, cancelA)).json()
+    const cancelled = planningReceiptSchema.parse(await (await send(owner, cancelA)).json())
+    expect(cancelled.result).toMatchObject({ completionId, reward: receiptA.result.reward, growthChange: { xpDelta: -1, lost: ['迈出第一步'] } })
+    expect((await read(owner)).tasks[0]).toMatchObject({ completionId: null, reward: null })
     await command(owner, { type: 'completeTask', id })
     const newDone = (await read(owner)).tasks[0].completionId
     expect(newDone).not.toBe(completionId)
@@ -112,6 +116,33 @@ describe.skipIf(!rpcOrigin)('正式 Worker HTTP → 本机真实 PostgREST → �
     const cancelled = await Promise.all([send(owner, envelope(2, { type: 'cancelTaskCompletion', completionId })), send(owner, envelope(2, { type: 'cancelTaskCompletion', completionId }))])
     expect(cancelled.map(response => response.status).sort()).toEqual([200, 409])
     expect((await read(owner)).growth).toMatchObject({ totalXp: 0, actions: 0 })
+  })
+
+  it('完成、取消和历史回执并发竞争后，按新版本执行剩余动作只保留一份有效奖励', async () => {
+    const owner = crypto.randomUUID()
+    const first = (await createTask(owner, '先完成')).result.entityId
+    const original = envelope(1, { type: 'completeTask', id: first })
+    const originalReceipt = await (await send(owner, original)).json()
+    const completionId = (await read(owner)).tasks[0].completionId!
+    const second = (await createTask(owner, '竞争完成')).result.entityId
+    const cancel = envelope(3, { type: 'cancelTaskCompletion', completionId })
+    const complete = envelope(3, { type: 'completeTask', id: second })
+    const [a, b, retry] = await Promise.all([send(owner, cancel), send(owner, complete), send(owner, original)])
+    expect([a.status, b.status].sort()).toEqual([200, 409])
+    expect(retry.status).toBe(200)
+    expect(await retry.json()).toEqual(originalReceipt)
+    const winning = a.status === 200 ? cancel : complete
+    const winnerReceipt = await (a.status === 200 ? a : b).json()
+    const afterRace = await read(owner)
+    expect(afterRace.version).toBe(4)
+    expect(afterRace.growth).toMatchObject(a.status === 200 ? { totalXp: 0, actions: 0 } : { totalXp: 2, actions: 2 })
+    const losing = a.status === 200 ? complete : cancel
+    await command(owner, losing.command)
+    expect(await (await send(owner, winning)).json()).toEqual(winnerReceipt)
+    const final = await read(owner)
+    expect(final).toMatchObject({ version: 5, growth: { totalXp: 1, actions: 1 } })
+    expect(final.tasks.find(task => task.id === first)).toMatchObject({ status: 'pending', reward: null, completionId: null })
+    expect(final.tasks.find(task => task.id === second)).toMatchObject({ status: 'completed', reward: { amount: 1 } })
   })
 
   it('取消预览过期后不执行旧确认，不影响已经完成的事实', async () => {

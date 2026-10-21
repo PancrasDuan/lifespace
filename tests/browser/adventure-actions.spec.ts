@@ -3,15 +3,16 @@ import { allowed, later, planningFixture, withGoal } from './adventure-fixture'
 import type { PlanningPage } from '../../src/shared/adventure-planning'
 const taskId = '00000000-0000-4000-8000-000000000056'
 const completionId = '00000000-0000-4000-8000-000000000057'
+const reward = { amount: 1, calculation: { type: 'fixed_task' as const, completionId, count: 1, coefficient: 1 } }
 const base: PlanningPage = {
   ...withGoal, version: 3,
   capabilities: { ...withGoal.capabilities, createTask: allowed },
   tasks: [{ id: taskId, title: '取回耳机', description: '修理店', plannedOn: withGoal.today,
-    status: 'pending', completedOn: null, completionId: null, independent: true, goalId: null, goalTitle: null, mainlineName: '独立区', overdue: false,
+    status: 'pending', completedOn: null, completionId: null, reward: null, independent: true, goalId: null, goalTitle: null, mainlineName: '独立区', overdue: false,
     capabilities: { edit: allowed, complete: allowed, cancel: later, reschedule: later, migrate: later, end: later } }],
   totalTasks: 1,
 }
-const completed: PlanningPage = { ...base, version: 5, tasks: [{ ...base.tasks[0], status: 'completed', completedOn: base.today, completionId, capabilities: { ...base.tasks[0].capabilities, complete: later, edit: later, cancel: allowed } }],
+const completed: PlanningPage = { ...base, version: 5, tasks: [{ ...base.tasks[0], status: 'completed', completedOn: base.today, completionId, reward, capabilities: { ...base.tasks[0].capabilities, complete: later, edit: later, cancel: allowed } }],
   growth: { ...base.growth, totalXp: 1, progress: 1, remaining: 19, actions: 1 } }
 
 test('一次性任务创建编辑完成、预览取消与再次完成；刷新保持权威结果', async ({ page, context }) => {
@@ -40,7 +41,7 @@ test('一次性任务创建编辑完成、预览取消与再次完成；刷新�
   await card.getByRole('button', { name: '完成', exact: true }).click()
   await expect(card.getByRole('button', { name: '取消完成', exact: true })).toBeVisible()
   expect(server.envelopes[2].command).toEqual({ type: 'completeTask', id: taskId })
-  server.preview({ version: 5, today: base.today, allowed: true, requiresConfirmation: true, message: '移除本次完成与经验', completionId,
+  server.preview({ version: 5, today: base.today, allowed: true, requiresConfirmation: true, message: '移除本次完成与经验', completionId, reward,
     growthBefore: completed.growth, growthAfter: base.growth })
   await card.getByRole('button', { name: '取消完成', exact: true }).click()
   const dialog = page.getByRole('dialog', { name: '取消任务完成' })
@@ -61,7 +62,7 @@ test('一次性任务创建编辑完成、预览取消与再次完成；刷新�
 
 test('取消确认遇到版本冲突后必须重新预览，不自动重放', async ({ page, context }) => {
   const server = await planningFixture(context, completed)
-  server.preview({ version: 5, today: base.today, allowed: true, requiresConfirmation: true, message: '移除本次完成与经验', completionId,
+  server.preview({ version: 5, today: base.today, allowed: true, requiresConfirmation: true, message: '移除本次完成与经验', completionId, reward,
     growthBefore: completed.growth, growthAfter: base.growth })
   await page.goto('/adventure')
   await page.getByRole('button', { name: '取消完成', exact: true }).click()
@@ -71,7 +72,7 @@ test('取消确认遇到版本冲突后必须重新预览，不自动重放', as
   await dialog.getByRole('button', { name: '确认取消完成', exact: true }).click()
   await expect(dialog.getByRole('button', { name: '确认取消完成', exact: true })).toBeDisabled()
   expect(server.envelopes).toHaveLength(1)
-  server.preview({ version: 6, today: base.today, allowed: true, requiresConfirmation: true, message: '移除本次完成与经验', completionId,
+  server.preview({ version: 6, today: base.today, allowed: true, requiresConfirmation: true, message: '移除本次完成与经验', completionId, reward,
     growthBefore: completed.growth, growthAfter: base.growth })
   await dialog.getByRole('button', { name: '重新预览', exact: true }).click()
   await expect(dialog.getByRole('button', { name: '确认取消完成', exact: true })).toBeEnabled()

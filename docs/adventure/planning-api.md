@@ -15,7 +15,7 @@
 - `goals`：本页进行中真实目标，包含名称、`standards` 标准数组、归属、创建时间及操作能力；不返回 inbox。
 - `page`、`pageSize`、`totalGoals`：当前页及全量目标总数；列表为空不代表总数为零。
 - `destinations`：可用普通主线 ID；归属留空即默认独立目标，不显示独立身份选项。
-- `tasks`、`totalTasks`、`taskPage`、`taskRange`：当前范围和页的任务、全量总数；每项含名称、说明、执行日、状态、真实目标或独立身份、当前具体完成事件 ID、服务端逾期标记及操作能力。
+- `tasks`、`totalTasks`、`taskPage`、`taskRange`：当前范围和页的任务、全量总数；每项含名称、说明、执行日、状态、真实目标或独立身份、当前具体完成事件 ID、冻结 `reward`（无有效完成为 null）、服务端逾期标记及操作能力。
 - `growth`：总经验、等级、本级进度、升级所需经验、有效行动数、达成目标数，以及七个实时成就的当前计数和点亮结果。
 - `capabilities`、`limits`：页面能力、禁用原因及输入限额。当前未交付操作返回 `allowed=false` 和原因。
 
@@ -32,7 +32,7 @@
 }
 ```
 
-预览校验输入、当前版本、归属和配额，返回 `version`、`today`、`allowed=true`、`requiresConfirmation=false` 及说明。不初始化账户、不写业务行或回执、不推进版本。取消任务完成时 `requiresConfirmation=true`，同时返回具体 `completionId`、`growthBefore`、`growthAfter`；两者含经验、等级、行动数和七个成就结果。确认命令使用此预览版本；409 后重读并重新预览，不静默换用新版本。失败返回与命令相同的业务错误；提交仍重新校验。
+预览校验输入、当前版本、归属和配额，返回 `version`、`today`、`allowed=true`、`requiresConfirmation=false` 及说明。不初始化账户、不写业务行或回执、不推进版本。取消任务完成时 `requiresConfirmation=true`，同时返回具体 `completionId`、原事件的冻结 `reward`、`growthBefore`、`growthAfter`；两者含经验、等级、行动数和七个成就结果。确认命令使用此预览版本；409 后重读并重新预览，不静默换用新版本。失败返回与命令相同的业务错误；提交仍重新校验。
 
 ## 业务命令
 
@@ -72,7 +72,11 @@
 }
 ```
 
-任务命令的 `result` 另含 `growthChange`：服务端经验变化、成长前后结果及点亮／不再点亮的成就名称；提示文案由后端返回。完成同时写 task_completed 与 1 点 reward_task；取消保留旧记录并将完成／奖励一起逻辑失效。取消后再完成生成新事件，旧成功请求仍返回原回执，不影响新事件。当前及完成发生时上级终态、过去完成均锁定取消。
+任务命令的 `result` 另含 `growthChange`：服务端经验变化、成长前后结果及点亮／不再点亮的成就名称；提示文案由后端返回。完成只写一条 task_completed，在该事件保存 amount 和 calculation；`result.completionId` 与 `result.reward` 返回具体完成及冻结奖励，取消回执也返回原完成的冻结奖励。创建／编辑时这两个字段为 null。取消保留旧事件并逻辑失效该完成及内嵌奖励。取消后再完成生成新事件，旧成功请求仍返回原回执，不影响新事件。当前及完成发生时上级终态、过去完成均锁定取消。
+
+`reward={amount,calculation}`；任务 calculation 为 `{type:"fixed_task",completionId,count,coefficient}`，本期新完成冻结 amount=1、count=1、coefficient=1。历史读取及取消按冻结金额和依据，不重算。`growthChange.xpDelta` 为有符号安全整数；预览与回执中的取消扣减使用原冻结 amount。
+
+目标达成 #59 尚未开放命令；共享 `goalRewardSchema` 约定 `{amount,calculation:{type:"goal_actions",actionIds,count,coefficient,fallback}}`，count 为 N、coefficient 为 C，actionIds 是去重后的稳定行动／task ID；来源内容与归属保存在达成事件 snapshot。一次达成只写一条 goal_achieved，不可撤销。
 
 同一账户按账户行锁串行写入。数据库规范化 JSONB 并计算命令摘要；相同 requestId 和命令返回原回执，即使当前账户已有更新，也不重做操作。同 key 异命令拒绝。实体、事件、版本和成功回执同事务提交，任何中途失败全部回滚。
 

@@ -1,5 +1,6 @@
 import { afterEach, expect, it, vi } from 'vitest'
 import app from '../../worker/index'
+import { goalRewardSchema, planningCommandSchema } from '../../src/shared/adventure-planning'
 
 const owner = '00000000-0000-4000-8000-000000000054'
 const env = {
@@ -151,4 +152,31 @@ it('一次性任务命令传递明确归属和执行日，取消命令定位具�
     { type: 'completeTask', id: owner, xp: 1 },
   ]) expect((await app.request('/api/adventure/commands', { method: 'POST', headers,
     body: JSON.stringify({ requestId: 'actions-invalid-01', expectedVersion: 0, command }) }, env)).status).toBe(400)
+})
+
+
+it('Worker 原样传递事件冻结的历史奖励和取消变化，不按当前 1 点规则计算', async () => {
+  const reward = { amount: 3000000000, calculation: { type: 'fixed_task', completionId: owner, count: 1, coefficient: 3000000000 } }
+  const growth = { level: 1, totalXp: 0, progress: 0, needed: 20, remaining: 20, actions: 0, achievedGoals: 0, achievements: [] }
+  const receipt = { version: 3, result: { entityId: owner, message: '已取消完成', completionId: owner, reward,
+    growthChange: { xpDelta: -3000000000, before: { ...growth, totalXp: 3000000000, actions: 1 }, after: growth, unlocked: [], lost: ['迈出第一步'] } } }
+  vi.stubGlobal('fetch', async (input: string | URL | Request) => {
+    if (new URL(input instanceof Request ? input.url : input).pathname === '/auth/v1/user')
+      return Response.json({ id: owner, email: 'planning@example.com', email_confirmed_at: '2026-10-20', is_anonymous: false })
+    return Response.json(receipt)
+  })
+  const response = await app.request('/api/adventure/commands', { method: 'POST', headers,
+    body: JSON.stringify({ requestId: 'frozen-reward-01', expectedVersion: 2, command: { type: 'cancelTaskCompletion', completionId: owner } }) }, env)
+  expect(response.status).toBe(200)
+  expect(await response.json()).toEqual(receipt)
+})
+
+it('后续目标奖励契约冻结行动 ID、N、C 和保底情况；本期不开放达成命令', () => {
+  const reward = { amount: 1, calculation: { type: 'goal_actions', actionIds: [], count: 0, coefficient: 3, fallback: true } }
+  expect(planningCommandSchema.safeParse({ type: 'achieveGoal', id: owner, coefficient: 1 }).success).toBe(false)
+  expect(goalRewardSchema.parse(reward)).toEqual(reward)
+  expect(goalRewardSchema.safeParse({ ...reward, calculation: { ...reward.calculation, count: 1 } }).success).toBe(false)
+  const actions = { amount: 2, calculation: { type: 'goal_actions', actionIds: [owner], count: 1, coefficient: 2, fallback: false } }
+  expect(goalRewardSchema.parse(actions)).toEqual(actions)
+  expect(goalRewardSchema.safeParse({ ...actions, calculation: { ...actions.calculation, actionIds: [owner, owner], count: 2 } }).success).toBe(false)
 })

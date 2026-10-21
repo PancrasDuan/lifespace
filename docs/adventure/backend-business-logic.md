@@ -19,8 +19,8 @@
 3. 写事务锁定 accounts 当前 owner 行 FOR UPDATE。固定先锁账户、再按主线→目标→任务→事件顺序操作，不调用外部服务。
 4. 在锁内查 adventure_events 的 request_id／command_hash。相同 key 同 hash 返回原事实回执及提交版本；当前页面投影通过后续查询读取；异 hash 拒绝；已成功重试不重做动作，也不因跨日再次执行。
 5. 新命令核对 expectedVersion 与 revision。取得一次权威 now／Asia/Shanghai today，校验当前对象、终态、历史锁定、归属、日期、配额和具体输入；预览／能力不能绕过提交校验。
-6. 在事务内更新当前主线、目标或任务，追加必要事件及奖励事件，更新 accounts.total_xp、revision 和 updated_at。完成后检查 total_xp 等于未失效奖励事件金额之和。
-7. 同一事务提交全部变化。网络超时是结果未知，只允许原 requestId 重试；普通 revision 冲突重新读取并由用户确认，不自动重放。一个命令产生的业务事件与奖励事件共享 event_group_id，仅首条保存 request_id／command_hash／command_type／applied_revision。
+6. 在事务内更新当前主线、目标或任务，追加必要业务事件（完成／达成事件内冻结奖励），更新 accounts.total_xp、revision 和 updated_at。完成后检查 total_xp 等于有效 task_completed／goal_achieved 中冻结 amount 之和。
+7. 同一事务提交全部变化。网络超时是结果未知，只允许原 requestId 重试；普通 revision 冲突重新读取并由用户确认，不自动重放。任务完成只新增一条 task_completed，目标达成只新增一条 goal_achieved，直接携带冻结奖励及成功回执。event_group_id 仅供同命令业务历史关联，不承担奖励配对。
 
 回执保存在 events 的 request_id／command_hash 中；成功回执与业务事实同一提交，失败或超时回滚不产生成功回执。事件不能按“当前有效”过滤后用于幂等查询，否则已取消完成会被旧请求重新发放。账户 total_xp 是汇总，不是独立账本；事件是历史事实，两者必须同时更新且可核对。
 
@@ -35,35 +35,37 @@
 | 改期 | 只更新 tasks.planned_on | 追加 task_rescheduled，snapshot 保存原日期与来源；不新增任务／安排表 |
 | 任务迁移 | 更新 tasks.goal_id | task_migrated 事件保存旧归属快照；历史事件不改 |
 | 误建删除 | 设置 tasks.deleted_at | task_deleted 事件；不物理删除，不减少历史奖励 |
-| 完成任务 | status=completed、completed_at／on、账户 total_xp＋1 | task_completed 与 reward_task 事件，同事务提交 |
-| 取消完成 | status=pending，清当前完成时间，账户 total_xp 减对应任务奖励 | 写 task_completion_cancelled，逻辑失效原 task_completed／reward_task；保留旧事件，不追加负数奖励 |
-| 目标达成 | 写 goals 达成字段、status=achieved、focused=false；账户 total_xp 加目标奖励 | goal_achieved 与 reward_goal 事件，冻结行动 ID、N、C、金额和来源快照 |
+| 完成任务 | status=completed、completed_at／on、账户 total_xp＋1 | 一条 task_completed，冻结 amount、calculation 和来源快照，同事务提交 |
+| 取消完成 | status=pending，清当前完成时间，账户 total_xp 减对应任务奖励 | 写 task_completion_cancelled，逻辑失效指定 task_completed 及其内嵌奖励；保留旧事件，不追加负数奖励 |
+| 目标达成 | 写 goals 达成字段、status=achieved、focused=false；账户 total_xp 加目标奖励 | 一条 goal_achieved，冻结行动 ID、N、C、保底情况、金额和来源快照 |
 | 目标／主线结束 | 更新终态并停止下属 pending 任务 | 终态事件；不发奖、不撤销已有奖励 |
 
-任务当前只保留一个执行日期。每次改期事件必须能追溯原日期、新日期、发生时的任务内容及当时目标／主线；不能从 events 重建完整当前任务而不读 tasks，但可以从历史事件说明每次改动。目标达成把计奖行动 ID 直接冻结在 goal 行和 reward_goal 事件中；同一行动最多计一次。
+任务当前只保留一个执行日期。每次改期事件必须能追溯原日期、新日期、发生时的任务内容及当时目标／主线；不能从 events 重建完整当前任务而不读 tasks，但可以从历史事件说明每次改动。目标达成把计奖行动 ID 直接冻结在 goal 行和 goal_achieved 事件中；同一行动最多计一次。
 
 独立任务始终有 goal_id，指向同账户唯一 inbox 目标。inbox 在首次创建独立任务或独立目标时按需建立，复用同一行；不展示、不聚焦、不计目标数量／成就／奖励，不能达成或结束。独立目标则引用独立主线并创建真实 goal 行，不使用 inbox。
 
 ## 完成与取消完成
 
-完成前校验任务 pending、未删除、planned_on=today、当前 goal 及其主线可操作，且没有有效完成事件。事务内写 task_completed 与 reward_task；后者冻结 task_id、完成事件、金额 1 和来源快照。任务完成字段与事件必须一致，total_xp 增加 1。
+完成前校验任务 pending、未删除、planned_on=today、当前 goal 及其主线可操作，且没有有效完成事件。事务内只写一条 task_completed，在该事件冻结 amount=1、calculation（type=fixed_task、completionId、count、coefficient）和来源快照。任务完成字段与事件必须一致，total_xp 增加 1。
 
-取消必须由具体 completion event 定位，不能只按 task_id 取消“当前完成”。校验该完成发生在 today、任务仍为 completed、事件未失效、任务／当前归属／完成快照原归属均未终态锁定。事务内写取消事件，设置原 task_completed 和对应 reward_task 的 invalidated_at／invalidated_by_event_id，任务恢复 pending，total_xp 减少对应任务奖励。
+取消必须由具体 completion event 定位，不能只按 task_id 取消“当前完成”。校验该完成发生在 today、任务仍为 completed、事件未失效、任务／当前归属／完成快照原归属均未终态锁定。事务内写取消事件，设置指定 task_completed 的 invalidated_at／invalidated_by_event_id，任务恢复 pending，total_xp 减少原事件冻结 amount，不能按当前固定 1 点规则重算历史金额。取消事件的 snapshot.completionId 追溯原完成，不带负数 amount。
 
-旧取消请求即使使用新 requestId 也不能命中后来新完成的 event；旧成功 requestId 重试只返回既有回执。再次完成生成新的完成与奖励事件 ID，不复活旧事件。完成／取消及账户汇总、任务当前状态必须同事务，不能出现只更新总经验或只写事件的部分状态。
+旧取消请求即使使用新 requestId 也不能命中后来新完成的 event；旧成功 requestId 重试只返回既有回执。再次完成生成新的 task_completed 事件 ID 及内嵌冻结奖励，不复活旧事件。完成／取消及账户汇总、任务当前状态必须同事务，不能出现只更新总经验或只写事件的部分状态。
 
 ## 目标达成与奖励
 
+以下为 #59 的契约和验收预期，本轮不开放目标达成命令。
+
 目标达成前校验 goal kind=real、status=active、当前主线可操作；无任务或仍有未完成任务也可按完成标准达成。按完成时 goal_id 查有效 task_completed 事件，按稳定 task_id 去重得 N；C 由用户选择 1／2／3，默认 1；N>0 为 N×C，N=0 为固定 1。
 
-同一事务写入 goals 达成字段（achieved_at／on、系数、感想、N、冻结行动 ID、目标快照）、status=achieved、focused=false；追加 goal_achieved 与 reward_goal 事件；下属 pending 任务进入 ended，completed 任务保留 completed 但只读；账户 total_xp 增加目标奖励。
+同一事务写入 goals 达成字段（achieved_at／on、系数、感想、N、冻结行动 ID、目标快照）、status=achieved、focused=false；只追加一条内嵌冻结奖励的 goal_achieved 事件；下属 pending 任务进入 ended，completed 任务保留 completed 但只读；账户 total_xp 增加目标奖励。
 
-奖励事件保存目标计奖行动 ID、N、C、amount 和来源快照。目标迁移不改变 goal id，也不改写已冻结行动；任务迁出不带走历史计奖，迁入不补记旧行动。目标达成不可撤销，reward_goal 不可失效；目标达成不增加行动数，inbox 永不达成。
+达成事件保存目标计奖行动 ID、N、C、保底情况、amount 和来源快照。目标迁移不改变 goal id，也不改写已冻结行动；任务迁出不带走历史计奖，迁入不补记旧行动。目标达成不可撤销，goal_achieved 不可失效；同一 owner、goal_id 只允许一次达成；目标达成不增加行动数，inbox 永不达成。
 
 ## 结束、迁移与终态
 
 - 结束 pending 任务：status=ended、ended_at／end_cause 写入；安排历史仍在 events，不改成完成、不发奖。
-- 结束真实目标：status=ended、退出聚焦，下属 pending 任务结束；已完成和奖励事件保留并只读。
+- 结束真实目标：status=ended、退出聚焦，下属 pending 任务结束；已完成事件及内嵌奖励保留并只读。
 - 结束普通主线：状态 ended；当前 active 真实目标结束，已完成／已达成结果保留；inbox 及独立区不能结束。
 - 目标迁移只更新 goals.mainline_id 与排序；任务随 goal id 保持，历史事件快照不改。任务迁移只更新 tasks.goal_id；事件快照保存当时归属。
 - 结束只影响当前归属树；迁出的目标／任务不随原归属结束，原归属下历史完成仍不能被取消。空容器或全部下属完成不自动结束上级。
@@ -76,7 +78,7 @@
 
 后端返回当前对象、允许操作与原因、候选归属、日期范围、奖励预览和确认影响。能力绑定 revision 与规划日期，同版本跨日仍可能失效；最终提交重新校验，版本变化必须重新确认。
 
-total_xp 从账户汇总读取，但必须与未失效 reward 事件之和核对；等级和七个成就实时从有效事件／达成事实计算。有效流水按 event kind=reward_task／reward_goal、invalidated_at 为空、分页读取；目标计奖依据取冻结事件。已取消完成及奖励不进入用户界面或有效统计，数据库保留事件。
+total_xp 从账户汇总读取，但必须与有效 task_completed／goal_achieved 冻结 amount 之和核对；等级和七个成就实时从有效事件／达成事实计算。有效流水按 event kind=task_completed／goal_achieved、invalidated_at 为空、分页读取；金额和计奖依据均取冻结事件，不按当前规则重算历史。已取消完成及奖励不进入用户界面或有效统计，数据库保留事件。
 
 任务进度由后端按当前归属及明确查询范围计算为已完成数／（待完成数＋已完成数），排除已结束、已删除任务及无效完成；分母为零显示“暂无可统计任务”，不显示 100%。迁出任务不计当前目标进度，历史行动及奖励仍按发生时归属；目标汇总不因列表分页截断，进度不自动决定目标达成。
 
@@ -92,12 +94,12 @@ total_xp 从账户汇总读取，但必须与未失效 reward 事件之和核对
 |---|---|
 | 首次独立目标／任务 | 按需创建并复用唯一独立主线和 inbox，不预建，不重复；inbox 不展示为真实目标 |
 | 并发首次创建独立结构 | 部分唯一索引与事务使账户只有一条独立主线／inbox，已有数据不被覆盖 |
-| 同任务完成／取消并发 | 账户锁确定先后；任务状态、total_xp、完成／奖励事件一致，不出现部分成功 |
+| 同任务完成／取消并发 | 账户锁确定先后；任务状态、total_xp、完成事件及内嵌奖励一致，不出现部分成功 |
 | 取消 A、重新完成 B、重试取消 A | B 不被旧请求影响；取消只针对具体完成事件 |
 | 改期多次 | tasks 仅当前日期；events 保留每次原日期、新日期与来源，task_id 不变 |
-| 无任务目标或 N=0 达成 | total_xp 加 1，目标数加一，行动数不增加，reward_goal 冻结固定奖励 |
+| 无任务目标或 N=0 达成 | total_xp 加 1，目标数加一，行动数不增加，goal_achieved 冻结固定奖励及保底依据 |
 | 目标计奖与迁入迁出 | 历史完成按当时 goal 归属计入，不把旧行动转给新目标 |
-| 总经验与事件 | 任意成功后 total_xp 等于未失效 reward 事件之和；取消后两者同时变化 |
+| 总经验与事件 | 任意成功后 total_xp 等于有效 task_completed／goal_achieved 冻结 amount 之和；取消后两者同时变化 |
 | 旧请求跨日重试 | 按 events 历史回执返回既有结果，不按今天重新执行或发奖 |
 | 编辑任务并重试 | task_updated、当前内容、revision 与回执同事务；重试不重复更新，历史完成快照不变 |
 | 命令成功后查询失败 | 保留成功回执，只重试查询，不重做命令；后续读取不接受早于已知成功版本的投影 |

@@ -79,6 +79,8 @@ try {
   const env = { ...cleanEnv, ADVENTURE_LOCAL_RPC_URL: url, PLAYWRIGHT_BROWSERS_PATH: '.cache/playwright' }
   await run(process.execPath, ['node_modules/vitest/vitest.mjs', 'run', 'tests/api/adventure-actions-database.test.ts'], { env })
   if (process.argv.includes('--browser')) await run(process.execPath, ['node_modules/@playwright/test/cli.js', 'test', 'tests/browser/adventure-actions-database.spec.ts'], { env })
+  await sql(await readFile(join(root, 'tests/database/adventure-actions-audit.sql'), 'utf8'))
+  console.log('通过：HTTP／浏览器操作后的任务、冻结奖励、取消关联、账户经验、请求数与版本全量核对')
   result = 0
 } catch (error) {
   console.error(error instanceof Error ? error.message : '隔离数据库验收失败')

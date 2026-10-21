@@ -74,7 +74,10 @@ test.describe('真实任务事务的桌面与手机浏览器验收（受控身�
     await expect(card.getByRole('button', { name: '取消完成', exact: true })).toBeVisible()
     const completed = await snapshot()
     expect(completed.growth.totalXp).toBe(before.growth.totalXp + 1)
-    const completionA = completed.tasks.find(task => task.title === title)!.completionId
+    const frozen = completed.tasks.find(task => task.title === title)!
+    const completionA = frozen.completionId
+    expect(frozen.reward).toEqual({ amount: 1, calculation: { type: 'fixed_task', completionId: completionA, count: 1, coefficient: 1 } })
+    await expect(card).toContainText('本次奖励 1 点经验')
     await card.getByRole('button', { name: '取消完成', exact: true }).click()
     const dialog = page.getByRole('dialog', { name: '取消任务完成' })
     await expect(dialog).toContainText(`${before.growth.totalXp} 点经验`)
@@ -84,7 +87,10 @@ test.describe('真实任务事务的桌面与手机浏览器验收（受控身�
     await dialog.getByRole('button', { name: '确认取消完成', exact: true }).focus()
     await page.keyboard.press('Enter')
     await expect(dialog).toBeHidden()
-    expect((await snapshot()).growth.totalXp).toBe(before.growth.totalXp)
+    const afterCancel = await snapshot()
+    expect(afterCancel.growth.totalXp).toBe(before.growth.totalXp)
+    expect(afterCancel.tasks.find(task => task.title === title)!.reward).toBeNull()
+    await expect(card).not.toContainText('本次奖励')
     await card.getByRole('button', { name: '完成', exact: true }).click()
     await expect(card.getByRole('button', { name: '取消完成', exact: true })).toBeVisible()
     await page.reload()
@@ -92,5 +98,6 @@ test.describe('真实任务事务的桌面与手机浏览器验收（受控身�
     const result = await snapshot()
     expect(result.tasks.find(task => task.title === title)!.completionId).not.toBe(completionA)
     expect(result.growth.totalXp).toBe(before.growth.totalXp + 1)
+    expect(result.tasks.find(task => task.title === title)!.reward?.amount).toBe(1)
   })
 })
