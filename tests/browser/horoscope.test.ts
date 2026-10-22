@@ -15,6 +15,21 @@ test('首页只有十二星座入口，点击后显示未配置状态且不影�
   await expect(card.getByRole('button', { name: '天秤座', exact: true })).toBeFocused()
 })
 
+test('星座运势卡片位于 DNSHE 卡片上方，详情不展示娱乐参考', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-10-22T08:00:00Z') })
+  await page.route('**/api/horoscope?*', route => route.fulfill({ json: result() }))
+  await page.goto('/')
+  const headings = await page.locator('.glass-grid .panel-heading h2').allTextContents()
+  expect(headings.indexOf('星座运势')).toBe(headings.indexOf('DNSHE 域名') - 1)
+  await page.getByRole('button', { name: '天秤座', exact: true }).click()
+  const dialog = page.getByRole('dialog', { name: '天秤座 · 今日运势' })
+  await expect(dialog.getByRole('button', { name: '查看详情', exact: true })).toBeVisible()
+  await expect(dialog.getByText(/娱乐参考/)).toHaveCount(0)
+  await page.getByRole('button', { name: '查看详情', exact: true }).click()
+  await expect(dialog.getByRole('button', { name: '返回', exact: true })).toBeVisible()
+  await expect(dialog.getByText(/娱乐参考/)).toHaveCount(0)
+})
+
 import { startHoroscopeWorker, horoscopeTestToken } from '../fixtures/horoscope-worker'
 import { alapiDay } from '../fixtures/horoscope'
 

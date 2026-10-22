@@ -1,4 +1,4 @@
-import { Activity, CalendarDays, Clock3, CloudSun, Globe, ListTodo, Search, Settings2, UserRound } from 'lucide-react'
+import { Activity, CalendarDays, Clock3, CloudSun, Globe, ListTodo, Search, Settings2, Sparkles, UserRound } from 'lucide-react'
 import { AppLayout } from '../app/AppLayout'
 import './home-skeleton.css'
 
@@ -7,6 +7,7 @@ const cards = [
   { kind: 'weather', title: '今日天气', icon: CloudSun },
   { kind: 'tasks', title: '今日待办', icon: ListTodo },
   { kind: 'calendar', title: '日期与黄历', icon: CalendarDays },
+  { kind: 'horoscope', title: '星座运势', icon: Sparkles },
   { kind: 'domains', title: 'DNSHE 域名', icon: Globe },
   { kind: 'ai', title: 'AI 服务状态', icon: Activity },
 ]

@@ -8,6 +8,7 @@
 .skeleton-footer{width:110px;height:8px;margin:4px 0}
 .auth-loading .panel-time .skeleton-card-content{min-height:150px}
 .auth-loading .panel-domains .skeleton-card-content{min-height:150px}
+.auth-loading .panel-horoscope .skeleton-card-content{min-height:106px}
 @keyframes auth-skeleton-shimmer{from{background-position:100% 0}to{background-position:-100% 0}}
 @media(max-width:720px){.skeleton-card-content{padding:22px 18px;min-height:165px}.auth-loading .panel-time .skeleton-card-content{min-height:200px}}
 @media(prefers-reduced-motion:reduce){.skeleton-bar{animation:none}}

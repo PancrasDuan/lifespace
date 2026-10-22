@@ -59,5 +59,5 @@ function HoroscopeDialog({ sign, now, close }: { sign: ZodiacSign; now: number; 
   </Modal>
 }
 function FortuneFooter({ data, children }: { data: HoroscopeResult; children: React.ReactNode }) {
-  return <footer className="fortune-footer"><div><span>ALAPI · 娱乐参考</span>{data.warning && <small>{data.warning}</small>}</div>{children}</footer>
+  return <footer className="fortune-footer"><div>{data.warning && <small>{data.warning}</small>}</div>{children}</footer>
 }
