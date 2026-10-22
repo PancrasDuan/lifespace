@@ -1,5 +1,5 @@
 import { Hono } from 'hono'
-import { readHoroscope } from './horoscope'
+import { readHoroscope, type HoroscopeTimings } from './horoscope'
 import { readTasks } from './tasks'
 import { ApiError } from './upstream'
 import { readWeather, searchLocations } from './weather'
@@ -10,8 +10,19 @@ import { readNews } from './news'
 import { readAiStatus } from './ai-status'
 import { publicConfig, registrationHook, verifyIdentity, type AuthEnv, type Identity } from './auth'
 
-const app = new Hono<{ Bindings: AuthEnv; Variables: { identity: Identity } }>()
+const app = new Hono<{ Bindings: AuthEnv; Variables: { identity: Identity; horoscopeTimings?: HoroscopeTimings; horoscopeCacheHit?: boolean } }>()
 app.use('/api/*', async (c, next) => { c.header('Cache-Control', 'no-store'); await next() })
+app.use('/api/horoscope', async (c, next) => {
+  const started = performance.now()
+  const timings: HoroscopeTimings = {}
+  c.set('horoscopeTimings', timings)
+  try { await next() } finally {
+    timings.total = performance.now() - started
+    const elapsed = Object.fromEntries(Object.entries(timings).map(([stage, duration]) => [stage, Math.round(duration * 10) / 10]))
+    c.header('Server-Timing', Object.entries(elapsed).map(([stage, duration]) => `${stage};dur=${duration}`).join(', '))
+    console.info(JSON.stringify({ event: 'horoscope_timing', status: c.res.status, cacheHit: c.get('horoscopeCacheHit') ?? null, durationsMs: elapsed }))
+  }
+})
 app.get('/api/auth/config', c => c.json(publicConfig(c.env)))
 app.post('/api/auth/hooks/before-user-created', async c => {
   try {
@@ -21,12 +32,21 @@ app.post('/api/auth/hooks/before-user-created', async c => {
     return c.json({ error: { http_code: 503, message: '注册服务暂时不可用' } }, 503)
   }
 })
+app.get('/api/horoscope', async c => {
+  const timings = c.get('horoscopeTimings')
+  const result = await readHoroscope(c.env, new URL(c.req.url).searchParams, async () => {
+    const started = performance.now()
+    try { await verifyIdentity(c.env, c.req.header('Authorization')) }
+    finally { if (timings) timings.auth = performance.now() - started }
+  }, timings)
+  c.set('horoscopeCacheHit', result.cacheHit)
+  return c.json(result)
+})
 app.use('/api/*', async (c, next) => {
   c.set('identity', await verifyIdentity(c.env, c.req.header('Authorization')))
   await next()
 })
 app.get('/api/auth/me', c => c.json({ user: c.get('identity') }))
-app.get('/api/horoscope', async c => c.json(await readHoroscope(c.env, new URL(c.req.url).searchParams)))
 app.get('/api/tasks/today', async c => c.json(await readTasks(c.env, c.req.query('timeZone'))))
 app.get('/api/domains', async c => c.json(await readDomainCard(c.env)))
 app.get('/api/ai-status', async c => c.json(await readAiStatus()))

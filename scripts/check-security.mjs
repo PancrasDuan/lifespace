@@ -202,11 +202,16 @@ try {
     assertClean(stored, '运势 KV 缓存')
     const keys = await namespace.list({ prefix: key })
     assert.equal(keys.keys[0].expiration, Date.parse(fortune.validUntil) / 1000)
-    const secondHoroscope = await runtime.dispatchFetch(horoscopeUrl, { headers: authHeaders })
+    const secondHoroscope = await runtime.dispatchFetch(horoscopeUrl)
     assert.equal(secondHoroscope.status, 200)
     assert.equal((await secondHoroscope.json()).cacheHit, true)
     assert.equal(horoscopeCalls, 1, '运势 KV 命中仍消耗上游调用')
-    assert.equal(authCalls, 6, '运势 KV 命中必须再次验证会话')
+    assert.equal(authCalls, 5, '公共运势缓存命中不应调用 Auth，未命中必须鉴权')
+    const signedHit = await runtime.dispatchFetch(horoscopeUrl, { headers: authHeaders })
+    assert.equal(signedHit.status, 200)
+    assert.equal((await signedHit.json()).cacheHit, true)
+    assert.equal(authCalls, 5, '携带凭据的公共缓存命中也不应调用 Auth')
+    assert.equal(horoscopeCalls, 1)
   }
   checks.push({ name: '生产构建在隔离运行时的公开路径、接口与缓存', passed: true })
   await runtime.dispose(); runtime = undefined

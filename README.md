@@ -2,7 +2,7 @@
 
 个人每日首页：Google 搜索、本地与海外时间、Open-Meteo 天气与预报、Supabase 今日待办、本地黄历、DNSHE 域名信息及服务状态。采用已确认的浅色布局，卡片与详情均为只读。
 
-访问采用邮箱白名单与 Supabase Auth，前端 SDK 管理登录及续期，Worker 逐次在线验证会话和准入。配置及真实邮件验收见 [认证接入](docs/auth-setup.md)，职责与撤销边界见 [认证决策](docs/adr/0001-supabase-auth.md)。
+访问采用邮箱白名单与 Supabase Auth，前端 SDK 管理登录及续期，Worker 在线验证会话和准入。星座运势的有效当日 KV 缓存允许匿名读取，未命中仍须登录并通过白名单后才能回源；其余业务接口逐次鉴权。配置及真实邮件验收见 [认证接入](docs/auth-setup.md)，职责与撤销边界见 [认证决策](docs/adr/0001-supabase-auth.md)。
 
 线上地址：[LifeSpace](https://lifespace.onepeace.cc.cd/)。
 

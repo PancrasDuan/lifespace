@@ -53,7 +53,7 @@ test('浏览器经真实 Worker HTTP 与鉴权读取受控 ALAPI/KV，翻转零�
     await page.reload()
     await page.getByRole('button', { name: '天秤座', exact: true }).click()
     await expect(page.getByRole('button', { name: '查看详情', exact: true })).toBeVisible()
-    expect(worker.calls).toEqual({ alapi: 1, kvReads: 2, kvWrites: 1, api: 2, auth: 2 })
+    expect(worker.calls).toEqual({ alapi: 1, kvReads: 2, kvWrites: 1, api: 2, auth: 1 })
     expect(worker.entries.size).toBe(1)
   } finally { await worker.close() }
 })
