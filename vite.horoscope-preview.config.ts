@@ -23,7 +23,7 @@ export default defineConfig(async () => {
         })
       },
     }],
-    server: { host: '127.0.0.1', port: 5176, strictPort: true, proxy: { '/api/horoscope': worker.url, '/api/auth/': worker.url },
+    server: { watch: { usePolling: true }, host: '127.0.0.1', port: 5176, strictPort: true, proxy: { '/api/horoscope': worker.url, '/api/auth/': worker.url },
       fs: { deny: ['.env', '.env.*', '**/.dev.vars*', '**/.git/**', '**/.cache/**', '**/*.{pem,key}', '**/dist/lifespace/**'] } },
   }
 })

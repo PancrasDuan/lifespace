@@ -5,8 +5,9 @@ import { BodyLimitError, readBoundedBody } from './read-body'
 
 // 仅包含外部 binding 的必要操作；缺失配置时保持正式服务的未配置状态。
 export type HoroscopeEnv = { ALAPI_TOKEN?: string; HOROSCOPE_KV?: Pick<KVNamespace, 'get' | 'put'> }
-type State = { pending: Map<string, Promise<HoroscopeResult>>; nextRead: number; blocked?: { until: number; error: ApiError } }
-// 实例内的有限合并与退避不承担跨实例锁的职责，不保存账户或凭据。
+type Flight = { until: number; result?: HoroscopeResult; error?: { code: string; message: string; status: ApiError['status'] } }
+type State = { pending: Map<string, Flight>; nextRead: number; blocked?: { until: number; error: ApiError } }
+// 只共享普通数据与时间标记，不跨请求保存 Promise、Response、流、账户或凭据。
 const states = new WeakMap<object, State>()
 const failure = (code: string, message: string, status: 429 | 502 | 503 | 504 = 502) => new ApiError(code, message, status)
 const notUpdated = () => failure('HOROSCOPE_NOT_UPDATED', '今日运势暂未更新', 503)
@@ -35,7 +36,9 @@ async function readAlapi(token: string, sign: ZodiacSign, date: string): Promise
     const value = envelope.data
     if (!value.success || value.code !== 200) {
       if (value.code === 10010) throw failure('HOROSCOPE_QUOTA_EXHAUSTED', '今日运势接口额度已用完，请明日再试', 503)
-      if ([10001, 10002, 10003].includes(value.code)) throw failure('HOROSCOPE_TOKEN_INVALID', '运势数据源授权失效，请检查服务端配置')
+      if ([10001, 10002, 10003, 10004, 10008, 10009].includes(value.code)) throw failure('HOROSCOPE_TOKEN_INVALID', '运势数据源授权失效，请检查服务端配置')
+      if ([10006, 10007].includes(value.code)) throw failure('HOROSCOPE_ACCESS_DENIED', '运势数据源访问受限，请检查服务端配置')
+      if (value.code === 10005) throw failure('HOROSCOPE_QUOTA_UNAVAILABLE', '运势数据源额度不足，请稍后再试', 503)
       if (value.code === 429) throw failure('HOROSCOPE_RATE_LIMITED', '运势读取过于频繁，请稍后重新读取', 429)
       throw failure('HOROSCOPE_BUSINESS_ERROR', '运势数据源请求失败，请稍后重新读取')
     }
@@ -73,10 +76,20 @@ export async function readHoroscope(env: HoroscopeEnv, params: URLSearchParams):
   const key = `horoscope:v1:alapi:Asia-Shanghai:${date}:${sign}`
   let state = states.get(kv)
   if (!state) { state = { pending: new Map(), nextRead: 0 }; states.set(kv, state) }
+  for (const [pendingKey, flight] of state.pending) if (flight.until <= Date.now()) state.pending.delete(pendingKey)
   const existing = state.pending.get(key)
-  if (existing) return existing
+  if (existing) {
+    // 等待属于当前请求；首请求取消或耗时较长时有限退出，由使用者重新读取。
+    await new Promise<void>(resolve => setTimeout(resolve, 1100))
+    if (beijingDate(Date.now()) !== date) throw notUpdated()
+    if (existing.result && isCurrentHoroscope(existing.result, sign, Date.now())) return existing.result
+    if (existing.error) throw new ApiError(existing.error.code, existing.error.message, existing.error.status)
+    throw failure('HOROSCOPE_RATE_LIMITED', '运势正在读取，请稍后重新读取', 429)
+  }
   const currentState = state
-  const pending = (async (): Promise<HoroscopeResult> => {
+  const flight: Flight = { until: Date.now() + 12000 }
+  currentState.pending.set(key, flight)
+  const read = async (): Promise<HoroscopeResult> => {
     let cached: unknown
     try {
       const stored = await kv.get(key)
@@ -106,7 +119,13 @@ export async function readHoroscope(env: HoroscopeEnv, params: URLSearchParams):
     }
     if (!isCurrentHoroscope(data, sign, Date.now())) throw notUpdated()
     return { ...data, cacheHit: false, ...(warning ? { warning } : {}) }
-  })()
-  currentState.pending.set(key, pending)
-  try { return await pending } finally { currentState.pending.delete(key) }
+  }
+  try {
+    const result = await read()
+    flight.result = result
+    return result
+  } catch (error) {
+    if (error instanceof ApiError) flight.error = { code: error.code, message: error.message, status: error.status }
+    throw error
+  } finally { if (currentState.pending.get(key) === flight) currentState.pending.delete(key) }
 }

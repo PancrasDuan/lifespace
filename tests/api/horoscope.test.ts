@@ -97,6 +97,13 @@ test.each([
   ['HTTP 限流', () => new Response('private', { status: 429 }), 'HOROSCOPE_RATE_LIMITED', 429],
   ['每日耗尽', () => Response.json({ success: false, code: 10010, message: 'private' }), 'HOROSCOPE_QUOTA_EXHAUSTED', 503],
   ['业务鉴权', () => Response.json({ success: false, code: 10001, message: 'private' }), 'HOROSCOPE_TOKEN_INVALID', 502],
+  ['业务错误 10002', () => Response.json({ success: false, code: 10002, message: 'private' }), 'HOROSCOPE_TOKEN_INVALID', 502],
+  ['业务错误 10004', () => Response.json({ success: false, code: 10004, message: 'private' }), 'HOROSCOPE_TOKEN_INVALID', 502],
+  ['业务错误 10008', () => Response.json({ success: false, code: 10008, message: 'private' }), 'HOROSCOPE_TOKEN_INVALID', 502],
+  ['业务错误 10009', () => Response.json({ success: false, code: 10009, message: 'private' }), 'HOROSCOPE_TOKEN_INVALID', 502],
+  ['业务错误 10006', () => Response.json({ success: false, code: 10006, message: 'private' }), 'HOROSCOPE_ACCESS_DENIED', 502],
+  ['业务错误 10007', () => Response.json({ success: false, code: 10007, message: 'private' }), 'HOROSCOPE_ACCESS_DENIED', 502],
+  ['业务错误 10005', () => Response.json({ success: false, code: 10005, message: 'private' }), 'HOROSCOPE_QUOTA_UNAVAILABLE', 503],
   ['HTTP 200 业务失败', () => Response.json({ success: false, code: 12345, message: 'private' }), 'HOROSCOPE_BUSINESS_ERROR', 502],
   ['超时', () => { throw new DOMException('private', 'TimeoutError') }, 'HOROSCOPE_TIMEOUT', 504],
   ['空内容', () => Response.json({ success: true, code: 200, data: { day: { date: '2026-10-22' } } }), 'HOROSCOPE_INVALID_RESPONSE', 502],
@@ -187,6 +194,7 @@ test('同实例在途读取合并，跨实例负缓存允许少量重复且同 k
   await vi.waitFor(() => expect(upstreamCalls).toBe(1))
   release()
   expect((await first).status).toBe(200)
+  await vi.advanceTimersByTimeAsync(1100)
   expect((await second).status).toBe(200)
   expect(upstreamCalls).toBe(1)
   let writes = 0
@@ -194,4 +202,30 @@ test('同实例在途读取合并，跨实例负缓存允许少量重复且同 k
   const other = await Promise.all([request(namespace()), request(namespace())])
   expect(other.map(response => response.status)).toEqual([200, 200])
   expect(upstreamCalls).toBe(3)
+})
+
+test('首请求尚未完成时，合并等待有界退出，不借用其 I/O Promise', async () => {
+  const { default: raw } = await import('../../worker/index')
+  const { horoscopeTestToken, horoscopeTestUser } = await import('../fixtures/horoscope-worker')
+  const s = setup()
+  let calls = 0
+  let release: () => void = () => {}
+  const gate = new Promise<void>(resolve => { release = resolve })
+  vi.stubGlobal('fetch', async (input: string | URL | Request) => {
+    if (String(input).includes('/auth/v1/user')) return Response.json(horoscopeTestUser)
+    calls++; await gate
+    return Response.json(alapiSuccess())
+  })
+  const env = { ...s.env, SUPABASE_URL: 'https://auth-test.supabase.co', SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_test-only', AUTH_ALLOWED_EMAILS: horoscopeTestUser.email }
+  const request = () => raw.request('/api/horoscope?sign=libra', { headers: { Authorization: `Bearer ${horoscopeTestToken}` } }, env)
+  const first = request()
+  await vi.waitFor(() => expect(calls).toBe(1))
+  const next = request()
+  await vi.advanceTimersByTimeAsync(1100)
+  const busy = await next
+  expect(busy.status).toBe(429)
+  expect(await busy.json()).toMatchObject({ error: { code: 'HOROSCOPE_RATE_LIMITED' } })
+  expect(calls).toBe(1)
+  release()
+  expect((await first).status).toBe(200)
 })

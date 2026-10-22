@@ -4,8 +4,9 @@
 .zodiac-grid button>span{font-family:'Apple Symbols','Segoe UI Symbol',serif;font-size:29px;color:var(--accent);line-height:1}
 .zodiac-grid button:hover,.zodiac-grid button:focus-visible{background:rgba(196,214,178,.09);border-color:var(--line)}
 .lifespace-app .modal.horoscope-modal{--ink:#eaf3ee;--quiet:#b2c4ba;--accent:#c5dfad;--line:rgba(216,239,223,.16);color:var(--ink);width:min(510px,calc(100vw - 28px));padding:0;overflow:hidden;background:radial-gradient(ellipse at 0 0,#304e40,transparent 75%),#142e28}
-.horoscope-modal>header{padding:22px 26px;border-bottom:1px solid var(--line);margin:0}
-.fortune-stage{perspective:1300px;height:min(570px,calc(100dvh - 160px));min-height:260px}
+.horoscope-modal[open]{display:flex;flex-direction:column}
+.horoscope-modal>header{flex-shrink:0;padding:22px 26px;border-bottom:1px solid var(--line);margin:0}
+.fortune-stage{perspective:1300px;height:min(570px,calc(100dvh - 160px));min-height:0;flex-shrink:1}
 .fortune-turn{height:100%;position:relative;transform-style:preserve-3d;transition:transform .55s cubic-bezier(.22,.7,.3,1)}
 .fortune-stage.is-back .fortune-turn{transform:rotateY(180deg)}
 .fortune-face{position:absolute;inset:0;display:flex;flex-direction:column;backface-visibility:hidden;background:radial-gradient(ellipse at 0 0,rgba(192,217,160,.08),transparent 75%),#19342d}
@@ -40,6 +41,7 @@
 .fortune-text p,.fortune-almanac p{font-size:12px;line-height:1.95;margin:0;white-space:pre-wrap}
 .fortune-almanac{margin-top:20px;padding-top:15px;border-top:1px solid var(--line)}
 .fortune-almanac b{color:var(--accent);font-weight:500;padding-right:14px}
-.horoscope-state{min-height:280px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:25px;font-size:13px;color:var(--quiet)}
-@media(max-width:680px){.panel-horoscope{grid-column:1/-1}.zodiac-grid{grid-template-columns:repeat(4,minmax(0,1fr))}.fortune-scroll{padding:22px}.fortune-footer{padding:14px 20px}.fortune-scores{gap:12px}.horoscope-modal>header{padding:18px 22px}}
+.horoscope-state{height:min(280px,calc(100dvh - 160px));min-height:0;overflow-y:auto;flex-shrink:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:25px;font-size:13px;color:var(--quiet)}
+@media(max-width:680px){.panel-horoscope{grid-column:1/-1}.zodiac-grid{grid-template-columns:repeat(4,minmax(0,1fr))}.fortune-scroll{padding:22px}.fortune-footer{padding:14px 20px}.fortune-scores{gap:12px}.horoscope-modal[open]{display:flex;flex-direction:column}
+.horoscope-modal>header{flex-shrink:0;padding:18px 22px}}
 @media(prefers-reduced-motion:reduce){.fortune-turn,.fortune-stage.is-back .fortune-turn{transform:none;transition:none}.fortune-back{transform:none}.fortune-face[aria-hidden=true]{visibility:hidden}.zodiac-grid button{transition:none}}
