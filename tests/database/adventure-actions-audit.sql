@@ -24,4 +24,17 @@ begin
   if exists(select 1 from public.adventure_events where command_type in ('focusGoal','reorderGoals') and
     (goal_id is null or mainline_id is null or snapshot->'after' is null or snapshot->'result' is null))
     then raise exception 'HTTP audit: focus/order receipt or history missing'; end if;
+  if exists(select 1 from public.adventure_goals g left join public.adventure_events e on e.owner_id=g.owner_id and e.goal_id=g.id and e.kind='goal_achieved'
+    where (g.status='achieved')<>(e.id is not null) or (e.id is not null and (
+      e.amount is distinct from (e.snapshot->'result'->'reward'->>'amount')::bigint
+      or e.calculation is distinct from e.snapshot->'result'->'reward'->'calculation'
+      or e.snapshot->'result'->>'achievementId' is distinct from e.id::text
+      or e.calculation->>'count' is distinct from g.attainment_action_count::text
+      or e.calculation->>'coefficient' is distinct from g.attainment_coefficient::text
+      or e.calculation->'actionIds' is distinct from to_jsonb(g.attainment_action_ids)
+      or e.snapshot->>'reflection' is distinct from g.attainment_reflection
+      or e.snapshot->>'title' is distinct from g.attainment_snapshot->>'title'
+      or g.focused or g.achieved_at is distinct from e.occurred_at
+      or exists(select 1 from public.adventure_tasks t where t.owner_id=g.owner_id and t.goal_id=g.id and t.status='pending' and t.deleted_at is null))))
+    then raise exception 'HTTP audit: achievement/frozen reward/terminal propagation diverged'; end if;
 end $$;

@@ -1,12 +1,12 @@
 # 规划与一次性任务接口
 
-适用 Issue #54、#55、#65；实现和本机隔离验证范围见相应验收报告，现有 Supabase 验收库不在本轮同步。页面读取、创建／编辑与任务完成／取消使用五表事务；账户、规划日期、版本、能力和成长由后端返回。浏览器不能直接调用表或 RPC。
+适用 Issue #54、#55、#65、#59；实现和本机隔离验证范围见相应验收报告，现有 Supabase 验收库不在本轮同步。页面读取、创建／编辑与任务完成／取消使用五表事务；账户、规划日期、版本、能力和成长由后端返回。浏览器不能直接调用表或 RPC。
 
 ## 页面查询
 
 `GET /api/adventure?page=1&pageSize=20&taskRange=today&taskPage=1&taskScope=all&search=`
 
-参数仅允许目标页 `page`（1–1,000,000）、共享页容量 `pageSize`（1–50，默认 20）、任务日期范围 `taskRange`（today／future／past，默认 today）、任务页 `taskPage`（1–1,000,000，默认 1）、`taskScope`（all／focus，默认 all）和 `search`（去除首尾空白后最多 100 个 UTF-16 码元，默认空）。首次查询安全初始化账户，不预建独立区，不导入旧单表或演示数据，不触发结算。
+参数仅允许目标页 `page`（1–1,000,000）、共享页容量 `pageSize`（1–50，默认 20）、任务日期范围 `taskRange`（today／future／past，默认 today）、任务页 `taskPage`（1–1,000,000，默认 1）、`taskScope`（all／focus，默认 all）和 `search`（去除首尾空白后最多 100 个 UTF-16 码元，默认空），可选 `goalId`（真实目标 UUID）及 `goalTaskPage`（1–1,000,000，默认 1）。首次查询安全初始化账户，不预建独立区，不导入旧单表或演示数据，不触发结算。
 
 响应由 `src/shared/adventure-planning.ts` 定义：
 
@@ -17,6 +17,7 @@
 - `destinations`：可用普通主线 ID；归属留空即默认独立目标，不显示独立身份选项。
 - `tasks`、`totalTasks`、`taskPage`、`taskRange`：当前范围和页的任务、全量总数；每项含名称、说明、执行日、状态、真实目标或独立身份、当前具体完成事件 ID、冻结 `reward`（无有效完成为 null）、服务端逾期标记及操作能力。
 - `taskScope`、`search`、`taskProgress`：当前视图、已提交搜索条件及完整筛选范围的任务进度；分页不截断分母。
+- `goalDetail`：指定 `goalId` 时返回该账户目标的只读详情（包含终态），其 `goal` 含 status、terminatedAt 和冻结 achievement；tasks 按全部日期分页，totalTasks 为该目标未删除任务总数，taskPage 为 goalTaskPage。与页面同事务、同版本；不属于账户或为 inbox 返回 404。
 - `growth`：总经验、等级、本级进度、升级所需经验、有效行动数、达成目标数，以及七个实时成就的当前计数和点亮结果。
 - `capabilities`、`limits`：页面能力、禁用原因及输入限额。当前未交付操作返回 `allowed=false` 和原因。
 
@@ -37,6 +38,8 @@
 
 预览校验输入、当前版本、归属和配额，返回 `version`、`today`、`allowed=true`、`requiresConfirmation=false` 及说明。不初始化账户、不写业务行或回执、不推进版本。取消任务完成时 `requiresConfirmation=true`，同时返回具体 `completionId`、原事件的冻结 `reward`、`growthBefore`、`growthAfter`；两者含经验、等级、行动数和七个成就结果。确认命令使用此预览版本；409 后重读并重新预览，不静默换用新版本。失败返回与命令相同的业务错误；提交仍重新校验。
 
+目标达成预览为 `requiresConfirmation=true, operation=achieveGoal`，返回 goalId、title、standards、version、today、三档 `rewards`（每档含完整冻结奖励依据）及全量 `stoppingTasks`（id、title、plannedOn）。前端仅选择服务端返回的评价档位并展示金额，不能自行计算 N 或奖励。预览无写入；取消不变更业务状态。确认前提示需继续的任务先迁出；版本冲突后旧确认禁用，必须重新预览。
+
 ## 业务命令
 
 `POST /api/adventure/commands`
@@ -54,6 +57,7 @@
 | `createMainline` | `name` |
 | `renameMainline` | `id`、`name` |
 | `createGoal` | `destination`（空字符串默认独立目标，或普通主线 UUID）、`title`、`standards` |
+| `achieveGoal` | `id`、`coefficient`（1／2／3，省略默认 1）、`reflection`（最多 4,000 码元，省略默认空）；手动按完成标准达成，无任务或有 pending 任务也允许 |
 | `focusGoal` | `id`、`focused`（boolean）；仅进行中真实目标；满额失败不推进版本 |
 | `reorderGoals` | `mainlineId`、`id`、`direction`（up／down），可选 `targetId`；同归属同聚焦组相邻移动，拖动时移至 targetId 原位置，中间目标稳定平移；不得跨组 |
 | `editGoal` | `id`、`destination`（规则同上）、`title`、`standards` |
@@ -77,11 +81,11 @@
 }
 ```
 
-任务命令的 `result` 另含 `growthChange`：服务端经验变化、成长前后结果及点亮／不再点亮的成就名称；提示文案由后端返回。完成只写一条 task_completed，在该事件保存 amount 和 calculation；`result.completionId` 与 `result.reward` 返回具体完成及冻结奖励，取消回执也返回原完成的冻结奖励。创建／编辑时这两个字段为 null。取消保留旧事件并逻辑失效该完成及内嵌奖励。取消后再完成生成新事件，旧成功请求仍返回原回执，不影响新事件。当前及完成发生时上级终态、过去完成均锁定取消。
+任务命令的 `result` 另含 `growthChange`：服务端经验变化、成长前后结果及点亮／不再点亮的成就名称；提示文案由后端返回。任务命令完成只写一条 task_completed，在该事件保存 amount 和 calculation；`result.completionId` 与 `result.reward` 返回具体完成及冻结奖励，取消回执也返回原完成的冻结奖励。创建／编辑时这两个字段为 null。取消保留旧事件并逻辑失效该完成及内嵌奖励。取消后再完成生成新事件，旧成功请求仍返回原回执，不影响新事件。当前及完成发生时上级终态、过去完成均锁定取消。
 
 `reward={amount,calculation}`；任务 calculation 为 `{type:"fixed_task",completionId,count,coefficient}`，本期新完成冻结 amount=1、count=1、coefficient=1。历史读取及取消按冻结金额和依据，不重算。`growthChange.xpDelta` 为有符号安全整数；预览与回执中的取消扣减使用原冻结 amount。
 
-目标达成 #59 尚未开放命令；共享 `goalRewardSchema` 约定 `{amount,calculation:{type:"goal_actions",actionIds,count,coefficient,fallback}}`，count 为 N、coefficient 为 C，actionIds 是去重后的稳定行动／task ID；来源内容与归属保存在达成事件 snapshot。一次达成只写一条 goal_achieved，不可撤销。
+目标达成使用共享 `goalRewardSchema`，约定 `{amount,calculation:{type:"goal_actions",actionIds,count,coefficient,fallback}}`，count 为 N、coefficient 为 C，actionIds 是去重后的稳定行动／task ID；来源内容与归属保存在达成事件 snapshot。一次达成只写一条 goal_achieved，不可撤销。回执 result 返回 achievementId、冻结 reward 与 growthChange，目标和事件均保存去重后的稳定行动 ID、N、C、评价和来源快照。N 按完成时目标归属计算，排除已失效完成；N>0 奖励 N×C，N=0 固定 1。达成退出聚焦，未删除 pending 任务同事务进入 ended，已有完成和经验保留，当前及历史归属终态均锁定取消。默认列表隐藏达成目标；`/adventure?goalId=<uuid>` 可刷新进入只读结果、评价及分页任务历史，统一终态开关由生命周期票实现。
 
 同一账户按账户行锁串行写入。数据库规范化 JSONB 并计算命令摘要；相同 requestId 和命令返回原回执，即使当前账户已有更新，也不重做操作。同 key 异命令拒绝。实体、事件、版本和成功回执同事务提交，任何中途失败全部回滚。
 

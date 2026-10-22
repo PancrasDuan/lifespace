@@ -22,8 +22,8 @@ export function PlanningGoals({ goals, blocked, action, detail }: {
       if (!blocked && source && source.id !== goal.id && source.mainlineId === goal.mainlineId && source.focused === goal.focused)
         move(source, source.sortOrder < goal.sortOrder ? 'down' : 'up', goal.id)
     }}>
-    <div role="button" tabIndex={0} aria-label={`目标：${goal.title}`} onClick={() => detail(goal)}
-      onKeyDown={event => { if ((event.key === 'Enter' || event.key === ' ') && !event.nativeEvent.isComposing) { event.preventDefault(); detail(goal) } }}>
+    <div role="button" tabIndex={blocked ? -1 : 0} aria-disabled={blocked} aria-label={`目标：${goal.title}`} onClick={() => { if (!blocked) detail(goal) }}
+      onKeyDown={event => { if (!blocked && (event.key === 'Enter' || event.key === ' ') && !event.nativeEvent.isComposing) { event.preventDefault(); detail(goal) } }}>
       <span className="planning-destination">{goal.independent ? '独立目标' : goal.mainlineName}</span>
       <h3>{goal.title}</h3><ul>{goal.standards.map((standard, index) => <li key={index}>{standard}</li>)}</ul>
       <PlanningProgress value={goal.progress} label="目标任务进度" />

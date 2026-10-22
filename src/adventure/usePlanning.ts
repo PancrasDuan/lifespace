@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useVerifiedIdentity } from '../auth/identity'
-import type { PlanningCommand, PlanningEnvelope, PlanningPage, TaskRange, TaskScope } from '../shared/adventure-planning'
+import type { PlanningCommand, PlanningEnvelope, PlanningPage, PlanningQuery } from '../shared/adventure-planning'
 import { planningApi, PlanningError } from './planning-api'
+
+const initialQuery = (): PlanningQuery => ({ page: 1, taskRange: 'today', taskPage: 1, taskScope: 'all', search: '', goalTaskPage: 1,
+  goalId: new URLSearchParams(window.location.search).get('goalId') ?? undefined })
 
 export function usePlanning() {
   const identity = useVerifiedIdentity()
@@ -9,6 +12,7 @@ export function usePlanning() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const clearError = useCallback(() => setError(''), [])
+  const [lastAchievement, setLastAchievement] = useState<string>()
   const [notice, setNotice] = useState<{ id: string; message: string }>()
   const clearNotice = useCallback(() => setNotice(undefined), [])
   const [uncertain, setUncertain] = useState(false)
@@ -18,41 +22,28 @@ export function usePlanning() {
   const current = useRef<PlanningPage | undefined>(undefined)
   const pending = useRef<PlanningEnvelope | undefined>(undefined)
   const minimumVersion = useRef(0)
-  const page = useRef(1)
-  const taskRange = useRef<TaskRange>('today')
-  const taskPage = useRef(1)
-  const taskScope = useRef<TaskScope>('all')
-  const search = useRef('')
+  const query = useRef<PlanningQuery>(initialQuery())
   const signal = () => AbortSignal.any([lifecycle.current.signal, identity.signal, AbortSignal.timeout(15_000)])
 
-  const refresh = useCallback(async (nextPage = page.current, requestSignal = signal(), nextRange = taskRange.current, nextTaskPage = taskPage.current, nextScope = taskScope.current, nextSearch = search.current) => {
-    const result = await planningApi.load(identity.ownerId, nextPage, requestSignal, nextRange, nextTaskPage, nextScope, nextSearch)
+  const refresh = useCallback(async (requestSignal = signal()) => {
+    const result = await planningApi.load(identity.ownerId, query.current, requestSignal)
     requestSignal.throwIfAborted()
     if (result.version < minimumVersion.current) throw new PlanningError('数据尚未更新到已保存版本，请重新读取', 409)
     minimumVersion.current = result.version
     current.current = result
-    page.current = nextPage
-    taskRange.current = nextRange
-    taskPage.current = nextTaskPage
-    taskScope.current = nextScope
-    search.current = nextSearch
     setData(result)
     setReadRequired(false)
   }, [identity.ownerId, identity.signal])
 
-  const load = useCallback(async (nextPage = page.current, nextRange = taskRange.current, nextTaskPage = taskPage.current, nextScope = taskScope.current, nextSearch = search.current) => {
+  const load = useCallback(async (filters: Partial<PlanningQuery> = {}) => {
     if (active.current || pending.current) return
-    // Preserve the requested filters when a read fails so recovery retries that query.
-    page.current = nextPage
-    taskRange.current = nextRange
-    taskPage.current = nextTaskPage
-    taskScope.current = nextScope
-    search.current = nextSearch
+    // Keep requested filters for safe read recovery after a failed query.
+    query.current = { ...query.current, ...filters }
     const epoch = lifecycle.current
     active.current = true
     setBusy(true)
     setError('')
-    try { await refresh(nextPage, signal(), nextRange, nextTaskPage, nextScope, nextSearch) }
+    try { await refresh(signal()) }
     catch { if (!epoch.signal.aborted && !identity.signal.aborted) { setReadRequired(true); setError('暂时无法读取人生冒险，请检查连接后重新读取。') } }
     finally { if (lifecycle.current === epoch && !epoch.signal.aborted) { active.current = false; setBusy(false) } }
   }, [refresh, identity.signal])
@@ -70,10 +61,11 @@ export function usePlanning() {
       identity.signal.throwIfAborted()
       minimumVersion.current = Math.max(minimumVersion.current, receipt.version)
       pending.current = undefined
+      if (envelope.command.type === 'achieveGoal') setLastAchievement(receipt.result.entityId)
       setUncertain(false)
       setNotice({ id: envelope.requestId, message: receipt.result.message })
       setReadRequired(true)
-      try { await refresh(page.current, requestSignal) }
+      try { await refresh(requestSignal) }
       catch { if (!epoch.signal.aborted && !identity.signal.aborted) setError('操作已成功，页面更新失败。请重新读取。') }
       return true
     } catch (failure) {
@@ -84,7 +76,7 @@ export function usePlanning() {
       if (!fault.uncertain) {
         pending.current = undefined
         if (fault.status === 409) {
-          try { await refresh(page.current, requestSignal); setError('数据已更新，请检查最新内容后再次确认原操作。') }
+          try { await refresh(requestSignal); setError('数据已更新，请检查最新内容后再次确认原操作。') }
           catch { setReadRequired(true); setError('数据已更新，但重新读取失败，请先重新读取。') }
         }
       }
@@ -117,7 +109,7 @@ export function usePlanning() {
       if (!epoch.signal.aborted && !identity.signal.aborted) {
         setError(failure instanceof PlanningError ? failure.message : '暂时无法预览，请重试')
         if (failure instanceof PlanningError && failure.status === 409) {
-          try { await refresh(page.current, requestSignal) } catch { setReadRequired(true) }
+          try { await refresh(requestSignal) } catch { setReadRequired(true) }
         }
       }
     } finally {
@@ -131,11 +123,8 @@ export function usePlanning() {
     current.current = undefined
     pending.current = undefined
     minimumVersion.current = 0
-    page.current = 1
-    taskRange.current = 'today'
-    taskPage.current = 1
-    taskScope.current = 'all'
-    search.current = ''
+    query.current = initialQuery()
+    setLastAchievement(undefined)
     active.current = false
     setData(undefined)
     setError('')
@@ -146,6 +135,8 @@ export function usePlanning() {
     return () => controller.abort()
   }, [load])
 
-  return { data, busy, error, clearError, notice, clearNotice, uncertain, readRequired, command, load, preview,
+  const clearGoal = useCallback(() => { query.current = { ...query.current, goalId: undefined, goalTaskPage: 1 } }, [])
+
+  return { lastAchievement, clearGoal, data, busy, error, clearError, notice, clearNotice, uncertain, readRequired, command, load, preview,
     retry: () => pending.current ? send(pending.current) : Promise.resolve(false) }
 }

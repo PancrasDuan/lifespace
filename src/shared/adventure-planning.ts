@@ -14,6 +14,7 @@ export const planningCommandSchema = z.discriminatedUnion('type', [
   z.strictObject({ type: z.literal('completeTask'), id: z.uuid() }),
   z.strictObject({ type: z.literal('cancelTaskCompletion'), completionId: z.uuid() }),
   z.strictObject({ type: z.literal('editGoal'), id: z.uuid(), destination: z.union([z.literal(''), z.literal('independent'), z.uuid()]), title: name, standards }),
+  z.strictObject({ type: z.literal('achieveGoal'), id: z.uuid(), coefficient: z.number().int().min(1).max(3).default(1), reflection: z.string().trim().max(4000).default('') }),
   z.strictObject({ type: z.literal('focusGoal'), id: z.uuid(), focused: z.boolean() }),
   z.strictObject({ type: z.literal('reorderGoals'), mainlineId: z.uuid(), direction: z.enum(['up', 'down']), id: z.uuid(), targetId: z.uuid().optional() }),
 ])
@@ -37,7 +38,6 @@ export const taskRewardSchema = z.object({
   amount: rewardAmount,
   calculation: z.object({ type: z.literal('fixed_task'), completionId: z.uuid(), count: rewardAmount, coefficient: rewardAmount }),
 })
-// Contract for the later goal-achievement slice; no achievement command is exposed here.
 export const goalRewardSchema = z.object({
   amount: rewardAmount,
   calculation: z.object({
@@ -58,6 +58,13 @@ export const planningTaskSchema = z.object({
   goalId: z.uuid().nullable(), goalTitle: z.string().nullable(), mainlineName: z.string(), independent: z.boolean(), overdue: z.boolean(), progress: planningProgressSchema, capabilities,
 })
 export type PlanningTask = z.infer<typeof planningTaskSchema>
+export const planningGoalSchema = z.object({
+    id: z.uuid(), title: z.string(), standards: z.array(z.string()).min(1).max(50),
+    mainlineId: z.uuid(), mainlineName: z.string(), independent: z.boolean(), focused: z.boolean(), sortOrder: version,
+    status: z.enum(['active', 'achieved', 'ended']).default('active'), terminatedAt: z.string().nullable().default(null),
+    achievement: z.object({ id: z.uuid(), occurredOn: z.iso.date(), reflection: z.string(), reward: goalRewardSchema }).nullable().default(null),
+    createdAt: z.string(), progress: planningProgressSchema, capabilities,
+  })
 export const planningPageSchema = z.object({
   version,
   today: z.iso.date(),
@@ -67,11 +74,8 @@ export const planningPageSchema = z.object({
   mainlines: z.array(z.object({
     id: z.uuid(), name: z.string(), capabilities,
   })).max(5),
-  goals: z.array(z.object({
-    id: z.uuid(), title: z.string(), standards: z.array(z.string()).min(1).max(50),
-    mainlineId: z.uuid(), mainlineName: z.string(), independent: z.boolean(), focused: z.boolean(), sortOrder: version,
-    createdAt: z.string(), progress: planningProgressSchema, capabilities,
-  })).max(50),
+  goals: z.array(planningGoalSchema).max(50),
+  goalDetail: z.object({ goal: planningGoalSchema, tasks: z.array(planningTaskSchema).max(50), taskPage: z.number().int().positive(), totalTasks: version }).nullable().default(null),
   destinations: z.array(z.object({ id: z.string(), name: z.string() })).max(6),
   growth: growthSchema,
   tasks: z.array(planningTaskSchema).max(50).default([]), totalTasks: version.default(0),
@@ -84,14 +88,22 @@ export type PlanningGoal = PlanningPage['goals'][number]
 export const planningReceiptSchema = z.object({
   version,
   result: z.object({ entityId: z.uuid(), message: z.string(),
-    completionId: z.uuid().nullable().optional(), reward: taskRewardSchema.nullable().optional(),
+    completionId: z.uuid().nullable().optional(), reward: z.union([taskRewardSchema, goalRewardSchema]).nullable().optional(), achievementId: z.uuid().optional(),
     growthChange: z.object({ xpDelta: z.number().int().min(-Number.MAX_SAFE_INTEGER).max(Number.MAX_SAFE_INTEGER), before: growthSchema, after: growthSchema, unlocked: z.array(z.string()), lost: z.array(z.string()) }).optional(),
   }),
 })
 const previewBase = { version, today: z.iso.date(), allowed: z.literal(true), message: z.string() }
-export const planningPreviewSchema = z.discriminatedUnion('requiresConfirmation', [
+export const goalAchievementPreviewSchema = z.object({ ...previewBase, requiresConfirmation: z.literal(true), operation: z.literal('achieveGoal'),
+  goalId: z.uuid(), title: z.string(), standards: z.array(z.string()), rewards: z.array(goalRewardSchema).length(3),
+  stoppingTasks: z.array(z.object({ id: z.uuid(), title: z.string(), plannedOn: z.iso.date() })),
+})
+export type GoalAchievementPreview = z.infer<typeof goalAchievementPreviewSchema>
+export const planningPreviewSchema = z.union([
+  goalAchievementPreviewSchema,
   z.object({ ...previewBase, requiresConfirmation: z.literal(false) }),
   z.object({ ...previewBase, requiresConfirmation: z.literal(true), completionId: z.uuid(), reward: taskRewardSchema, growthBefore: growthSchema, growthAfter: growthSchema }),
 ])
 
 export type PlanningPreview = z.infer<typeof planningPreviewSchema>
+
+export type PlanningQuery = { page: number; taskRange: TaskRange; taskPage: number; taskScope: TaskScope; search: string; goalId?: string; goalTaskPage: number }

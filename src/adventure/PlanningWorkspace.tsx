@@ -2,18 +2,20 @@ import { useCallback, useRef, useState, type FormEvent, type KeyboardEvent } fro
 import { Flag, Map, Plus, Sprout, Star, Trash2 } from 'lucide-react'
 import { AppLayout } from '../app/AppLayout'
 import { useVerifiedIdentity } from '../auth/identity'
-import type { PlanningCommand, PlanningGoal, PlanningPage, PlanningTask, PlanningPreview } from '../shared/adventure-planning'
+import type { PlanningCommand, PlanningGoal, PlanningPage, PlanningTask, PlanningPreview, GoalAchievementPreview } from '../shared/adventure-planning'
 import { Modal } from './ui'
 import { usePlanning } from './usePlanning'
 import { PlanningTasks, TaskForm } from './PlanningTasks'
+import { GoalAchievement } from './GoalAchievement'
+import { PlanningGoalDetail } from './PlanningGoalDetail'
 import { PlanningGoals } from './PlanningGoals'
 import { PlanningToast } from './PlanningToast'
 import explorer from './pixel-explorer.png'
 import './adventure.css'
 import './planning.css'
 
-type PlanningDialog = { kind: 'new' } | { kind: 'mainline'; id?: string; name?: string } | { kind: 'goal'; goal?: PlanningGoal } | { kind: 'detail'; goal: PlanningGoal }
-type Dialog = PlanningDialog | { kind: 'task'; task?: PlanningTask; destination?: string } | { kind: 'cancel'; task: PlanningTask; preview: Extract<PlanningPreview, { requiresConfirmation: true }> }
+type PlanningDialog = { kind: 'new' } | { kind: 'mainline'; id?: string; name?: string } | { kind: 'goal'; goal?: PlanningGoal } | { kind: 'detail'; id: string }
+type Dialog = PlanningDialog | { kind: 'achieve'; preview: GoalAchievementPreview } | { kind: 'task'; task?: PlanningTask; destination?: string } | { kind: 'cancel'; task: PlanningTask; preview: Extract<PlanningPreview, { completionId: string }> }
 type Action = (command: PlanningCommand) => Promise<boolean>
 
 function PlanningForm({ dialog, data, action, busy, close }: {
@@ -78,10 +80,10 @@ function PlanningForm({ dialog, data, action, busy, close }: {
 function Workspace() {
   const model = usePlanning()
   const { data, busy, uncertain } = model
-  const [dialog, setDialog] = useState<Dialog>()
+  const [dialog, setDialog] = useState<Dialog | undefined>(() => { const id = new URLSearchParams(window.location.search).get('goalId'); return id ? { kind: 'detail', id } : undefined })
   const [tab, setTab] = useState<'overview' | 'planning'>('overview')
   const previewGeneration = useRef(0)
-  const close = useCallback(() => { previewGeneration.current++; setDialog(undefined) }, [])
+  const close = useCallback(() => { previewGeneration.current++; setDialog(undefined); model.clearGoal(); window.history.replaceState(null, '', '/adventure') }, [model.clearGoal])
   const blocked = busy || uncertain || model.readRequired
   const recovery = (uncertain || model.readRequired) && !busy ? <button type="button" onClick={() => {
     if (uncertain) void model.retry().then(saved => { if (saved) close() })
@@ -91,17 +93,30 @@ function Workspace() {
     if (!task.completionId) return
     const generation = previewGeneration.current
     const preview = await model.preview({ type: 'cancelTaskCompletion', completionId: task.completionId })
-    if (generation === previewGeneration.current && preview?.requiresConfirmation) setDialog({ kind: 'cancel', task, preview })
+    if (generation === previewGeneration.current && preview && 'completionId' in preview) setDialog({ kind: 'cancel', task, preview })
   }
-  const detailGoal = dialog?.kind === 'detail' ? data?.goals.find(item => item.id === dialog.goal.id) : undefined
+  const openGoal = (id: string) => {
+    if (blocked) return
+    previewGeneration.current++
+    setDialog({ kind: 'detail', id })
+    window.history.replaceState(null, '', `/adventure?goalId=${id}`)
+    void model.load({ goalId: id, goalTaskPage: 1 })
+  }
+  const achieveGoal = async (id: string) => {
+    const generation = previewGeneration.current
+    const preview = await model.preview({ type: 'achieveGoal', id, coefficient: 1, reflection: '' })
+    if (generation === previewGeneration.current && preview && 'goalId' in preview) setDialog({ kind: 'achieve', preview })
+  }
+  const detailGoal = dialog?.kind === 'detail' ? (data?.goalDetail?.goal.id === dialog.id ? data.goalDetail.goal : data?.goals.find(item => item.id === dialog.id)) : undefined
   const title = !dialog ? '' : dialog.kind === 'new' ? '新建' : dialog.kind === 'detail' ? '目标详情'
-    : dialog.kind === 'task' ? dialog.task ? '编辑任务' : '创建任务' : dialog.kind === 'cancel' ? '取消任务完成'
+    : dialog.kind === 'achieve' ? '确认目标达成' : dialog.kind === 'task' ? dialog.task ? '编辑任务' : '创建任务' : dialog.kind === 'cancel' ? '取消任务完成'
     : dialog.kind === 'mainline' ? dialog.id ? '修改主线名称' : '创建主线' : dialog.goal ? '编辑目标' : '创建目标'
   const goals = data?.goals
   return <AppLayout page="adventure"><div className="adventure-page planning-page">
     <header className="adventure-heading">
       <div><span className="adventure-kicker">LIFESPACE / YOUR NEXT STEP</span><h1>人生冒险</h1><p>把想做的事，慢慢变成现实。</p></div>
       <div className="adventure-heading-actions">
+        {model.lastAchievement && <button disabled={blocked} onClick={() => openGoal(model.lastAchievement!)}>查看达成结果</button>}
         <button className="adventure-primary" disabled={!data || blocked} onClick={() => setDialog({ kind: 'new' })}><Plus size={17} />新建</button>
       </div>
     </header>
@@ -110,9 +125,10 @@ function Workspace() {
       <button aria-current={tab === 'planning' ? 'page' : undefined} onClick={() => setTab('planning')}>主线与目标</button>
       <button disabled title={data?.capabilities.growth?.reason ?? '此操作尚未交付'}>成长记录</button>
     </div><small>{data?.today}</small></nav>
-    {!dialog && recovery && <div className="planning-recovery">{recovery}</div>}
+    {(!dialog || !data) && recovery && <div className="planning-recovery">{recovery}</div>}
     {model.error ? <PlanningToast key={model.error} tone="error" withinDialog={!!dialog && !!data} message={model.error} close={model.clearError} />
       : !model.readRequired && model.notice && <PlanningToast key={model.notice.id} message={model.notice.message} close={model.clearNotice} />}
+    {dialog && !data && !busy && <div className="planning-recovery"><button onClick={() => { close(); void model.load() }}>返回冒险</button></div>}
     {!data && busy && <p role="status" className="adventure-empty">正在读取你的冒险…</p>}
     {data && <div className="planning-workbench">
       <div className="planning-main">
@@ -133,17 +149,17 @@ function Workspace() {
         <section className="planning-section">
           <header><div><h2><Sprout size={20} />正在生长的目标</h2><p className="adventure-hint">以完成标准定义成果，每个目标都可以从零开始。</p></div></header>
           {goals?.length === 0 ? <p className="adventure-empty">{data.totalGoals ? '本页没有目标，请返回上一页。' : '还没有目标。创建独立目标，或选择一条主线。'}</p> :
-            <PlanningGoals goals={goals ?? []} blocked={blocked} action={model.command} detail={goal => setDialog({ kind: 'detail', goal })} />}
+            <PlanningGoals goals={goals ?? []} blocked={blocked} action={model.command} detail={goal => openGoal(goal.id)} />}
           <footer className="planning-pagination"><small>共 {data.totalGoals} 个目标 · 第 {data.page} 页</small><div>
-            <button disabled={blocked || data.page <= 1} onClick={() => { void model.load(data.page - 1) }}>上一页</button>
-            <button disabled={blocked || data.page * data.pageSize >= data.totalGoals} onClick={() => { void model.load(data.page + 1) }}>下一页</button>
+            <button disabled={blocked || data.page <= 1} onClick={() => { void model.load({ page: data.page - 1 }) }}>上一页</button>
+            <button disabled={blocked || data.page * data.pageSize >= data.totalGoals} onClick={() => { void model.load({ page: data.page + 1 }) }}>下一页</button>
           </div></footer>
         </section>
         {data.capabilities.createTask?.allowed ? <PlanningTasks data={data} blocked={blocked}
-          changeScope={scope => { void model.load(data.page, data.taskRange, 1, scope) }}
-          changeSearch={search => { void model.load(data.page, data.taskRange, 1, data.taskScope, search) }}
-          changeRange={range => { void model.load(data.page, range, 1) }} changePage={page => { void model.load(data.page, data.taskRange, page) }}
-          edit={task => setDialog({ kind: 'task', task })} complete={task => { void model.command({ type: 'completeTask', id: task.id }) }} cancel={task => { void cancelTask(task) }} />
+          changeScope={scope => { void model.load({ taskScope: scope, taskPage: 1 }) }}
+          changeSearch={search => { void model.load({ search, taskPage: 1 }) }}
+          changeRange={range => { void model.load({ taskRange: range, taskPage: 1 }) }} changePage={page => { void model.load({ taskPage: page }) }}
+          openGoal={openGoal} edit={task => setDialog({ kind: 'task', task })} complete={task => { void model.command({ type: 'completeTask', id: task.id }) }} cancel={task => { void cancelTask(task) }} />
           : <section className="planning-section planning-locked"><header><h2>一次性任务</h2></header><p className="adventure-hint">{data.capabilities.createTask?.reason}</p></section>}
       </div>
       <aside className="planning-sidebar">
@@ -161,7 +177,10 @@ function Workspace() {
         <button disabled={blocked || !data.capabilities.createMainline?.allowed} title={data.capabilities.createMainline?.reason} onClick={() => setDialog({ kind: 'mainline' })}><Flag size={20} /><strong>主线</strong><small>一个长期经营的方向</small></button>
         <button disabled={blocked || !data.capabilities.createGoal?.allowed} onClick={() => setDialog({ kind: 'goal' })}><Sprout size={20} /><strong>目标</strong><small>一个有明确标准的阶段成果</small></button>
         <button disabled={blocked || !data.capabilities.createTask?.allowed} title={data.capabilities.createTask?.reason} onClick={() => setDialog({ kind: 'task' })}><Plus size={20} /><strong>一次性任务</strong><small>安排一项完整行动</small></button>
-      </div> : dialog.kind === 'task' ? <TaskForm key={dialog.task?.id ?? 'new-task'} task={dialog.task} destination={dialog.destination} data={data} action={model.command} busy={blocked} close={close} changeGoalPage={page => { void model.load(page) }} />
+      </div> : dialog.kind === 'achieve' ? <GoalAchievement preview={dialog.preview} version={data.version} blocked={blocked} action={model.command}
+        repreview={() => model.preview({ type: 'achieveGoal', id: dialog.preview.goalId, coefficient: 1, reflection: '' })}
+        saved={() => setDialog({ kind: 'detail', id: dialog.preview.goalId })} cancel={close} />
+      : dialog.kind === 'task' ? <TaskForm key={dialog.task?.id ?? 'new-task'} task={dialog.task} destination={dialog.destination} data={data} action={model.command} busy={blocked} close={close} changeGoalPage={page => { void model.load({ page }) }} />
       : dialog.kind === 'cancel' ? <div className="planning-cancel-preview">
         <h3>{dialog.task.title}</h3><p>{dialog.preview.message}</p>
         <dl><div><dt>当前</dt><dd>{dialog.preview.growthBefore.totalXp} 点经验 · Lv.{dialog.preview.growthBefore.level} · {dialog.preview.growthBefore.actions} 次行动</dd></div>
@@ -173,16 +192,10 @@ function Workspace() {
           <button disabled={blocked || data.version !== dialog.preview.version} onClick={() => {
             void model.command({ type: 'cancelTaskCompletion', completionId: dialog.preview.completionId }, dialog.preview.version).then(saved => { if (saved) close() })
           }}>确认取消完成</button></div>
-      </div> : dialog.kind === 'detail' ? detailGoal ? <div className="planning-detail">
-        <span className="planning-destination">{detailGoal.independent ? '独立目标' : detailGoal.mainlineName}</span><h3>{detailGoal.title}</h3>
-        <h4>完成标准</h4><ul>{detailGoal.standards.map((standard, index) => <li key={index}>{standard}</li>)}</ul><p className="adventure-hint">创建时间：{new Date(detailGoal.createdAt).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })}</p>
-        <div className="adventure-inline">
-          <button disabled={blocked || !detailGoal.capabilities.edit?.allowed} onClick={() => setDialog({ kind: 'goal', goal: detailGoal })}>编辑目标</button>
-          <button disabled={blocked || !detailGoal.capabilities.createTask?.allowed} title={detailGoal.capabilities.createTask?.reason} onClick={() => setDialog({ kind: 'task', destination: detailGoal.id })}>添加任务</button>
-          <button disabled={blocked || !detailGoal.capabilities.focus?.allowed} title={detailGoal.capabilities.focus?.reason} onClick={() => { void model.command({ type: 'focusGoal', id: detailGoal.id, focused: !detailGoal.focused }) }}>{detailGoal.focused ? '取消聚焦' : '聚焦'}</button>
-          {(['migrate', 'achieve', 'end'] as const).map((operation, i) => <button key={operation} disabled title={detailGoal.capabilities[operation]?.reason}>{['迁移', '确认达成', '结束'][i]}</button>)}
-        </div>
-      </div> : <p>目标已更新，请关闭后重新读取。</p>
+      </div> : dialog.kind === 'detail' ? detailGoal ? <PlanningGoalDetail goal={detailGoal} history={data.goalDetail?.goal.id === detailGoal.id ? data.goalDetail : null} pageSize={data.pageSize} blocked={blocked}
+          edit={() => setDialog({ kind: 'goal', goal: detailGoal })} addTask={() => setDialog({ kind: 'task', destination: detailGoal.id })}
+          focus={() => { void model.command({ type: 'focusGoal', id: detailGoal.id, focused: !detailGoal.focused }) }} achieve={() => { void achieveGoal(detailGoal.id) }}
+          changePage={page => { void model.load({ goalTaskPage: page }) }} /> : <p>{busy ? '正在读取目标详情…' : '暂时无法读取目标详情，请重新读取。'}</p>
         : <PlanningForm key={dialog.kind === 'mainline' ? dialog.id ?? 'new-mainline' : dialog.goal?.id ?? 'new-goal'} dialog={dialog} data={data} action={model.command} busy={blocked} close={close} />}
       {recovery && <div className="planning-recovery">{recovery}</div>}
     </Modal>}

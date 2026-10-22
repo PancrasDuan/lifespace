@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { authorizedFetch, authorizedMutation } from '../auth/request'
-import { planningPageSchema, planningReceiptSchema, planningPreviewSchema, type PlanningEnvelope, type PlanningCommand, type TaskRange, type TaskScope } from '../shared/adventure-planning'
+import { planningPageSchema, planningReceiptSchema, planningPreviewSchema, type PlanningEnvelope, type PlanningCommand, type PlanningQuery } from '../shared/adventure-planning'
 
 export class PlanningError extends Error {
   constructor(message: string, readonly status: number, readonly uncertain = false) { super(message) }
@@ -16,8 +16,9 @@ async function read<T>(response: Response, schema: z.ZodType<T>, mutation = fals
   return parsed.data
 }
 export const planningApi = {
-  async load(owner: string, page: number, signal: AbortSignal, taskRange: TaskRange = 'today', taskPage = 1, taskScope: TaskScope = 'all', search = '') {
-    const query = new URLSearchParams({ page: String(page), taskRange, taskPage: String(taskPage), taskScope, search })
+  async load(owner: string, filters: PlanningQuery, signal: AbortSignal) {
+    const query = new URLSearchParams()
+    for (const [key, value] of Object.entries(filters)) if (value !== undefined) query.set(key, String(value))
     return read(await authorizedFetch(`/api/adventure?${query}`, signal, owner), planningPageSchema)
   },
   async preview(owner: string, expectedVersion: number, command: PlanningCommand, signal: AbortSignal) {

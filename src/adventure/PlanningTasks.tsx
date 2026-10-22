@@ -40,9 +40,10 @@ export function TaskForm({ task, destination: initialDestination, data, action, 
   </fieldset></form>
 }
 
-export function PlanningTasks({ data, blocked, changeRange, changePage, changeScope, changeSearch, edit, complete, cancel }: {
+export function PlanningTasks({ data, blocked, changeRange, changePage, changeScope, changeSearch, openGoal, edit, complete, cancel }: {
   data: PlanningPage; blocked: boolean; changeRange: (range: TaskRange) => void; changePage: (page: number) => void;
   changeScope: (scope: TaskScope) => void; changeSearch: (search: string) => void;
+  openGoal: (id: string) => void;
   edit: (task: PlanningTask) => void; complete: (task: PlanningTask) => void; cancel: (task: PlanningTask) => void
 }) {
   const [search, setSearch] = useState(data.search)
@@ -61,6 +62,7 @@ export function PlanningTasks({ data, blocked, changeRange, changePage, changeSc
     <PlanningProgress value={data.taskProgress} label="当前筛选任务进度" />
     {data.tasks.length === 0 ? <p className="adventure-empty">这个日期范围暂无任务。</p> : <div className="planning-task-list">{data.tasks.map(task => <article key={task.id} aria-label={`任务：${task.title}`} className={task.status === 'completed' ? 'planning-task completed' : 'planning-task'}>
       <div><small className="planning-destination">{task.independent ? '独立任务' : `${task.mainlineName} / ${task.goalTitle}`}</small>
+        {task.goalId && <button disabled={blocked} className="planning-goal-link" onClick={() => openGoal(task.goalId!)}>查看所属目标</button>}
         <h3>{task.status === 'completed' && <Check size={16} aria-hidden="true" />}{task.title}</h3>
         {task.description && <p>{task.description}</p>}
         <small>{task.plannedOn} · {task.overdue ? '逾期，仍待完成' : task.status === 'completed' ? '已完成' : task.status === 'ended' ? '已结束' : '待完成'}</small>

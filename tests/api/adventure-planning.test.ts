@@ -33,7 +33,7 @@ it('页面查询通过账户隔离 RPC 返回空规划，不调用旧单表或�
   const response = await app.request('/api/adventure', { headers }, env)
   expect(response.status).toBe(200)
   expect(await response.json()).toMatchObject({ version: 0, goals: [], growth: { level: 1, totalXp: 0 } })
-  expect(calls).toEqual([{ path: '/rest/v1/rpc/adventure_workspace_read', body: { p_owner: owner, p_page: 1, p_page_size: 20, p_task_range: 'today', p_task_page: 1, p_task_scope: 'all', p_search: '' } }])
+  expect(calls).toEqual([{ path: '/rest/v1/rpc/adventure_workspace_read', body: { p_owner: owner, p_page: 1, p_page_size: 20, p_task_range: 'today', p_task_page: 1, p_task_scope: 'all', p_search: '', p_goal_id: null, p_goal_task_page: 1 } }])
 })
 
 it('命令只返回稳定回执；分页页面通过下一次查询读取', async () => {
@@ -123,7 +123,7 @@ it('数据库业务错误映射为稳定错误，内部详情与密钥不出现�
 
 it('限制分页、请求体和内容类型，拒绝未登录请求', async () => {
   vi.stubGlobal('fetch', async () => Response.json({ id: owner, email: 'planning@example.com', email_confirmed_at: '2026-10-20', is_anonymous: false }))
-  for (const query of ['page=0', 'pageSize=51', 'page=1.5', 'owner=x', 'taskRange=all', 'taskPage=0', 'taskPage=1.5', 'taskScope=x', 'search=' + '字'.repeat(101)])
+  for (const query of ['page=0', 'pageSize=51', 'page=1.5', 'owner=x', 'taskRange=all', 'taskPage=0', 'taskPage=1.5', 'goalId=x', 'goalTaskPage=0', 'goalTaskPage=1.5', 'taskScope=x', 'search=' + '字'.repeat(101)])
     expect((await app.request(`/api/adventure?${query}`, { headers }, env)).status).toBe(400)
   expect((await app.request('/api/adventure', {}, env)).status).toBe(401)
   expect((await app.request('/api/adventure/commands', { method: 'POST', headers, body: 'x'.repeat(33000) }, env)).status).toBe(400)
@@ -172,12 +172,20 @@ it('Worker 原样传递事件冻结的历史奖励和取消变化，不按当前
   expect(await response.json()).toEqual(receipt)
 })
 
-it('后续目标奖励契约冻结行动 ID、N、C 和保底情况；本期不开放达成命令', () => {
+it('目标奖励契约冻结行动 ID、N、C 和保底情况，达成命令已开放', () => {
   const reward = { amount: 1, calculation: { type: 'goal_actions', actionIds: [], count: 0, coefficient: 3, fallback: true } }
-  expect(planningCommandSchema.safeParse({ type: 'achieveGoal', id: owner, coefficient: 1 }).success).toBe(false)
+  expect(planningCommandSchema.safeParse({ type: 'achieveGoal', id: owner, coefficient: 1 }).success).toBe(true)
   expect(goalRewardSchema.parse(reward)).toEqual(reward)
   expect(goalRewardSchema.safeParse({ ...reward, calculation: { ...reward.calculation, count: 1 } }).success).toBe(false)
   const actions = { amount: 2, calculation: { type: 'goal_actions', actionIds: [owner], count: 1, coefficient: 2, fallback: false } }
   expect(goalRewardSchema.parse(actions)).toEqual(actions)
   expect(goalRewardSchema.safeParse({ ...actions, calculation: { ...actions.calculation, actionIds: [owner, owner], count: 2 } }).success).toBe(false)
+})
+
+
+it('达成契约默认评价与感想，拒绝伪造计奖事实和非法评价', () => {
+  expect(planningCommandSchema.parse({ type: 'achieveGoal', id: owner })).toEqual({ type: 'achieveGoal', id: owner, coefficient: 1, reflection: '' })
+  for (const fields of [{ coefficient: 0 }, { coefficient: 4 }, { coefficient: 1.5 }, { coefficient: null }, { reflection: '字'.repeat(4001) },
+    { amount: 100 }, { actionIds: [owner] }, { today: '2030-01-01' }, { owner }])
+    expect(planningCommandSchema.safeParse({ type: 'achieveGoal', id: owner, ...fields }).success).toBe(false)
 })
