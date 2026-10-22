@@ -153,8 +153,16 @@ test('不完整合法内容保留 null，纯文本不改写；请求只传星座
   const s = setup()
   s.fetch.mockImplementation(async () => Response.json({ success: true, code: 200, data: { day: { date: '2026-10-22', love: '0%', all_text: '<script>alert(1)</script>' } } }))
   const response = await app.request('/api/horoscope?sign=libra', {}, s.env)
-  expect(await response.json()).toMatchObject({ scores: { all: null, love: 0 }, texts: { all: '<script>alert(1)</script>', health: null }, lucky: { color: null } })
+  expect(await response.json()).toMatchObject({ scores: { all: null, love: 0 }, texts: { all: '<script>alert(1)</script>', health: null }, lucky: { color: null, number: null } })
   expect(s.fetch).toHaveBeenCalledWith('https://v3.alapi.cn/api/star', expect.objectContaining({ method: 'POST', headers: { token: 'test-horoscope-credential', 'Content-Type': 'application/json' }, body: '{"star":"libra"}', redirect: 'manual' }))
+})
+
+test('真实 ALAPI 数字幸运数字转换后仍为本站字符串契约', async () => {
+  const s = setup()
+  s.fetch.mockImplementation(async () => Response.json({ ...alapiSuccess(), data: { day: { ...alapiSuccess().data.day, lucky_number: 16 } } }))
+  const response = await app.request('/api/horoscope?sign=libra', {}, s.env)
+  expect(response.status).toBe(200)
+  expect(await response.json()).toMatchObject({ lucky: { number: '16' } })
 })
 
 test('损坏结构、星座、日期、截止与未来获取时间的缓存不能成为命中', async () => {

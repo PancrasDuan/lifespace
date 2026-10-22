@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
-import { cp, mkdir, mkdtemp, readFile, readdir, realpath, rm, symlink, writeFile } from 'node:fs/promises'
+import { cp, mkdir, mkdtemp, readFile, readdir, realpath, rm, stat, symlink, writeFile } from 'node:fs/promises'
+import { existsSync } from 'node:fs'
 import { execFileSync, spawnSync } from 'node:child_process'
 import { resolve, dirname, basename } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -71,7 +72,7 @@ async function files(directory) {
 }
 let devServer, runtime
 try {
-  for (const path of ['src', 'worker', 'public', 'index.html', 'package.json', 'vite.config.ts', 'wrangler.jsonc']) {
+  for (const path of ['scripts/strip-worker-dev-vars.mjs', 'src', 'worker', 'public', 'index.html', 'package.json', 'vite.config.ts', 'wrangler.jsonc']) {
     await cp(resolve(root, path), resolve(fixture, path), { recursive: true })
   }
   await symlink(resolve(root, 'node_modules'), resolve(fixture, 'node_modules'), 'dir')
@@ -82,6 +83,13 @@ try {
   const generated = JSON.parse(await readFile(resolve(fixture, 'dist/lifespace/wrangler.json'), 'utf8'))
   const publicDir = resolve(fixture, 'dist/lifespace', generated.assets.directory)
   assert.equal(publicDir, resolve(fixture, 'dist/client'), '发布目录必须只包含前端资源')
+  const workerOutput = resolve(fixture, 'dist/lifespace')
+  for (const name of await readdir(workerOutput)) {
+    if (name.startsWith('.')) continue
+    const path = resolve(workerOutput, name)
+    if ((await stat(path)).isFile()) assertClean(await readFile(path), 'Worker 构建产物')
+  }
+  checks.push({ name: 'Worker 构建产物脱敏', passed: true })
   const publicFiles = await files(publicDir)
   for (const path of publicFiles) {
     assert(!/^\.(?:env|dev\.vars)/.test(basename(path)), '公开目录含凭据文件')
@@ -213,6 +221,9 @@ try {
     assertClean(await response.text(), '开发服务器文件响应')
   }
   checks.push({ name: '开发服务器凭据文件访问隔离', passed: true })
+  execFileSync('node', [resolve(fixture, 'scripts/strip-worker-dev-vars.mjs')], { cwd: fixture })
+  assert(!existsSync(resolve(workerOutput, '.dev.vars')), '部署清理后仍存在本地凭据文件')
+  checks.push({ name: '部署产物凭据清理', passed: true })
   assertClean(logs.join('\n'), '构建与开发日志')
   checks.push({ name: '构建与开发日志虚构凭据检查', passed: true })
   const tracked = execFileSync('git', ['ls-files', '-z'], { cwd: root }).toString().split('\0').filter(Boolean)

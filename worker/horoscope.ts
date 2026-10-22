@@ -13,11 +13,12 @@ const failure = (code: string, message: string, status: 429 | 502 | 503 | 504 = 
 const notUpdated = () => failure('HOROSCOPE_NOT_UPDATED', '今日运势暂未更新', 503)
 const invalid = () => failure('HOROSCOPE_INVALID_RESPONSE', '运势数据暂时不可用，请稍后重新读取')
 const rawText = z.string().max(12000).nullish().transform(value => value?.trim() || null)
+const rawLuckyText = z.union([z.string(), z.number().finite()]).nullish().transform(value => value == null ? null : String(value).trim() || null)
 const rawScore = z.string().regex(/^\d{1,3}%$/).transform(value => Number(value.slice(0, -1))).pipe(z.number().int().min(0).max(100)).nullish().transform(value => value ?? null)
 const daySchema = z.object({
   date: z.iso.date(), all: rawScore, love: rawScore, work: rawScore, money: rawScore, health: rawScore,
   all_text: rawText, love_text: rawText, work_text: rawText, money_text: rawText, health_text: rawText,
-  lucky_color: rawText, lucky_number: rawText, lucky_star: rawText, notice: rawText, yi: rawText, ji: rawText,
+  lucky_color: rawText, lucky_number: rawLuckyText, lucky_star: rawText, notice: rawText, yi: rawText, ji: rawText,
 })
 const envelopeSchema = z.object({ success: z.boolean(), code: z.number(), data: z.unknown().optional() })
 

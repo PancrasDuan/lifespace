@@ -17,7 +17,7 @@
     "test:security": "WRANGLER_LOG_PATH=./.cache/wrangler-security.log MINIFLARE_REGISTRY_PATH=./.cache/security-registry node scripts/check-security.mjs",
     "test:security:portable": "WRANGLER_LOG_PATH=./.cache/wrangler-security.log MINIFLARE_REGISTRY_PATH=./.cache/security-registry node --test tests/security/temp-directory.test.mjs",
     "test": "npm run test:api && npm run test:browser",
-    "deploy": "WRANGLER_LOG_PATH=./.cache/wrangler.log wrangler deploy --config dist/lifespace/wrangler.json",
+    "deploy": "node scripts/strip-worker-dev-vars.mjs && WRANGLER_LOG_PATH=./.cache/wrangler.log wrangler deploy --config dist/lifespace/wrangler.json",
     "setup:supabase": "bash scripts/configure-supabase.sh",
     "setup:dnshe": "bash scripts/configure-dnshe.sh",
     "setup:horoscope": "bash scripts/configure-horoscope.sh",

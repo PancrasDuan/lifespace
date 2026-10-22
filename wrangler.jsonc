@@ -13,7 +13,7 @@
     "run_worker_first": ["/api/*"]
   },
   "vars": {"SUPABASE_URL": "https://zvdcjzjfhkjasikchceo.supabase.co"},
-  "kv_namespaces": [{"binding": "HOROSCOPE_KV"}],
+  "kv_namespaces": [{"binding": "HOROSCOPE_KV", "id": "57e73bb16a73477d9c307458e0d119ba"}],
   "ratelimits": [
     {"name": "DNSHE_READ_LIMITER", "namespace_id": "20261006", "simple": {"limit": 1, "period": 60}},
     {"name": "NEWS_READ_LIMITER", "namespace_id": "20261007", "simple": {"limit": 30, "period": 60}}
