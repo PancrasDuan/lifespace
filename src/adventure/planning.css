@@ -100,6 +100,8 @@
 @media (max-width: 760px) { .planning-task { align-items: flex-start; flex-direction: column; } .planning-task-buttons { align-self: flex-end; } }
 
 .planning-goal.is-focused { border-color: #93ac77; background: #f6f9ef; }
+.planning-terminal-toggle { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #6f7d62; white-space: nowrap; }
+.planning-terminal-toggle input { width: auto; margin: 0; }
 .planning-goal-actions { display: flex; flex-wrap: wrap; gap: 6px; padding-top: 12px; }
 .planning-goal [role="button"]:focus-visible { outline: 2px solid #6d8559; outline-offset: 4px; }
 .planning-goal [role="button"] h3 { overflow-wrap: anywhere; }

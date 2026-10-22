@@ -7,6 +7,8 @@ export const allowed = { allowed: true }
 export const later = { allowed: false, reason: '此操作尚未交付' }
 export const emptyPlanning: PlanningPage = {
   tasks: [], totalTasks: 0, taskPage: 1, taskRange: 'today', taskScope: 'all', search: '',
+  includeTerminal: false,
+  mainlineDetail: null,
   taskProgress: { completed: 0, total: 0, ratio: null },
   goalDetail: null, version: 0, today: '2026-10-20', mainlines: [], goals: [],
   destinations: [],
@@ -17,7 +19,7 @@ export const emptyPlanning: PlanningPage = {
 }
 export const withMainline: PlanningPage = {
   ...emptyPlanning, version: 1,
-  mainlines: [{ id: mainlineId, name: '健康', capabilities: { rename: allowed, end: later } }],
+  mainlines: [{ id: mainlineId, name: '健康', status: 'active', endedAt: null, capabilities: { rename: allowed, end: later } }],
   destinations: [...emptyPlanning.destinations, { id: mainlineId, name: '健康' }],
 }
 export const withGoal: PlanningPage = {

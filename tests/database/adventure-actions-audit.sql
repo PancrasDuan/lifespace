@@ -25,6 +25,14 @@ begin
     (goal_id is null or mainline_id is null or snapshot->'after' is null or snapshot->'result' is null))
     then raise exception 'HTTP audit: focus/order receipt or history missing'; end if;
   if exists(select 1 from public.adventure_events where kind in ('goal_migrated','task_migrated') and (amount is not null or calculation is not null or snapshot->'before' is null or snapshot->'origin' is null or snapshot->'after' is null or snapshot->'result' is null)) then raise exception 'HTTP audit: migration history/reward invariant failed'; end if;
+  if exists(select 1 from public.adventure_events where kind in ('goal_ended','mainline_ended','task_ended','task_deleted') and
+    (amount is not null or calculation is not null or snapshot->'before' is null or snapshot->'after' is null or snapshot->'impact' is null or snapshot->'result' is null))
+    then raise exception 'HTTP audit: lifecycle history/reward invariant failed'; end if;
+  if exists(select 1 from public.adventure_tasks t where t.deleted_at is not null and (
+    t.status<>'pending' or t.planned_on<=(clock_timestamp() at time zone 'Asia/Shanghai')::date
+    or exists(select 1 from public.adventure_events e where e.owner_id=t.owner_id and e.task_id=t.id
+      and e.kind in ('task_completed','task_rescheduled'))))
+    then raise exception 'HTTP audit: ineligible task was deleted'; end if;
   if exists(select 1 from public.adventure_goals g left join public.adventure_events e on e.owner_id=g.owner_id and e.goal_id=g.id and e.kind='goal_achieved'
     where (g.status='achieved')<>(e.id is not null) or (e.id is not null and (
       e.amount is distinct from (e.snapshot->'result'->'reward'->>'amount')::bigint

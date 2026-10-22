@@ -103,7 +103,7 @@ begin
   if public.adventure_planning_command(v_owner,'clock-task-complete',1,jsonb_build_object('type','completeTask','id',v_task))<>v_receipt then raise exception 'Cross-day replay changed receipt'; end if;
   if (select total_xp from public.adventure_accounts where owner_id=v_owner)<>1 then raise exception 'Cross-day replay changed XP'; end if;
   foreach v_role in array array['anon','authenticated'] loop
-    if has_function_privilege(v_role,'public.adventure_workspace_read(uuid,integer,integer,text,integer,text,text,uuid,integer)','EXECUTE')
+    if has_function_privilege(v_role,'public.adventure_workspace_read(uuid,integer,integer,text,integer,text,text,uuid,integer,boolean,uuid)','EXECUTE')
       or has_function_privilege(v_role,'public.adventure_task_apply(uuid,text,bigint,jsonb,timestamptz)','EXECUTE')
       or has_function_privilege(v_role,'public.adventure_growth(uuid,bigint,integer)','EXECUTE') then raise exception 'Browser can access task RPC'; end if;
   end loop;

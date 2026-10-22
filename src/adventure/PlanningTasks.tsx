@@ -28,7 +28,7 @@ export function TaskForm({ task, destination: initialDestination, data, action, 
       <label>任务归属<select aria-label="任务归属" className={destination ? undefined : 'planning-destination-placeholder'} value={destination} onChange={event => { setDestination(event.target.value); setSelectedLabel(event.target.selectedOptions[0].text) }}>
         <option value="">默认独立任务</option>
         {destination && !data.goals.some(goal => goal.id === destination) && <option value={destination}>{selectedLabel}</option>}
-        {data.goals.map(goal => <option key={goal.id} value={goal.id}>{goal.independent ? '独立目标' : goal.mainlineName} / {goal.title}</option>)}
+        {data.goals.map(goal => <option key={goal.id} value={goal.id} disabled={!goal.capabilities.createTask?.allowed}>{goal.independent ? '独立目标' : goal.mainlineName} / {goal.title}{goal.capabilities.createTask?.allowed ? '' : ' · 只读'}</option>)}
       </select></label>
       {data.totalGoals > data.pageSize && <div className="planning-pagination"><small>目标候选 · 第 {data.page} 页</small><div>
         <button type="button" disabled={data.page <= 1} onClick={() => changeGoalPage(data.page - 1)}>上一页目标</button>
@@ -41,11 +41,12 @@ export function TaskForm({ task, destination: initialDestination, data, action, 
   </fieldset></form>
 }
 
-export function PlanningTasks({ data, blocked, changeRange, changePage, changeScope, changeSearch, openGoal, edit, complete, cancel, migrate }: {
+export function PlanningTasks({ data, blocked, changeRange, changePage, changeScope, changeSearch, openGoal, edit, complete, cancel, migrate, end, remove }: {
   data: PlanningPage; blocked: boolean; changeRange: (range: TaskRange) => void; changePage: (page: number) => void;
   changeScope: (scope: TaskScope) => void; changeSearch: (search: string) => void;
   openGoal: (id: string) => void;
-  migrate: (task: PlanningTask) => void; edit: (task: PlanningTask) => void; complete: (task: PlanningTask) => void; cancel: (task: PlanningTask) => void
+  migrate: (task: PlanningTask) => void; edit: (task: PlanningTask) => void; complete: (task: PlanningTask) => void; cancel: (task: PlanningTask) => void;
+  end: (task: PlanningTask) => void; remove: (task: PlanningTask) => void
 }) {
   const [search, setSearch] = useState(data.search)
   return <section className="planning-section planning-actions"><header><h2><ListTodo size={19} />一次性任务</h2>
@@ -72,6 +73,8 @@ export function PlanningTasks({ data, blocked, changeRange, changePage, changeSc
       </div><div className="planning-task-buttons">
         <button disabled={blocked || !task.capabilities.migrate?.allowed} title={task.capabilities.migrate?.reason} onClick={() => migrate(task)}>迁移任务</button>
         <button disabled={blocked || !task.capabilities.edit?.allowed} title={task.capabilities.edit?.reason} onClick={() => edit(task)}>编辑任务</button>
+        <button disabled={blocked || !task.capabilities.end?.allowed} title={task.capabilities.end?.reason} onClick={() => end(task)}>结束任务</button>
+        <button disabled={blocked || !task.capabilities.delete?.allowed} title={task.capabilities.delete?.reason} onClick={() => remove(task)}>删除误建</button>
         {task.status === 'completed' ? <button disabled={blocked || !task.capabilities.cancel?.allowed} title={task.capabilities.cancel?.reason} onClick={() => cancel(task)}>取消完成</button>
           : <button className="adventure-primary" disabled={blocked || !task.capabilities.complete?.allowed} title={task.capabilities.complete?.reason} onClick={() => complete(task)}>完成</button>}
       </div>

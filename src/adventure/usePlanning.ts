@@ -2,9 +2,11 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useVerifiedIdentity } from '../auth/identity'
 import type { PlanningCommand, PlanningEnvelope, PlanningPage, PlanningQuery } from '../shared/adventure-planning'
 import { planningApi, PlanningError } from './planning-api'
+import { readTerminalPreference } from './planning-preferences'
 
-const initialQuery = (): PlanningQuery => ({ page: 1, taskRange: 'today', taskPage: 1, taskScope: 'all', search: '', goalTaskPage: 1,
-  goalId: new URLSearchParams(window.location.search).get('goalId') ?? undefined })
+const initialQuery = (includeTerminal = false): PlanningQuery => ({ page: 1, taskRange: 'today', taskPage: 1, taskScope: 'all', search: '', goalTaskPage: 1,
+  goalId: new URLSearchParams(window.location.search).get('goalId') ?? undefined,
+  mainlineId: new URLSearchParams(window.location.search).get('mainlineId') ?? undefined, includeTerminal })
 
 export function usePlanning() {
   const identity = useVerifiedIdentity()
@@ -22,7 +24,7 @@ export function usePlanning() {
   const current = useRef<PlanningPage | undefined>(undefined)
   const pending = useRef<PlanningEnvelope | undefined>(undefined)
   const minimumVersion = useRef(0)
-  const query = useRef<PlanningQuery>(initialQuery())
+  const query = useRef<PlanningQuery>(initialQuery(readTerminalPreference(identity.ownerId)))
   const signal = () => AbortSignal.any([lifecycle.current.signal, identity.signal, AbortSignal.timeout(15_000)])
 
   const refresh = useCallback(async (requestSignal = signal()) => {
@@ -123,7 +125,7 @@ export function usePlanning() {
     current.current = undefined
     pending.current = undefined
     minimumVersion.current = 0
-    query.current = initialQuery()
+    query.current = initialQuery(readTerminalPreference(identity.ownerId))
     setLastAchievement(undefined)
     active.current = false
     setData(undefined)
@@ -135,7 +137,7 @@ export function usePlanning() {
     return () => controller.abort()
   }, [load])
 
-  const clearGoal = useCallback(() => { query.current = { ...query.current, goalId: undefined, goalTaskPage: 1 } }, [])
+  const clearGoal = useCallback(() => { query.current = { ...query.current, goalId: undefined, mainlineId: undefined, goalTaskPage: 1, page: 1 } }, [])
 
   return { lastAchievement, clearGoal, data, busy, error, clearError, notice, clearNotice, uncertain, readRequired, command, load, preview,
     retry: () => pending.current ? send(pending.current) : Promise.resolve(false) }

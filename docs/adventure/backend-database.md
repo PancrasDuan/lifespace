@@ -1,6 +1,6 @@
 # 后端数据库设计
 
-状态：2026-10-22 五表、#54 创建／编辑、#55 任务完成／取消和 #65 聚焦排序／进度及 #59 目标达成事务已在本地实现；现有验收库函数与索引同步留到上线前，其他业务命令仍按任务依赖实施。空库初始化统一使用 `db/adventure/create-planning.sql`；不保留未上线阶段的重复升级链，本轮不操作现有数据库或验收数据。当前接口见 [主线与目标接口](planning-api.md)。
+状态：2026-10-22 五表、#54 创建／编辑、#55 任务完成／取消、#65 聚焦排序／进度、#59 目标达成、#60 迁移及 #66 生命周期事务已在本地实现；现有验收库函数与索引同步留到上线前，其他业务命令仍按任务依赖实施。空库初始化统一使用 `db/adventure/create-planning.sql`；不保留未上线阶段的重复升级链，本轮不操作现有数据库或验收数据。当前接口见 [主线与目标接口](planning-api.md)。
 
 五表设计保留当前业务对象的独立身份和数据库关联，不为历史安排、完成、奖励和请求回执分别建表。等级、本级进度、七个成就和操作能力仍实时计算，不单独建表。完整业务规则见 [规格](spec.md) 和 [成长与奖励](growth-rewards.md)，事务与命令见 [后端业务逻辑](backend-business-logic.md)。
 
@@ -428,3 +428,11 @@ task_updated 记录待完成任务名称／说明编辑的前后内容和发生�
 ## 迁移事务与历史读取
 
 `adventure_migration_check` 统一当前对象、目的、同 owner、终态及聚焦校验；`adventure_migration_capability` 返回候选原因，`adventure_migration_options` 持账户共享锁分页读取。migrateGoal／editGoal 改归属写 goal_migrated；migrateTask 写 task_migrated。迁移事件 amount／calculation 为空，snapshot 保留 before、after、origin 和 result。目标／任务外键更新与事件、revision、回执同事务，使用现有账户锁、复合 owner 外键和请求唯一索引，不增加物理表或锁服务。任务详情返回有效完成的冻结来源；目标任务历史含迁出完成来源，当前进度仍只按当前归属计算。
+
+## 生命周期事务与终态读取
+
+`adventure_lifecycle_check` 统一 endGoal／endMainline 的 owner、状态与归属校验；`adventure_lifecycle_impact` 读取全量待停目标、待停任务和保留成果计数；`adventure_lifecycle_capability` 为页面返回稳定原因。endGoal 更新目标并停止当前 pending 任务；endMainline 更新普通主线，结束当前 active 目标并以 mainline_ended 停止其 pending 任务。两者不撤销完成／达成，不修改 amount，不改变 total_xp。
+
+endTask 与 deleteTask 复用任务最终校验；`adventure_task_impact` 返回后端确认预览。endTask 只接受 pending，写 ended_at／end_cause=manual；deleteTask 只接受执行日晚于服务端当天、pending、未删除、上级可操作且不存在任何 task_completed／task_rescheduled 事件的误建任务，写 deleted_at。取消完成不恢复删除资格；普通内容编辑或迁移本身不视为历史安排。两类命令均写无奖励事件、revision 和成功回执，失败整笔回滚；后端不授予物理 DELETE。
+
+页面读取新增 `p_include_terminal`。默认仅返回在用主线、进行中目标；开启后在目标所属组末尾按 terminated_at 倒序返回终态目标，已结束主线排在主线列表末尾按 ended_at 倒序。终态排序不改变稳定 ID 详情读取。该参数只控制展示内容，不控制权限，也不能绕过 owner 过滤。

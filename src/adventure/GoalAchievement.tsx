@@ -30,7 +30,7 @@ export function GoalAchievement({ preview, version, blocked, action, repreview, 
     <p>已有完成及奖励保留，达成后全部下属任务只读，当天也不能取消完成。</p>
     {stale && <p role="status">数据已变化，请重新预览后确认奖励及影响。</p>}
     <div className="adventure-form-footer"><button type="button" onClick={cancel}>取消</button>
-      <button type="button" onClick={() => { void repreview().then(value => { if (mounted.current && value && 'goalId' in value) setCurrent(value) }) }}>重新预览达成</button>
+      <button type="button" onClick={() => { void repreview().then(value => { if (mounted.current && value && 'goalId' in value && value.operation === 'achieveGoal') setCurrent(value) }) }}>重新预览达成</button>
       <button className="adventure-primary" type="submit" disabled={blocked || stale}>确认达成并入账</button></div>
   </fieldset></form>
 }

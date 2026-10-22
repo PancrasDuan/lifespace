@@ -242,7 +242,7 @@ describe.skipIf(!rpcOrigin)('正式 Worker HTTP → 本机真实 PostgREST → �
     const past = (await createTask(owner, '漏做', today.subtract({ days: 1 }).toString())).result.entityId
     const future = (await createTask(owner, '未来', today.add({ days: 1 }).toString())).result.entityId
     expect((await read(owner)).tasks).toEqual([expect.objectContaining({ title: '今天', goalId: goal, goalTitle: '成果', independent: false })])
-    expect((await read(owner, '?taskRange=past')).tasks).toEqual([expect.objectContaining({ id: past, overdue: true, status: 'pending', capabilities: { complete: { allowed: false, reason: expect.any(String) }, edit: { allowed: true }, cancel: expect.any(Object), reschedule: expect.any(Object), migrate: expect.any(Object), end: expect.any(Object) } })])
+    expect((await read(owner, '?taskRange=past')).tasks).toEqual([expect.objectContaining({ id: past, overdue: true, status: 'pending', capabilities: { complete: { allowed: false, reason: expect.any(String) }, edit: { allowed: true }, cancel: expect.any(Object), reschedule: expect.any(Object), migrate: expect.any(Object), end: expect.any(Object), delete: { allowed: false, reason: expect.any(String) } } })])
     expect((await read(owner, '?taskRange=future')).tasks[0].id).toBe(future)
     for (const id of [past, future]) expect((await send(owner, envelope((await read(owner)).version, { type: 'completeTask', id }))).status).toBe(400)
     expect((await read(owner)).growth.totalXp).toBe(0)

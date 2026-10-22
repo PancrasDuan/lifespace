@@ -46,7 +46,7 @@ begin
   if (select to_jsonb(x) from public.adventure_events x where owner_id=o and id=e)<>frozen then raise exception 'Migration rewrote frozen completion'; end if;
   if not exists(select 1 from public.adventure_events where owner_id=o and kind='task_migrated' and snapshot->'origin'->>'goalId'=g::text and amount is null)
     or not exists(select 1 from public.adventure_events where owner_id=o and kind='goal_migrated' and snapshot->'origin'->>'mainlineName'='原主线' and amount is null) then raise exception 'Migration history missing'; end if;
-  -- No end command is introduced: a rolled-back fixture tests historical mainline lock.
+  -- Historical lock fixture: mainline terminal state blocks old-source mutations.
   update public.adventure_mainlines set status='ended',ended_at=clock_timestamp() where owner_id=o and id=m;
   select revision into v from public.adventure_accounts where owner_id=o;
   begin
