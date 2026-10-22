@@ -1,6 +1,6 @@
 # 规划与一次性任务接口
 
-适用 Issue #54、#55、#65、#59、#60、#66、#61；实现和本机隔离验证范围见相应验收报告，现有 Supabase 验收库不在本轮同步。页面读取、生命周期命令与任务完成／取消使用五表事务；账户、规划日期、版本、能力和成长由后端返回。浏览器不能直接调用表或 RPC。
+适用 Issue #54、#55、#65、#59、#60、#66、#61、#62；实现和本机隔离验证范围见相应验收报告，现有 Supabase 验收库不在本轮同步。页面读取、生命周期命令与任务完成／取消使用五表事务；账户、规划日期、版本、能力和成长由后端返回。浏览器不能直接调用表或 RPC。
 
 ## 页面查询
 
@@ -21,7 +21,7 @@
 - `tasks`、`totalTasks`、`taskPage`、`taskRange`：当前范围和页的任务、全量总数；每项含名称、说明、执行日、状态、真实目标或独立身份、当前具体完成事件 ID、冻结 `reward`（无有效完成为 null）、服务端逾期标记，以及编辑、完成、取消、迁移、结束、误建删除等操作能力。逻辑删除任务不返回。
 - `taskScope`、`search`、`taskProgress`：当前视图、已提交搜索条件及完整筛选范围的任务进度；分页不截断分母。
 - `goalDetail`：指定 `goalId` 时返回该账户目标的只读详情（包含终态），其 `goal` 含 status、terminatedAt 和冻结 achievement；tasks 按全部日期分页，totalTasks 为当前归属该目标或仍有该目标有效完成事实的未删除任务去重总数；迁出项标注当前归属和冻结完成来源，目标 progress 仍只统计当前归属，taskPage 为 goalTaskPage。与页面同事务、同版本；不属于账户或为 inbox 返回 404。
-- `growth`：总经验、等级、本级进度、升级所需经验、有效行动数、达成目标数，以及七个实时成就的当前计数和点亮结果。
+- `growth`：总经验、等级、本级进度、升级所需经验、有效行动数、达成目标数，以及七个实时成就的当前计数、差额和点亮结果。
 - `capabilities`、`limits`：页面能力、禁用原因及输入限额。当前未交付操作返回 `allowed=false` 和原因。
 
 内部使用 `adventure_workspace_read`，持有与基础规划读取相同的账户共享锁；以锁后一次日期统一任务范围、逾期及能力，成长由单一 SQL 函数计算。任务按执行日、创建时间及 ID 排序；在用主线按创建时间及 ID 排序，已结束主线排在其后并按结束时间倒序；目标先按所属主线创建时间及 ID 分组，同归属内进行中在前（先聚焦后未聚焦，再按 `sort_order`、ID），终态目标在组末按终态时间倒序。普通主线与独立目标组各有 3 个聚焦名额；inbox 不可聚焦。`focus`、`moveUp`、`moveDown`、`end`、`delete` 能力由数据库返回，前端不自行判断名额、日期资格或相邻边界。
@@ -126,6 +126,18 @@
 聚焦和排序均在账户行锁内校验并更新目标、事件、版本及成功回执，不改经验或目标身份；重试沿用既有幂等规则。现有编辑目标归属入口同样校验目标聚焦名额，跨归属时追加目的手动顺序末尾。
 
 “显示已达成／已结束”默认关闭，开关按 `ownerId` 存在当前浏览器 `localStorage`，刷新保留、不跨设备同步，切换账户使用各自值。它只控制查询是否返回终态列表内容，不阻止按稳定 `goalId` 读取终态详情、任务历史或成长来源。
+
+## 成长记录与冻结来源
+
+`GET /api/adventure/growth` 返回 `{version,growth,pageSize:10,total,items,nextCursor}`。growth 是全账户总经验、等级、本级进度、升级所需、差额、有效行动数、达成目标数及七个实时成就；每个成就含 id、label、threshold、count、remaining、unlocked。没有成就奖励、持久解锁状态或解锁时间。total 是全部有效奖励数，与当前页无关。
+
+items 仅投影有效 task_completed／goal_achieved，含 id、kind、entityId、发生时 title、occurredAt、occurredOn、amount、calculation、mainlineId、mainlineName、mainlineKind、goalId、goalTitle。amount 和 calculation 直接来自事件；目标计算摘要含 type、count、coefficient、fallback，不把完整行动数组塞进流水。事件的回执、before／after 及当前实体不会进入公开奖励响应。升级成本仍为 `20+5×(当前等级−1)`，前端只展示服务端结果。
+
+流水按 `(applied_revision DESC,id DESC)` 排序。后续页使用 `?version=<首屏版本>&cursor=<nextCursor>`，固定每页10条；cursor 为上页最后一条有效奖励事件 ID，非空时必须带 version。version 为非负安全整数；只允许 version、cursor 两个参数。版本变化返回409，前端保留旧快照并要求从首屏重新读取，不能静默拼接不同版本；跨账户或非有效奖励游标返回404。刷新回到首屏。
+
+`GET /api/adventure/reward-source?id=<事件UUID>&page=1&version=<成长版本>` 返回 `{version,event,description,plannedOn,standards,reflection,page,pageSize:5,totalSources,actionSources}`。id 必填，page 范围1–1,000,000，version 可省略，传入时严格核对账户版本。event 与流水摘要相同；正文、安排日期、完成标准、感想取冻结快照。目标计奖来源每页5条，包含 taskId、completionId、发生日、发生时标题／说明／安排与归属；不根据当前事项或规则重建。跨账户、不存在、取消完成来源统一404。终态或日常列表隐藏不影响读取。
+
+两个查询均只读、持账户共享锁，与命令账户锁配合返回同版本统计和事实；无账户的首次读取返回一致空快照且不初始化账户。`/adventure?view=growth` 可直接打开成长页，`/adventure?view=growth&rewardId=<事件UUID>` 可刷新查看冻结来源。流水失败仅重试当前游标，来源及计奖来源分页失败仅重试来源；版本冲突重新读取成长首屏。读取不发奖、不追加事件、回执或版本。
 
 ## 错误和预算
 

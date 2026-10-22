@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { growthPageSchema, rewardSourceSchema } from '../shared/adventure-growth'
 import { authorizedFetch, authorizedMutation } from '../auth/request'
 import { taskHistorySchema, migrationOptionsSchema, planningPageSchema, planningReceiptSchema, planningPreviewSchema, type PlanningEnvelope, type PlanningCommand, type PlanningQuery } from '../shared/adventure-planning'
 
@@ -16,6 +17,17 @@ async function read<T>(response: Response, schema: z.ZodType<T>, mutation = fals
   return parsed.data
 }
 export const planningApi = {
+  async growth(owner: string, signal: AbortSignal, version?: number, cursor?: string) {
+    const query = new URLSearchParams()
+    if (version !== undefined) query.set('version', String(version))
+    if (cursor) query.set('cursor', cursor)
+    return read(await authorizedFetch(`/api/adventure/growth?${query}`, signal, owner), growthPageSchema)
+  },
+  async rewardSource(owner: string, id: string, page: number, signal: AbortSignal, version?: number) {
+    const query = new URLSearchParams({ id, page: String(page) })
+    if (version !== undefined) query.set('version', String(version))
+    return read(await authorizedFetch(`/api/adventure/reward-source?${query}`, signal, owner), rewardSourceSchema)
+  },
   async taskHistory(owner: string, id: string, page: number, signal: AbortSignal) {
     return read(await authorizedFetch(`/api/adventure/task-history?${new URLSearchParams({ id, page: String(page) })}`, signal, owner), taskHistorySchema)
   },

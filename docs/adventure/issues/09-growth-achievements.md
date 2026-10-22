@@ -1,6 +1,6 @@
 # 08：查看实时成长、七个成就与奖励来源
 
-状态：2026-10-20 已发布至 Issue #62，正文和原生阻塞关系已回读核验。ready-for-agent；前置未完成时不领取，当前实现仍待按本版重新验证。
+状态：2026-10-20 已发布至 Issue #62，正文和原生阻塞关系已回读核验。本地实施与验证见 [成长验收](../qa-growth.md)，Issue 保持开放至部署验收。
 
 Issue：https://github.com/PancrasDuan/lifespace/issues/62
 

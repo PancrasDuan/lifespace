@@ -8,7 +8,7 @@ const initialQuery = (includeTerminal = false): PlanningQuery => ({ page: 1, tas
   goalId: new URLSearchParams(window.location.search).get('goalId') ?? undefined,
   mainlineId: new URLSearchParams(window.location.search).get('mainlineId') ?? undefined, includeTerminal })
 
-export function usePlanning() {
+export function usePlanning(enabled = true) {
   const identity = useVerifiedIdentity()
   const [data, setData] = useState<PlanningPage>()
   const [busy, setBusy] = useState(false)
@@ -120,6 +120,7 @@ export function usePlanning() {
   }, [identity.ownerId, identity.signal, readRequired, refresh])
 
   useEffect(() => {
+    if (!enabled) return
     const controller = new AbortController()
     lifecycle.current = controller
     current.current = undefined
@@ -135,7 +136,7 @@ export function usePlanning() {
     setReadRequired(true)
     void load()
     return () => controller.abort()
-  }, [load])
+  }, [load, enabled])
 
   const clearGoal = useCallback(() => { query.current = { ...query.current, goalId: undefined, mainlineId: undefined, goalTaskPage: 1, page: 1 } }, [])
 

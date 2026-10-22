@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { growthPageSchema, growthQuerySchema, rewardSourceSchema, rewardSourceQuerySchema } from '../../src/shared/adventure-growth'
 import type { Context } from 'hono'
 import type { AuthEnv, Identity } from '../auth'
 import { readBoundedBody, BodyLimitError } from '../read-body'
@@ -115,4 +116,16 @@ export async function readTaskHistory(c: PlanningContext) {
   const parsed = z.strictObject({ id: z.uuid(), page: z.coerce.number().int().min(1).max(1_000_000).default(1) }).safeParse(c.req.query())
   if (!parsed.success) throw new ApiError('INVALID_QUERY', '任务历史分页参数无效', 400)
   return c.json(await rpc(c, 'adventure_task_history', { p_task: parsed.data.id, p_page: parsed.data.page }, taskHistorySchema))
+}
+
+export async function readGrowth(c: PlanningContext) {
+  const parsed = growthQuerySchema.safeParse(c.req.query())
+  if (!parsed.success) throw new ApiError('INVALID_QUERY', '成长流水游标参数无效', 400)
+  return c.json(await rpc(c, 'adventure_growth_read', { p_version: parsed.data.version ?? null, p_cursor: parsed.data.cursor ?? null }, growthPageSchema))
+}
+
+export async function readRewardSource(c: PlanningContext) {
+  const parsed = rewardSourceQuerySchema.safeParse(c.req.query())
+  if (!parsed.success) throw new ApiError('INVALID_QUERY', '奖励来源分页参数无效', 400)
+  return c.json(await rpc(c, 'adventure_reward_source', { p_event: parsed.data.id, p_page: parsed.data.page, p_version: parsed.data.version ?? null }, rewardSourceSchema))
 }

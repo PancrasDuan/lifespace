@@ -5,6 +5,7 @@ import { useVerifiedIdentity } from '../auth/identity'
 import type { PlanningCommand, PlanningGoal, PlanningPage, PlanningTask, PlanningPreview, GoalAchievementPreview, LifecyclePreview } from '../shared/adventure-planning'
 import { Modal } from './ui'
 import { usePlanning } from './usePlanning'
+import { PlanningGrowth } from './PlanningGrowth'
 import { PlanningTasks, TaskForm } from './PlanningTasks'
 import { PlanningReschedule, PlanningTaskHistory } from './PlanningReschedule'
 import { PlanningMigration } from './PlanningMigration'
@@ -82,7 +83,9 @@ function PlanningForm({ dialog, data, action, busy, close }: {
 }
 
 function Workspace() {
-  const model = usePlanning()
+  const [tab, setTab] = useState<'overview' | 'planning' | 'growth'>(() => { const params = new URLSearchParams(window.location.search); return params.get('view') === 'growth' || params.has('rewardId') ? 'growth' : 'overview' })
+  const [planningEnabled, setPlanningEnabled] = useState(tab !== 'growth')
+  const model = usePlanning(planningEnabled)
   const { data, busy, uncertain } = model
   const identity = useVerifiedIdentity()
   const [dialog, setDialog] = useState<Dialog | undefined>(() => {
@@ -90,7 +93,7 @@ function Workspace() {
     const task = params.get('taskId')
     return task ? { kind: 'taskHistory', id: task } : goal ? { kind: 'detail', id: goal } : main ? { kind: 'mainlineDetail', id: main } : undefined
   })
-  const [tab, setTab] = useState<'overview' | 'planning'>('overview')
+  const selectTab = (value: typeof tab) => { if (value === 'growth' && (busy || uncertain)) return; if (value !== 'growth') setPlanningEnabled(true); setTab(value); window.history.replaceState(null, '', value === 'growth' ? '/adventure?view=growth' : '/adventure') }
   const [showTerminal, setShowTerminal] = useState(() => data?.includeTerminal ?? false)
   const [preferenceError, setPreferenceError] = useState('')
   useEffect(() => { if (data) setShowTerminal(data.includeTerminal) }, [data])
@@ -150,21 +153,22 @@ function Workspace() {
     <header className="adventure-heading">
       <div><span className="adventure-kicker">LIFESPACE / YOUR NEXT STEP</span><h1>人生冒险</h1><p>把想做的事，慢慢变成现实。</p></div>
       <div className="adventure-heading-actions">
-        {model.lastAchievement && <button disabled={blocked} onClick={() => openGoal(model.lastAchievement!)}>查看达成结果</button>}
-        <button className="adventure-primary" disabled={!data || blocked} onClick={() => setDialog({ kind: 'new' })}><Plus size={17} />新建</button>
+        {tab !== 'growth' && model.lastAchievement && <button disabled={blocked} onClick={() => openGoal(model.lastAchievement!)}>查看达成结果</button>}
+        {tab !== 'growth' && <button className="adventure-primary" disabled={!data || blocked} onClick={() => setDialog({ kind: 'new' })}><Plus size={17} />新建</button>}
       </div>
     </header>
     <nav className="adventure-tabs" aria-label="冒险页面"><div>
-      <button aria-current={tab === 'overview' ? 'page' : undefined} onClick={() => setTab('overview')}>冒险概览</button>
-      <button aria-current={tab === 'planning' ? 'page' : undefined} onClick={() => setTab('planning')}>主线与目标</button>
-      <button disabled title={data?.capabilities.growth?.reason ?? '此操作尚未交付'}>成长记录</button>
+      <button aria-current={tab === 'overview' ? 'page' : undefined} onClick={() => selectTab('overview')}>冒险概览</button>
+      <button aria-current={tab === 'planning' ? 'page' : undefined} onClick={() => selectTab('planning')}>主线与目标</button>
+      <button disabled={busy || uncertain} aria-current={tab === 'growth' ? 'page' : undefined} onClick={() => selectTab('growth')}>成长记录</button>
     </div><small>{data?.today}</small></nav>
-    {(!dialog || !data) && recovery && <div className="planning-recovery">{recovery}</div>}
-    {model.error ? <PlanningToast key={model.error} tone="error" withinDialog={!!dialog && !!data} message={model.error} close={model.clearError} />
-      : !model.readRequired && model.notice && <PlanningToast key={model.notice.id} message={model.notice.message} close={model.clearNotice} />}
+    {tab !== 'growth' && (!dialog || !data) && recovery && <div className="planning-recovery">{recovery}</div>}
+    {tab !== 'growth' && (model.error ? <PlanningToast key={model.error} tone="error" withinDialog={!!dialog && !!data} message={model.error} close={model.clearError} />
+      : !model.readRequired && model.notice && <PlanningToast key={model.notice.id} message={model.notice.message} close={model.clearNotice} />)}
     {dialog && !data && !busy && <div className="planning-recovery"><button onClick={() => { close(); void model.load() }}>返回冒险</button></div>}
-    {!data && busy && <p role="status" className="adventure-empty">正在读取你的冒险…</p>}
-    {data && <div className="planning-workbench">
+    {tab !== 'growth' && !data && busy && <p role="status" className="adventure-empty">正在读取你的冒险…</p>}
+    {tab === 'growth' && <PlanningGrowth />}
+    {data && tab !== 'growth' && <div className="planning-workbench">
       <div className="planning-main">
         {tab === 'overview' && <section className="planning-hero">
           <div><span className="adventure-kicker">今天，继续向前</span><h2>把今天，走成<br />你想去的方向。</h2><p>先为在意的事，留下一个明确的目标。</p></div>
@@ -208,7 +212,7 @@ function Workspace() {
           <progress aria-label="当前等级经验进度" max={data.growth.needed} value={data.growth.progress} />
           <dl><div><dd>{data.growth.totalXp}</dd><dt>累计经验</dt></div><div><dd>{data.growth.actions}</dd><dt>真实行动</dt></div><div><dd>{data.growth.achievedGoals}</dd><dt>达成目标</dt></div></dl>
         </section>
-        <section className="planning-section planning-locked"><h3><Star size={16} />一点点，成为里程碑</h3><p className="adventure-hint">成长记录尚未开放</p></section>
+        <section className="planning-section"><h3><Star size={16} />一点点，成为里程碑</h3><p className="adventure-hint">每次真实行动，都会留下成长的印记。</p><button disabled={busy || uncertain} onClick={() => selectTab('growth')}>查看全部成就与流水</button></section>
         <blockquote>重要的不是走得多快，<br />是你开始走了。</blockquote>
       </aside>
     </div>}

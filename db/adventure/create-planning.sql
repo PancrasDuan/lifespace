@@ -138,6 +138,8 @@ create table public.adventure_events (
 create unique index adventure_event_request on public.adventure_events(owner_id,request_id) where request_id is not null;
 create unique index adventure_one_valid_completion on public.adventure_events(owner_id,task_id) where kind='task_completed' and invalidated_at is null;
 create unique index adventure_one_goal_achievement on public.adventure_events(owner_id,goal_id) where kind='goal_achieved';
+create index adventure_reward_journal on public.adventure_events(owner_id,applied_revision desc,id desc)
+  where kind in ('task_completed','goal_achieved') and invalidated_at is null;
 create index adventure_event_group on public.adventure_events(owner_id,event_group_id,id);
 create index adventure_event_task on public.adventure_events(owner_id,task_id);
 create index adventure_event_kind_time on public.adventure_events(owner_id,kind,occurred_at,id);
@@ -175,6 +177,7 @@ begin
   v_progress := v_xp-(v_level-1)*(5*(v_level-1)+35)/2;
   select jsonb_agg(jsonb_build_object('id',kind||'_'||threshold,'label',label,'threshold',threshold,
     'count',case when kind='actions' then v_actions else v_goals end,
+    'remaining',greatest(0,threshold-case when kind='actions' then v_actions else v_goals end),
     'unlocked',case when kind='actions' then v_actions else v_goals end >= threshold) order by ordinal)
   into v_badges from (values
     (1,'actions',1,'迈出第一步'),(2,'actions',10,'十次行动'),(3,'actions',50,'五十次行动'),(4,'actions',100,'百次行动'),
@@ -1070,7 +1073,7 @@ begin
     'capabilities',jsonb_build_object(
       'createMainline',case when (select count(*) from public.adventure_mainlines where owner_id = p_owner and kind = 'normal' and status = 'active') < 5
         then v_edit else '{"allowed":false,"reason":"最多保留 5 条在用主线"}'::jsonb end,
-      'createGoal',v_edit,'createTask',v_later,'growth',v_later,'focus',v_edit,'progress',v_edit),
+      'createGoal',v_edit,'createTask',v_later,'growth',v_edit,'focus',v_edit,'progress',v_edit),
     'limits',jsonb_build_object('name',200,'standard',4000,'standards',50)
   ) into v_result;
   if octet_length(v_result::text) > 1000000 then raise exception 'CAPACITY_REACHED'; end if;
@@ -1302,3 +1305,76 @@ grant execute on function public.adventure_planning_check(uuid,jsonb),
   public.adventure_planning_preview(uuid,bigint,jsonb),
   public.adventure_planning_command(uuid,text,bigint,jsonb) to service_role;
 notify pgrst,'reload schema';
+
+-- Project only frozen reward fields, never receipts, current entities or recalculated amounts.
+create or replace function public.adventure_reward_view(p_owner uuid,p_event uuid)
+returns jsonb language sql security invoker set search_path='' as $$
+  select jsonb_build_object('id',id,'kind',kind,'entityId',entity_id,'title',snapshot->>'title',
+    'occurredAt',occurred_at,'occurredOn',occurred_on,'amount',amount,
+    'calculation',calculation-'actionIds','mainlineId',mainline_id,'mainlineName',snapshot->>'mainlineName',
+    'mainlineKind',snapshot->>'mainlineKind','goalId',goal_id,
+    'goalTitle',case when kind='goal_achieved' then snapshot->>'title' else snapshot->>'goalTitle' end)
+  from public.adventure_events where owner_id=p_owner and id=p_event
+    and kind in ('task_completed','goal_achieved') and invalidated_at is null;
+$$;
+
+-- One shared account lock covers statistics and the bounded keyset journal.
+create or replace function public.adventure_growth_read(p_owner uuid,p_version bigint default null,p_cursor uuid default null)
+returns jsonb language plpgsql security invoker set search_path='' set lock_timeout='3s' as $$
+declare v_version bigint; v_xp bigint; v_total bigint; v_items jsonb; v_cursor_revision bigint; v_next uuid;
+begin
+  if p_owner is null or p_version<0 or (p_cursor is not null and p_version is null) then raise exception 'INVALID_COMMAND'; end if;
+  select revision into v_version from public.adventure_accounts where owner_id=p_owner for share;
+  if not found then
+    if p_version is not null and p_version<>0 then raise exception 'VERSION_CONFLICT'; end if;
+    if p_cursor is not null then raise exception 'NOT_FOUND'; end if;
+    -- No account row exists to lock. Return one empty snapshot even if a first write races this read.
+    return jsonb_build_object('version',0,'growth',public.adventure_growth(null),'pageSize',10,'total',0,'items','[]'::jsonb,'nextCursor',null);
+  end if;
+  if p_version is not null and p_version<>v_version then raise exception 'VERSION_CONFLICT'; end if;
+  select count(*),coalesce(sum(amount),0) into v_total,v_xp from public.adventure_events
+    where owner_id=p_owner and kind in ('task_completed','goal_achieved') and invalidated_at is null;
+  if v_xp<>coalesce((select total_xp from public.adventure_accounts where owner_id=p_owner),0) then raise exception 'INCONSISTENT_REWARDS'; end if;
+  if p_cursor is not null then
+    select applied_revision into v_cursor_revision from public.adventure_events where owner_id=p_owner and id=p_cursor
+      and kind in ('task_completed','goal_achieved') and invalidated_at is null;
+    if not found then raise exception 'NOT_FOUND'; end if;
+  end if;
+  select coalesce(jsonb_agg(public.adventure_reward_view(p_owner,id) order by applied_revision desc,id desc),'[]'::jsonb)
+    into v_items from (select id,applied_revision from public.adventure_events
+      where owner_id=p_owner and kind in ('task_completed','goal_achieved') and invalidated_at is null
+      and (p_cursor is null or (applied_revision,id)<(v_cursor_revision,p_cursor))
+      order by applied_revision desc,id desc limit 11) rewards;
+  if jsonb_array_length(v_items)>10 then v_items:=v_items-10; v_next:=(v_items->9->>'id')::uuid; end if;
+  return jsonb_build_object('version',v_version,'growth',public.adventure_growth(p_owner),
+    'pageSize',10,'total',v_total,'items',v_items,'nextCursor',v_next);
+end $$;
+
+-- Large goal action snapshots are paged separately from the journal and source header.
+create or replace function public.adventure_reward_source(p_owner uuid,p_event uuid,p_page integer default 1,p_version bigint default null)
+returns jsonb language plpgsql security invoker set search_path='' set lock_timeout='3s' as $$
+declare v_version bigint; e public.adventure_events; v_items jsonb; v_result jsonb;
+begin
+  if p_owner is null or p_page is null or p_page not between 1 and 1000000 or p_version<0 then raise exception 'INVALID_COMMAND'; end if;
+  select revision into v_version from public.adventure_accounts where owner_id=p_owner for share;
+  if not found then raise exception 'NOT_FOUND'; end if;
+  if p_version is not null and p_version<>coalesce(v_version,0) then raise exception 'VERSION_CONFLICT'; end if;
+  select * into e from public.adventure_events where owner_id=p_owner and id=p_event
+    and kind in ('task_completed','goal_achieved') and invalidated_at is null;
+  if not found then raise exception 'NOT_FOUND'; end if;
+  select coalesce(jsonb_agg(jsonb_build_object('taskId',s->>'taskId','completionId',s->>'completionId',
+    'mainlineId',s->>'mainlineId','goalId',s->>'goalId','occurredOn',s->>'occurredOn',
+    'title',s->'source'->>'title','description',s->'source'->>'description','plannedOn',s->'source'->>'plannedOn',
+    'mainlineName',s->'source'->>'mainlineName','mainlineKind',s->'source'->>'mainlineKind','goalTitle',s->'source'->>'goalTitle') order by n),'[]'::jsonb)
+    into v_items from (select s,n from jsonb_array_elements(coalesce(e.snapshot->'actionSources','[]'::jsonb)) with ordinality a(s,n)
+      order by n limit 5 offset (p_page::bigint-1)*5) sources;
+  v_result:=jsonb_build_object('version',coalesce(v_version,0),'event',public.adventure_reward_view(p_owner,e.id),
+    'description',e.snapshot->>'description','plannedOn',e.snapshot->>'plannedOn',
+    'standards',coalesce(e.snapshot->'standards',nullif(e.snapshot->'goalStandards','null'::jsonb),'[]'::jsonb),
+    'reflection',e.snapshot->>'reflection','page',p_page,'pageSize',5,
+    'totalSources',jsonb_array_length(coalesce(e.snapshot->'actionSources','[]'::jsonb)),'actionSources',v_items);
+  if octet_length(v_result::text)>900000 then raise exception 'CAPACITY_REACHED'; end if;
+  return v_result;
+end $$;
+revoke execute on function public.adventure_reward_view(uuid,uuid),public.adventure_growth_read(uuid,bigint,uuid),public.adventure_reward_source(uuid,uuid,integer,bigint) from public,anon,authenticated;
+grant execute on function public.adventure_reward_view(uuid,uuid),public.adventure_growth_read(uuid,bigint,uuid),public.adventure_reward_source(uuid,uuid,integer,bigint) to service_role;

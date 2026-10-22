@@ -35,10 +35,11 @@ export type PlanningEnvelope = z.infer<typeof planningEnvelopeSchema>
 export const planningPreviewInputSchema = planningEnvelopeSchema.omit({ requestId: true })
 export const capabilitySchema = z.object({ allowed: z.boolean(), reason: z.string().optional() })
 const capabilities = z.record(z.string(), capabilitySchema)
+export const achievementSchema = z.object({ id: z.string(), label: z.string(), threshold: version, count: version, remaining: version.optional(), unlocked: z.boolean() })
 export const growthSchema = z.object({
   level: version, totalXp: version, progress: version,
   needed: version, remaining: version, actions: version, achievedGoals: version,
-  achievements: z.array(z.object({ id: z.string(), label: z.string(), threshold: version, count: version, unlocked: z.boolean() })).max(7).default([]),
+  achievements: z.array(achievementSchema).max(7).default([]),
 })
 const rewardAmount = version.refine(value => value > 0)
 export const taskRewardSchema = z.object({

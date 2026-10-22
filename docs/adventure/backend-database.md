@@ -414,10 +414,10 @@ task_updated 记录待完成任务名称／说明编辑的前后内容和发生�
 
 ## 查询、索引与容量
 
-- 页面读取主线、目标、任务当前行；event 只用于历史、有效奖励流水、计奖依据和幂等查询。按 owner、event kind、occurred_at、id 做游标分页，不能用当前页计算全量经验或成就。
+- 页面读取主线、目标、任务当前行；event 只用于历史、有效奖励流水、计奖依据和幂等查询。有效奖励按 owner、applied_revision、id 做游标分页，不能用当前页计算全量经验或成就。
 - 有效经验以有效 task_completed／goal_achieved 冻结 amount 之和为准，同时核对 accounts.total_xp。等级、本级进度、距升级、有效行动数、达成目标数及七个成就实时计算，不存表。
 - 账户行只保留汇总与版本；不采用旧单行 8 MB 上限，改为输入文本长度、分页、事务返回量和锁等待预算。超限整笔拒绝，不部分传播终态或裁剪历史、失效事件及回执。
-- 索引随首次迁移建立，后续根据 EXPLAIN 验收。事件表的 owner／kind／时间索引用于成长流水，task／goal／mainline 外键索引用于追溯；不预设性能通过。
+- 索引随首次迁移建立，后续根据 EXPLAIN 验收。事件表的 owner／applied_revision／id 有效奖励部分索引用于成长流水，task／goal／mainline 外键索引用于追溯；不预设性能通过。
 
 ## 实施边界与依据
 
@@ -442,3 +442,9 @@ endTask 与 deleteTask 复用任务最终校验；`adventure_task_impact` 返回
 `rescheduleTask` 复用 adventure_task_check／adventure_task_apply，账户锁内验证 pending、当前上级可操作、plannedOn 不早于服务端上海当天且不同于当前日期。只更新当前 planned_on／updated_at，不换任务 ID。task_rescheduled 无 amount／calculation；snapshot 含 before、after、原日期、新日期、上一条创建／改期 sourceEventId、当时内容／归属及成功回执。事件序列以 applied_revision 排序，tasks 只有一个当前安排；既有 events(owner_id,task_id) 索引支持来源追溯。操作不增加经验或行动数，事实、事件、版本与回执同事务；失败全回滚。空库脚本直接维护当前方案，不增加升级链。
 
 任务查询返回创建／改期安排链总数、前5条日期摘要与服务端最早合法日期；adventure_task_history 以账户共享锁保证同版本，每页5条完整冻结快照。浏览器通过 Worker 和稳定 taskId 分页读取，不改写旧快照；历史长内容不重复塞入列表，单次响应保留序列化预算。临时数据库验证见 [改期验收](qa-reschedule.md)。
+
+## 成长只读投影
+
+`adventure_growth_read` 持账户共享锁、核对 total_xp 与有效完成／达成 amount 总和，同时读取全量成长和固定10条奖励摘要；按账户版本及最后一条事件 ID 翻页，写入后旧版本游标返回冲突。`adventure_reward_journal` 部分索引仅包含有效 task_completed／goal_achieved，以 owner_id、applied_revision DESC、id DESC 支持有界页扫描。
+
+`adventure_reward_source` 在同一账户锁下读取冻结正文／标准／感想和每页5条 actionSources；不依赖当前目标是否隐藏或已经结束。`adventure_reward_view` 仅投影冻结公开字段，排除回执和内部实体快照。新函数均为固定 search_path 的 SECURITY INVOKER，仅 service_role 可执行，五表及浏览器权限边界保持不变。验证见 [成长验收](qa-growth.md)。
