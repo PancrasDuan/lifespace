@@ -55,7 +55,14 @@ try {
   await client.connect()
   const sql = input => { cancellation.signal.throwIfAborted(); return client.query(input) }
   await sql('create role anon; create role authenticated; create role service_role bypassrls; grant usage on schema public to service_role;')
-  for (const path of ['db/adventure/create-planning.sql', 'tests/database/adventure-planning.sql', 'tests/database/adventure-actions.sql', 'tests/database/adventure-goals.sql', 'tests/database/adventure-migrations.sql', 'tests/database/adventure-lifecycle.sql']) await sql(await readFile(join(root, path), 'utf8'))
+  for (const path of ['db/adventure/create-planning.sql', 'tests/database/adventure-planning.sql', 'tests/database/adventure-actions.sql', 'tests/database/adventure-goals.sql', 'tests/database/adventure-migrations.sql', 'tests/database/adventure-lifecycle.sql', 'tests/database/adventure-reschedule.sql']) await sql(await readFile(join(root, path), 'utf8'))
+  await sql(`create function pg_temp.fail_reschedule_http() returns trigger language plpgsql as $$
+    begin
+      if new.kind='task_rescheduled' and new.snapshot->>'title'='reschedule-http-failpoint' then raise exception 'RESCHEDULE_HTTP_FAILPOINT'; end if;
+      return new;
+    end $$;
+    create trigger reschedule_http_failpoint before insert on public.adventure_events
+      for each row execute function pg_temp.fail_reschedule_http();`)
   console.log('通过：空库初始化、规划／任务事务、回滚、历史锁定和权限探针')
   const rpcPort = await freePort()
   cancellation.signal.throwIfAborted()
@@ -77,8 +84,9 @@ try {
   }
   if (!ready) throw new Error(`本机 PostgREST 未就绪：${restError}`)
   const env = { ...cleanEnv, ADVENTURE_LOCAL_RPC_URL: url, PLAYWRIGHT_BROWSERS_PATH: '.cache/playwright' }
-  await run(process.execPath, ['node_modules/vitest/vitest.mjs', 'run', 'tests/api/adventure-actions-database.test.ts', 'tests/api/adventure-lifecycle-database.test.ts'], { env })
+  await run(process.execPath, ['node_modules/vitest/vitest.mjs', 'run', 'tests/api/adventure-actions-database.test.ts', 'tests/api/adventure-lifecycle-database.test.ts', 'tests/api/adventure-reschedule-database.test.ts'], { env })
   if (process.argv.includes('--browser')) await run(process.execPath, ['node_modules/@playwright/test/cli.js', 'test', 'tests/browser/adventure-actions-database.spec.ts'], { env })
+  await sql('drop trigger reschedule_http_failpoint on public.adventure_events')
   await sql(await readFile(join(root, 'tests/database/adventure-actions-audit.sql'), 'utf8'))
   console.log('通过：HTTP／浏览器操作后的任务、冻结奖励、取消关联、账户经验、请求数与版本全量核对')
   result = 0

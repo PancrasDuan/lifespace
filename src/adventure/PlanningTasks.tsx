@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { Check, ListTodo } from 'lucide-react'
 import type { PlanningCommand, PlanningPage, PlanningTask, TaskRange, TaskScope } from '../shared/adventure-planning'
 
+import { PlanningArrangements } from './PlanningReschedule'
 import { PlanningCompletionOrigin } from './PlanningCompletionOrigin'
 import { PlanningProgress } from './PlanningProgress'
 
@@ -41,12 +42,12 @@ export function TaskForm({ task, destination: initialDestination, data, action, 
   </fieldset></form>
 }
 
-export function PlanningTasks({ data, blocked, changeRange, changePage, changeScope, changeSearch, openGoal, edit, complete, cancel, migrate, end, remove }: {
+export function PlanningTasks({ data, blocked, changeRange, changePage, changeScope, changeSearch, openGoal, edit, complete, cancel, migrate, reschedule, end, remove }: {
   data: PlanningPage; blocked: boolean; changeRange: (range: TaskRange) => void; changePage: (page: number) => void;
   changeScope: (scope: TaskScope) => void; changeSearch: (search: string) => void;
   openGoal: (id: string) => void;
   migrate: (task: PlanningTask) => void; edit: (task: PlanningTask) => void; complete: (task: PlanningTask) => void; cancel: (task: PlanningTask) => void;
-  end: (task: PlanningTask) => void; remove: (task: PlanningTask) => void
+  reschedule: (task: PlanningTask) => void; end: (task: PlanningTask) => void; remove: (task: PlanningTask) => void
 }) {
   const [search, setSearch] = useState(data.search)
   return <section className="planning-section planning-actions"><header><h2><ListTodo size={19} />一次性任务</h2>
@@ -68,9 +69,11 @@ export function PlanningTasks({ data, blocked, changeRange, changePage, changeSc
         <h3>{task.status === 'completed' && <Check size={16} aria-hidden="true" />}{task.title}</h3>
         {task.description && <p>{task.description}</p>}
         <small>{task.plannedOn} · {task.overdue ? '逾期，仍待完成' : task.status === 'completed' ? '已完成' : task.status === 'ended' ? '已结束' : '待完成'}</small>
+        <PlanningArrangements task={task} />
         {task.reward && <small>本次奖励 {task.reward.amount} 点经验</small>}
         {task.completionOrigin && <small><PlanningCompletionOrigin origin={task.completionOrigin} /></small>}
       </div><div className="planning-task-buttons">
+        <button disabled={blocked || !task.capabilities.reschedule?.allowed} title={task.capabilities.reschedule?.reason} onClick={() => reschedule(task)}>改期</button>
         <button disabled={blocked || !task.capabilities.migrate?.allowed} title={task.capabilities.migrate?.reason} onClick={() => migrate(task)}>迁移任务</button>
         <button disabled={blocked || !task.capabilities.edit?.allowed} title={task.capabilities.edit?.reason} onClick={() => edit(task)}>编辑任务</button>
         <button disabled={blocked || !task.capabilities.end?.allowed} title={task.capabilities.end?.reason} onClick={() => end(task)}>结束任务</button>

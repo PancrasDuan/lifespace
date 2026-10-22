@@ -4,7 +4,7 @@ import type { AuthEnv, Identity } from '../auth'
 import { readBoundedBody, BodyLimitError } from '../read-body'
 import { ApiError } from '../upstream'
 import {
-  migrationOptionsSchema, planningEnvelopeSchema, planningPageSchema, planningReceiptSchema, taskRangeSchema, taskScopeSchema, planningSearchSchema,
+  taskHistorySchema, migrationOptionsSchema, planningEnvelopeSchema, planningPageSchema, planningReceiptSchema, taskRangeSchema, taskScopeSchema, planningSearchSchema,
   planningPreviewInputSchema, planningPreviewSchema,
 } from '../../src/shared/adventure-planning'
 
@@ -18,6 +18,8 @@ const errors = {
   MAINLINE_LIMIT: [400, '最多保留 5 条在用主线'],
   NOT_FOUND: [404, '内容不存在或不属于当前账户'],
   READ_ONLY: [400, '内容已进入终态，只能查看'],
+  RESCHEDULE_PAST: [400, '只能改到服务端今天或未来，不能补写过去完成'],
+  SAME_DATE: [400, '新日期与当前执行日期相同，无需改期'],
   DATE_LOCKED: [400, '仅能完成今天的安排或取消今天的完成'],
   TASK_NOT_PENDING: [400, '仅待完成任务可以执行此操作'],
   HISTORY_LOCKED: [400, '任务已有完成或历史安排，不能按误建删除'],
@@ -107,4 +109,10 @@ export async function readMigrationOptions(c: PlanningContext) {
   const parsed = z.strictObject({ kind: z.enum(['goal', 'task']), id: z.uuid(), page: z.coerce.number().int().min(1).max(1_000_000).default(1) }).safeParse(c.req.query())
   if (!parsed.success) throw new ApiError('INVALID_QUERY', '迁移候选参数无效', 400)
   return c.json(await rpc(c, 'adventure_migration_options', { p_kind: parsed.data.kind, p_id: parsed.data.id, p_page: parsed.data.page }, migrationOptionsSchema))
+}
+
+export async function readTaskHistory(c: PlanningContext) {
+  const parsed = z.strictObject({ id: z.uuid(), page: z.coerce.number().int().min(1).max(1_000_000).default(1) }).safeParse(c.req.query())
+  if (!parsed.success) throw new ApiError('INVALID_QUERY', '任务历史分页参数无效', 400)
+  return c.json(await rpc(c, 'adventure_task_history', { p_task: parsed.data.id, p_page: parsed.data.page }, taskHistorySchema))
 }

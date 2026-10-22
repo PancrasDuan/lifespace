@@ -7,7 +7,7 @@ const reward = { amount: 1, calculation: { type: 'fixed_task' as const, completi
 const base: PlanningPage = {
   ...withGoal, version: 3,
   capabilities: { ...withGoal.capabilities, createTask: allowed },
-  tasks: [{ id: taskId, title: '取回耳机', description: '修理店', plannedOn: withGoal.today,
+  tasks: [{ arrangements: [], totalArrangements: 0, id: taskId, title: '取回耳机', description: '修理店', plannedOn: withGoal.today,
     status: 'pending', completedOn: null, completionId: null, reward: null, completionOrigin: null, independent: true, goalId: null, goalTitle: null, mainlineName: '独立区', overdue: false, progress: { completed: 0, total: 1, ratio: 0 },
     capabilities: { edit: allowed, complete: allowed, cancel: later, reschedule: later, migrate: later, end: later } }],
   totalTasks: 1,

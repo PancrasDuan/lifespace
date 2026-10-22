@@ -1,6 +1,6 @@
 # 规划与一次性任务接口
 
-适用 Issue #54、#55、#65、#59、#60、#66；实现和本机隔离验证范围见相应验收报告，现有 Supabase 验收库不在本轮同步。页面读取、生命周期命令与任务完成／取消使用五表事务；账户、规划日期、版本、能力和成长由后端返回。浏览器不能直接调用表或 RPC。
+适用 Issue #54、#55、#65、#59、#60、#66、#61；实现和本机隔离验证范围见相应验收报告，现有 Supabase 验收库不在本轮同步。页面读取、生命周期命令与任务完成／取消使用五表事务；账户、规划日期、版本、能力和成长由后端返回。浏览器不能直接调用表或 RPC。
 
 ## 页面查询
 
@@ -36,6 +36,10 @@
 
 迁移弹窗按候选版本提交，版本不同禁止确认。409 后重读当前事实及候选，清除旧选择，必须重新选择确认；网络结果未知仅重试原封套；成功后查询失败仅重新读取。
 
+任务项含 `rescheduleMin`（服务端当天）、`totalArrangements` 和按发生版本顺序排列的前 5 项 `arrangements` 日期摘要（id、kind、sourceEventId、oldPlannedOn、newPlannedOn、occurredAt）。创建项 oldPlannedOn／sourceEventId 为 null；改期指向上一条创建／改期事件，不指向编辑或迁移。任务列表及目标任务详情可展开日期并进入完整历史；不向列表重复装载历史长说明。
+
+`GET /api/adventure/task-history?id=<task UUID>&page=1` 返回 version、taskId、title、page、pageSize=5、total 和 items。每项在日期摘要之外返回发生时 title、description、goalId、goalTitle、mainlineId、mainlineName。参数 page 为 1–1,000,000，默认 1，跨 owner／已删除任务返回404。数据库在账户共享锁内读同一版本；只对 service_role 授予函数执行权限，浏览器经 Worker 读取。`/adventure?taskId=<uuid>` 可刷新打开安排历史和分页，不受终态显示开关影响。完整历史存于事件，每页返回上限明确，原始快照不随当前名称或归属变化；单次响应仍受序列化预算约束。
+
 ## 操作预览
 
 `POST /api/adventure/preview`
@@ -52,6 +56,8 @@
 目标达成预览为 `requiresConfirmation=true, operation=achieveGoal`，返回 goalId、title、standards、version、today、三档 `rewards`（每档含完整冻结奖励依据）及全量 `stoppingTasks`（id、title、plannedOn）。前端仅选择服务端返回的评价档位并展示金额，不能自行计算 N 或奖励。预览无写入；取消不变更业务状态。确认前提示需继续的任务先迁出；版本冲突后旧确认禁用，必须重新预览。
 
 结束目标或主线预览为 `requiresConfirmation=true`，`operation` 为 `endGoal`／`endMainline`，返回稳定 entityId、title、全量 `stoppingGoals`、全量 `stoppingTasks`，以及 `preservedCompletedTasks`／`preservedAchievedGoals`。任务结束／误建删除预览也返回 `requiresConfirmation=true`，`operation` 为 `endTask`／`deleteTask`，并返回目标、执行日与历史安排计数。结束只停止当前归属下未删除的 pending 任务，不撤销完成、达成或经验；预览不写业务事实。
+
+改期预览为 `requiresConfirmation=true, operation=rescheduleTask`，返回 taskId、title、oldPlannedOn、newPlannedOn、sourceEventId、version、today 和说明；不写入事实。输入与终态检查复用最终命令校验。用户先输入日期、预览后确认；修改日期使旧预览失效，409 后须重新预览，不能自动换版本提交。
 
 ## 业务命令
 
@@ -79,11 +85,12 @@
 | `createTask` | `title`、`description`（可空）、`plannedOn`（有效 YYYY-MM-DD）、`destination`（空字符串默认独立任务，或真实目标 UUID） |
 | `migrateGoal` | `id`、`destination`（空字符串为独立身份，或在用普通主线 UUID）；保留聚焦及目标 ID，任务随行，追加目的同类组末尾 |
 | `migrateTask` | `id`、`destination`（空字符串为独立任务，或在用真实目标 UUID）；保留 ID、当前日期、状态 |
+| `rescheduleTask` | `id`、`plannedOn`；仅任务及当前上级可操作的 pending 任务，日期须在服务端今天或未来，且不同于当前日期 |
 | `editTask` | `id`、`title`、`description`（可空）；只编辑待完成任务的名称与说明 |
 | `completeTask` | `id`；只允许服务端上海当天的待完成安排 |
 | `cancelTaskCompletion` | `completionId`；定位具体完成事件，不接受仅凭任务 ID 取消 |
 | `endTask` | `id`；仅 pending 任务；立即结束、不可恢复、不发奖 |
-| `deleteTask` | `id`；仅执行日在未来、pending 且从未产生完成事件的任务；逻辑隐藏、不物理删除 |
+| `deleteTask` | `id`；仅执行日在未来、pending 且从未产生完成／改期事件的任务；逻辑隐藏、不物理删除 |
 
 名称去除首尾空白后必填，最多 200 个 UTF-16 码元。完成标准为 1–50 项数组；空白项由前端在提交前排除；后端接收最多 50 项并同样过滤空白项，过滤后至少保留一项，每项去除首尾空白后最多 4,000 个 UTF-16 码元。`id` 必须为 UUID；`requestId` 为 8–128 位英文、数字、下划线或连字符。版本必须为非负 JavaScript 安全整数。封套和命令均拒绝额外字段，不接受客户端 owner、日期、经验、事件或整包状态。
 
@@ -108,6 +115,8 @@
 
 结束主线写 `mainline_ended`，结束目标写 `goal_ended`，结束任务写 `task_ended`，误建删除写 `task_deleted`；均不携带 amount／calculation，snapshot 保存 before、after、impact 和 result。结束与删除不扣减经验、不撤销达成、不追加负奖励；目标／主线／任务状态、传播、事件、revision 与回执同一事务提交。已完成任务不能改成 ended；曾完成后再取消、曾产生改期历史的任务均永久失去误建删除资格。普通编辑或迁移本身不视为历史安排。
 
+改期更新同一 tasks 行的 planned_on，追加无金额的 task_rescheduled；snapshot 冻结 before、after、oldPlannedOn、newPlannedOn、sourceEventId、内容／归属和 result。taskId 不变，不新增任务、行动或奖励，growthChange.xpDelta=0。曾改期永久阻止误建删除。过去完成不可取消或改期；当天完成须先合法取消，改期不会恢复被取消的完成。
+
 同一账户按账户行锁串行写入。数据库规范化 JSONB 并计算命令摘要；相同 requestId 和命令返回原回执，即使当前账户已有更新，也不重做操作。同 key 异命令拒绝。实体、事件、版本和成功回执同事务提交，任何中途失败全部回滚。
 
 全局操作反馈统一使用单份浮动 toast：成功约 4 秒自动消失，错误可手动关闭；关闭提示不取消待恢复操作，弹窗内保留可键盘访问的恢复按钮。页面不提供日常刷新按钮。
@@ -124,7 +133,7 @@
 
 | HTTP | code |
 |---|---|
-| 400 | `INVALID_QUERY`、`INVALID_COMMAND`、`COMMAND_TOO_LARGE`、`MAINLINE_LIMIT`、`FOCUS_LIMIT`、`SAME_DESTINATION`、`READ_ONLY`、`DATE_LOCKED`、`DATE_STARTED`、`HISTORY_LOCKED`、`TASK_NOT_PENDING`、`CAPACITY_REACHED` |
+| 400 | `INVALID_QUERY`、`INVALID_COMMAND`、`COMMAND_TOO_LARGE`、`MAINLINE_LIMIT`、`FOCUS_LIMIT`、`SAME_DESTINATION`、`READ_ONLY`、`DATE_LOCKED`、`DATE_STARTED`、`RESCHEDULE_PAST`、`SAME_DATE`、`HISTORY_LOCKED`、`TASK_NOT_PENDING`、`CAPACITY_REACHED` |
 | 401／403 | 现有 `AUTH_*` 身份和准入错误 |
 | 404 | `NOT_FOUND`；不区分他人内容与不存在 |
 | 409 | `VERSION_CONFLICT`、`REQUEST_ID_REUSED`、`COMPLETION_CHANGED` |

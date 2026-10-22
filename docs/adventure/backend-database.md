@@ -436,3 +436,9 @@ task_updated 记录待完成任务名称／说明编辑的前后内容和发生�
 endTask 与 deleteTask 复用任务最终校验；`adventure_task_impact` 返回后端确认预览。endTask 只接受 pending，写 ended_at／end_cause=manual；deleteTask 只接受执行日晚于服务端当天、pending、未删除、上级可操作且不存在任何 task_completed／task_rescheduled 事件的误建任务，写 deleted_at。取消完成不恢复删除资格；普通内容编辑或迁移本身不视为历史安排。两类命令均写无奖励事件、revision 和成功回执，失败整笔回滚；后端不授予物理 DELETE。
 
 页面读取新增 `p_include_terminal`。默认仅返回在用主线、进行中目标；开启后在目标所属组末尾按 terminated_at 倒序返回终态目标，已结束主线排在主线列表末尾按 ended_at 倒序。终态排序不改变稳定 ID 详情读取。该参数只控制展示内容，不控制权限，也不能绕过 owner 过滤。
+
+## 任务改期事务
+
+`rescheduleTask` 复用 adventure_task_check／adventure_task_apply，账户锁内验证 pending、当前上级可操作、plannedOn 不早于服务端上海当天且不同于当前日期。只更新当前 planned_on／updated_at，不换任务 ID。task_rescheduled 无 amount／calculation；snapshot 含 before、after、原日期、新日期、上一条创建／改期 sourceEventId、当时内容／归属及成功回执。事件序列以 applied_revision 排序，tasks 只有一个当前安排；既有 events(owner_id,task_id) 索引支持来源追溯。操作不增加经验或行动数，事实、事件、版本与回执同事务；失败全回滚。空库脚本直接维护当前方案，不增加升级链。
+
+任务查询返回创建／改期安排链总数、前5条日期摘要与服务端最早合法日期；adventure_task_history 以账户共享锁保证同版本，每页5条完整冻结快照。浏览器通过 Worker 和稳定 taskId 分页读取，不改写旧快照；历史长内容不重复塞入列表，单次响应保留序列化预算。临时数据库验证见 [改期验收](qa-reschedule.md)。

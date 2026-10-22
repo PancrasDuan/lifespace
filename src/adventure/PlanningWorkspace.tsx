@@ -6,6 +6,7 @@ import type { PlanningCommand, PlanningGoal, PlanningPage, PlanningTask, Plannin
 import { Modal } from './ui'
 import { usePlanning } from './usePlanning'
 import { PlanningTasks, TaskForm } from './PlanningTasks'
+import { PlanningReschedule, PlanningTaskHistory } from './PlanningReschedule'
 import { PlanningMigration } from './PlanningMigration'
 import { GoalAchievement } from './GoalAchievement'
 import { PlanningGoalDetail } from './PlanningGoalDetail'
@@ -18,7 +19,7 @@ import './adventure.css'
 import './planning.css'
 
 type PlanningDialog = { kind: 'new' } | { kind: 'mainline'; id?: string; name?: string } | { kind: 'goal'; goal?: PlanningGoal } | { kind: 'detail'; id: string } | { kind: 'mainlineDetail'; id: string }
-type Dialog = PlanningDialog | { kind: 'migrate'; entityKind: 'goal' | 'task'; id: string; title: string } | { kind: 'achieve'; preview: GoalAchievementPreview } | { kind: 'lifecycle'; preview: LifecyclePreview } | { kind: 'task'; task?: PlanningTask; destination?: string } | { kind: 'cancel'; task: PlanningTask; preview: Extract<PlanningPreview, { completionId: string }> }
+type Dialog = PlanningDialog | { kind: 'taskHistory'; id: string } | { kind: 'reschedule'; task: PlanningTask } | { kind: 'migrate'; entityKind: 'goal' | 'task'; id: string; title: string } | { kind: 'achieve'; preview: GoalAchievementPreview } | { kind: 'lifecycle'; preview: LifecyclePreview } | { kind: 'task'; task?: PlanningTask; destination?: string } | { kind: 'cancel'; task: PlanningTask; preview: Extract<PlanningPreview, { completionId: string }> }
 type Action = (command: PlanningCommand) => Promise<boolean>
 
 function PlanningForm({ dialog, data, action, busy, close }: {
@@ -86,7 +87,8 @@ function Workspace() {
   const identity = useVerifiedIdentity()
   const [dialog, setDialog] = useState<Dialog | undefined>(() => {
     const params = new URLSearchParams(window.location.search), goal = params.get('goalId'), main = params.get('mainlineId')
-    return goal ? { kind: 'detail', id: goal } : main ? { kind: 'mainlineDetail', id: main } : undefined
+    const task = params.get('taskId')
+    return task ? { kind: 'taskHistory', id: task } : goal ? { kind: 'detail', id: goal } : main ? { kind: 'mainlineDetail', id: main } : undefined
   })
   const [tab, setTab] = useState<'overview' | 'planning'>('overview')
   const [showTerminal, setShowTerminal] = useState(() => data?.includeTerminal ?? false)
@@ -141,7 +143,7 @@ function Workspace() {
   }
   const detailGoal = dialog?.kind === 'detail' ? (data?.goalDetail?.goal.id === dialog.id ? data.goalDetail.goal : data?.goals.find(item => item.id === dialog.id)) : undefined
   const title = !dialog ? '' : dialog.kind === 'new' ? '新建' : dialog.kind === 'detail' ? '目标详情' : dialog.kind === 'mainlineDetail' ? '主线历史'
-    : dialog.kind === 'migrate' ? dialog.entityKind === 'goal' ? '迁移目标' : '迁移任务' : dialog.kind === 'achieve' ? '确认目标达成' : dialog.kind === 'lifecycle' ? lifecycleTitles[dialog.preview.operation] : dialog.kind === 'task' ? dialog.task ? '编辑任务' : '创建任务' : dialog.kind === 'cancel' ? '取消任务完成'
+    : dialog.kind === 'taskHistory' ? '任务安排历史' : dialog.kind === 'reschedule' ? '任务改期' : dialog.kind === 'migrate' ? dialog.entityKind === 'goal' ? '迁移目标' : '迁移任务' : dialog.kind === 'achieve' ? '确认目标达成' : dialog.kind === 'lifecycle' ? lifecycleTitles[dialog.preview.operation] : dialog.kind === 'task' ? dialog.task ? '编辑任务' : '创建任务' : dialog.kind === 'cancel' ? '取消任务完成'
     : dialog.kind === 'mainline' ? dialog.id ? '修改主线名称' : '创建主线' : dialog.goal ? '编辑目标' : '创建目标'
   const goals = data?.goals
   return <AppLayout page="adventure"><div className="adventure-page planning-page">
@@ -193,6 +195,7 @@ function Workspace() {
           changeScope={scope => { void model.load({ taskScope: scope, taskPage: 1 }) }}
           changeSearch={search => { void model.load({ search, taskPage: 1 }) }}
           changeRange={range => { void model.load({ taskRange: range, taskPage: 1 }) }} changePage={page => { void model.load({ taskPage: page }) }}
+          reschedule={task => setDialog({ kind: 'reschedule', task })}
           openGoal={openGoal} migrate={task => setDialog({ kind: 'migrate', entityKind: 'task', id: task.id, title: task.title })} edit={task => setDialog({ kind: 'task', task })}
           complete={task => { void model.command({ type: 'completeTask', id: task.id }) }} cancel={task => { void cancelTask(task) }}
           end={task => { void openLifecycle('endTask', task.id) }}
@@ -225,7 +228,9 @@ function Workspace() {
             <button disabled={blocked || data.page * data.pageSize >= data.totalGoals} onClick={() => { void model.load({ page: data.page + 1 }) }}>下一页主线历史</button>
           </div></div>
         </> : <p>{busy ? '正在读取主线历史…' : '暂时无法读取主线历史，请重新读取。'}</p>}
-      </div> : dialog.kind === 'migrate' ? <PlanningMigration kind={dialog.entityKind} id={dialog.id} title={dialog.title} version={data.version} blocked={blocked} action={model.command} close={close} /> : dialog.kind === 'achieve' ? <GoalAchievement preview={dialog.preview} version={data.version} blocked={blocked} action={model.command}
+      </div> : dialog.kind === 'taskHistory' ? <PlanningTaskHistory key={dialog.id} id={dialog.id} /> : dialog.kind === 'reschedule' ? <PlanningReschedule task={dialog.task} version={data.version} blocked={blocked}
+        preview={async command => { const value = await model.preview(command); return value && 'operation' in value && value.operation === 'rescheduleTask' ? value : undefined }}
+        action={model.command} close={close} /> : dialog.kind === 'migrate' ? <PlanningMigration kind={dialog.entityKind} id={dialog.id} title={dialog.title} version={data.version} blocked={blocked} action={model.command} close={close} /> : dialog.kind === 'achieve' ? <GoalAchievement preview={dialog.preview} version={data.version} blocked={blocked} action={model.command}
         repreview={async () => { const value = await model.preview({ type: 'achieveGoal', id: dialog.preview.goalId, coefficient: 1, reflection: '' }); return value && 'goalId' in value && value.operation === 'achieveGoal' ? value : undefined }}
         saved={() => setDialog({ kind: 'detail', id: dialog.preview.goalId })} cancel={close} />
       : dialog.kind === 'lifecycle' ? <PlanningLifecycle preview={dialog.preview} version={data.version} blocked={blocked} action={model.command}

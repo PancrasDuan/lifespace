@@ -11,6 +11,7 @@ export const planningCommandSchema = z.discriminatedUnion('type', [
   z.strictObject({ type: z.literal('endMainline'), id: z.uuid() }),
   z.strictObject({ type: z.literal('createGoal'), destination: z.union([z.literal(''), z.literal('independent'), z.uuid()]), title: name, standards }),
   z.strictObject({ type: z.literal('createTask'), title: name, description: z.string().trim().max(4000), plannedOn: z.iso.date(), destination: z.union([z.literal(''), z.uuid()]) }),
+  z.strictObject({ type: z.literal('rescheduleTask'), id: z.uuid(), plannedOn: z.iso.date() }),
   z.strictObject({ type: z.literal('editTask'), id: z.uuid(), title: name, description: z.string().trim().max(4000) }),
   z.strictObject({ type: z.literal('migrateTask'), id: z.uuid(), destination: z.union([z.literal(''), z.uuid()]) }),
   z.strictObject({ type: z.literal('endTask'), id: z.uuid() }),
@@ -58,8 +59,20 @@ export type TaskScope = z.infer<typeof taskScopeSchema>
 export const planningSearchSchema = z.string().trim().max(100)
 export type TaskRange = z.infer<typeof taskRangeSchema>
 export const planningProgressSchema = z.object({ completed: version, total: version, ratio: z.number().min(0).max(1).nullable() })
+export const taskArrangementSchema = z.object({
+  id: z.uuid(), kind: z.enum(['task_created', 'task_rescheduled']), sourceEventId: z.uuid().nullable(),
+  oldPlannedOn: z.iso.date().nullable(), newPlannedOn: z.iso.date(), occurredAt: z.string(),
+  title: z.string(), description: z.string(), goalId: z.uuid().nullable(), goalTitle: z.string().nullable(),
+  mainlineId: z.uuid(), mainlineName: z.string(),
+})
+export const taskHistorySchema = z.object({
+  version, taskId: z.uuid(), title: z.string(), page: z.number().int().positive(), pageSize: z.literal(5), total: version,
+  items: z.array(taskArrangementSchema).max(5),
+})
+export type TaskHistory = z.infer<typeof taskHistorySchema>
 export const planningTaskSchema = z.object({
   id: z.uuid(), title: z.string(), description: z.string(), plannedOn: z.iso.date(),
+  rescheduleMin: z.iso.date().optional(), arrangements: z.array(taskArrangementSchema.pick({ id: true, kind: true, sourceEventId: true, oldPlannedOn: true, newPlannedOn: true, occurredAt: true })).max(5).default([]), totalArrangements: version.default(0),
   status: z.enum(['pending', 'completed', 'ended']), completedOn: z.iso.date().nullable(), completionId: z.uuid().nullable(), reward: taskRewardSchema.nullable(),
   completionOrigin: z.object({ goalId: z.uuid().nullable(), mainlineId: z.uuid(), goalTitle: z.string().nullable(), mainlineName: z.string(), title: z.string(), description: z.string(), plannedOn: z.iso.date(), occurredOn: z.iso.date() }).nullable().default(null),
   goalId: z.uuid().nullable(), goalTitle: z.string().nullable(), mainlineName: z.string(), independent: z.boolean(), overdue: z.boolean(), progress: planningProgressSchema, capabilities,
@@ -119,7 +132,14 @@ export const goalAchievementPreviewSchema = z.object({ ...previewBase, requiresC
   stoppingTasks: z.array(z.object({ id: z.uuid(), title: z.string(), plannedOn: z.iso.date() })),
 })
 export type GoalAchievementPreview = z.infer<typeof goalAchievementPreviewSchema>
+export const reschedulePreviewSchema = z.object({
+  ...previewBase, requiresConfirmation: z.literal(true), operation: z.literal('rescheduleTask'),
+  taskId: z.uuid(), title: z.string(), oldPlannedOn: z.iso.date(), newPlannedOn: z.iso.date(),
+  sourceEventId: z.uuid(),
+})
+export type ReschedulePreview = z.infer<typeof reschedulePreviewSchema>
 export const planningPreviewSchema = z.union([
+  reschedulePreviewSchema,
   lifecyclePreviewSchema,
   goalAchievementPreviewSchema,
   z.object({ ...previewBase, requiresConfirmation: z.literal(false) }),

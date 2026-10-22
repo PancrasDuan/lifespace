@@ -33,6 +33,23 @@ begin
     or exists(select 1 from public.adventure_events e where e.owner_id=t.owner_id and e.task_id=t.id
       and e.kind in ('task_completed','task_rescheduled'))))
     then raise exception 'HTTP audit: ineligible task was deleted'; end if;
+  if exists(select 1 from public.adventure_events e left join public.adventure_events source
+    on source.owner_id=e.owner_id and source.id=(e.snapshot->>'sourceEventId')::uuid
+    where e.kind='task_rescheduled' and (e.amount is not null or e.calculation is not null
+      or e.snapshot->'before' is null or e.snapshot->'after' is null or e.snapshot->'result' is null
+      or source.id is null or source.task_id is distinct from e.task_id
+      or source.kind not in ('task_created','task_rescheduled') or source.applied_revision>=e.applied_revision
+      or coalesce(source.snapshot->>'newPlannedOn',source.snapshot->>'plannedOn') is distinct from e.snapshot->>'oldPlannedOn'
+      or e.snapshot->>'oldPlannedOn' is distinct from e.snapshot->'before'->>'planned_on'
+      or e.snapshot->>'newPlannedOn' is distinct from e.snapshot->'after'->>'planned_on'
+      or (e.snapshot->>'newPlannedOn')::date<e.occurred_on
+      or e.snapshot->'result'->'growthChange'->>'xpDelta' is distinct from '0'))
+    then raise exception 'HTTP audit: reschedule source chain, date or zero reward diverged'; end if;
+  if exists(select 1 from public.adventure_tasks t join lateral (
+    select e.snapshot from public.adventure_events e where e.owner_id=t.owner_id and e.task_id=t.id
+      and e.kind in ('task_created','task_rescheduled') order by e.applied_revision desc limit 1
+    ) latest on true where t.planned_on::text is distinct from coalesce(latest.snapshot->>'newPlannedOn',latest.snapshot->>'plannedOn'))
+    then raise exception 'HTTP audit: task date diverged from current arrangement'; end if;
   if exists(select 1 from public.adventure_goals g left join public.adventure_events e on e.owner_id=g.owner_id and e.goal_id=g.id and e.kind='goal_achieved'
     where (g.status='achieved')<>(e.id is not null) or (e.id is not null and (
       e.amount is distinct from (e.snapshot->'result'->'reward'->>'amount')::bigint

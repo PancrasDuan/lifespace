@@ -1,3 +1,4 @@
+import { PlanningArrangements } from './PlanningReschedule'
 import { PlanningCompletionOrigin } from './PlanningCompletionOrigin'
 import type { PlanningGoal, PlanningPage } from '../shared/adventure-planning'
 
@@ -25,7 +26,7 @@ export function PlanningGoalDetail({ goal, history, pageSize, blocked, edit, add
       <button disabled={blocked || !goal.capabilities.end?.allowed} title={goal.capabilities.end?.reason} onClick={end}>结束目标</button>
     </div>
     {history && <section aria-label="目标任务历史"><h4>任务历史</h4>
-      {history.tasks.length ? <ul>{history.tasks.map(task => <li key={task.id}>{task.title} · {task.plannedOn} · {task.status === 'completed' ? '已完成' : task.status === 'ended' ? '已结束' : '待完成'}{task.reward ? ` · 冻结奖励 ${task.reward.amount} 点经验` : ''}{task.completionOrigin && <> · <PlanningCompletionOrigin origin={task.completionOrigin} /></>}{task.goalId !== goal.id ? ` · 当前已迁出至 ${task.goalTitle ?? '独立任务'}` : ''}</li>)}</ul> : <p>暂无任务历史。</p>}
+      {history.tasks.length ? <ul>{history.tasks.map(task => <li key={task.id}>{task.title} · {task.plannedOn} · {task.status === 'completed' ? '已完成' : task.status === 'ended' ? '已结束' : '待完成'}{task.reward ? ` · 冻结奖励 ${task.reward.amount} 点经验` : ''}{task.completionOrigin && <> · <PlanningCompletionOrigin origin={task.completionOrigin} /></>}{task.goalId !== goal.id ? ` · 当前已迁出至 ${task.goalTitle ?? '独立任务'}` : ''}<PlanningArrangements task={task} /></li>)}</ul> : <p>暂无任务历史。</p>}
       <div className="planning-pagination"><small>共 {history.totalTasks} 项 · 第 {history.taskPage} 页</small><div>
         <button disabled={blocked || history.taskPage <= 1} onClick={() => changePage(history.taskPage - 1)}>上一页历史</button>
         <button disabled={blocked || history.taskPage * pageSize >= history.totalTasks} onClick={() => changePage(history.taskPage + 1)}>下一页历史</button>
