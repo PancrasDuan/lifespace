@@ -92,7 +92,7 @@ npm run test:browser
 |---|---|
 | `src/home/` | 首页、信息卡片与设置 |
 | `src/app/`、`src/news/` | 共享导航、新闻页与请求队列 |
-| `src/adventure/`、`src/shared/adventure/` | 人生冒险页面与共享领域命令 |
+| `src/adventure/`、`src/shared/adventure-*.ts` | 人生冒险页面与后端投影契约 |
 | `src/shared/` | 前后端数据契约 |
 | `worker/` | Hono 接口与数据来源接入 |
 | `tests/api/`、`tests/browser/` | HTTP 与浏览器验收测试 |

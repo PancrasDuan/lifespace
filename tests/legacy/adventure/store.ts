@@ -1,7 +1,7 @@
 import { z } from 'zod'
-import { initialState, type AdventureState, type CommandResult } from '../../src/shared/adventure'
-import { readBoundedBody } from '../read-body'
-import { ApiError } from '../upstream'
+import { initialState, type AdventureState, type CommandResult } from './domain'
+import { readBoundedBody } from '../../../worker/read-body'
+import { ApiError } from '../../../worker/upstream'
 
 const resultSchema = z.object({ entityId: z.string().optional(), reward: z.number(), ledgerIds: z.array(z.string()), achievementIds: z.array(z.string()), levelBefore: z.number(), levelAfter: z.number() })
 const stateSchema = z.object({ schemaVersion: z.literal(1), timeZone: z.literal('Asia/Shanghai'), containers: z.array(z.unknown()), goals: z.array(z.unknown()), tasks: z.array(z.unknown()), cycles: z.array(z.unknown()), ledger: z.array(z.unknown()), achievements: z.array(z.unknown()) })

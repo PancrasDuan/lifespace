@@ -1,6 +1,6 @@
-# 本地任务映射与既有验证范围
+# 本期任务与验收覆盖
 
-状态：2026-10-22 本期仅一次性任务及配套成长奖励。#54 创建编辑已完成收尾；#55 的本地开发和隔离验收已完成，最终业务代码为 `5bd2d3b`；验收见 [#54](qa-planning.md) 与 [#55](qa-actions.md)。#65 本地开发和隔离验收见 [聚焦进度验收](qa-focus.md)，#59 目标达成验收见 [达成验收](qa-goals.md)，#60 迁移验收见 [迁移验收](qa-migrations.md)，#66 生命周期验收见 [生命周期验收](qa-lifecycle.md)，#61 改期验收见 [改期验收](qa-reschedule.md)。后续票按依赖实施，Issue 仍待人工和发布验收后关闭；旧验证不证明新版通过。
+2026-10-22：#54、#55、#65、#59、#60、#66、#61、#62 已在 `codex/53-adventure` 本地实现；#63 集成验证见 [交付验收](qa-integration.md)。本地提交不等于真实登录、人工验收或部署验收，所有 Issue 保持开放。真实 Supabase 同步留到上线前另行授权。
 
 | 本期顺序／Issue | 当前范围 | 直接前置 | 覆盖边界 |
 |---|---|---|---|
@@ -15,77 +15,11 @@
 | 09／#63 | 完成跨功能回归与真实用户交付验收 | #60、#66、#61、#62 | 跨票组合、真实事务安全、浏览器、双轴评审、用户验收与具体合并门禁 |
 | 待办／#56、#57、#58 | [周期性任务与周期奖励](backlog.md) | 不阻塞本期 | 保留开放、移除 ready-for-agent，恢复前重新确认规格与验收 |
 
-本期不加入检查清单、计划结束日期或达标比例。完成记录取消后逻辑失效，数据库保留、界面和有效统计排除。任务基础成长和冻结奖励已实施，目标达成与完整成长记录按对应任务实施；任务进度、独立任务筛选、统一终态开关和接口分工均已确认；本次文档检查不作为运行验收。后端设计见 [数据库](backend-database.md) 与 [业务逻辑](backend-business-logic.md)，五张关系表及 #54 创建／编辑 RPC 已应用并实测；#55 完成／取消及任务命令已在本机真实 PostgreSQL／PostgREST 验证，现有验收库尚未同步，其他命令仍待对应任务实现；下列旧单表证据不证明新方案通过。
+## 证据与边界
 
-## 本版测试边界
+[49 条故事对照](qa-integration.md)列出当前测试和逐票证据。正式业务边界为浏览器 → Worker → PostgREST → PostgreSQL RPC；事务、账户锁、版本、幂等和奖励由 PostgreSQL 统一维护。测试使用受控身份与临时隔离数据库，提交后刷新回读并执行全库审计；故障注入只改变网络响应，不模拟业务提交。
 
-主要业务验收边界为正式 HTTP 接口到真实数据库事务，提交后重新读取并验证事实、奖励、版本、回执及持久化；隔离数据库覆盖事务回滚、外键、权限和并发，不以模拟成功代替。浏览器覆盖关键流程、刷新和手机布局；计算测试仅补必要临界值。完成、取消、目标达成等票必须同时实现对应奖励事务；成长票侧重查询与展示，不把基础计奖延后到最后。
-
-页面查询／操作预览／业务命令语义已确认；具体传输契约及限额应在首批实施票中固定并测试。父规格发布稿见 [Issue 规格](issue-spec.md)。9 张本期票正文、标签和原生依赖已发布并回读；当前 #55、#65、#59、#60、#66、#61 已在交付工作树实现，验收证据见各票 qa 文档；#59、#61 也直接依赖 #55，实际实施仍按用户选择及表中依赖进行。本轮不访问或更新现有验收库，不把更新该库作为继续本地开发的前置。前置完成依据新版实现及验收证据，Issue 关闭仍遵守部署验收门禁。
-
-## 既有实现的验证证据
-
-以下记录实现与检查的固定证据范围；交付状态以[PR #64](https://github.com/PancrasDuan/lifespace/pull/64)、[最新检查](https://github.com/PancrasDuan/lifespace/pull/64/checks)及[父规格 #53](https://github.com/PancrasDuan/lifespace/issues/53)为准。
-
-| 范围 | 当前证据 | 能证明与不能证明 |
-|---|---|---|
-| 领域命令与日期奖励 | [领域验收](domain-validation.md)：Node24.19.0、33项领域测试及类型检查；规则边界与独立例逐项列明 | 覆盖配额、排序、暂停、月末、迁移、冻结、长期奖励及成就；不能替代真实HTTP、浏览器或发布验收 |
-| Worker与持久适配器 | [后端验证](qa-backend.md)：Node24.19.0，storage/http两文件11项测试；容量回归另列 | 通过实际命令与持久适配器验证身份隔离、版本、重试与服务端时钟；外部Auth/PostgREST模拟范围明确，不能冒称真实用户JWT验收 |
-| 真实数据库迁移 | 迁移`20261019035109`，新建专用`adventure_states` | 不改旧tasks/schedules；RLS、anon/authenticated四种直接权限拒绝、service_role最小授权及SQL探针回滚已证 |
-| 真实PostgREST | 同一后端验证中的六项实际HTTP结果及清理读回 | 初始零状态、同版本CAS恰一赢家、新Store读回、旧版本零行、ignore-duplicates不覆盖state/version/journal；仅隔离随机owner，不是生产真实用户完整业务验收 |
-| 隔离验证清理 | `own_probe_rows_cleaned=1`且`isolated_probe_cleaned=true` | 自建随机探针行已清理；没有扩大service_role DELETE权限，没有遗留测试行 |
-| 规则与排期完整性 | 领域验证中的60天窗口、跨月改期、十余月暂停及3/6/12月成就 | 正式规则查询不受原型28天限制；实际前端长历史交互仍须浏览器验证 |
-| 当前页面与路由 | `AuthGate`包裹首页／新闻／人生冒险；`/adventure`及固定规划时区、GET后POST refresh已接入 | 代码事实证明路由与调用组织，不能替代渲染验收或真实账户交互 |
-
-当前领域规则见 [decisions-domain.md](decisions-domain.md)，关系表与事务方案见 [decisions-backend.md](decisions-backend.md)；它们不是下列旧实现验证的通过声明。上述验证由对应作者运行，本次文档收敛不虚构重新执行结果；最终修改后仍需复跑。
-
-## 既有实现的统一检查
-
-2026年10月19日，源码冻结后由主agent统一执行并报告；本节记录该次结果，不将子模块测试冒称全站结果。
-
-| 命令 | 结果 |
-|---|---|
-| `npm run check:secrets` | 通过，冻结后复跑通过：85个commits＋1,591,004 bytes workingtree，输出脱敏 |
-| `npm run test:api` | 12文件，189/189通过 |
-| `npm run test:security:portable` | 1项包装回归通过 |
-| `npm run test:secrets` | 1项密钥扫描自测通过 |
-| `npm run build` | 最终源码冻结后复跑通过，包含完整typecheck |
-
-构建未注入真实凭据，missing-secrets提示为预期；主客户端1,196.06 KB、gzip365.54 KB，Worker710.10 KB、gzip177.13 KB的大chunk警告保留。未据此宣称性能优化或8MB聚合的真实Worker峰值已验证。最终整改后完整浏览器回归144／144通过，2.5分钟（主agent会话19035，退出码0），包含全部18项冒险场景和现有首页、新闻、认证回归；不依赖拼接早期阶段结果。构建会话89224与API会话59392均已退出0。详见 [前端验收](qa-frontend.md)。针对源码提交5ce1b0c的独立二轴复查已完成，需求轴新增finding0、原三项关闭；规范轴硬违规0、性能P2关闭，接受一个非阻塞维护性P3。详见[评审记录](review.md)；实时交付状态见PR和父规格。
-
-只读能力查询已改为正式命令与界面共同使用的轻量前置校验，不再逐按钮克隆完整成长历史。主agent复测5,000条历史、50个任务按钮三轮为12／11／12 ms，原实现约2,530 ms；作者完整基准见 [领域验收](domain-validation.md)，脚本`src/shared/adventure/capabilities-benchmark.mjs`可复跑。该测量不是跨机器保证或8MB真实Worker峰值证明。
-
-既有实现曾补齐已达成目标的单独归档、累计长期系数与本期实际系数分开展示，以及零经验但新成就解锁的通知；旧账本缺实际系数字段明确未记录，不由当前状态推断或重写历史。
-
-## 既有实现的边界记录（不作为当前要求）
-
-- 首页原有展示数据共用且只读，冒险按已验证账户隔离；导航新增单一人生冒险入口，其余未开发栏目保持禁用占位。
-- 规划时区固定Asia/Shanghai，与首页地区独立。GET读取／初始化不结算；页面读回后POST refresh以服务端日期追赶昨天及更早记录。
-- 单实例改期保留原slot和计划所属任务月，实际计执行日任务月；同一行动一次计奖，额外完成无计划槽。
-- 确认目标冻结奖励后，先撤目标才能撤其当天行动；撤目标恢复原周期状态并保留后续独立操作，不强制恢复暂停。暂停当天纠错允许，结束和归档仍只读。
-- 已达成未归档支线可两方式迁移；原goal/task/cycle身份与冻结历史不重算。撤销已达成支线重新校验在用10条配额，失败无状态变更。
-- 完整行预算8,000,000 UTF-8 bytes，超限拒绝而不裁剪账本/journal。128MB真实Worker接近预算时解析／克隆峰值仍未证明。
-
-## 发布索引
-
-- 父规格：https://github.com/PancrasDuan/lifespace/issues/53
-- 本期 01–09 的实际 Issue、正文与直接依赖见首表；新增聚焦进度和生命周期两票，其他沿用既有编号。#56–#58 独立列为待办，不占本期顺序。
-- 父规格发布正文保留发布时快照；当前任务状态以本表、各 Issue 及 published.json 为准，本次拆票不修改父 Issue。
-- 发布状态与原生依赖回读证据见 published.json；原稿保留在 .scratch，正式可提交副本在隔离工作树 docs/adventure。
-
-## 交付门禁
-
-- [PR #64](https://github.com/PancrasDuan/lifespace/pull/64)维护变更、审阅与真实用户验收反馈，[checks](https://github.com/PancrasDuan/lifespace/pull/64/checks)为最新HEAD的CI权威结果。
-- [父规格 #53](https://github.com/PancrasDuan/lifespace/issues/53)维护人工验收、具体PR合并授权、部署SHA及生产验证清单；外部交付状态变化只更新PR／Issue，不反复提交源码记录追逐状态。
-- 合并需要用户对具体PR明确授权；关联Issue仅在发布验收后关闭。本覆盖表、数据库探针和自动测试均不能替代这些门禁。
-- 真实JWT初始空态、创建目标占位、取消不保存及重新加载已验证，见[前端验收](qa-frontend.md)；该范围不等于真实账户实体创建与完整人工验收。
-
-## 交付基线与原型来源
-
-- 功能分支建立时核实的本地origin/main与远端main：`b816cafa402136e5a173ae046a2fc8cf5ca22127`。
-- 功能分支：`codex/53-adventure`；交付工作树独立于原始未提交工作区。
-- 原型来源：`codex/adventure-prototype-source`，提交 `eee88c38f273da3e8d4aad3b7c43b9275fb781b8`。
-
-#60 的故事 29／30／31／40：两类迁移、原归属快照、聚焦配额及并发回滚由 `tests/database/adventure-migrations.sql`、正式 HTTP 的迁移用例和 1440／390px 数据库浏览器流程覆盖；恢复交互见 `tests/browser/adventure-migrations.spec.ts`，人工页面／DB 对照见 [迁移验收](qa-migrations.md)。
-
-#66 的故事 17／18／27／28／34／35／36：主线／目标／任务结束、误建逻辑删除、终态传播、按账户显示记忆及终态排序由 `tests/database/adventure-lifecycle.sql`、正式 HTTP 的生命周期用例和 1440／390px 数据库浏览器流程覆盖；页面／DB 对照见 [生命周期验收](qa-lifecycle.md)，#61 改期验收见 [改期验收](qa-reschedule.md)。
+- 分票验收：[规划](qa-planning.md)、[行动](qa-actions.md)、[聚焦进度](qa-focus.md)、[达成](qa-goals.md)、[迁移](qa-migrations.md)、[生命周期](qa-lifecycle.md)、[改期](qa-reschedule.md)、[成长](qa-growth.md)。
+- 历史单表与周期验证：[领域记录](domain-validation.md)、[后端记录](qa-backend.md)、[前端记录](qa-frontend.md)、[旧评审](review.md)。其源代码和测试已移入 `tests/legacy/adventure`，独立配置复跑，不参与新版通过统计；旧数据库及数据未修改。
+- 父规格发布正文 `issue-spec.md`、`published.json` 保留发布证据；实现口径以当前 `spec.md`、契约和本期报告为准。本轮不修改或关闭父 Issue。
+- 用户本地验收、具体 PR 合并确认、上线前数据库同步及部署 SHA／生产隔离核验分别完成；本票不推送、不合并、不部署、不关闭 Issue。

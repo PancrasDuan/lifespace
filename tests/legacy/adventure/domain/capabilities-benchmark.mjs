@@ -1,12 +1,12 @@
 // 只读能力基准：同一状态三轮查询，不使用渲染缓存，不设置机器性能断言。
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
-const root = fileURLToPath(new URL("../../../", import.meta.url));
+const root = fileURLToPath(new URL("../../../../", import.meta.url));
 const require = createRequire(root + "/package.json");
 const { build } = require("esbuild");
 const built = await build({
   absWorkingDir: root,
-  entryPoints: ["src/shared/adventure/index.ts"],
+  entryPoints: ["tests/legacy/adventure/domain/index.ts"],
   bundle: true,
   write: false,
   platform: "node",

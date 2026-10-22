@@ -9,9 +9,9 @@ import {
   taskCapabilities,
   commandCapability,
   forecastCycleChange,
-} from "../../src/shared/adventure";
-import type { AdventureState } from "../../src/shared/adventure/model";
-import type { AdventureCommand } from "../../src/shared/adventure/commands";
+} from "./domain";
+import type { AdventureState } from "./domain/model";
+import type { AdventureCommand } from "./domain/commands";
 let seq = 0;
 const run = (
   state: AdventureState,

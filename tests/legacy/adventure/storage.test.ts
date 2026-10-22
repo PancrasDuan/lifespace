@@ -1,6 +1,6 @@
 import { afterEach, expect, it, vi } from 'vitest'
-import { AdventureStore, MAX_ADVENTURE_ROW_BYTES, MAX_ADVENTURE_RESPONSE_BYTES, type StoredState } from '../../worker/adventure/store'
-import { initialState } from '../../src/shared/adventure'
+import { AdventureStore, MAX_ADVENTURE_ROW_BYTES, MAX_ADVENTURE_RESPONSE_BYTES, type StoredState } from './store'
+import { initialState } from './domain'
 const owner='00000000-0000-4000-8000-000000000041'
 const env={SUPABASE_URL:'https://storage-test.supabase.co',SUPABASE_SECRET_KEY:'sb_secret_fake-capacity-test'}
 const now='2026-10-19T01:00:00Z'

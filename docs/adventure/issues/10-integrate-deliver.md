@@ -1,6 +1,6 @@
 # 09：完成跨功能回归与真实用户交付验收
 
-状态：2026-10-20 已发布至 Issue #63，正文和原生阻塞关系已回读核验。ready-for-agent；前置未完成时不领取，当前实现仍待按本版重新验证。
+状态：2026-10-22 前置实现已在本地提交，本票实施与验收证据见 [集成报告](../qa-integration.md)。真实登录、人工与发布验收另列，Issue 保持开放。
 
 Issue：https://github.com/PancrasDuan/lifespace/issues/63
 

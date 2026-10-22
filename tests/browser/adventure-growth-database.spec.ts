@@ -1,62 +1,16 @@
 import { test, expect } from './authenticated-test'
-import app from '../../worker/index'
-import { growthPageSchema } from '../../src/shared/adventure-growth'
-import { planningPageSchema } from '../../src/shared/adventure-planning'
+import { localPlanningRpc, planningDatabaseBrowser } from '../support/planning-database-browser'
 
-const rpcOrigin = process.env.ADVENTURE_LOCAL_RPC_URL
-let owner = '00000000-0000-4000-8000-000000000001'
-const env = {
-  SUPABASE_URL: 'https://planning-local-test.supabase.co', SUPABASE_SECRET_KEY: 'sb_secret_local-test-only',
-  SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_local-test-only', AUTH_ALLOWED_EMAILS: 'actions@example.invalid',
-}
-const encode = (value: unknown) => btoa(JSON.stringify(value)).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_')
-const authToken = () => `${encode({ alg: 'HS256' })}.${encode({ sub: owner, session_id: owner, exp: 4102444800 })}.local-test`
-const nativeFetch = globalThis.fetch
-const snapshot = async (query = '') => {
-  const response = await app.request('/api/adventure' + query, { headers: { Authorization: `Bearer ${authToken()}` } }, env)
-  expect(response.status).toBe(200)
-  return planningPageSchema.parse(await response.json())
-}
+const database = planningDatabaseBrowser()
+const { snapshot, write, growth } = database
 
 test.describe('真实成长记录的桌面与手机浏览器验收（受控身份）', () => {
-  test.skip(!rpcOrigin, '仅在显式启动的隔离本机 PostgreSQL／PostgREST 中运行')
-  test.beforeEach(async ({ context }) => {
-    owner = crypto.randomUUID()
-    const target = new URL(rpcOrigin!)
-    if (target.hostname !== '127.0.0.1' || target.protocol !== 'http:' || target.username || target.password) throw new Error('只允许本机隔离 RPC')
-    globalThis.fetch = async (input: string | URL | Request, init?: RequestInit) => {
-      const url = new URL(input instanceof Request ? input.url : input)
-      if (url.origin !== env.SUPABASE_URL) return nativeFetch(input, init)
-      if (url.pathname === '/auth/v1/user') return Response.json({ id: owner, email: 'actions@example.invalid', email_confirmed_at: '2026-10-21', is_anonymous: false })
-      if (!url.pathname.startsWith('/rest/v1/rpc/adventure_')) throw new Error('禁止非 RPC 请求')
-      return nativeFetch(new URL(url.pathname.replace('/rest/v1', ''), target), init)
-    }
-    await context.route('**/api/adventure**', async route => {
-      const request = route.request()
-      const url = new URL(request.url())
-      const response = await app.request(url.pathname + url.search, {
-        method: request.method(), headers: { Authorization: `Bearer ${authToken()}`, 'Content-Type': 'application/json' },
-        body: request.method() === 'GET' ? undefined : request.postData() ?? undefined,
-      }, env)
-      await route.fulfill({ status: response.status, contentType: 'application/json', body: await response.text() })
-    })
-  })
-  test.afterEach(() => { globalThis.fetch = nativeFetch })
-
-  const write = async (command: unknown) => {
-    const response = await app.request('/api/adventure/commands', { method: 'POST', headers: { Authorization: `Bearer ${authToken()}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ expectedVersion: (await snapshot()).version, requestId: crypto.randomUUID(), command }) }, env)
-    expect(response.status).toBe(200)
-    return await response.json() as { result: { entityId: string; completionId: string; achievementId: string } }
-  }
+  test.skip(!localPlanningRpc, '仅在显式启动的隔离本机 PostgreSQL／PostgREST 中运行')
+  test.beforeEach(async ({ context }) => { await database.install(context) })
+  test.afterEach(() => database.restore())
   const complete = async (title: string, destination = '') => {
     const task = await write({ type: 'createTask', title, destination, description: '冻结行动说明', plannedOn: (await snapshot()).today })
     return write({ type: 'completeTask', id: task.result.entityId })
-  }
-  const growth = async () => {
-    const response = await app.request('/api/adventure/growth', { headers: { Authorization: `Bearer ${authToken()}` } }, env)
-    expect(response.status).toBe(200)
-    return growthPageSchema.parse(await response.json())
   }
 
   for (const width of [1440, 390]) test(`${width}px 七项实时成就、任务和目标流水、保底及终态冻结来源`, async ({ page }) => {
