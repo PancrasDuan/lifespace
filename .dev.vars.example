@@ -6,3 +6,6 @@ DNSHE_API_SECRET=""
 SUPABASE_PUBLISHABLE_KEY=sb_publishable_replace_me
 AUTH_ALLOWED_EMAILS=replace-me@example.com
 AUTH_HOOK_SECRET=replace_me_with_supabase_hook_signing_secret
+
+# ALAPI 星座接口 Token；真实验收阶段配置，仅 Worker 服务端使用。
+ALAPI_TOKEN=""

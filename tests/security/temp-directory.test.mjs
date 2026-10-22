@@ -13,6 +13,6 @@ test('安全验证在不存在 macOS 临时目录的环境下仍完成全部检�
   })
   assert.equal(result.status, 0, result.stdout + result.stderr)
   const report = JSON.parse(readFileSync(new URL('../../.cache/security-report.json', import.meta.url), 'utf8'))
-  assert.equal(report.checks.length, 5)
+  assert.equal(report.checks.length, 7)
   assert(report.checks.every(check => check.passed))
 })

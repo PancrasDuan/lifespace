@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
-import { cp, mkdir, mkdtemp, readFile, readdir, realpath, rm, symlink, writeFile } from 'node:fs/promises'
+import { cp, mkdir, mkdtemp, readFile, readdir, realpath, rm, stat, symlink, writeFile } from 'node:fs/promises'
+import { existsSync } from 'node:fs'
 import { execFileSync, spawnSync } from 'node:child_process'
 import { resolve, dirname, basename } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -15,6 +16,7 @@ const markers = {
   SUPABASE_SECRET_KEY: 'sb_secret_SECURITY_TEST_SUPABASE_20261006',
   AUTH_ALLOWED_EMAILS: 'security-user@example.com',
   AUTH_HOOK_SECRET: 'SECURITY_TEST_HOOK_SECRET_20261011',
+  ALAPI_TOKEN: 'SECURITY_TEST_ALAPI_TOKEN_20261022',
 }
 const publicBindings = { SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_security-test-only' }
 const authUser = { id: '00000000-0000-4000-8000-000000000001', email: markers.AUTH_ALLOWED_EMAILS, email_confirmed_at: '2026-10-11', is_anonymous: false }
@@ -70,7 +72,7 @@ async function files(directory) {
 }
 let devServer, runtime
 try {
-  for (const path of ['src', 'worker', 'public', 'index.html', 'package.json', 'vite.config.ts', 'wrangler.jsonc']) {
+  for (const path of ['scripts/strip-worker-dev-vars.mjs', 'src', 'worker', 'public', 'index.html', 'package.json', 'vite.config.ts', 'wrangler.jsonc']) {
     await cp(resolve(root, path), resolve(fixture, path), { recursive: true })
   }
   await symlink(resolve(root, 'node_modules'), resolve(fixture, 'node_modules'), 'dir')
@@ -81,6 +83,13 @@ try {
   const generated = JSON.parse(await readFile(resolve(fixture, 'dist/lifespace/wrangler.json'), 'utf8'))
   const publicDir = resolve(fixture, 'dist/lifespace', generated.assets.directory)
   assert.equal(publicDir, resolve(fixture, 'dist/client'), '发布目录必须只包含前端资源')
+  const workerOutput = resolve(fixture, 'dist/lifespace')
+  for (const name of await readdir(workerOutput)) {
+    if (name.startsWith('.')) continue
+    const path = resolve(workerOutput, name)
+    if ((await stat(path)).isFile()) assertClean(await readFile(path), 'Worker 构建产物')
+  }
+  checks.push({ name: 'Worker 构建产物脱敏', passed: true })
   const publicFiles = await files(publicDir)
   for (const path of publicFiles) {
     assert(!/^\.(?:env|dev\.vars)/.test(basename(path)), '公开目录含凭据文件')
@@ -90,10 +99,12 @@ try {
   let upstreamCalls = 0
   let newsCalls = 0
   let authCalls = 0
+  let horoscopeCalls = 0
   runtime = new Miniflare(convertV4MiniflareOptions({ workers: [{
     name: generated.name, modules: true, scriptPath: resolve(fixture, 'dist/lifespace/index.js'),
     compatibilityDate: generated.compatibility_date, compatibilityFlags: generated.compatibility_flags,
     bindings: { ...generated.vars, ...markers, ...publicBindings },
+    kvNamespaces: ['HOROSCOPE_KV'],
     ratelimits: Object.fromEntries(generated.ratelimits.map(binding => [binding.name, binding])),
     assets: { directory: publicDir, binding: 'ASSETS', run_worker_first: generated.assets.run_worker_first,
       routerConfig: { has_user_worker: true }, assetConfig: { not_found_handling: 'single-page-application' } },
@@ -114,6 +125,17 @@ try {
         return new RuntimeResponse(JSON.stringify({ id: 'baidu', status: 'cache', items: [
           { title: '安全测试榜单', url: 'https://example.com/news', extra: markers },
         ], info: markers }), { headers: { 'Content-Type': 'application/json' } })
+      }
+      if (new URL(request.url).origin === 'https://v3.alapi.cn') {
+        assert.equal(new URL(request.url).pathname, '/api/star')
+        assert.equal(request.method, 'POST')
+        assert.equal(request.headers.get('token'), markers.ALAPI_TOKEN)
+        assert.deepEqual(await request.json(), { star: 'libra' })
+        horoscopeCalls++
+        const date = new Date(Date.now() + 8 * 3600000).toISOString().slice(0, 10)
+        return new RuntimeResponse(JSON.stringify({ success: true, code: 200, data: { day: {
+          date, all: '85%', all_text: '安全测试运势', extra: markers,
+        } }, extra: markers }), { headers: { 'Content-Type': 'application/json' } })
       }
       assert.equal(new URL(request.url).origin, 'https://api005.dnshe.com')
       assert.equal(request.method, 'GET')
@@ -163,7 +185,35 @@ try {
   }
   assert.equal(newsCalls, 1, '生产运行时新闻缓存未命中')
   assert.equal(authCalls, 4, '业务缓存命中也必须逐次在线验证会话')
-  checks.push({ name: '生产运行时公开路径、接口与边缘缓存', passed: true })
+  const horoscopeUrl = 'https://lifespace.onepeace.cc.cd/api/horoscope?sign=libra'
+  assert.equal((await runtime.dispatchFetch(horoscopeUrl)).status, 401)
+  assert.equal(horoscopeCalls, 0)
+  const firstHoroscope = await runtime.dispatchFetch(horoscopeUrl, { headers: authHeaders })
+  assert.equal(firstHoroscope.status, 200, '生产运行时运势接口不可用')
+  const horoscopeText = await firstHoroscope.text()
+  assertClean(horoscopeText, '运势接口响应')
+  const fortune = JSON.parse(horoscopeText)
+  assert.equal(fortune.texts.all, '安全测试运势')
+  if (Date.parse(fortune.validUntil) - Date.now() >= 60000) {
+    const namespace = await runtime.getKVNamespace('HOROSCOPE_KV')
+    const key = `horoscope:v1:alapi:Asia-Shanghai:${fortune.dataDate}:libra`
+    const stored = await namespace.get(key)
+    assert(stored, '生产运行时未写入当日 KV')
+    assertClean(stored, '运势 KV 缓存')
+    const keys = await namespace.list({ prefix: key })
+    assert.equal(keys.keys[0].expiration, Date.parse(fortune.validUntil) / 1000)
+    const secondHoroscope = await runtime.dispatchFetch(horoscopeUrl)
+    assert.equal(secondHoroscope.status, 200)
+    assert.equal((await secondHoroscope.json()).cacheHit, true)
+    assert.equal(horoscopeCalls, 1, '运势 KV 命中仍消耗上游调用')
+    assert.equal(authCalls, 5, '公共运势缓存命中不应调用 Auth，未命中必须鉴权')
+    const signedHit = await runtime.dispatchFetch(horoscopeUrl, { headers: authHeaders })
+    assert.equal(signedHit.status, 200)
+    assert.equal((await signedHit.json()).cacheHit, true)
+    assert.equal(authCalls, 5, '携带凭据的公共缓存命中也不应调用 Auth')
+    assert.equal(horoscopeCalls, 1)
+  }
+  checks.push({ name: '生产构建在隔离运行时的公开路径、接口与缓存', passed: true })
   await runtime.dispose(); runtime = undefined
   devServer = await createServer({ configFile: resolve(fixture, 'vite.config.ts'), customLogger: logger,
     server: { host: '127.0.0.1', port: 0, strictPort: false } })
@@ -176,6 +226,9 @@ try {
     assertClean(await response.text(), '开发服务器文件响应')
   }
   checks.push({ name: '开发服务器凭据文件访问隔离', passed: true })
+  execFileSync('node', [resolve(fixture, 'scripts/strip-worker-dev-vars.mjs')], { cwd: fixture })
+  assert(!existsSync(resolve(workerOutput, '.dev.vars')), '部署清理后仍存在本地凭据文件')
+  checks.push({ name: '部署产物凭据清理', passed: true })
   assertClean(logs.join('\n'), '构建与开发日志')
   checks.push({ name: '构建与开发日志虚构凭据检查', passed: true })
   const tracked = execFileSync('git', ['ls-files', '-z'], { cwd: root }).toString().split('\0').filter(Boolean)
