@@ -49,7 +49,7 @@ test('390px 手机布局、键盘焦点约束和 Escape 取消可用', async ({ 
   expect(server.envelopes).toHaveLength(0)
 })
 
-test('桌面、中等宽度与手机下任务正文和操作按钮不互相挤压', async ({ page, context }) => {
+test('桌面、中等宽度与手机下主线名称和任务正文不互相挤压', async ({ page, context }) => {
   const planning = {
     ...withGoal,
     capabilities: { ...withGoal.capabilities, createTask: allowed },
@@ -66,8 +66,10 @@ test('桌面、中等宽度与手机下任务正文和操作按钮不互相挤�
   }
   await planningFixture(context, planning)
   const card = page.getByRole('article', { name: '任务：验收-已有行动 1', exact: true })
+  const mainline = page.getByRole('article', { name: '主线：健康', exact: true })
+  const mainlineName = mainline.getByRole('heading', { name: '健康', exact: true })
   const buttons = card.locator('.planning-task-buttons')
-  for (const width of [1440, 1139, 390]) {
+  for (const width of [1440, 1139, 818, 390]) {
     await page.setViewportSize({ width, height: 954 })
     await page.goto('/adventure')
     const layout = await card.evaluate(element => {
@@ -85,6 +87,19 @@ test('桌面、中等宽度与手机下任务正文和操作按钮不互相挤�
     expect(layout.buttons.right).toBeLessThanOrEqual(layout.card.right)
     expect(layout.direction).toBe('column')
     expect(await buttons.boundingBox()).not.toBeNull()
+    const mainlineLayout = await mainline.evaluate(element => {
+      const name = element.querySelector('h3')
+      const card = element.getBoundingClientRect()
+      const title = name?.getBoundingClientRect()
+      return { nameWidth: title?.width ?? 0, left: card.left, right: card.right,
+        buttons: [...element.querySelectorAll('button')].map(button => button.getBoundingClientRect()) }
+    })
+    expect(mainlineLayout.nameWidth).toBeGreaterThan(100)
+    for (const button of mainlineLayout.buttons) {
+      expect(button.left).toBeGreaterThanOrEqual(mainlineLayout.left)
+      expect(button.right).toBeLessThanOrEqual(mainlineLayout.right)
+    }
+    await expect(mainlineName).toBeVisible()
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
   }
 })

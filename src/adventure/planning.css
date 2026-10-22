@@ -17,8 +17,8 @@
 .planning-section h2 { font-size: 17px; }
 .planning-section h3 { font-size: 14px; }
 .planning-mainlines { display: flex; flex-direction: column; gap: 10px; }
-.planning-mainlines article { display: flex; align-items: center; gap: 10px; border-top: 1px solid #edf0e4; padding-top: 12px; }
-.planning-mainlines h3 { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.planning-mainlines article { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; border-top: 1px solid #edf0e4; padding-top: 12px; }
+.planning-mainlines h3 { flex: 1 1 180px; min-width: 0; overflow-wrap: anywhere; }
 .planning-active { font-size: 10px; color: #748b60; padding: 4px 7px; background: #edf3e4; border-radius: 4px; }
 .planning-goals { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; }
 .planning-goal { border: 1px solid #e0e6d7; padding: 18px; border-radius: 9px; min-width: 0; }
