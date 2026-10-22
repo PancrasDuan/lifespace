@@ -132,7 +132,7 @@ test.describe('真实任务事务的桌面与手机浏览器验收（受控身�
     await expect(card(3).getByRole('button', { name: '上移目标 验收目标 3', exact: true })).toBeEnabled()
     await card(2).dragTo(card(1))
     await expect.poll(async () => (await snapshot()).goals.map(goal => goal.title)).toEqual(['验收目标 2', '验收目标 1', '验收目标 3', '验收目标 4'])
-    await page.getByRole('button', { name: '聚焦任务', exact: true }).click()
+    await page.getByRole('button', { name: '只看聚焦目标', exact: true }).click()
     const focusedTask = page.getByRole('article', { name: '任务：搜索聚焦', exact: true })
     await expect(focusedTask).toBeVisible()
     await expect(page.getByRole('article', { name: '任务：搜索独立', exact: true })).toBeVisible()

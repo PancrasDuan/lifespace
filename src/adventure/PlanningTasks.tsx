@@ -54,9 +54,9 @@ export function PlanningTasks({ data, blocked, changeRange, changePage, changeSc
     <div className="planning-task-ranges" aria-label="任务日期范围">{(['today', 'future', 'past'] as const).map((range, index) =>
       <button key={range} disabled={blocked} aria-pressed={data.taskRange === range} onClick={() => changeRange(range)}>{['今天', '未来', '过去'][index]}</button>)}</div>
   </header>
-    <div className="planning-task-filters">
+    <div className="planning-task-filters" title="按目标是否聚焦筛选任务；任务本身没有聚焦状态">
       <div className="planning-task-ranges" aria-label="任务视图">{(['all', 'focus'] as const).map(scope =>
-        <button key={scope} disabled={blocked} aria-pressed={data.taskScope === scope} onClick={() => changeScope(scope)}>{scope === 'all' ? '全部任务' : '聚焦任务'}</button>)}</div>
+        <button key={scope} disabled={blocked} aria-pressed={data.taskScope === scope} title={scope === 'all' ? '显示全部目标下的任务及独立任务' : '只显示聚焦目标下的任务，独立任务仍会保留'} onClick={() => changeScope(scope)}>{scope === 'all' ? '全部任务' : '只看聚焦目标'}</button>)}</div>
       <form onSubmit={event => { event.preventDefault(); changeSearch(search) }}>
         <label>搜索任务<input type="search" maxLength={100} value={search} onChange={event => setSearch(event.target.value)} placeholder="名称或说明" /></label>
         <button type="submit" disabled={blocked}>搜索</button>
