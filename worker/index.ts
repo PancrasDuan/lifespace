@@ -1,5 +1,5 @@
 import { Hono } from 'hono'
-import { readPlanning, previewPlanning, commandPlanning } from './adventure/planning'
+import { readMigrationOptions, readPlanning, previewPlanning, commandPlanning } from './adventure/planning'
 import { readTasks } from './tasks'
 import { ApiError } from './upstream'
 import { readWeather, searchLocations } from './weather'
@@ -27,6 +27,7 @@ app.use('/api/*', async (c, next) => {
 })
 app.get('/api/auth/me', c => c.json({ user: c.get('identity') }))
 app.get('/api/adventure', readPlanning)
+app.get('/api/adventure/migration-options', readMigrationOptions)
 app.post('/api/adventure/preview', previewPlanning)
 app.post('/api/adventure/commands', commandPlanning)
 app.get('/api/tasks/today', async c => c.json(await readTasks(c.env, c.req.query('timeZone'))))

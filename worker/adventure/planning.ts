@@ -4,7 +4,7 @@ import type { AuthEnv, Identity } from '../auth'
 import { readBoundedBody, BodyLimitError } from '../read-body'
 import { ApiError } from '../upstream'
 import {
-  planningEnvelopeSchema, planningPageSchema, planningReceiptSchema, taskRangeSchema, taskScopeSchema, planningSearchSchema,
+  migrationOptionsSchema, planningEnvelopeSchema, planningPageSchema, planningReceiptSchema, taskRangeSchema, taskScopeSchema, planningSearchSchema,
   planningPreviewInputSchema, planningPreviewSchema,
 } from '../../src/shared/adventure-planning'
 
@@ -13,6 +13,7 @@ const unavailable = () => new ApiError('ADVENTURE_UNAVAILABLE', '暂时无法读
 const errors = {
   VERSION_CONFLICT: [409, '数据已更新，请重新读取后确认操作'],
   REQUEST_ID_REUSED: [409, '请求编号已用于其他操作，请重新确认'],
+  SAME_DESTINATION: [400, '当前归属无需迁移'],
   FOCUS_LIMIT: [400, '每条主线或独立目标组最多聚焦 3 个目标'],
   MAINLINE_LIMIT: [400, '最多保留 5 条在用主线'],
   NOT_FOUND: [404, '内容不存在或不属于当前账户'],
@@ -94,4 +95,10 @@ export async function commandPlanning(c: PlanningContext) {
   return c.json(await rpc(c, 'adventure_planning_command', {
     p_request_id: value.requestId, p_expected_version: value.expectedVersion, p_command: value.command,
   }, planningReceiptSchema))
+}
+
+export async function readMigrationOptions(c: PlanningContext) {
+  const parsed = z.strictObject({ kind: z.enum(['goal', 'task']), id: z.uuid(), page: z.coerce.number().int().min(1).max(1_000_000).default(1) }).safeParse(c.req.query())
+  if (!parsed.success) throw new ApiError('INVALID_QUERY', '迁移候选参数无效', 400)
+  return c.json(await rpc(c, 'adventure_migration_options', { p_kind: parsed.data.kind, p_id: parsed.data.id, p_page: parsed.data.page }, migrationOptionsSchema))
 }

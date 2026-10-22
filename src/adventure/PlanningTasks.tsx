@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { Check, ListTodo } from 'lucide-react'
 import type { PlanningCommand, PlanningPage, PlanningTask, TaskRange, TaskScope } from '../shared/adventure-planning'
 
+import { PlanningCompletionOrigin } from './PlanningCompletionOrigin'
 import { PlanningProgress } from './PlanningProgress'
 
 type Action = (command: PlanningCommand, expectedVersion?: number) => Promise<boolean>
@@ -40,11 +41,11 @@ export function TaskForm({ task, destination: initialDestination, data, action, 
   </fieldset></form>
 }
 
-export function PlanningTasks({ data, blocked, changeRange, changePage, changeScope, changeSearch, openGoal, edit, complete, cancel }: {
+export function PlanningTasks({ data, blocked, changeRange, changePage, changeScope, changeSearch, openGoal, edit, complete, cancel, migrate }: {
   data: PlanningPage; blocked: boolean; changeRange: (range: TaskRange) => void; changePage: (page: number) => void;
   changeScope: (scope: TaskScope) => void; changeSearch: (search: string) => void;
   openGoal: (id: string) => void;
-  edit: (task: PlanningTask) => void; complete: (task: PlanningTask) => void; cancel: (task: PlanningTask) => void
+  migrate: (task: PlanningTask) => void; edit: (task: PlanningTask) => void; complete: (task: PlanningTask) => void; cancel: (task: PlanningTask) => void
 }) {
   const [search, setSearch] = useState(data.search)
   return <section className="planning-section planning-actions"><header><h2><ListTodo size={19} />一次性任务</h2>
@@ -67,7 +68,9 @@ export function PlanningTasks({ data, blocked, changeRange, changePage, changeSc
         {task.description && <p>{task.description}</p>}
         <small>{task.plannedOn} · {task.overdue ? '逾期，仍待完成' : task.status === 'completed' ? '已完成' : task.status === 'ended' ? '已结束' : '待完成'}</small>
         {task.reward && <small>本次奖励 {task.reward.amount} 点经验</small>}
+        {task.completionOrigin && <small><PlanningCompletionOrigin origin={task.completionOrigin} /></small>}
       </div><div className="planning-task-buttons">
+        <button disabled={blocked || !task.capabilities.migrate?.allowed} title={task.capabilities.migrate?.reason} onClick={() => migrate(task)}>迁移任务</button>
         <button disabled={blocked || !task.capabilities.edit?.allowed} title={task.capabilities.edit?.reason} onClick={() => edit(task)}>编辑任务</button>
         {task.status === 'completed' ? <button disabled={blocked || !task.capabilities.cancel?.allowed} title={task.capabilities.cancel?.reason} onClick={() => cancel(task)}>取消完成</button>
           : <button className="adventure-primary" disabled={blocked || !task.capabilities.complete?.allowed} title={task.capabilities.complete?.reason} onClick={() => complete(task)}>完成</button>}

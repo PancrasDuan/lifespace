@@ -52,6 +52,172 @@ describe.skipIf(!rpcOrigin)('正式 Worker HTTP → 本机真实 PostgREST → �
   })
   afterEach(() => vi.unstubAllGlobals())
 
+  it('迁移任务保持身份、安排、冻结历史奖励，迁入不补记计奖且原目标达成后锁定', async () => {
+    const owner = crypto.randomUUID()
+    const a = (await command(owner, { type: 'createGoal', destination: '', title: '原目标', standards: ['标准'] })).result.entityId
+    const b = (await command(owner, { type: 'createGoal', destination: '', title: '新目标', standards: ['标准'] })).result.entityId
+    const task = (await createTask(owner, '迁移行动', undefined, a)).result.entityId
+    await command(owner, { type: 'completeTask', id: task })
+    const before = (await read(owner)).tasks[0]
+    const move = envelope((await read(owner)).version, { type: 'migrateTask', id: task, destination: b })
+    const response = await send(owner, move)
+    expect(response.status).toBe(200)
+    const receipt = await response.json()
+    expect((await read(owner)).tasks[0]).toMatchObject({ id: task, goalId: b, plannedOn: before.plannedOn, status: 'completed', completionId: before.completionId, reward: before.reward,
+      completionOrigin: { goalId: a, goalTitle: '原目标', title: '迁移行动' } })
+    expect(await (await send(owner, move)).json()).toEqual(receipt)
+    const preview = async (id: string) => (await request(owner, '/api/adventure/preview', { expectedVersion: (await read(owner)).version, command: { type: 'achieveGoal', id } })).json()
+    expect(await preview(a)).toMatchObject({ rewards: [{ calculation: { count: 1, actionIds: [task] } }, {}, {}] })
+    expect(await preview(b)).toMatchObject({ rewards: [{ calculation: { count: 0, fallback: true } }, {}, {}] })
+    await command(owner, { type: 'achieveGoal', id: a, coefficient: 2, reflection: '' })
+    const locked = await read(owner)
+    expect(locked.tasks[0].capabilities.migrate.allowed).toBe(false)
+    expect((await send(owner, envelope(locked.version, { type: 'migrateTask', id: task, destination: '' }))).status).toBe(400)
+    expect((await send(owner, envelope(locked.version, { type: 'cancelTaskCompletion', completionId: before.completionId! }))).status).toBe(400)
+    expect(await read(owner)).toEqual(locked)
+    expect(locked.growth).toMatchObject({ totalXp: 3, actions: 1, achievedGoals: 1 })
+  })
+
+
+  it('目标跨主线与独立归属迁移保留聚焦、任务身份，按同类组末尾落位且幂等', async () => {
+    const owner = crypto.randomUUID(), other = crypto.randomUUID()
+    const a = (await command(owner, { type: 'createMainline', name: '来源主线' })).result.entityId
+    const b = (await command(owner, { type: 'createMainline', name: '目的主线' })).result.entityId
+    const goal = (await command(owner, { type: 'createGoal', destination: a, title: '随行成果', standards: ['原标准'] })).result.entityId
+    const peers: string[] = []
+    for (let i = 0; i < 3; i++) peers.push((await command(owner, { type: 'createGoal', destination: b, title: `目的目标 ${i}`, standards: ['标准'] })).result.entityId)
+    await command(owner, { type: 'focusGoal', id: goal, focused: true })
+    await command(owner, { type: 'focusGoal', id: peers[0], focused: true })
+    const task = (await createTask(owner, '跟随任务', undefined, goal)).result.entityId
+    await command(owner, { type: 'completeTask', id: task })
+    const before = await read(owner)
+    const move = envelope(before.version, { type: 'migrateGoal', id: goal, destination: b })
+    const options = await request(owner, `/api/adventure/migration-options?kind=goal&id=${goal}`)
+    expect(options.status).toBe(200)
+    expect(await options.json()).toMatchObject({ version: before.version, options: expect.arrayContaining([
+      expect.objectContaining({ id: a, capability: { allowed: false, reason: '当前归属，无需迁移' } }),
+      expect.objectContaining({ id: b, capability: { allowed: true } }),
+    ]) })
+    expect(await read(owner)).toEqual(before)
+    const preview = await request(owner, '/api/adventure/preview', { expectedVersion: before.version, command: move.command })
+    expect(preview.status).toBe(200)
+    expect(planningPreviewSchema.parse(await preview.json())).toMatchObject({ version: before.version, requiresConfirmation: false })
+    expect(await read(owner)).toEqual(before)
+    const responses = await Promise.all([send(owner, move), send(owner, move)])
+    expect(responses.map(value => value.status)).toEqual([200, 200])
+    const receipt = await responses[0].json()
+    expect(await responses[1].json()).toEqual(receipt)
+    const after = await read(owner)
+    expect(after.goals.map(g => g.id)).toEqual([peers[0], goal, peers[1], peers[2]])
+    expect(after.tasks[0]).toMatchObject({ id: task, goalId: goal, mainlineName: '目的主线', completionOrigin: { mainlineId: a, mainlineName: '来源主线' }, reward: before.tasks[0].reward })
+    expect(after.goals.find(g => g.id === goal)).toMatchObject({ focused: true, title: '随行成果', standards: ['原标准'] })
+    expect(after.growth).toEqual(before.growth)
+    await command(owner, { type: 'migrateGoal', id: goal, destination: '' })
+    expect((await read(owner)).goals.find(g => g.id === goal)).toMatchObject({ independent: true, focused: true })
+    expect(await (await send(owner, move)).json()).toEqual(receipt)
+    expect((await send(other, envelope(0, move.command))).status).toBe(404)
+    expect((await request(other, `/api/adventure/migration-options?kind=goal&id=${goal}`)).status).toBe(404)
+    expect((await send(owner, { ...move, command: { type: 'migrateGoal', id: goal, destination: a } })).status).toBe(409)
+    await command(owner, { type: 'migrateGoal', id: goal, destination: a })
+    const final = await read(owner)
+    expect(final.mainlines).toHaveLength(2)
+    expect(final.totalGoals).toBe(4)
+    expect(final.goals.find(g => g.id === goal)).toMatchObject({ mainlineId: a, focused: true })
+  })
+
+  it('聚焦迁移竞争最后名额，满额候选和旧编辑入口均不能超额，失败无变化', async () => {
+    const owner = crypto.randomUUID()
+    const main = (await command(owner, { type: 'createMainline', name: '配额目的' })).result.entityId
+    for (let i = 0; i < 2; i++) {
+      const id = (await command(owner, { type: 'createGoal', destination: main, title: `已有 ${i}`, standards: ['标准'] })).result.entityId
+      await command(owner, { type: 'focusGoal', id, focused: true })
+    }
+    const ids: string[] = []
+    for (let i = 0; i < 2; i++) {
+      const id = (await command(owner, { type: 'createGoal', destination: '', title: `迁移 ${i}`, standards: ['标准'] })).result.entityId
+      ids.push(id)
+      await command(owner, { type: 'focusGoal', id, focused: true })
+    }
+    const before = await read(owner)
+    const inputs = ids.map(id => envelope(before.version, { type: 'migrateGoal', id, destination: main }))
+    const responses = await Promise.all(inputs.map(value => send(owner, value)))
+    expect(responses.map(value => value.status).sort()).toEqual([200, 409])
+    const loser = responses.findIndex(value => value.status === 409)
+    const after = await read(owner)
+    expect(after.goals.filter(g => g.focused && g.mainlineId === main)).toHaveLength(3)
+    const options = await (await request(owner, `/api/adventure/migration-options?kind=goal&id=${ids[loser]}`)).json()
+    expect(options).toMatchObject({ options: expect.arrayContaining([expect.objectContaining({ id: main, capability: { allowed: false, reason: expect.stringContaining('3') } })]) })
+    const blocked = await send(owner, { ...inputs[loser], expectedVersion: after.version })
+    expect(blocked.status).toBe(400)
+    expect(await blocked.json()).toMatchObject({ error: { code: 'FOCUS_LIMIT' } })
+    expect((await send(owner, envelope(after.version, { type: 'editGoal', id: ids[loser], destination: main, title: '旧入口', standards: ['标准'] }))).status).toBe(400)
+    expect(await read(owner)).toEqual(after)
+  })
+
+  it('任务候选分页包含当前和终态原因，跨账户及主线目的拒绝，独立任务往返保留安排与状态', async () => {
+    const owner = crypto.randomUUID(), other = crypto.randomUUID()
+    const main = (await command(owner, { type: 'createMainline', name: '不是任务容器' })).result.entityId
+    const goals: string[] = []
+    for (let i = 0; i < 23; i++) goals.push((await command(owner, { type: 'createGoal', destination: '', title: `候选 ${String(i).padStart(2, '0')}`, standards: ['标准'] })).result.entityId)
+    await command(owner, { type: 'achieveGoal', id: goals[1], coefficient: 1, reflection: '' })
+    const foreign = (await command(other, { type: 'createGoal', destination: '', title: '其他账户', standards: ['标准'] })).result.entityId
+    const day = Temporal.PlainDate.from((await read(owner)).today).add({ days: 5 }).toString()
+    const task = (await createTask(owner, '未来独立任务', day)).result.entityId
+    const options = async (page: number) => (await (await request(owner, `/api/adventure/migration-options?kind=task&id=${task}&page=${page}`)).json()) as { total: number; options: { id: string; capability: { allowed: boolean; reason?: string } }[] }
+    const a = await options(1), b = await options(2)
+    expect(a.total).toBe(24)
+    expect(a.options).toHaveLength(20)
+    expect(b.options).toHaveLength(4)
+    expect(new Set([...a.options, ...b.options].map(o => o.id)).size).toBe(24)
+    expect(a.options.find(o => o.id === goals[1])?.capability.allowed).toBe(false)
+    expect([...a.options, ...b.options].some(o => o.id === foreign || o.id === main)).toBe(false)
+    const before = await read(owner, '?taskRange=future')
+    for (const destination of [main, foreign, goals[1]]) expect((await send(owner, envelope(before.version, { type: 'migrateTask', id: task, destination }))).status).toBe(destination === goals[1] ? 400 : 404)
+    expect(await read(owner, '?taskRange=future')).toEqual(before)
+    const target = b.options[0].id
+    await command(owner, { type: 'migrateTask', id: task, destination: target })
+    expect((await read(owner, '?taskRange=future')).tasks[0]).toMatchObject({ id: task, goalId: target, plannedOn: day, status: 'pending' })
+    await command(owner, { type: 'migrateTask', id: task, destination: '' })
+    expect((await read(owner, '?taskRange=future')).tasks[0]).toMatchObject({ id: task, independent: true, plannedOn: day, status: 'pending' })
+  })
+
+  it('迁移、完成、取消及达成并发仅一个新命令提交，回执重试不改变终态或奖励', async () => {
+    const owner = crypto.randomUUID()
+    const a = (await command(owner, { type: 'createGoal', destination: '', title: '竞争来源', standards: ['标准'] })).result.entityId
+    const b = (await command(owner, { type: 'createGoal', destination: '', title: '竞争目的', standards: ['标准'] })).result.entityId
+    const task = (await createTask(owner, '竞争任务', undefined, a)).result.entityId
+    const before = await read(owner)
+    const move = envelope(before.version, { type: 'migrateTask', id: task, destination: b })
+    const finish = envelope(before.version, { type: 'completeTask', id: task })
+    const race = await Promise.all([send(owner, move), send(owner, finish)])
+    expect(race.map(r => r.status).sort()).toEqual([200, 409])
+    await command(owner, race[0].status === 200 ? finish.command : move.command)
+    const done = await read(owner), completionId = done.tasks[0].completionId!
+    const requests = [envelope(done.version, { type: 'migrateTask', id: task, destination: '' }), envelope(done.version, { type: 'cancelTaskCompletion', completionId }), envelope(done.version, { type: 'achieveGoal', id: b, coefficient: 1, reflection: '' })]
+    const finalRace = await Promise.all(requests.map(value => send(owner, value)))
+    expect(finalRace.map(r => r.status).sort()).toEqual([200, 409, 409])
+    const winner = finalRace.findIndex(r => r.status === 200), receipt = await finalRace[winner].json()
+    const final = await read(owner)
+    expect(final.version).toBe(done.version + 1)
+    expect(await (await send(owner, requests[winner])).json()).toEqual(receipt)
+    expect(await read(owner)).toEqual(final)
+  })
+
+  it('取消旧完成后在新归属完成，原目标不展示新归属的完成与奖励', async () => {
+    const owner = crypto.randomUUID()
+    const a = (await command(owner, { type: 'createGoal', title: '取消来源', standards: ['标准'], destination: '' })).result.entityId
+    const b = (await command(owner, { type: 'createGoal', title: '再次完成归属', standards: ['标准'], destination: '' })).result.entityId
+    const id = (await createTask(owner, '取消后迁出', undefined, a)).result.entityId
+    await command(owner, { type: 'completeTask', id })
+    const old = (await read(owner)).tasks[0].completionId!
+    await command(owner, { type: 'cancelTaskCompletion', completionId: old })
+    await command(owner, { type: 'migrateTask', id, destination: b })
+    await command(owner, { type: 'completeTask', id })
+    expect((await read(owner, `?goalId=${a}`)).goalDetail).toMatchObject({ totalTasks: 0, tasks: [] })
+    expect((await read(owner, `?goalId=${b}`)).goalDetail).toMatchObject({ totalTasks: 1, tasks: [{ completionOrigin: { goalId: b, goalTitle: '再次完成归属' }, reward: { amount: 1 } }] })
+    expect((await read(owner)).growth).toMatchObject({ totalXp: 1, actions: 1 })
+  })
+
   it('空账户创建独立任务、编辑、完成和刷新回读，其他账户不能操作', async () => {
     const owner = crypto.randomUUID(), other = crypto.randomUUID()
     const task = (await createTask(owner)).result.entityId

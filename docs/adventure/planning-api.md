@@ -1,6 +1,6 @@
 # 规划与一次性任务接口
 
-适用 Issue #54、#55、#65、#59；实现和本机隔离验证范围见相应验收报告，现有 Supabase 验收库不在本轮同步。页面读取、创建／编辑与任务完成／取消使用五表事务；账户、规划日期、版本、能力和成长由后端返回。浏览器不能直接调用表或 RPC。
+适用 Issue #54、#55、#65、#59、#60；实现和本机隔离验证范围见相应验收报告，现有 Supabase 验收库不在本轮同步。页面读取、创建／编辑与任务完成／取消使用五表事务；账户、规划日期、版本、能力和成长由后端返回。浏览器不能直接调用表或 RPC。
 
 ## 页面查询
 
@@ -17,13 +17,21 @@
 - `destinations`：可用普通主线 ID；归属留空即默认独立目标，不显示独立身份选项。
 - `tasks`、`totalTasks`、`taskPage`、`taskRange`：当前范围和页的任务、全量总数；每项含名称、说明、执行日、状态、真实目标或独立身份、当前具体完成事件 ID、冻结 `reward`（无有效完成为 null）、服务端逾期标记及操作能力。
 - `taskScope`、`search`、`taskProgress`：当前视图、已提交搜索条件及完整筛选范围的任务进度；分页不截断分母。
-- `goalDetail`：指定 `goalId` 时返回该账户目标的只读详情（包含终态），其 `goal` 含 status、terminatedAt 和冻结 achievement；tasks 按全部日期分页，totalTasks 为该目标未删除任务总数，taskPage 为 goalTaskPage。与页面同事务、同版本；不属于账户或为 inbox 返回 404。
+- `goalDetail`：指定 `goalId` 时返回该账户目标的只读详情（包含终态），其 `goal` 含 status、terminatedAt 和冻结 achievement；tasks 按全部日期分页，totalTasks 为当前归属该目标或仍有该目标有效完成事实的未删除任务去重总数；迁出项标注当前归属和冻结完成来源，目标 progress 仍只统计当前归属，taskPage 为 goalTaskPage。与页面同事务、同版本；不属于账户或为 inbox 返回 404。
 - `growth`：总经验、等级、本级进度、升级所需经验、有效行动数、达成目标数，以及七个实时成就的当前计数和点亮结果。
 - `capabilities`、`limits`：页面能力、禁用原因及输入限额。当前未交付操作返回 `allowed=false` 和原因。
 
 内部使用 `adventure_workspace_read`，持有与基础规划读取相同的账户共享锁；以锁后一次日期统一任务范围、逾期及能力，成长由单一 SQL 函数计算。任务按执行日、创建时间及 ID 排序；主线按创建时间及 ID 排序；目标先按所属主线创建时间及 ID 分组，同归属内先聚焦后未聚焦，再按 `sort_order`、ID 排序。普通主线与独立目标组各有 3 个聚焦名额；inbox 不可聚焦。`focus`、`moveUp`、`moveDown` 能力由数据库返回，前端不自行判断名额或相邻边界。
 
+任务的 completionOrigin 从当前有效完成事件返回 goalId、mainlineId、goalTitle、mainlineName、title、description、plannedOn、occurredOn；无有效完成为 null。它与当前 goalId／goalTitle／mainlineName 分开展示，迁移不重算或改写冻结奖励。
+
 任务视图按当前归属筛选：focus 包含聚焦目标任务及独立任务，all 包含全部任务；日期和搜索条件对两种视图同时生效。搜索是名称／说明的忽略大小写字面子串，不把 `%`、`_` 当作通配符。`taskProgress` 使用相同日期／视图／搜索范围，统计 completed／(pending＋completed)，排除 ended、已删除和无效完成。目标 `progress` 使用该目标当前归属下的所有日期任务；二者均在分页前统计。ratio 为 null 时显示“暂无可统计任务”，不自动达成目标。刷新页面恢复默认全部／今天／空搜索，已保存聚焦及顺序从数据库回读。
+
+## 迁移候选
+
+`GET /api/adventure/migration-options?kind=goal&id=<uuid>&page=1`，kind 可为 goal／task，page 范围 1–1,000,000。独立 RPC `adventure_migration_options` 在账户共享锁内读取，不创建容器或写回执。响应含 version、kind、entityId、page、固定 pageSize=20、total、options。每项为 id、name、capability（allowed、不可选时 reason）。goal 候选为普通主线与空字符串独立身份；task 候选为全部真实目标与空字符串独立身份。当前归属、终态、历史锁定或满额项保留原因但不可选；候选按名称及稳定 ID 分页，不使用页面当前 goals 页充当全部候选，不返回其他账户内容。
+
+迁移弹窗按候选版本提交，版本不同禁止确认。409 后重读当前事实及候选，清除旧选择，必须重新选择确认；网络结果未知仅重试原封套；成功后查询失败仅重新读取。
 
 ## 操作预览
 
@@ -62,13 +70,15 @@
 | `reorderGoals` | `mainlineId`、`id`、`direction`（up／down），可选 `targetId`；同归属同聚焦组相邻移动，拖动时移至 targetId 原位置，中间目标稳定平移；不得跨组 |
 | `editGoal` | `id`、`destination`（规则同上）、`title`、`standards` |
 | `createTask` | `title`、`description`（可空）、`plannedOn`（有效 YYYY-MM-DD）、`destination`（空字符串默认独立任务，或真实目标 UUID） |
+| `migrateGoal` | `id`、`destination`（空字符串为独立身份，或在用普通主线 UUID）；保留聚焦及目标 ID，任务随行，追加目的同类组末尾 |
+| `migrateTask` | `id`、`destination`（空字符串为独立任务，或在用真实目标 UUID）；保留 ID、当前日期、状态 |
 | `editTask` | `id`、`title`、`description`（可空）；只编辑待完成任务的名称与说明 |
 | `completeTask` | `id`；只允许服务端上海当天的待完成安排 |
 | `cancelTaskCompletion` | `completionId`；定位具体完成事件，不接受仅凭任务 ID 取消 |
 
 名称去除首尾空白后必填，最多 200 个 UTF-16 码元。完成标准为 1–50 项数组；空白项由前端在提交前排除；后端接收最多 50 项并同样过滤空白项，过滤后至少保留一项，每项去除首尾空白后最多 4,000 个 UTF-16 码元。`id` 必须为 UUID；`requestId` 为 8–128 位英文、数字、下划线或连字符。版本必须为非负 JavaScript 安全整数。封套和命令均拒绝额外字段，不接受客户端 owner、日期、经验、事件或整包状态。
 
-前端目标归属默认显示“默认独立目标”，提交空字符串；后端负责创建或复用唯一独立主线及 inbox，再写入真实目标。普通主线 ID 必须属于当前账户且在用。编辑目标可清空归属转为独立目标；不能把真实目标直接指向 inbox。
+前端目标归属默认显示“默认独立目标”，提交空字符串；后端负责创建或复用唯一独立主线及 inbox，再写入真实目标。普通主线 ID 必须属于当前账户且在用。编辑目标可清空归属转为独立目标；变更归属复用与 migrateGoal 相同的校验并写 goal_migrated，未变归属仍写 goal_updated；不能把真实目标直接指向 inbox。
 
 任务归属留空即默认独立任务，页面不提供独立身份选项；提交真实目标 UUID 时归属该目标。任务说明最多 4,000 个 UTF-16 码元。`plannedOn` 是用户安排的执行日期；权威当天、完成时间、经验和状态均由后端确定。过去／未来安排可查询，但不得补写或提前完成；过去尚未完成仍是待完成。独立任务由后端复用 inbox，不展示为真实目标。
 
@@ -101,7 +111,7 @@
 
 | HTTP | code |
 |---|---|
-| 400 | `INVALID_QUERY`、`INVALID_COMMAND`、`COMMAND_TOO_LARGE`、`MAINLINE_LIMIT`、`FOCUS_LIMIT`、`READ_ONLY`、`DATE_LOCKED`、`TASK_NOT_PENDING`、`CAPACITY_REACHED` |
+| 400 | `INVALID_QUERY`、`INVALID_COMMAND`、`COMMAND_TOO_LARGE`、`MAINLINE_LIMIT`、`FOCUS_LIMIT`、`SAME_DESTINATION`、`READ_ONLY`、`DATE_LOCKED`、`TASK_NOT_PENDING`、`CAPACITY_REACHED` |
 | 401／403 | 现有 `AUTH_*` 身份和准入错误 |
 | 404 | `NOT_FOUND`；不区分他人内容与不存在 |
 | 409 | `VERSION_CONFLICT`、`REQUEST_ID_REUSED`、`COMPLETION_CHANGED` |

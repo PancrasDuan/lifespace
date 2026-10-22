@@ -11,6 +11,8 @@ export const planningCommandSchema = z.discriminatedUnion('type', [
   z.strictObject({ type: z.literal('createGoal'), destination: z.union([z.literal(''), z.literal('independent'), z.uuid()]), title: name, standards }),
   z.strictObject({ type: z.literal('createTask'), title: name, description: z.string().trim().max(4000), plannedOn: z.iso.date(), destination: z.union([z.literal(''), z.uuid()]) }),
   z.strictObject({ type: z.literal('editTask'), id: z.uuid(), title: name, description: z.string().trim().max(4000) }),
+  z.strictObject({ type: z.literal('migrateTask'), id: z.uuid(), destination: z.union([z.literal(''), z.uuid()]) }),
+  z.strictObject({ type: z.literal('migrateGoal'), id: z.uuid(), destination: z.union([z.literal(''), z.literal('independent'), z.uuid()]) }),
   z.strictObject({ type: z.literal('completeTask'), id: z.uuid() }),
   z.strictObject({ type: z.literal('cancelTaskCompletion'), completionId: z.uuid() }),
   z.strictObject({ type: z.literal('editGoal'), id: z.uuid(), destination: z.union([z.literal(''), z.literal('independent'), z.uuid()]), title: name, standards }),
@@ -55,6 +57,7 @@ export const planningProgressSchema = z.object({ completed: version, total: vers
 export const planningTaskSchema = z.object({
   id: z.uuid(), title: z.string(), description: z.string(), plannedOn: z.iso.date(),
   status: z.enum(['pending', 'completed', 'ended']), completedOn: z.iso.date().nullable(), completionId: z.uuid().nullable(), reward: taskRewardSchema.nullable(),
+  completionOrigin: z.object({ goalId: z.uuid().nullable(), mainlineId: z.uuid(), goalTitle: z.string().nullable(), mainlineName: z.string(), title: z.string(), description: z.string(), plannedOn: z.iso.date(), occurredOn: z.iso.date() }).nullable().default(null),
   goalId: z.uuid().nullable(), goalTitle: z.string().nullable(), mainlineName: z.string(), independent: z.boolean(), overdue: z.boolean(), progress: planningProgressSchema, capabilities,
 })
 export type PlanningTask = z.infer<typeof planningTaskSchema>
@@ -107,3 +110,9 @@ export const planningPreviewSchema = z.union([
 export type PlanningPreview = z.infer<typeof planningPreviewSchema>
 
 export type PlanningQuery = { page: number; taskRange: TaskRange; taskPage: number; taskScope: TaskScope; search: string; goalId?: string; goalTaskPage: number }
+
+export const migrationOptionsSchema = z.object({
+  version, kind: z.enum(['goal', 'task']), entityId: z.uuid(), page: z.number().int().positive(), pageSize: z.literal(20), total: version,
+  options: z.array(z.object({ id: z.union([z.literal(''), z.uuid()]), name: z.string(), capability: capabilitySchema })).max(20),
+})
+export type MigrationOptions = z.infer<typeof migrationOptionsSchema>

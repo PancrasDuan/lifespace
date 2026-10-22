@@ -1,6 +1,6 @@
 # 05：迁移目标与任务并保留历史归属
 
-状态：2026-10-20 已发布至 Issue #60，正文和原生阻塞关系已回读核验。ready-for-agent；前置未完成时不领取，当前实现仍待按本版重新验证。
+状态：2026-10-22，#60 已在 `codex/53-adventure` 本地实现；验证与双轴评审见 [迁移验收](../qa-migrations.md)。真实 Supabase 上线前同步，不推送、不合并、不部署、不关闭 Issue。
 
 Issue：https://github.com/PancrasDuan/lifespace/issues/60
 

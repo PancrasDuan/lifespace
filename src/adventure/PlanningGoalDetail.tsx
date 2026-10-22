@@ -1,8 +1,9 @@
+import { PlanningCompletionOrigin } from './PlanningCompletionOrigin'
 import type { PlanningGoal, PlanningPage } from '../shared/adventure-planning'
 
-export function PlanningGoalDetail({ goal, history, pageSize, blocked, edit, addTask, focus, achieve, changePage }: {
+export function PlanningGoalDetail({ goal, history, pageSize, blocked, edit, addTask, focus, achieve, migrate, changePage }: {
   goal: PlanningGoal; history: PlanningPage['goalDetail']; pageSize: number; blocked: boolean;
-  edit: () => void; addTask: () => void; focus: () => void; achieve: () => void; changePage: (page: number) => void
+  migrate: () => void; edit: () => void; addTask: () => void; focus: () => void; achieve: () => void; changePage: (page: number) => void
 }) {
   return <div className="planning-detail">
     <span className="planning-destination">{goal.independent ? '独立目标' : goal.mainlineName}</span><h3>{goal.title}</h3>
@@ -19,10 +20,10 @@ export function PlanningGoalDetail({ goal, history, pageSize, blocked, edit, add
       <button disabled={blocked || !goal.capabilities.createTask?.allowed} title={goal.capabilities.createTask?.reason} onClick={addTask}>添加任务</button>
       <button disabled={blocked || !goal.capabilities.focus?.allowed} title={goal.capabilities.focus?.reason} onClick={focus}>{goal.focused ? '取消聚焦' : '聚焦'}</button>
       <button disabled={blocked || !goal.capabilities.achieve?.allowed} title={goal.capabilities.achieve?.reason} onClick={achieve}>确认达成</button>
-      <button disabled title={goal.capabilities.migrate?.reason}>迁移</button><button disabled title={goal.capabilities.end?.reason}>结束</button>
+      <button disabled={blocked || !goal.capabilities.migrate?.allowed} title={goal.capabilities.migrate?.reason} onClick={migrate}>迁移</button><button disabled title={goal.capabilities.end?.reason}>结束</button>
     </div>
     {history && <section aria-label="目标任务历史"><h4>任务历史</h4>
-      {history.tasks.length ? <ul>{history.tasks.map(task => <li key={task.id}>{task.title} · {task.plannedOn} · {task.status === 'completed' ? '已完成' : task.status === 'ended' ? '已结束' : '待完成'}{task.reward ? ` · 冻结奖励 ${task.reward.amount} 点经验` : ''}</li>)}</ul> : <p>暂无任务历史。</p>}
+      {history.tasks.length ? <ul>{history.tasks.map(task => <li key={task.id}>{task.title} · {task.plannedOn} · {task.status === 'completed' ? '已完成' : task.status === 'ended' ? '已结束' : '待完成'}{task.reward ? ` · 冻结奖励 ${task.reward.amount} 点经验` : ''}{task.completionOrigin && <> · <PlanningCompletionOrigin origin={task.completionOrigin} /></>}{task.goalId !== goal.id ? ` · 当前已迁出至 ${task.goalTitle ?? '独立任务'}` : ''}</li>)}</ul> : <p>暂无任务历史。</p>}
       <div className="planning-pagination"><small>共 {history.totalTasks} 项 · 第 {history.taskPage} 页</small><div>
         <button disabled={blocked || history.taskPage <= 1} onClick={() => changePage(history.taskPage - 1)}>上一页历史</button>
         <button disabled={blocked || history.taskPage * pageSize >= history.totalTasks} onClick={() => changePage(history.taskPage + 1)}>下一页历史</button>

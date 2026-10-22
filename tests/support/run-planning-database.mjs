@@ -55,7 +55,7 @@ try {
   await client.connect()
   const sql = input => { cancellation.signal.throwIfAborted(); return client.query(input) }
   await sql('create role anon; create role authenticated; create role service_role bypassrls; grant usage on schema public to service_role;')
-  for (const path of ['db/adventure/create-planning.sql', 'tests/database/adventure-planning.sql', 'tests/database/adventure-actions.sql', 'tests/database/adventure-goals.sql']) await sql(await readFile(join(root, path), 'utf8'))
+  for (const path of ['db/adventure/create-planning.sql', 'tests/database/adventure-planning.sql', 'tests/database/adventure-actions.sql', 'tests/database/adventure-goals.sql', 'tests/database/adventure-migrations.sql']) await sql(await readFile(join(root, path), 'utf8'))
   console.log('通过：空库初始化、规划／任务事务、回滚、历史锁定和权限探针')
   const rpcPort = await freePort()
   cancellation.signal.throwIfAborted()

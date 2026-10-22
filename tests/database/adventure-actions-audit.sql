@@ -24,6 +24,7 @@ begin
   if exists(select 1 from public.adventure_events where command_type in ('focusGoal','reorderGoals') and
     (goal_id is null or mainline_id is null or snapshot->'after' is null or snapshot->'result' is null))
     then raise exception 'HTTP audit: focus/order receipt or history missing'; end if;
+  if exists(select 1 from public.adventure_events where kind in ('goal_migrated','task_migrated') and (amount is not null or calculation is not null or snapshot->'before' is null or snapshot->'origin' is null or snapshot->'after' is null or snapshot->'result' is null)) then raise exception 'HTTP audit: migration history/reward invariant failed'; end if;
   if exists(select 1 from public.adventure_goals g left join public.adventure_events e on e.owner_id=g.owner_id and e.goal_id=g.id and e.kind='goal_achieved'
     where (g.status='achieved')<>(e.id is not null) or (e.id is not null and (
       e.amount is distinct from (e.snapshot->'result'->'reward'->>'amount')::bigint

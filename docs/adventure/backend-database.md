@@ -424,3 +424,7 @@ task_updated 记录待完成任务名称／说明编辑的前后内容和发生�
 新页面、#54 创建／编辑、#55 任务命令和 #65 聚焦排序及 #59 达成已使用五表事务；有效 task_completed 使用同 owner／task 的部分唯一索引，奖励冻结在该完成事件内，不另设奖励事件或奖励索引。现有验收数据不导入或清理，不重建已由用户删除的旧 `adventure_states` 表。其余业务事务仍按任务逐步实现；本次仅新增五表及专用 RPC 权限，不扩大浏览器权限。
 
 参考 [PostgreSQL 约束](https://www.postgresql.org/docs/current/ddl-constraints.html)、[部分索引](https://www.postgresql.org/docs/current/indexes-partial.html)、[Supabase 数据库函数](https://supabase.com/docs/guides/database/functions) 与 [PostgREST 事务](https://docs.postgrest.org/en/stable/references/transactions.html)。本票真实事务及权限验证见 [验收记录](qa-planning.md)。
+
+## 迁移事务与历史读取
+
+`adventure_migration_check` 统一当前对象、目的、同 owner、终态及聚焦校验；`adventure_migration_capability` 返回候选原因，`adventure_migration_options` 持账户共享锁分页读取。migrateGoal／editGoal 改归属写 goal_migrated；migrateTask 写 task_migrated。迁移事件 amount／calculation 为空，snapshot 保留 before、after、origin 和 result。目标／任务外键更新与事件、revision、回执同事务，使用现有账户锁、复合 owner 外键和请求唯一索引，不增加物理表或锁服务。任务详情返回有效完成的冻结来源；目标任务历史含迁出完成来源，当前进度仍只按当前归属计算。
