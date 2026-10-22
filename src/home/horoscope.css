@@ -1,0 +1,45 @@
+.panel-horoscope{grid-column:span 2;background:radial-gradient(ellipse at 90% 0,rgba(191,215,161,.09),transparent 65%),rgba(255,255,255,.04)}
+.zodiac-grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px}
+.zodiac-grid button{display:flex;flex-direction:column;align-items:center;gap:7px;min-height:72px;padding:10px 4px;background:transparent;border:1px solid transparent;border-radius:13px;color:var(--ink);font-size:11px;transition:background .2s,border-color .2s}
+.zodiac-grid button>span{font-family:'Apple Symbols','Segoe UI Symbol',serif;font-size:29px;color:var(--accent);line-height:1}
+.zodiac-grid button:hover,.zodiac-grid button:focus-visible{background:rgba(196,214,178,.09);border-color:var(--line)}
+.lifespace-app .modal.horoscope-modal{--ink:#eaf3ee;--quiet:#b2c4ba;--accent:#c5dfad;--line:rgba(216,239,223,.16);color:var(--ink);width:min(510px,calc(100vw - 28px));padding:0;overflow:hidden;background:radial-gradient(ellipse at 0 0,#304e40,transparent 75%),#142e28}
+.horoscope-modal>header{padding:22px 26px;border-bottom:1px solid var(--line);margin:0}
+.fortune-stage{perspective:1300px;height:min(570px,calc(100dvh - 160px));min-height:260px}
+.fortune-turn{height:100%;position:relative;transform-style:preserve-3d;transition:transform .55s cubic-bezier(.22,.7,.3,1)}
+.fortune-stage.is-back .fortune-turn{transform:rotateY(180deg)}
+.fortune-face{position:absolute;inset:0;display:flex;flex-direction:column;backface-visibility:hidden;background:radial-gradient(ellipse at 0 0,rgba(192,217,160,.08),transparent 75%),#19342d}
+.fortune-back{transform:rotateY(180deg)}
+.fortune-scroll{flex:1;overflow-y:auto;overscroll-behavior:contain;padding:25px 28px;min-height:0;scrollbar-width:thin;scrollbar-color:var(--line) transparent;overflow-wrap:anywhere}
+.fortune-identity{display:flex;align-items:center;justify-content:space-between;gap:16px}
+.fortune-identity h3{font-size:30px;letter-spacing:3px;margin:14px 0 7px;font-weight:500}
+.fortune-identity p,.fortune-reading-title p{color:var(--quiet);font-size:11px;margin:10px 0}
+.fortune-symbol{font-family:'Apple Symbols','Segoe UI Symbol',serif;font-size:45px;display:grid;place-items:center;width:78px;height:78px;border:1px solid var(--line);background:rgba(192,217,160,.06);border-radius:50%;color:var(--accent)}
+.fortune-overall{display:flex;align-items:center;justify-content:space-between;margin:24px 0 20px;padding-bottom:18px;border-bottom:1px solid var(--line);color:var(--quiet);font-size:12px}
+.fortune-overall strong{font:64px/1 Georgia,serif;letter-spacing:-3px;color:var(--accent)}
+.fortune-overall small{font-family:inherit;font-size:11px;line-height:1.5;font-weight:400;letter-spacing:0;color:var(--quiet);padding-left:5px}
+.fortune-scores{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}
+.fortune-scores span,.fortune-scores small{display:block;font-size:10px;color:var(--quiet)}
+.fortune-scores strong{font:26px Georgia,serif;display:block;margin:10px 0 5px}
+.fortune-scores meter{width:100%;height:6px;display:block;margin:8px 0;accent-color:var(--accent)}
+.fortune-scores meter::-webkit-meter-bar{background:rgba(255,255,255,.08);border:0}
+.fortune-scores meter::-webkit-meter-optimum-value{background:var(--accent)}
+.fortune-lucky{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;border-top:1px solid var(--line);margin:24px 0 0;padding-top:20px}
+.fortune-lucky dt{font-size:10px;color:var(--quiet)}
+.fortune-lucky dd{font-size:12px;margin:9px 0 0;line-height:1.6}
+.fortune-footer{flex-shrink:0;display:flex;align-items:center;justify-content:space-between;gap:12px;border-top:1px solid var(--line);padding:16px 26px;background:rgba(0,0,0,.12)}
+.fortune-footer span,.fortune-footer small{display:block;color:var(--quiet);font-size:10px;line-height:1.7}
+.horoscope-action{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:1px solid var(--line);border-radius:30px;background:rgba(193,215,174,.1);color:var(--accent);font-size:12px;padding:10px 16px;flex-shrink:0;min-height:40px}
+.horoscope-action:hover{background:rgba(193,215,174,.18)}
+.fortune-reading-title{display:flex;align-items:center;gap:15px}
+.fortune-reading-title>span{font-size:34px;color:var(--accent)}
+.fortune-reading-title h3{margin:0;font-size:17px;font-weight:500}
+.fortune-notice{color:var(--accent);font-size:13px;line-height:1.8;border-left:2px solid var(--accent);padding-left:12px;margin:20px 0}
+.fortune-text{border-top:1px solid var(--line);padding-top:15px;margin-top:16px}
+.fortune-text h4{color:var(--accent);font-size:12px;margin:0 0 8px;font-weight:500}
+.fortune-text p,.fortune-almanac p{font-size:12px;line-height:1.95;margin:0;white-space:pre-wrap}
+.fortune-almanac{margin-top:20px;padding-top:15px;border-top:1px solid var(--line)}
+.fortune-almanac b{color:var(--accent);font-weight:500;padding-right:14px}
+.horoscope-state{min-height:280px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:25px;font-size:13px;color:var(--quiet)}
+@media(max-width:680px){.panel-horoscope{grid-column:1/-1}.zodiac-grid{grid-template-columns:repeat(4,minmax(0,1fr))}.fortune-scroll{padding:22px}.fortune-footer{padding:14px 20px}.fortune-scores{gap:12px}.horoscope-modal>header{padding:18px 22px}}
+@media(prefers-reduced-motion:reduce){.fortune-turn,.fortune-stage.is-back .fortune-turn{transform:none;transition:none}.fortune-back{transform:none}.fortune-face[aria-hidden=true]{visibility:hidden}.zodiac-grid button{transition:none}}
