@@ -86,19 +86,17 @@
 .planning-task-ranges { display: flex; gap: 6px; }
 .planning-task-ranges button[aria-pressed="true"] { background: #e8efdc; border-color: #9fb88b; color: #3e6133; }
 .planning-task-list { display: grid; gap: 12px; }
-.planning-task { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 0; border-top: 1px solid #edf0e4; }
-.planning-task > div:first-child { min-width: 0; }
+.planning-task { display: flex; align-items: flex-start; flex-direction: column; gap: 16px; padding: 16px 0; border-top: 1px solid #edf0e4; }
+.planning-task > div:first-child { min-width: 0; width: 100%; }
 .planning-task h3 { margin: 10px 0; overflow-wrap: anywhere; }
 .planning-task p { font-size: 13px; color: #65795a; white-space: pre-wrap; overflow-wrap: anywhere; }
 .planning-task small { color: #819075; }
 .planning-task.completed h3 { color: #6f835f; }
-.planning-task-buttons { display: flex; flex-shrink: 0; flex-wrap: wrap; gap: 6px; }
+.planning-task-buttons { display: flex; align-self: flex-end; flex: 0 1 auto; flex-wrap: wrap; justify-content: flex-end; gap: 6px; max-width: 100%; }
 .planning-cancel-preview dl { display: grid; gap: 12px; margin: 20px 0; }
 .planning-cancel-preview dl > div { padding: 12px; background: #f2f5eb; border-radius: 8px; }
 .planning-cancel-preview dt { font-size: 12px; color: #748064; }
 .planning-cancel-preview dd { margin: 8px 0 0; }
-@media (max-width: 760px) { .planning-task { align-items: flex-start; flex-direction: column; } .planning-task-buttons { align-self: flex-end; } }
-
 .planning-goal.is-focused { border-color: #93ac77; background: #f6f9ef; }
 .planning-terminal-toggle { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #6f7d62; white-space: nowrap; }
 .planning-terminal-toggle input { width: auto; margin: 0; }

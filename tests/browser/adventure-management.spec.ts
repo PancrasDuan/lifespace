@@ -49,6 +49,46 @@ test('390px 手机布局、键盘焦点约束和 Escape 取消可用', async ({ 
   expect(server.envelopes).toHaveLength(0)
 })
 
+test('桌面、中等宽度与手机下任务正文和操作按钮不互相挤压', async ({ page, context }) => {
+  const planning = {
+    ...withGoal,
+    capabilities: { ...withGoal.capabilities, createTask: allowed },
+    tasks: [{
+      arrangements: [], totalArrangements: 0, id: '00000000-0000-4000-8000-000000000056', title: '验收-已有行动 1',
+      description: '用于成长流水分页和实时成就验收。', plannedOn: withGoal.today, status: 'completed' as const,
+      completedOn: withGoal.today, completionId: '00000000-0000-4000-8000-000000000057',
+      reward: { amount: 1, calculation: { type: 'fixed_task' as const, completionId: '00000000-0000-4000-8000-000000000057', count: 1, coefficient: 1 } },
+      completionOrigin: { mainlineId, mainlineName: '独立区', goalId: null, goalTitle: null, title: '验收-已有行动 1', description: '用于成长流水分页和实时成就验收。', plannedOn: withGoal.today, occurredOn: withGoal.today },
+      independent: true, goalId: null, goalTitle: null, mainlineName: '独立区', overdue: false, progress: { completed: 1, total: 1, ratio: 1 },
+      capabilities: { edit: later, complete: later, cancel: allowed, reschedule: later, migrate: allowed, end: later, delete: later },
+    }],
+    totalTasks: 1,
+  }
+  await planningFixture(context, planning)
+  const card = page.getByRole('article', { name: '任务：验收-已有行动 1', exact: true })
+  const buttons = card.locator('.planning-task-buttons')
+  for (const width of [1440, 1139, 390]) {
+    await page.setViewportSize({ width, height: 954 })
+    await page.goto('/adventure')
+    const layout = await card.evaluate(element => {
+      const content = element.firstElementChild
+      const actions = element.lastElementChild
+      if (!content || !actions) throw new Error('任务卡缺少正文或操作')
+      const card = element.getBoundingClientRect()
+      const copy = content.getBoundingClientRect()
+      const buttons = actions.getBoundingClientRect()
+      return { direction: getComputedStyle(element).flexDirection, card: { left: card.left, right: card.right, width: card.width },
+        copy: { left: copy.left, right: copy.right, width: copy.width }, buttons: { left: buttons.left, right: buttons.right, width: buttons.width } }
+    })
+    expect(layout.copy.width).toBeGreaterThan(200)
+    expect(layout.buttons.left).toBeGreaterThanOrEqual(layout.card.left)
+    expect(layout.buttons.right).toBeLessThanOrEqual(layout.card.right)
+    expect(layout.direction).toBe('column')
+    expect(await buttons.boundingBox()).not.toBeNull()
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+  }
+})
+
 test('分页只展示服务端当前页，不用本页数量替代总数', async ({ page, context }) => {
   const server = await planningFixture(context, { ...withGoal, pageSize: 1, totalGoals: 2 })
   await page.goto('/adventure')
