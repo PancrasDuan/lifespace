@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useVerifiedIdentity } from '../auth/identity'
-import type { PlanningCommand, PlanningEnvelope, PlanningPage, TaskRange } from '../shared/adventure-planning'
+import type { PlanningCommand, PlanningEnvelope, PlanningPage, TaskRange, TaskScope } from '../shared/adventure-planning'
 import { planningApi, PlanningError } from './planning-api'
 
 export function usePlanning() {
@@ -21,10 +21,12 @@ export function usePlanning() {
   const page = useRef(1)
   const taskRange = useRef<TaskRange>('today')
   const taskPage = useRef(1)
+  const taskScope = useRef<TaskScope>('all')
+  const search = useRef('')
   const signal = () => AbortSignal.any([lifecycle.current.signal, identity.signal, AbortSignal.timeout(15_000)])
 
-  const refresh = useCallback(async (nextPage = page.current, requestSignal = signal(), nextRange = taskRange.current, nextTaskPage = taskPage.current) => {
-    const result = await planningApi.load(identity.ownerId, nextPage, requestSignal, nextRange, nextTaskPage)
+  const refresh = useCallback(async (nextPage = page.current, requestSignal = signal(), nextRange = taskRange.current, nextTaskPage = taskPage.current, nextScope = taskScope.current, nextSearch = search.current) => {
+    const result = await planningApi.load(identity.ownerId, nextPage, requestSignal, nextRange, nextTaskPage, nextScope, nextSearch)
     requestSignal.throwIfAborted()
     if (result.version < minimumVersion.current) throw new PlanningError('数据尚未更新到已保存版本，请重新读取', 409)
     minimumVersion.current = result.version
@@ -32,17 +34,25 @@ export function usePlanning() {
     page.current = nextPage
     taskRange.current = nextRange
     taskPage.current = nextTaskPage
+    taskScope.current = nextScope
+    search.current = nextSearch
     setData(result)
     setReadRequired(false)
   }, [identity.ownerId, identity.signal])
 
-  const load = useCallback(async (nextPage = page.current, nextRange = taskRange.current, nextTaskPage = taskPage.current) => {
+  const load = useCallback(async (nextPage = page.current, nextRange = taskRange.current, nextTaskPage = taskPage.current, nextScope = taskScope.current, nextSearch = search.current) => {
     if (active.current || pending.current) return
+    // Preserve the requested filters when a read fails so recovery retries that query.
+    page.current = nextPage
+    taskRange.current = nextRange
+    taskPage.current = nextTaskPage
+    taskScope.current = nextScope
+    search.current = nextSearch
     const epoch = lifecycle.current
     active.current = true
     setBusy(true)
     setError('')
-    try { await refresh(nextPage, signal(), nextRange, nextTaskPage) }
+    try { await refresh(nextPage, signal(), nextRange, nextTaskPage, nextScope, nextSearch) }
     catch { if (!epoch.signal.aborted && !identity.signal.aborted) { setReadRequired(true); setError('暂时无法读取人生冒险，请检查连接后重新读取。') } }
     finally { if (lifecycle.current === epoch && !epoch.signal.aborted) { active.current = false; setBusy(false) } }
   }, [refresh, identity.signal])
@@ -124,6 +134,8 @@ export function usePlanning() {
     page.current = 1
     taskRange.current = 'today'
     taskPage.current = 1
+    taskScope.current = 'all'
+    search.current = ''
     active.current = false
     setData(undefined)
     setError('')

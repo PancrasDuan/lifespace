@@ -103,7 +103,7 @@ begin
   if public.adventure_planning_command(v_owner,'clock-task-complete',1,jsonb_build_object('type','completeTask','id',v_task))<>v_receipt then raise exception 'Cross-day replay changed receipt'; end if;
   if (select total_xp from public.adventure_accounts where owner_id=v_owner)<>1 then raise exception 'Cross-day replay changed XP'; end if;
   foreach v_role in array array['anon','authenticated'] loop
-    if has_function_privilege(v_role,'public.adventure_workspace_read(uuid,integer,integer,text,integer)','EXECUTE')
+    if has_function_privilege(v_role,'public.adventure_workspace_read(uuid,integer,integer,text,integer,text,text)','EXECUTE')
       or has_function_privilege(v_role,'public.adventure_task_apply(uuid,text,bigint,jsonb,timestamptz)','EXECUTE')
       or has_function_privilege(v_role,'public.adventure_growth(uuid,bigint,integer)','EXECUTE') then raise exception 'Browser can access task RPC'; end if;
   end loop;
@@ -265,5 +265,81 @@ begin
     or (select sum(amount) from public.adventure_events where owner_id=v_owner and kind='task_completed' and invalidated_at is null)<>20
     or (select count(*) from public.adventure_events where owner_id=v_owner and kind='task_completed')<>11 then raise exception 'Threshold recompletion ledger mismatch'; end if;
 end $$;
+
+-- #65: focus quota, stable adjacent ordering, task scope/search and full progress.
+do $$
+declare
+  v_owner uuid:=gen_random_uuid();
+  v_today date:=(clock_timestamp() at time zone 'Asia/Shanghai')::date;
+  v_main uuid;
+  v_goals uuid[]:=array[]::uuid[];
+  v_receipt jsonb;
+  v_page jsonb;
+  v_task uuid;
+  v_ids uuid[]:=array[]::uuid[];
+  i integer;
+begin
+  v_receipt:=public.adventure_planning_command(v_owner,'focus-main-create',0,jsonb_build_object('type','createMainline','name','聚焦主线'));
+  v_main:=(v_receipt->'result'->>'entityId')::uuid;
+  for i in 1..4 loop
+    v_receipt:=public.adventure_planning_command(v_owner,'focus-goal-'||i,i,jsonb_build_object('type','createGoal','destination',v_main,'title','目标 '||i,'standards',jsonb_build_array('标准 '||i)));
+    v_goals:=array_append(v_goals,(v_receipt->'result'->>'entityId')::uuid);
+  end loop;
+  for i in 1..3 loop
+    perform public.adventure_planning_command(v_owner,'focus-on-'||i,4+i,jsonb_build_object('type','focusGoal','id',v_goals[i],'focused',true));
+  end loop;
+  begin
+    perform public.adventure_planning_command(v_owner,'focus-over-limit',8,jsonb_build_object('type','focusGoal','id',v_goals[4],'focused',true));
+    raise exception 'Fourth focused goal accepted';
+  exception when others then if sqlerrm<>'FOCUS_LIMIT' then raise; end if; end;
+  v_page:=public.adventure_workspace_read(v_owner);
+  if (v_page->'goals'->0->>'focused')::boolean is not true or (v_page->'goals'->2->>'focused')::boolean is not true or (v_page->'goals'->3->>'focused')::boolean then raise exception 'Focused goals not ordered first'; end if;
+  perform public.adventure_planning_command(v_owner,'focus-move-up',8,jsonb_build_object('type','reorderGoals','mainlineId',v_main,'direction','up','id',v_goals[3]));
+  v_page:=public.adventure_workspace_read(v_owner);
+  if v_page->'goals'->1->>'id'<>v_goals[3]::text then raise exception 'Reorder did not persist'; end if;
+  for i in 1..4 loop
+    v_receipt:=public.adventure_planning_command(v_owner,'scope-task-'||i,8+i,jsonb_build_object('type','createTask','title',case when i=4 then '另一项' else '匹配行动 '||i end,'description',case when i=4 then '匹配说明' else '' end,'plannedOn',v_today,'destination',v_goals[1]));
+    v_ids:=array_append(v_ids,(v_receipt->'result'->>'entityId')::uuid);
+  end loop;
+  perform public.adventure_planning_command(v_owner,'scope-complete-1',13,jsonb_build_object('type','completeTask','id',v_ids[1]));
+  perform public.adventure_planning_command(v_owner,'scope-complete-2',14,jsonb_build_object('type','completeTask','id',v_ids[2]));
+  v_page:=public.adventure_workspace_read(v_owner,1,20,'today',1,'all','匹配');
+  if v_page->'totalTasks'<>'4' or jsonb_array_length(v_page->'tasks')<>4 or v_page->'taskProgress'->>'completed'<>'2' or v_page->'taskProgress'->>'total'<>'4' or (v_page->'taskProgress'->>'ratio')::numeric<>0.5 then raise exception 'Search/progress failed'; end if;
+  v_page:=public.adventure_workspace_read(v_owner,1,20,'today',1,'focus','');
+  if v_page->'totalTasks'<>'4' or v_page->'taskProgress'->>'total'<>'4' then raise exception 'Focused task scope failed'; end if;
+  perform public.adventure_planning_command(v_owner,'focus-off-1',15,jsonb_build_object('type','focusGoal','id',v_goals[1],'focused',false));
+  v_page:=public.adventure_workspace_read(v_owner,1,20,'today',1,'focus','匹配');
+  if v_page->'totalTasks'<>'0' or v_page->'taskProgress'->>'ratio' is not null then raise exception 'Unfocused goal leaked into scope'; end if;
+  -- Fixtures for not-yet-exposed lifecycle operations remain inside this rolled-back probe.
+  update public.adventure_tasks set status='ended',ended_at=clock_timestamp(),end_cause='manual' where owner_id=v_owner and id=v_ids[4];
+  v_page:=public.adventure_workspace_read(v_owner,1,1,'today',1,'all','');
+  if v_page->'taskProgress'->>'completed'<>'2' or v_page->'taskProgress'->>'total'<>'3'
+    or (select item->'progress'->>'total' from jsonb_array_elements(v_page->'goals') item where item->>'id'=v_goals[1]::text)<>'3' then raise exception 'Ended task or pagination changed progress'; end if;
+  update public.adventure_tasks set deleted_at=clock_timestamp() where owner_id=v_owner and id=v_ids[3];
+  v_page:=public.adventure_workspace_read(v_owner);
+  if v_page->'taskProgress'->>'total'<>'2' then raise exception 'Deleted task counted in progress'; end if;
+  select id into v_task from public.adventure_events where owner_id=v_owner and task_id=v_ids[1] and kind='task_completed' and invalidated_at is null;
+  perform public.adventure_planning_command(v_owner,'scope-cancel-1',16,jsonb_build_object('type','cancelTaskCompletion','completionId',v_task));
+  v_page:=public.adventure_workspace_read(v_owner);
+  if v_page->'taskProgress'->>'completed'<>'1' or v_page->'taskProgress'->>'total'<>'2' then raise exception 'Invalidated completion counted'; end if;
+  update public.adventure_tasks set goal_id=v_goals[2] where owner_id=v_owner and id=v_ids[2];
+  v_page:=public.adventure_workspace_read(v_owner);
+  if (select item->'progress'->>'total' from jsonb_array_elements(v_page->'goals') item where item->>'id'=v_goals[1]::text)<>'1'
+    or not exists(select 1 from public.adventure_events where owner_id=v_owner and task_id=v_ids[2] and kind='task_completed' and goal_id=v_goals[1])
+    then raise exception 'Current attribution changed frozen historical source'; end if;
+  update public.adventure_goals set status='ended',focused=false,terminated_at=clock_timestamp(),termination_cause='ended' where owner_id=v_owner and id=v_goals[4];
+  begin
+    perform public.adventure_planning_command(v_owner,'terminal-focus-invalid',17,jsonb_build_object('type','focusGoal','id',v_goals[4],'focused',true));
+    raise exception 'Terminal focus accepted';
+  exception when others then if sqlerrm<>'READ_ONLY' then raise; end if; end;
+  select id into v_task from public.adventure_goals where owner_id=v_owner and kind='inbox';
+  if v_task is not null then raise exception 'Unexpected inbox fixture'; end if;
+  begin
+    perform public.adventure_planning_command(v_owner,'null-sort-invalid',17,jsonb_build_object('type','reorderGoals','id',v_goals[1],'mainlineId',v_main,'direction',null));
+    raise exception 'Null direction accepted';
+  exception when others then if sqlerrm<>'INVALID_COMMAND' then raise; end if; end;
+
+end $$;
+
 
 rollback;

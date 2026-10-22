@@ -1,6 +1,8 @@
 import { useState, type FormEvent } from 'react'
 import { Check, ListTodo } from 'lucide-react'
-import type { PlanningCommand, PlanningPage, PlanningTask, TaskRange } from '../shared/adventure-planning'
+import type { PlanningCommand, PlanningPage, PlanningTask, TaskRange, TaskScope } from '../shared/adventure-planning'
+
+import { PlanningProgress } from './PlanningProgress'
 
 type Action = (command: PlanningCommand, expectedVersion?: number) => Promise<boolean>
 export function TaskForm({ task, destination: initialDestination, data, action, busy, close, changeGoalPage }: {
@@ -38,14 +40,25 @@ export function TaskForm({ task, destination: initialDestination, data, action, 
   </fieldset></form>
 }
 
-export function PlanningTasks({ data, blocked, changeRange, changePage, edit, complete, cancel }: {
+export function PlanningTasks({ data, blocked, changeRange, changePage, changeScope, changeSearch, edit, complete, cancel }: {
   data: PlanningPage; blocked: boolean; changeRange: (range: TaskRange) => void; changePage: (page: number) => void;
+  changeScope: (scope: TaskScope) => void; changeSearch: (search: string) => void;
   edit: (task: PlanningTask) => void; complete: (task: PlanningTask) => void; cancel: (task: PlanningTask) => void
 }) {
+  const [search, setSearch] = useState(data.search)
   return <section className="planning-section planning-actions"><header><h2><ListTodo size={19} />一次性任务</h2>
     <div className="planning-task-ranges" aria-label="任务日期范围">{(['today', 'future', 'past'] as const).map((range, index) =>
       <button key={range} disabled={blocked} aria-pressed={data.taskRange === range} onClick={() => changeRange(range)}>{['今天', '未来', '过去'][index]}</button>)}</div>
   </header>
+    <div className="planning-task-filters">
+      <div className="planning-task-ranges" aria-label="任务视图">{(['all', 'focus'] as const).map(scope =>
+        <button key={scope} disabled={blocked} aria-pressed={data.taskScope === scope} onClick={() => changeScope(scope)}>{scope === 'all' ? '全部任务' : '聚焦任务'}</button>)}</div>
+      <form onSubmit={event => { event.preventDefault(); changeSearch(search) }}>
+        <label>搜索任务<input type="search" maxLength={100} value={search} onChange={event => setSearch(event.target.value)} placeholder="名称或说明" /></label>
+        <button type="submit" disabled={blocked}>搜索</button>
+      </form>
+    </div>
+    <PlanningProgress value={data.taskProgress} label="当前筛选任务进度" />
     {data.tasks.length === 0 ? <p className="adventure-empty">这个日期范围暂无任务。</p> : <div className="planning-task-list">{data.tasks.map(task => <article key={task.id} aria-label={`任务：${task.title}`} className={task.status === 'completed' ? 'planning-task completed' : 'planning-task'}>
       <div><small className="planning-destination">{task.independent ? '独立任务' : `${task.mainlineName} / ${task.goalTitle}`}</small>
         <h3>{task.status === 'completed' && <Check size={16} aria-hidden="true" />}{task.title}</h3>

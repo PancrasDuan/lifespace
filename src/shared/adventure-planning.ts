@@ -14,6 +14,8 @@ export const planningCommandSchema = z.discriminatedUnion('type', [
   z.strictObject({ type: z.literal('completeTask'), id: z.uuid() }),
   z.strictObject({ type: z.literal('cancelTaskCompletion'), completionId: z.uuid() }),
   z.strictObject({ type: z.literal('editGoal'), id: z.uuid(), destination: z.union([z.literal(''), z.literal('independent'), z.uuid()]), title: name, standards }),
+  z.strictObject({ type: z.literal('focusGoal'), id: z.uuid(), focused: z.boolean() }),
+  z.strictObject({ type: z.literal('reorderGoals'), mainlineId: z.uuid(), direction: z.enum(['up', 'down']), id: z.uuid(), targetId: z.uuid().optional() }),
 ])
 export type PlanningCommand = z.infer<typeof planningCommandSchema>
 export const planningEnvelopeSchema = z.strictObject({
@@ -45,11 +47,15 @@ export const goalRewardSchema = z.object({
     && value.fallback === (value.count === 0)),
 })
 export const taskRangeSchema = z.enum(['today', 'future', 'past'])
+export const taskScopeSchema = z.enum(['all', 'focus'])
+export type TaskScope = z.infer<typeof taskScopeSchema>
+export const planningSearchSchema = z.string().trim().max(100)
 export type TaskRange = z.infer<typeof taskRangeSchema>
+export const planningProgressSchema = z.object({ completed: version, total: version, ratio: z.number().min(0).max(1).nullable() })
 export const planningTaskSchema = z.object({
   id: z.uuid(), title: z.string(), description: z.string(), plannedOn: z.iso.date(),
   status: z.enum(['pending', 'completed', 'ended']), completedOn: z.iso.date().nullable(), completionId: z.uuid().nullable(), reward: taskRewardSchema.nullable(),
-  goalId: z.uuid().nullable(), goalTitle: z.string().nullable(), mainlineName: z.string(), independent: z.boolean(), overdue: z.boolean(), capabilities,
+  goalId: z.uuid().nullable(), goalTitle: z.string().nullable(), mainlineName: z.string(), independent: z.boolean(), overdue: z.boolean(), progress: planningProgressSchema, capabilities,
 })
 export type PlanningTask = z.infer<typeof planningTaskSchema>
 export const planningPageSchema = z.object({
@@ -63,13 +69,13 @@ export const planningPageSchema = z.object({
   })).max(5),
   goals: z.array(z.object({
     id: z.uuid(), title: z.string(), standards: z.array(z.string()).min(1).max(50),
-    mainlineId: z.uuid(), mainlineName: z.string(), independent: z.boolean(),
-    createdAt: z.string(), capabilities,
+    mainlineId: z.uuid(), mainlineName: z.string(), independent: z.boolean(), focused: z.boolean(), sortOrder: version,
+    createdAt: z.string(), progress: planningProgressSchema, capabilities,
   })).max(50),
   destinations: z.array(z.object({ id: z.string(), name: z.string() })).max(6),
   growth: growthSchema,
   tasks: z.array(planningTaskSchema).max(50).default([]), totalTasks: version.default(0),
-  taskPage: z.number().int().positive().default(1), taskRange: taskRangeSchema.default('today'),
+  taskPage: z.number().int().positive().default(1), taskRange: taskRangeSchema.default('today'), taskScope: taskScopeSchema.default('all'), search: z.string().default(''), taskProgress: planningProgressSchema,
   capabilities,
   limits: z.object({ name: z.literal(200), standard: z.literal(4000), standards: z.literal(50) }),
 })

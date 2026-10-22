@@ -19,4 +19,9 @@ begin
     c.kind is distinct from 'task_completion_cancelled' or c.snapshot->>'completionId' is distinct from e.id::text
     or c.snapshot->'result'->'reward' is distinct from jsonb_build_object('amount',e.amount,'calculation',e.calculation)))
     then raise exception 'HTTP audit: invalidation detached from its completion/reward'; end if;
+  if exists(select 1 from public.adventure_goals where kind='real' and status='active' and focused
+    group by owner_id,mainline_id having count(*)>3) then raise exception 'HTTP audit: focus quota exceeded'; end if;
+  if exists(select 1 from public.adventure_events where command_type in ('focusGoal','reorderGoals') and
+    (goal_id is null or mainline_id is null or snapshot->'after' is null or snapshot->'result' is null))
+    then raise exception 'HTTP audit: focus/order receipt or history missing'; end if;
 end $$;

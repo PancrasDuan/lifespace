@@ -6,6 +6,7 @@ import type { PlanningCommand, PlanningGoal, PlanningPage, PlanningTask, Plannin
 import { Modal } from './ui'
 import { usePlanning } from './usePlanning'
 import { PlanningTasks, TaskForm } from './PlanningTasks'
+import { PlanningGoals } from './PlanningGoals'
 import { PlanningToast } from './PlanningToast'
 import explorer from './pixel-explorer.png'
 import './adventure.css'
@@ -132,19 +133,15 @@ function Workspace() {
         <section className="planning-section">
           <header><div><h2><Sprout size={20} />正在生长的目标</h2><p className="adventure-hint">以完成标准定义成果，每个目标都可以从零开始。</p></div></header>
           {goals?.length === 0 ? <p className="adventure-empty">{data.totalGoals ? '本页没有目标，请返回上一页。' : '还没有目标。创建独立目标，或选择一条主线。'}</p> :
-            <div className="planning-goals">{goals?.map(goal => <article className="planning-goal" key={goal.id} role="button" tabIndex={0}
-              aria-label={`目标：${goal.title}`} onClick={() => setDialog({ kind: 'detail', goal })}
-              onKeyDown={event => { if ((event.key === 'Enter' || event.key === ' ') && !event.nativeEvent.isComposing) { event.preventDefault(); setDialog({ kind: 'detail', goal }) } }}>
-              <span className="planning-destination">{goal.independent ? '独立目标' : goal.mainlineName}</span>
-              <h3>{goal.title}</h3><ul>{goal.standards.map((standard, index) => <li key={index}>{standard}</li>)}</ul>
-              <footer><span>进行中</span><span aria-hidden="true">查看详情 ›</span></footer>
-            </article>)}</div>}
+            <PlanningGoals goals={goals ?? []} blocked={blocked} action={model.command} detail={goal => setDialog({ kind: 'detail', goal })} />}
           <footer className="planning-pagination"><small>共 {data.totalGoals} 个目标 · 第 {data.page} 页</small><div>
             <button disabled={blocked || data.page <= 1} onClick={() => { void model.load(data.page - 1) }}>上一页</button>
             <button disabled={blocked || data.page * data.pageSize >= data.totalGoals} onClick={() => { void model.load(data.page + 1) }}>下一页</button>
           </div></footer>
         </section>
         {data.capabilities.createTask?.allowed ? <PlanningTasks data={data} blocked={blocked}
+          changeScope={scope => { void model.load(data.page, data.taskRange, 1, scope) }}
+          changeSearch={search => { void model.load(data.page, data.taskRange, 1, data.taskScope, search) }}
           changeRange={range => { void model.load(data.page, range, 1) }} changePage={page => { void model.load(data.page, data.taskRange, page) }}
           edit={task => setDialog({ kind: 'task', task })} complete={task => { void model.command({ type: 'completeTask', id: task.id }) }} cancel={task => { void cancelTask(task) }} />
           : <section className="planning-section planning-locked"><header><h2>一次性任务</h2></header><p className="adventure-hint">{data.capabilities.createTask?.reason}</p></section>}
@@ -182,7 +179,8 @@ function Workspace() {
         <div className="adventure-inline">
           <button disabled={blocked || !detailGoal.capabilities.edit?.allowed} onClick={() => setDialog({ kind: 'goal', goal: detailGoal })}>编辑目标</button>
           <button disabled={blocked || !detailGoal.capabilities.createTask?.allowed} title={detailGoal.capabilities.createTask?.reason} onClick={() => setDialog({ kind: 'task', destination: detailGoal.id })}>添加任务</button>
-          {(['focus', 'migrate', 'achieve', 'end'] as const).map((operation, i) => <button key={operation} disabled title={detailGoal.capabilities[operation]?.reason}>{['聚焦', '迁移', '确认达成', '结束'][i]}</button>)}
+          <button disabled={blocked || !detailGoal.capabilities.focus?.allowed} title={detailGoal.capabilities.focus?.reason} onClick={() => { void model.command({ type: 'focusGoal', id: detailGoal.id, focused: !detailGoal.focused }) }}>{detailGoal.focused ? '取消聚焦' : '聚焦'}</button>
+          {(['migrate', 'achieve', 'end'] as const).map((operation, i) => <button key={operation} disabled title={detailGoal.capabilities[operation]?.reason}>{['迁移', '确认达成', '结束'][i]}</button>)}
         </div>
       </div> : <p>目标已更新，请关闭后重新读取。</p>
         : <PlanningForm key={dialog.kind === 'mainline' ? dialog.id ?? 'new-mainline' : dialog.goal?.id ?? 'new-goal'} dialog={dialog} data={data} action={model.command} busy={blocked} close={close} />}

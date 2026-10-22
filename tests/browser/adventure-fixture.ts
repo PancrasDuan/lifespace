@@ -6,7 +6,8 @@ export const goalId = '00000000-0000-4000-8000-000000000055'
 export const allowed = { allowed: true }
 export const later = { allowed: false, reason: '此操作尚未交付' }
 export const emptyPlanning: PlanningPage = {
-  tasks: [], totalTasks: 0, taskPage: 1, taskRange: 'today',
+  tasks: [], totalTasks: 0, taskPage: 1, taskRange: 'today', taskScope: 'all', search: '',
+  taskProgress: { completed: 0, total: 0, ratio: null },
   version: 0, today: '2026-10-20', mainlines: [], goals: [],
   destinations: [],
   page: 1, pageSize: 20, totalGoals: 0,
@@ -21,8 +22,8 @@ export const withMainline: PlanningPage = {
 }
 export const withGoal: PlanningPage = {
   ...withMainline, version: 2, totalGoals: 1,
-  goals: [{ id: goalId, title: '五公里', standards: ['连续跑完五公里'], mainlineId, mainlineName: '健康', independent: false,
-    createdAt: '2026-10-20T04:00:00Z', capabilities: { edit: allowed, focus: later, migrate: later, achieve: later, end: later } }],
+  goals: [{ id: goalId, title: '五公里', standards: ['连续跑完五公里'], mainlineId, mainlineName: '健康', independent: false, focused: false, sortOrder: 0,
+    progress: { completed: 0, total: 0, ratio: null }, createdAt: '2026-10-20T04:00:00Z', capabilities: { edit: allowed, focus: later, migrate: later, achieve: later, end: later } }],
 }
 
 // UI-only fixture: supplied snapshots are independent expectations, not a second domain engine.

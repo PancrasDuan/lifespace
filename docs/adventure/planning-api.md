@@ -1,25 +1,28 @@
 # 规划与一次性任务接口
 
-适用 Issue #54、#55；实现与本机隔离验收已完成，现有 Supabase 验收库尚未同步 #55 函数。页面读取、创建／编辑与任务完成／取消使用五表事务；账户、规划日期、版本、能力和成长由后端返回。浏览器不能直接调用表或 RPC。
+适用 Issue #54、#55、#65；实现和本机隔离验证范围见相应验收报告，现有 Supabase 验收库不在本轮同步。页面读取、创建／编辑与任务完成／取消使用五表事务；账户、规划日期、版本、能力和成长由后端返回。浏览器不能直接调用表或 RPC。
 
 ## 页面查询
 
-`GET /api/adventure?page=1&pageSize=20&taskRange=today&taskPage=1`
+`GET /api/adventure?page=1&pageSize=20&taskRange=today&taskPage=1&taskScope=all&search=`
 
-参数仅允许目标页 `page`（1–1,000,000）、共享页容量 `pageSize`（1–50，默认 20）、任务日期范围 `taskRange`（today／future／past，默认 today）和任务页 `taskPage`（1–1,000,000，默认 1）。首次查询安全初始化账户，不预建独立区，不导入旧单表或演示数据，不触发结算。
+参数仅允许目标页 `page`（1–1,000,000）、共享页容量 `pageSize`（1–50，默认 20）、任务日期范围 `taskRange`（today／future／past，默认 today）、任务页 `taskPage`（1–1,000,000，默认 1）、`taskScope`（all／focus，默认 all）和 `search`（去除首尾空白后最多 100 个 UTF-16 码元，默认空）。首次查询安全初始化账户，不预建独立区，不导入旧单表或演示数据，不触发结算。
 
 响应由 `src/shared/adventure-planning.ts` 定义：
 
 - `version`、`today`：账户版本及服务端上海日期。
 - `mainlines`：全部在用普通主线；最多五条，包含改名／结束能力。
-- `goals`：本页进行中真实目标，包含名称、`standards` 标准数组、归属、创建时间及操作能力；不返回 inbox。
+- `goals`：本页进行中真实目标，包含名称、`standards` 标准数组、归属、创建时间、`focused`、`sortOrder`、全日期目标任务 `progress` 及操作能力；不返回 inbox。
 - `page`、`pageSize`、`totalGoals`：当前页及全量目标总数；列表为空不代表总数为零。
 - `destinations`：可用普通主线 ID；归属留空即默认独立目标，不显示独立身份选项。
 - `tasks`、`totalTasks`、`taskPage`、`taskRange`：当前范围和页的任务、全量总数；每项含名称、说明、执行日、状态、真实目标或独立身份、当前具体完成事件 ID、冻结 `reward`（无有效完成为 null）、服务端逾期标记及操作能力。
+- `taskScope`、`search`、`taskProgress`：当前视图、已提交搜索条件及完整筛选范围的任务进度；分页不截断分母。
 - `growth`：总经验、等级、本级进度、升级所需经验、有效行动数、达成目标数，以及七个实时成就的当前计数和点亮结果。
 - `capabilities`、`limits`：页面能力、禁用原因及输入限额。当前未交付操作返回 `allowed=false` 和原因。
 
-内部使用 `adventure_workspace_read`，持有与基础规划读取相同的账户共享锁；以锁后一次日期统一任务范围、逾期及能力，成长由单一 SQL 函数计算。任务按执行日、创建时间及 ID 排序；主线按创建时间及 ID 排序；目标按保存的 `sort_order`、ID 排序。聚焦和手动排序操作不在本票开放。
+内部使用 `adventure_workspace_read`，持有与基础规划读取相同的账户共享锁；以锁后一次日期统一任务范围、逾期及能力，成长由单一 SQL 函数计算。任务按执行日、创建时间及 ID 排序；主线按创建时间及 ID 排序；目标先按所属主线创建时间及 ID 分组，同归属内先聚焦后未聚焦，再按 `sort_order`、ID 排序。普通主线与独立目标组各有 3 个聚焦名额；inbox 不可聚焦。`focus`、`moveUp`、`moveDown` 能力由数据库返回，前端不自行判断名额或相邻边界。
+
+任务视图按当前归属筛选：focus 包含聚焦目标任务及独立任务，all 包含全部任务；日期和搜索条件对两种视图同时生效。搜索是名称／说明的忽略大小写字面子串，不把 `%`、`_` 当作通配符。`taskProgress` 使用相同日期／视图／搜索范围，统计 completed／(pending＋completed)，排除 ended、已删除和无效完成。目标 `progress` 使用该目标当前归属下的所有日期任务；二者均在分页前统计。ratio 为 null 时显示“暂无可统计任务”，不自动达成目标。刷新页面恢复默认全部／今天／空搜索，已保存聚焦及顺序从数据库回读。
 
 ## 操作预览
 
@@ -51,6 +54,8 @@
 | `createMainline` | `name` |
 | `renameMainline` | `id`、`name` |
 | `createGoal` | `destination`（空字符串默认独立目标，或普通主线 UUID）、`title`、`standards` |
+| `focusGoal` | `id`、`focused`（boolean）；仅进行中真实目标；满额失败不推进版本 |
+| `reorderGoals` | `mainlineId`、`id`、`direction`（up／down），可选 `targetId`；同归属同聚焦组相邻移动，拖动时移至 targetId 原位置，中间目标稳定平移；不得跨组 |
 | `editGoal` | `id`、`destination`（规则同上）、`title`、`standards` |
 | `createTask` | `title`、`description`（可空）、`plannedOn`（有效 YYYY-MM-DD）、`destination`（空字符串默认独立任务，或真实目标 UUID） |
 | `editTask` | `id`、`title`、`description`（可空）；只编辑待完成任务的名称与说明 |
@@ -84,13 +89,15 @@
 
 前端在成功后重新查询页面；读取结果不得早于已知成功版本。成功但查询失败时只重试查询；网络结果未知时只允许用户以原封套安全重试。409 后重新读取并等待用户再次确认，不自动重放。请求只保存在当前页面内存，刷新后读取服务端，不重建旧操作。
 
+聚焦和排序均在账户行锁内校验并更新目标、事件、版本及成功回执，不改经验或目标身份；重试沿用既有幂等规则。现有编辑目标归属入口同样校验目标聚焦名额，跨归属时追加目的手动顺序末尾。
+
 ## 错误和预算
 
 响应统一为 `{"error":{"code":"…","message":"…"}}`。
 
 | HTTP | code |
 |---|---|
-| 400 | `INVALID_QUERY`、`INVALID_COMMAND`、`COMMAND_TOO_LARGE`、`MAINLINE_LIMIT`、`READ_ONLY`、`DATE_LOCKED`、`TASK_NOT_PENDING`、`CAPACITY_REACHED` |
+| 400 | `INVALID_QUERY`、`INVALID_COMMAND`、`COMMAND_TOO_LARGE`、`MAINLINE_LIMIT`、`FOCUS_LIMIT`、`READ_ONLY`、`DATE_LOCKED`、`TASK_NOT_PENDING`、`CAPACITY_REACHED` |
 | 401／403 | 现有 `AUTH_*` 身份和准入错误 |
 | 404 | `NOT_FOUND`；不区分他人内容与不存在 |
 | 409 | `VERSION_CONFLICT`、`REQUEST_ID_REUSED`、`COMPLETION_CHANGED` |

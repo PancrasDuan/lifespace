@@ -175,4 +175,104 @@ describe.skipIf(!rpcOrigin)('正式 Worker HTTP → 本机真实 PostgREST → �
     await command(owner, { type: 'completeTask', id: last })
     expect((await read(owner)).growth).toMatchObject({ totalXp: 20, level: 2, progress: 0, actions: 20 })
   }, 30_000)
+  it('聚焦配额按归属独立计数，并发争最后名额、幂等与跨账户拒绝均保持原子', async () => {
+    const owner = crypto.randomUUID(), other = crypto.randomUUID()
+    const main = (await command(owner, { type: 'createMainline', name: '普通主线' })).result.entityId
+    const ids: string[] = []
+    for (let i = 0; i < 4; i++) ids.push((await command(owner, { type: 'createGoal', destination: main, title: `目标 ${i}`, standards: ['标准'] })).result.entityId)
+    for (const id of ids.slice(0, 2)) await command(owner, { type: 'focusGoal', id, focused: true })
+    const before = await read(owner)
+    const requests = ids.slice(2).map(id => envelope(before.version, { type: 'focusGoal', id, focused: true }))
+    const race = await Promise.all(requests.map(value => send(owner, value)))
+    expect(race.map(response => response.status).sort()).toEqual([200, 409])
+    const winner = race.findIndex(response => response.status === 200), loser = 1 - winner
+    const receipt = await race[winner].json()
+    expect(await (await send(owner, requests[winner])).json()).toEqual(receipt)
+    const full = await read(owner)
+    expect(full.goals.filter(goal => goal.focused)).toHaveLength(3)
+    const failure = await send(owner, envelope(full.version, requests[loser].command))
+    expect(failure.status).toBe(400)
+    expect(await failure.json()).toMatchObject({ error: { code: 'FOCUS_LIMIT' } })
+    expect(await read(owner)).toEqual(full)
+    expect((await send(owner, { ...requests[winner], command: { type: 'focusGoal', id: ids[0], focused: false } })).status).toBe(409)
+    expect((await send(other, envelope(0, { type: 'focusGoal', id: ids[0], focused: true }))).status).toBe(404)
+    expect((await send(other, envelope(0, { type: 'reorderGoals', mainlineId: main, id: ids[0], direction: 'up' }))).status).toBe(404)
+    // No account-wide cap: independent goals have their own three slots.
+    const independents: string[] = []
+    for (let i = 0; i < 4; i++) {
+      const id = (await command(owner, { type: 'createGoal', destination: '', title: `独立目标 ${i}`, standards: ['标准'] })).result.entityId
+      independents.push(id)
+      if (i < 3) await command(owner, { type: 'focusGoal', id, focused: true })
+    }
+    expect((await read(owner)).goals.filter(goal => goal.focused)).toHaveLength(6)
+    const version = (await read(owner)).version
+    expect((await send(owner, envelope(version, { type: 'focusGoal', id: independents[3], focused: true }))).status).toBe(400)
+    // Existing destination editing must not bypass the focus quota.
+    expect((await send(owner, envelope(version, { type: 'editGoal', id: ids[0], destination: '', title: '不能超额迁入', standards: ['标准'] }))).status).toBe(400)
+    expect((await read(owner)).version).toBe(version)
+    await command(owner, { type: 'focusGoal', id: independents[0], focused: false })
+    await command(owner, { type: 'focusGoal', id: independents[3], focused: true })
+  })
+
+  it('同归属同聚焦组排序支持相邻移动与拖动目标，非法排序回滚并保留稳定回执', async () => {
+    const owner = crypto.randomUUID()
+    const ids: string[] = []
+    for (let i = 0; i < 4; i++) ids.push((await command(owner, { type: 'createGoal', destination: '', title: `顺序 ${i}`, standards: ['标准'] })).result.entityId)
+    const initial = await read(owner), mainlineId = initial.goals[0].mainlineId
+    const original = envelope(initial.version, { type: 'reorderGoals', id: ids[3], mainlineId, direction: 'up', targetId: ids[0] })
+    const receipt = await (await send(owner, original)).json()
+    expect((await read(owner)).goals.map(goal => goal.id)).toEqual([ids[3], ids[0], ids[1], ids[2]])
+    await command(owner, { type: 'reorderGoals', id: ids[3], mainlineId, direction: 'down' })
+    expect((await read(owner)).goals.map(goal => goal.id)).toEqual([ids[0], ids[3], ids[1], ids[2]])
+    expect(await (await send(owner, original)).json()).toEqual(receipt)
+    await command(owner, { type: 'focusGoal', id: ids[2], focused: true })
+    const before = await read(owner)
+    expect(before.goals[0].id).toBe(ids[2])
+    const invalid = await send(owner, envelope(before.version, { type: 'reorderGoals', id: ids[0], mainlineId, direction: 'down', targetId: ids[2] }))
+    expect(invalid.status).toBe(400)
+    expect(await read(owner)).toEqual(before)
+    const otherMain = (await command(owner, { type: 'createMainline', name: '其他组' })).result.entityId
+    const wrong = await read(owner)
+    expect((await send(owner, envelope(wrong.version, { type: 'reorderGoals', id: ids[0], mainlineId: otherMain, direction: 'up' }))).status).toBe(404)
+    expect(await read(owner)).toEqual(wrong)
+    expect((await read(owner, '?pageSize=1&page=2')).goals[0].id).toBe(ids[0])
+  })
+
+  it('搜索和日期与双视图组合，分页不截断进度，取消后重算但不自动达成', async () => {
+    const owner = crypto.randomUUID()
+    const focused = (await command(owner, { type: 'createGoal', destination: '', title: '聚焦结果', standards: ['标准'] })).result.entityId
+    const unfocused = (await command(owner, { type: 'createGoal', destination: '', title: '普通结果', standards: ['标准'] })).result.entityId
+    await command(owner, { type: 'focusGoal', id: focused, focused: true })
+    const today = Temporal.PlainDate.from((await read(owner)).today)
+    const a = (await createTask(owner, '检索行动 A', today.toString(), focused)).result.entityId
+    const b = (await createTask(owner, '检索行动 B', today.toString(), focused)).result.entityId
+    await createTask(owner, '检索待完成', today.toString(), focused)
+    await createTask(owner, '检索独立', today.toString())
+    const outside = (await createTask(owner, '检索未聚焦', today.toString(), unfocused)).result.entityId
+    await createTask(owner, '检索未来', today.add({ days: 1 }).toString(), focused)
+    await createTask(owner, '检索过去', today.subtract({ days: 1 }).toString(), focused)
+    await createTask(owner, '含 %_ 字面符号', today.toString(), focused)
+    await command(owner, { type: 'completeTask', id: a })
+    await command(owner, { type: 'completeTask', id: b })
+    let page = await read(owner, '?pageSize=1&taskScope=focus&search=检索')
+    expect(page).toMatchObject({ totalTasks: 4, taskProgress: { completed: 2, total: 4, ratio: 0.5 } })
+    expect(page.tasks).toHaveLength(1)
+    expect(page.goals[0].progress).toMatchObject({ completed: 2, total: 6 })
+    expect((await read(owner, '?taskScope=all&search=检索')).totalTasks).toBe(5)
+    expect((await read(owner, '?taskScope=focus&search=检索&taskRange=future'))).toMatchObject({ totalTasks: 1, taskProgress: { completed: 0, total: 1, ratio: 0 } })
+    expect((await read(owner, '?taskScope=focus&search=检索&taskRange=past'))).toMatchObject({ totalTasks: 1, taskProgress: { completed: 0, total: 1 } })
+    expect((await read(owner, '?search=%25_')).totalTasks).toBe(1)
+    expect((await read(owner, '?search=行动说明')).totalTasks).toBe(6)
+    const full = await read(owner)
+    const completionId = full.tasks.find(task => task.id === a)!.completionId!
+    await command(owner, { type: 'cancelTaskCompletion', completionId })
+    page = await read(owner, '?taskScope=focus&search=检索')
+    expect(page.taskProgress).toMatchObject({ completed: 1, total: 4, ratio: 0.25 })
+    expect((await read(owner, '?search=没有匹配')).taskProgress).toEqual({ completed: 0, total: 0, ratio: null })
+    // Unfocused tasks remain executable.
+    await command(owner, { type: 'completeTask', id: outside })
+    expect((await read(owner)).totalGoals).toBe(2)
+    expect((await read(owner)).growth.achievedGoals).toBe(0)
+  })
+
 })

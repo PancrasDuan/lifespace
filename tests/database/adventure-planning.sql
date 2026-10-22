@@ -74,7 +74,7 @@ begin
       if has_table_privilege(v_role,'public.'||v_table,'SELECT,INSERT,UPDATE,DELETE') then raise exception 'Browser table privilege: % %',v_role,v_table; end if;
       if not (select relrowsecurity from pg_class where oid=('public.'||v_table)::regclass) then raise exception 'RLS disabled'; end if;
     end loop;
-    foreach v_function in array array['adventure_planning_check(uuid,jsonb)','adventure_planning_read(uuid,integer,integer)','adventure_planning_preview(uuid,bigint,jsonb)','adventure_planning_command(uuid,text,bigint,jsonb)'] loop
+    foreach v_function in array array['adventure_planning_capability(uuid,jsonb)','adventure_planning_check(uuid,jsonb)','adventure_planning_read(uuid,integer,integer)','adventure_planning_preview(uuid,bigint,jsonb)','adventure_planning_command(uuid,text,bigint,jsonb)'] loop
       if has_function_privilege(v_role,'public.'||v_function,'EXECUTE') then raise exception 'Browser RPC privilege: % %',v_role,v_function; end if;
     end loop;
   end loop;

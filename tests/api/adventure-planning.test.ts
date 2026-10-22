@@ -23,7 +23,8 @@ it('页面查询通过账户隔离 RPC 返回空规划，不调用旧单表或�
     calls.push({ path: url.pathname, body: JSON.parse(String(init.body)) })
     return Response.json({
       version: 0, today: '2026-10-20', mainlines: [], goals: [], destinations: [],
-      page: 1, pageSize: 20, totalGoals: 0,
+      page: 1, pageSize: 20, totalGoals: 0, taskProgress: { completed: 0, total: 0, ratio: null },
+      tasks: [], totalTasks: 0, taskPage: 1, taskRange: 'today', taskScope: 'all', search: '',
       growth: { level: 1, totalXp: 0, progress: 0, needed: 20, remaining: 20, actions: 0, achievedGoals: 0 },
       capabilities: { createMainline: { allowed: true }, createGoal: { allowed: true }, createTask: { allowed: false, reason: '此操作尚未交付' } },
       limits: { name: 200, standard: 4000, standards: 50 },
@@ -32,7 +33,7 @@ it('页面查询通过账户隔离 RPC 返回空规划，不调用旧单表或�
   const response = await app.request('/api/adventure', { headers }, env)
   expect(response.status).toBe(200)
   expect(await response.json()).toMatchObject({ version: 0, goals: [], growth: { level: 1, totalXp: 0 } })
-  expect(calls).toEqual([{ path: '/rest/v1/rpc/adventure_workspace_read', body: { p_owner: owner, p_page: 1, p_page_size: 20, p_task_range: 'today', p_task_page: 1 } }])
+  expect(calls).toEqual([{ path: '/rest/v1/rpc/adventure_workspace_read', body: { p_owner: owner, p_page: 1, p_page_size: 20, p_task_range: 'today', p_task_page: 1, p_task_scope: 'all', p_search: '' } }])
 })
 
 it('命令只返回稳定回执；分页页面通过下一次查询读取', async () => {
@@ -122,7 +123,7 @@ it('数据库业务错误映射为稳定错误，内部详情与密钥不出现�
 
 it('限制分页、请求体和内容类型，拒绝未登录请求', async () => {
   vi.stubGlobal('fetch', async () => Response.json({ id: owner, email: 'planning@example.com', email_confirmed_at: '2026-10-20', is_anonymous: false }))
-  for (const query of ['page=0', 'pageSize=51', 'page=1.5', 'owner=x', 'taskRange=all', 'taskPage=0', 'taskPage=1.5'])
+  for (const query of ['page=0', 'pageSize=51', 'page=1.5', 'owner=x', 'taskRange=all', 'taskPage=0', 'taskPage=1.5', 'taskScope=x', 'search=' + '字'.repeat(101)])
     expect((await app.request(`/api/adventure?${query}`, { headers }, env)).status).toBe(400)
   expect((await app.request('/api/adventure', {}, env)).status).toBe(401)
   expect((await app.request('/api/adventure/commands', { method: 'POST', headers, body: 'x'.repeat(33000) }, env)).status).toBe(400)

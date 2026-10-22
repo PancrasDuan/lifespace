@@ -3,16 +3,16 @@ import app from '../../worker/index'
 import { planningPageSchema } from '../../src/shared/adventure-planning'
 
 const rpcOrigin = process.env.ADVENTURE_LOCAL_RPC_URL
-const owner = '00000000-0000-4000-8000-000000000001'
+let owner = '00000000-0000-4000-8000-000000000001'
 const env = {
   SUPABASE_URL: 'https://planning-local-test.supabase.co', SUPABASE_SECRET_KEY: 'sb_secret_local-test-only',
   SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_local-test-only', AUTH_ALLOWED_EMAILS: 'actions@example.invalid',
 }
 const encode = (value: unknown) => btoa(JSON.stringify(value)).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_')
-const token = `${encode({ alg: 'HS256' })}.${encode({ sub: owner, session_id: owner, exp: 4102444800 })}.local-test`
+const authToken = () => `${encode({ alg: 'HS256' })}.${encode({ sub: owner, session_id: owner, exp: 4102444800 })}.local-test`
 const nativeFetch = globalThis.fetch
-const snapshot = async () => {
-  const response = await app.request('/api/adventure', { headers: { Authorization: `Bearer ${token}` } }, env)
+const snapshot = async (query = '') => {
+  const response = await app.request('/api/adventure' + query, { headers: { Authorization: `Bearer ${authToken()}` } }, env)
   expect(response.status).toBe(200)
   return planningPageSchema.parse(await response.json())
 }
@@ -20,6 +20,7 @@ const snapshot = async () => {
 test.describe('真实任务事务的桌面与手机浏览器验收（受控身份）', () => {
   test.skip(!rpcOrigin, '仅在显式启动的隔离本机 PostgreSQL／PostgREST 中运行')
   test.beforeEach(async ({ context }) => {
+    owner = crypto.randomUUID()
     const target = new URL(rpcOrigin!)
     if (target.hostname !== '127.0.0.1' || target.protocol !== 'http:' || target.username || target.password) throw new Error('只允许本机隔离 RPC')
     globalThis.fetch = async (input: string | URL | Request, init?: RequestInit) => {
@@ -33,7 +34,7 @@ test.describe('真实任务事务的桌面与手机浏览器验收（受控身�
       const request = route.request()
       const url = new URL(request.url())
       const response = await app.request(url.pathname + url.search, {
-        method: request.method(), headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        method: request.method(), headers: { Authorization: `Bearer ${authToken()}`, 'Content-Type': 'application/json' },
         body: request.method() === 'GET' ? undefined : request.postData() ?? undefined,
       }, env)
       await route.fulfill({ status: response.status, contentType: 'application/json', body: await response.text() })
@@ -101,4 +102,64 @@ test.describe('真实任务事务的桌面与手机浏览器验收（受控身�
     expect(result.growth.totalXp).toBe(before.growth.totalXp + 1)
     expect(result.tasks.find(task => task.title === title)!.reward?.amount).toBe(1)
   })
+  for (const width of [1440, 390]) test(`${width}px 聚焦配额、拖动与键盘排序、搜索日期双视图与进度刷新`, async ({ page }) => {
+    const write = async (command: unknown) => {
+      const response = await app.request('/api/adventure/commands', {
+        method: 'POST', headers: { Authorization: `Bearer ${authToken()}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ expectedVersion: (await snapshot()).version, requestId: crypto.randomUUID(), command }),
+      }, env)
+      expect(response.status).toBe(200)
+      return (await response.json() as { result: { entityId: string } }).result.entityId
+    }
+    const ids: string[] = []
+    for (let i = 1; i <= 4; i++) ids.push(await write({ type: 'createGoal', destination: '', title: `验收目标 ${i}`, standards: ['独立完成标准'] }))
+    const today = (await snapshot()).today
+    for (const [title, destination] of [['搜索聚焦', ids[0]], ['搜索未聚焦', ids[3]], ['搜索独立', '']])
+      await write({ type: 'createTask', title, description: '检索说明', destination, plannedOn: today })
+    await write({ type: 'createTask', title: '搜索未来', description: '', destination: ids[0], plannedOn: '2099-01-01' })
+    await page.setViewportSize({ width, height: 900 })
+    await page.goto('/adventure')
+    const card = (i: number) => page.getByRole('article', { name: `目标卡：验收目标 ${i}`, exact: true })
+    for (const i of [1, 2, 3]) {
+      await card(i).getByRole('button', { name: '聚焦', exact: true }).click()
+      await expect(card(i)).toContainText('聚焦中')
+    }
+    await expect(card(4).getByRole('button', { name: '聚焦', exact: true })).toBeDisabled()
+    expect((await snapshot()).goals.filter(goal => goal.focused)).toHaveLength(3)
+    await card(3).getByRole('button', { name: '上移目标 验收目标 3', exact: true }).focus()
+    await page.keyboard.press('Enter')
+    await expect.poll(async () => (await snapshot()).goals.map(goal => goal.title)).toEqual(['验收目标 1', '验收目标 3', '验收目标 2', '验收目标 4'])
+    await expect(card(3).getByRole('button', { name: '上移目标 验收目标 3', exact: true })).toBeEnabled()
+    await card(2).dragTo(card(1))
+    await expect.poll(async () => (await snapshot()).goals.map(goal => goal.title)).toEqual(['验收目标 2', '验收目标 1', '验收目标 3', '验收目标 4'])
+    await page.getByRole('button', { name: '聚焦任务', exact: true }).click()
+    const focusedTask = page.getByRole('article', { name: '任务：搜索聚焦', exact: true })
+    await expect(focusedTask).toBeVisible()
+    await expect(page.getByRole('article', { name: '任务：搜索独立', exact: true })).toBeVisible()
+    await expect(page.getByRole('article', { name: '任务：搜索未聚焦', exact: true })).toHaveCount(0)
+    await expect(page.getByRole('progressbar', { name: '当前筛选任务进度', exact: true })).toHaveAttribute('value', '0')
+    await focusedTask.getByRole('button', { name: '完成', exact: true }).click()
+    await expect(focusedTask).toContainText('已完成')
+    await expect(page.getByRole('progressbar', { name: '当前筛选任务进度', exact: true })).toHaveAttribute('value', '0.5')
+    expect((await snapshot('?taskScope=focus')).taskProgress).toEqual({ completed: 1, total: 2, ratio: 0.5 })
+    await page.getByLabel('搜索任务', { exact: true }).fill('搜索')
+    await page.getByRole('button', { name: '搜索', exact: true }).click()
+    await expect(page.getByRole('button', { name: '未来', exact: true })).toBeEnabled()
+    await page.getByRole('button', { name: '未来', exact: true }).click()
+    await expect(page.getByRole('article', { name: '任务：搜索未来', exact: true })).toBeVisible()
+    expect((await snapshot('?taskScope=focus&taskRange=future&search=搜索')).taskProgress).toEqual({ completed: 0, total: 1, ratio: 0 })
+    await page.getByLabel('搜索任务', { exact: true }).fill('不存在')
+    await page.getByRole('button', { name: '搜索', exact: true }).click()
+    await expect(page.getByRole('group', { name: '当前筛选任务进度', exact: true })).toContainText('暂无可统计任务')
+    await page.reload()
+    await expect(page.getByRole('article', { name: '目标卡：验收目标 2', exact: true })).toBeVisible()
+    const result = await snapshot()
+    expect(result.goals.map(goal => goal.id)).toEqual([ids[1], ids[0], ids[2], ids[3]])
+    expect(result.goals[1]).toMatchObject({ focused: true, progress: { completed: 1, total: 2, ratio: 0.5 } })
+    await expect(page.getByRole('article', { name: '任务：搜索独立', exact: true })).toBeVisible()
+    await expect(page.getByRole('article', { name: '任务：搜索未聚焦', exact: true })).toBeVisible()
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+    await page.screenshot({ path: `.cache/adventure65-native-${width}.png`, fullPage: true })
+  })
+
 })
