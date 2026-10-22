@@ -20,6 +20,7 @@
     "deploy": "WRANGLER_LOG_PATH=./.cache/wrangler.log wrangler deploy --config dist/lifespace/wrangler.json",
     "setup:supabase": "bash scripts/configure-supabase.sh",
     "setup:dnshe": "bash scripts/configure-dnshe.sh",
+    "setup:horoscope": "bash scripts/configure-horoscope.sh",
     "clean": "node --input-type=module -e \"import {rm} from 'node:fs/promises'; for (const path of ['dist','.cache','test-results','playwright-report']) await rm(path,{recursive:true,force:true});\"",
     "check:secrets": "node scripts/check-secrets.mjs",
     "setup:git": "git config --local core.hooksPath .githooks",
