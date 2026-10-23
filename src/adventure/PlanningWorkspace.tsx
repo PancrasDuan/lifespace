@@ -135,7 +135,7 @@ function Workspace() {
     if (blocked) return
     if (dialog?.kind === 'detail' && dialog.id === id) { close(); return }
     previewGeneration.current++
-    inlineOrigin.current = document.activeElement instanceof HTMLElement ? document.activeElement : undefined
+    inlineOrigin.current = document.activeElement instanceof HTMLElement ? document.activeElement.closest('article')?.querySelector<HTMLElement>(':scope > .record-summary') ?? document.activeElement : undefined
     setOpenRecord(`goal:${id}`)
     setDialog({ kind: 'detail', id })
     window.history.replaceState(null, '', `/adventure?goalId=${id}`)
@@ -197,7 +197,7 @@ function Workspace() {
   </section>
 
   const selectedMainline = dialog?.kind === 'mainlineDetail' ? (data?.mainlineDetail?.id === dialog.id ? data.mainlineDetail : data?.mainlines.find(item => item.id === dialog.id)) : undefined
-  const mainlineDetails = data && dialog?.kind === 'mainlineDetail' && <MainlineHistory key={`${dialog.id}:${data.version}`} id={dialog.id} />
+  const mainlineDetails = data && dialog?.kind === 'mainlineDetail' && <MainlineHistory key={`${dialog.id}:${data.version}`} id={dialog.id} blocked={blocked} openGoal={openGoal} />
   return <AppLayout page="adventure" openSettings={() => setQuickCreate(false)}><div className="adventure-page planning-page prototype-page">
     <header className="page-heading">
       <div><span className="eyebrow">LIFESPACE / YOUR NEXT STEP</span><h1>人生冒险</h1><p>把想做的事，慢慢变成现实。</p></div>

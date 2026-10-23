@@ -263,3 +263,33 @@ test('验收反馈：主线历史不改变下面的目标列表', async ({ page,
   await expect(card.getByRole('region', { name: '主线历史', exact: true })).toContainText('共 0 个目标')
   await expect(goal).toBeVisible()
 })
+
+
+test('主线历史保留名称并可切换到隐藏终态目标的单层详情', async ({ page, context }) => {
+  const ended = { ...state.goals[0], status: 'ended' as const, terminatedAt: '2026-10-20T05:00:00Z', focused: false }
+  const base = { ...state, goals: [], totalGoals: 0 }
+  await planningFixture(context, base)
+  await context.route('**/api/adventure?**', route => {
+    const query = new URL(route.request().url()).searchParams
+    const value = query.has('mainlineId') ? { ...base, mainlineDetail: state.mainlines[0], goals: [ended], totalGoals: 1 }
+      : query.has('goalId') ? { ...base, goalDetail: { goal: ended, tasks: [], taskPage: 1, totalTasks: 0 } } : base
+    return route.fulfill({ json: value })
+  })
+  await page.goto('/adventure')
+  const card = page.getByRole('article', { name: '主线：健康', exact: true })
+  await card.getByRole('button', { name: '主线：健康', exact: true }).click()
+  await card.getByRole('button', { name: '查看历史', exact: true }).click()
+  const history = card.getByRole('region', { name: '主线历史', exact: true })
+  await expect(history.getByRole('heading', { name: '健康', exact: true })).toBeVisible()
+  await history.getByRole('button', { name: '查看目标：五公里', exact: true }).click()
+  await expect(history).toHaveCount(0)
+  const details = page.getByRole('region', { name: '目标详情', exact: true })
+  await expect(details).toContainText('连续跑完五公里')
+  await expect(details).toContainText('创建时间：')
+  await expect(details).toContainText('终态时间：')
+  await expect(details).toContainText('暂无任务历史。')
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+  await expect(page.getByLabel('显示已达成／已结束', { exact: true })).not.toBeChecked()
+  await page.keyboard.press('Escape')
+  await expect(card.getByRole('button', { name: '主线：健康', exact: true })).toBeFocused()
+})

@@ -11,6 +11,7 @@ export function PrototypeGoalDetail({ goal, history, pageSize, blocked, edit, ad
 }) {
   const active = goal.status === 'active'
   return <>
+    <p className="muted">创建时间：{new Date(goal.createdAt).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })}</p>
     <p>{goal.status === 'achieved' ? '已达成 · 结果已冻结' : goal.status === 'ended' ? '已结束 · 只读' : '进行中'}</p>{goal.terminatedAt && <p className="muted">终态时间：{new Date(goal.terminatedAt).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })}</p>}
     <div className="details-columns"><section><h3>完成标准</h3><ul className="plain-list">{goal.standards.map((standard, index) => <li key={index}>{standard}</li>)}</ul></section>
       <section><h3>当前进度</h3><p>{goal.progress.completed} 项完成，共 {goal.progress.total} 项行动。</p><p className="muted">任务全部完成不等于目标已经达成，由你确认实际结果。</p>
