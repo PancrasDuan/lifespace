@@ -1,0 +1,169 @@
+{
+  "parent": {
+    "number": 53,
+    "url": "https://github.com/PancrasDuan/lifespace/issues/53",
+    "blockedBy": []
+  },
+  "tickets": [
+    {
+      "local": 1,
+      "number": 54,
+      "url": "https://github.com/PancrasDuan/lifespace/issues/54",
+      "file": "01-account-planning.md",
+      "id": 5916088497,
+      "blockedBy": [],
+      "bodyVerified": true,
+      "nativeDependenciesVerified": true
+    },
+    {
+      "local": 2,
+      "number": 55,
+      "url": "https://github.com/PancrasDuan/lifespace/issues/55",
+      "file": "02-daily-actions.md",
+      "id": 5916089137,
+      "blockedBy": [
+        54
+      ],
+      "bodyVerified": true,
+      "nativeDependenciesVerified": true
+    },
+    {
+      "local": 3,
+      "number": 65,
+      "url": "https://github.com/PancrasDuan/lifespace/issues/65",
+      "file": "03-focus-progress.md",
+      "id": 5941537548,
+      "blockedBy": [
+        55
+      ],
+      "bodyVerified": true,
+      "nativeDependenciesVerified": true
+    },
+    {
+      "local": 4,
+      "number": 59,
+      "url": "https://github.com/PancrasDuan/lifespace/issues/59",
+      "file": "06-goal-completion.md",
+      "id": 5916092985,
+      "blockedBy": [
+        55
+      ],
+      "bodyVerified": true,
+      "nativeDependenciesVerified": true
+    },
+    {
+      "local": 5,
+      "number": 60,
+      "url": "https://github.com/PancrasDuan/lifespace/issues/60",
+      "file": "07-archive-migrate.md",
+      "id": 5916093476,
+      "blockedBy": [
+        65
+      ],
+      "bodyVerified": true,
+      "nativeDependenciesVerified": true
+    },
+    {
+      "local": 6,
+      "number": 66,
+      "url": "https://github.com/PancrasDuan/lifespace/issues/66",
+      "file": "06-lifecycle-history.md",
+      "id": 5941543753,
+      "blockedBy": [
+        65,
+        59
+      ],
+      "bodyVerified": true,
+      "nativeDependenciesVerified": true
+    },
+    {
+      "local": 7,
+      "number": 61,
+      "url": "https://github.com/PancrasDuan/lifespace/issues/61",
+      "file": "08-action-followups.md",
+      "id": 5916094185,
+      "blockedBy": [
+        55
+      ],
+      "bodyVerified": true,
+      "nativeDependenciesVerified": true
+    },
+    {
+      "local": 8,
+      "number": 62,
+      "url": "https://github.com/PancrasDuan/lifespace/issues/62",
+      "file": "09-growth-achievements.md",
+      "id": 5916094746,
+      "blockedBy": [
+        59
+      ],
+      "bodyVerified": true,
+      "nativeDependenciesVerified": true
+    },
+    {
+      "local": 9,
+      "number": 63,
+      "url": "https://github.com/PancrasDuan/lifespace/issues/63",
+      "file": "10-integrate-deliver.md",
+      "id": 5916095196,
+      "blockedBy": [
+        60,
+        66,
+        61,
+        62
+      ],
+      "bodyVerified": true,
+      "nativeDependenciesVerified": true
+    }
+  ],
+  "nativeDependenciesVerified": true,
+  "verifiedAt": "2026-10-20T12:24:03.679540+00:00",
+  "prototypeSource": {
+    "branch": "codex/adventure-prototype-source",
+    "sha": "eee88c38f273da3e8d4aad3b7c43b9275fb781b8"
+  },
+  "baseMainSha": "b816cafa402136e5a173ae046a2fc8cf5ca22127",
+  "deferred": [
+    {
+      "number": 56,
+      "url": "https://github.com/PancrasDuan/lifespace/issues/56",
+      "file": "03-recurring-schedule.md",
+      "id": 5916089954,
+      "blockedBy": [],
+      "status": "backlog",
+      "readyForAgent": false,
+      "bodyVerified": true,
+      "nativeDependenciesVerified": true
+    },
+    {
+      "number": 57,
+      "url": "https://github.com/PancrasDuan/lifespace/issues/57",
+      "file": "04-recurring-lifecycle.md",
+      "id": 5916090965,
+      "blockedBy": [
+        56
+      ],
+      "status": "backlog",
+      "readyForAgent": false,
+      "bodyVerified": true,
+      "nativeDependenciesVerified": true
+    },
+    {
+      "number": 58,
+      "url": "https://github.com/PancrasDuan/lifespace/issues/58",
+      "file": "05-month-rewards.md",
+      "id": 5916091279,
+      "blockedBy": [
+        57
+      ],
+      "status": "backlog",
+      "readyForAgent": false,
+      "bodyVerified": true,
+      "nativeDependenciesVerified": true
+    }
+  ],
+  "parentUnchanged": true,
+  "frontier": [
+    54
+  ]
+}

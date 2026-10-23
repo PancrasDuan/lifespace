@@ -1,0 +1,228 @@
+import { openRecordActions } from './adventure-record-helpers'
+import { test, expect } from './authenticated-test'
+import { localPlanningRpc, planningDatabaseBrowser } from '../support/planning-database-browser'
+
+const database = planningDatabaseBrowser()
+const { snapshot, write, growth, request } = database
+
+test.describe('真实成长记录的桌面与手机浏览器验收（受控身份）', () => {
+  test.skip(!localPlanningRpc, '仅在显式启动的隔离本机 PostgreSQL／PostgREST 中运行')
+  test.beforeEach(async ({ context }) => { await database.install(context) })
+  test.afterEach(() => database.restore())
+  const complete = async (title: string, destination = '') => {
+    const task = await write({ type: 'createTask', title, destination, description: '冻结行动说明', plannedOn: (await snapshot()).today })
+    return write({ type: 'completeTask', id: task.result.entityId })
+  }
+
+  for (const width of [1440, 390]) test(`${width}px 七项实时成就、任务和目标流水、保底及终态冻结来源`, async ({ page }) => {
+    const main = (await write({ type: 'createMainline', name: '冻结主线' })).result.entityId
+    const goal = (await write({ type: 'createGoal', destination: main, title: '冻结成果', standards: ['发生时标准'] })).result.entityId
+    await complete('冻结任务', goal)
+    await write({ type: 'achieveGoal', id: goal, coefficient: 3, reflection: '本次达成感想' })
+    await write({ type: 'renameMainline', id: main, name: '新的主线名称' })
+    await write({ type: 'endMainline', id: main })
+    const fallback = (await write({ type: 'createGoal', destination: '', title: '零行动成果', standards: ['标准'] })).result.entityId
+    await write({ type: 'achieveGoal', id: fallback, coefficient: 2 })
+    await page.setViewportSize({ width, height: 1000 })
+    await page.goto('/adventure')
+    await page.getByRole('button', { name: '成长记录', exact: true }).click()
+    const summary = page.getByRole('region', { name: '全账户成长', exact: true })
+    await expect(summary).toContainText('5 点累计经验')
+    await expect(summary).toContainText('1 次真实行动 · 2 个达成目标')
+    const badges = page.getByRole('region', { name: '七个实时成就' })
+    await expect(badges.getByRole('article')).toHaveCount(7)
+    await expect(badges.getByRole('article', { name: '成就：迈出第一步', exact: true })).toContainText('已点亮')
+    await expect(badges.getByRole('article', { name: '成就：三个成果', exact: true })).toContainText('2 / 3 · 还差 1')
+    const journal = page.getByRole('region', { name: '有效奖励流水', exact: true })
+    await expect(journal.getByRole('article')).toHaveCount(3)
+    await expect(journal.getByRole('article', { name: '奖励：零行动成果', exact: true })).toContainText('零行动保底 · 固定 1 点')
+    const goalReward = journal.getByRole('article', { name: '奖励：冻结成果', exact: true })
+    await expect(goalReward).toContainText('1 次计奖行动 × 系数 3 = 3 点')
+    await expect(goalReward).toContainText('冻结主线 / 冻结成果')
+    await goalReward.getByRole('button', { name: /^查看来源：/ }).click()
+    const detail = page.getByRole('region', { name: '冻结成果的奖励来源', exact: true })
+    await expect(detail).toContainText('发生时标准')
+    await expect(detail).toContainText('本次达成感想')
+    await expect(detail.getByRole('region', { name: '冻结计奖行动', exact: true })).toContainText('冻结任务')
+    await expect(detail.getByRole('region', { name: '冻结计奖行动', exact: true })).toContainText('冻结行动说明')
+    await page.reload()
+    await expect(detail).toContainText('本次达成感想')
+    await journal.getByRole('article', { name: '奖励：冻结任务', exact: true }).getByRole('button', { name: /^查看来源：/ }).click()
+    await expect(detail).toHaveCount(0)
+    const taskDetail = page.getByRole('region', { name: '冻结任务的奖励来源', exact: true })
+    await expect(taskDetail).toContainText('冻结行动说明')
+    await expect(taskDetail.getByRole('region', { name: '完整原安排链', exact: true })).toBeVisible()
+    await expect(taskDetail.getByRole('link')).toHaveCount(0)
+    await journal.getByRole('article', { name: '奖励：冻结任务', exact: true }).getByRole('button', { name: /^查看来源：/ }).click()
+    expect((await growth()).growth).toMatchObject({ totalXp: 5, actions: 1, achievedGoals: 2 })
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+    await page.screenshot({ path: `.cache/adventure62-growth-${width}.png`, fullPage: true })
+  })
+
+  test('390px 页面与数据库核对 19→20→19→20，刷新后等级、流水及七项成就一致', async ({ page }) => {
+    for (let i = 0; i < 19; i++) await complete(`已有行动 ${i}`)
+    await write({ type: 'createTask', title: '临界行动', destination: '', description: '', plannedOn: (await snapshot()).today })
+    await page.setViewportSize({ width: 390, height: 1000 })
+    await page.goto('/adventure?view=growth')
+    const summary = page.getByRole('region', { name: '全账户成长', exact: true })
+    await expect(summary).toContainText('19 点累计经验')
+    await expect(summary).toContainText('Lv.1')
+    await page.getByRole('button', { name: '今天', exact: true }).click()
+    const task = page.getByRole('article', { name: '任务：临界行动', exact: true })
+    await expect(task).toBeVisible()
+    await openRecordActions(task)
+    await task.getByRole('button', { name: '完成', exact: true }).click()
+    await expect(task).toContainText('已完成')
+    const completed = (await snapshot()).tasks.find(item => item.title === '临界行动')!
+    await page.getByRole('button', { name: '成长记录', exact: true }).click()
+    await expect(summary).toContainText('20 点累计经验')
+    await expect(summary).toContainText('Lv.2')
+    await expect(summary).toContainText('再获得 25 点进入下一级')
+    await page.getByRole('button', { name: '今天', exact: true }).click()
+    await openRecordActions(task)
+    await task.getByRole('button', { name: '取消完成', exact: true }).click()
+    await page.getByRole('button', { name: '确认取消完成', exact: true }).click()
+    await expect(page.getByRole('dialog')).toBeHidden()
+    await page.getByRole('button', { name: '成长记录', exact: true }).click()
+    await expect(summary).toContainText('19 点累计经验')
+    await expect(summary).toContainText('Lv.1')
+    await expect(page.getByRole('article', { name: '奖励：临界行动', exact: true })).toHaveCount(0)
+    expect((await growth()).growth).toMatchObject({ totalXp: 19, actions: 19, level: 1 })
+    await page.getByRole('button', { name: '今天', exact: true }).click()
+    await openRecordActions(task)
+    await task.getByRole('button', { name: '完成', exact: true }).click()
+    await expect(task).toContainText('已完成')
+    await page.getByRole('button', { name: '成长记录', exact: true }).click()
+    await page.reload()
+    await expect(summary).toContainText('20 点累计经验')
+    await expect(summary).toContainText('Lv.2')
+    expect((await growth()).items[0].id).not.toBe(completed.completionId)
+    expect((await growth()).growth).toMatchObject({ totalXp: 20, actions: 20, level: 2 })
+  })
+
+  test('分页与来源独立重试；版本变化拒绝拼页，重新读取后全量统计正确', async ({ page, context }) => {
+    const goal = (await write({ type: 'createGoal', title: '多页成果', destination: '', standards: ['标准'] })).result.entityId
+    for (let i = 0; i < 12; i++) await complete(`多页行动 ${i}`, goal)
+    await write({ type: 'achieveGoal', id: goal, coefficient: 2 })
+    await page.goto('/adventure?view=growth')
+    const journal = page.getByRole('region', { name: '有效奖励流水', exact: true })
+    await expect(journal.getByRole('article')).toHaveCount(10)
+    let failSource = true
+    await context.route('**/api/adventure/reward-source?**', async route => {
+      if (failSource) { failSource = false; await route.fulfill({ status: 503, json: { error: { message: '临时来源失败' } } }) }
+      else await route.fallback()
+    })
+    await journal.getByRole('article', { name: '奖励：多页成果', exact: true }).getByRole('button', { name: /^查看来源：/ }).click()
+    const detail = page.getByRole('region', { name: '多页成果的奖励来源', exact: true })
+    await detail.getByRole('button', { name: '重试来源详情', exact: true }).click()
+    const actions = detail.getByRole('region', { name: '冻结计奖行动', exact: true })
+    await expect(actions.getByRole('listitem')).toHaveCount(5)
+    await actions.getByRole('button', { name: '下一页计奖行动', exact: true }).click()
+    await expect(actions).toContainText('第 2 页')
+    await actions.getByRole('button', { name: '下一页计奖行动', exact: true }).click()
+    await expect(actions.getByRole('listitem')).toHaveCount(2)
+    await journal.getByRole('article', { name: '奖励：多页成果', exact: true }).getByRole('button', { name: /^查看来源：/ }).click()
+    await expect(journal.getByRole('article')).toHaveCount(10)
+    let failPage = true
+    await context.route('**/api/adventure/growth?**', async route => {
+      if (new URL(route.request().url()).searchParams.has('cursor') && failPage) { failPage = false; await route.fulfill({ status: 503, json: { error: { message: '临时分页失败' } } }) }
+      else await route.fallback()
+    })
+    await journal.getByRole('button', { name: '加载更多流水', exact: true }).click()
+    await expect(journal.getByRole('article')).toHaveCount(10)
+    await page.getByRole('button', { name: '重试加载流水', exact: true }).click()
+    await expect(journal.getByRole('article')).toHaveCount(13)
+    await expect(journal).toContainText('已显示 13 / 13')
+    await page.reload()
+    await expect(journal.getByRole('article')).toHaveCount(10)
+    await complete('另一会话的新行动')
+    await journal.getByRole('button', { name: '加载更多流水', exact: true }).click()
+    await expect(page.getByRole('alert')).toContainText('数据已更新')
+    await expect(journal.getByRole('article')).toHaveCount(10)
+    await page.getByRole('button', { name: '重新读取成长记录', exact: true }).click()
+    await expect(journal).toContainText('已显示 10 / 14')
+    await expect(page.getByRole('region', { name: '全账户成长', exact: true })).toContainText('37 点累计经验')
+    expect((await growth()).growth).toMatchObject({ totalXp: 37, actions: 13, achievedGoals: 1 })
+  })
+  test('直接进入只读成长页不请求规划接口或初始化账户', async ({ page, context }) => {
+    const paths: string[] = []
+    await context.route('**/api/adventure**', async route => { paths.push(new URL(route.request().url()).pathname); await route.fallback() })
+    await page.goto('/adventure?view=growth')
+    await expect(page.getByRole('region', { name: '全账户成长', exact: true })).toContainText('0 点累计经验')
+    expect(paths).toEqual(['/api/adventure/growth'])
+    await expect(page.getByRole('button', { name: '新建', exact: true })).toHaveCount(0)
+    expect(await growth()).toMatchObject({ version: 0, total: 0, items: [] })
+  })
+
+  test('永久链接首屏失败可单独重试，保留已读取来源和稳定URL，错误提示仅一份且可关闭', async ({ page, context }) => {
+    const done = await complete('独立恢复来源')
+    let fail = true
+    await context.route('**/api/adventure/growth?**', async route => {
+      if (fail) { fail = false; await route.fulfill({ status: 503, json: { error: { message: '成长首屏暂时失败' } } }) }
+      else await route.fallback()
+    })
+    await page.goto(`/adventure?view=growth&rewardId=${done.result.completionId}`)
+    await expect(page.getByRole('alert')).toHaveCount(1)
+    await page.getByRole('button', { name: '关闭错误提示', exact: true }).click()
+    await expect(page.getByRole('alert')).toHaveCount(0)
+    await page.getByRole('button', { name: '重新读取成长记录', exact: true }).click()
+    await expect(page.getByRole('region', { name: '全账户成长', exact: true })).toContainText('1 点累计经验')
+    const detail = page.getByRole('region', { name: '独立恢复来源的奖励来源', exact: true })
+    await expect(detail).toContainText('独立恢复来源')
+    await expect(detail).toContainText('冻结行动说明')
+    await expect(page).toHaveURL(new RegExp(`rewardId=${done.result.completionId}`))
+  })
+
+  test('七项成就全部点亮，合法取消使百次行动熄灭，刷新与数据库一致', async ({ page }) => {
+    let last: Awaited<ReturnType<typeof complete>> | undefined
+    for (let i = 0; i < 100; i++) last = await complete(`百次验收 ${i}`)
+    for (let i = 0; i < 10; i++) {
+      const goal = (await write({ type: 'createGoal', title: `十项成果 ${i}`, destination: '', standards: ['标准'] })).result.entityId
+      await write({ type: 'achieveGoal', id: goal })
+    }
+    await page.goto('/adventure?view=growth')
+    const badges = page.getByRole('region', { name: '七个实时成就', exact: true })
+    await expect(badges.getByRole('article')).toHaveCount(7)
+    await expect(badges.locator('.achievement.is-lit')).toHaveCount(7)
+    expect((await growth()).growth).toMatchObject({ totalXp: 110, actions: 100, achievedGoals: 10 })
+    await write({ type: 'cancelTaskCompletion', completionId: last!.result.completionId })
+    await page.reload()
+    await expect(badges.getByRole('article', { name: '成就：百次行动', exact: true })).not.toContainText('已点亮')
+    await expect(badges.getByRole('article', { name: '成就：百次行动', exact: true })).toContainText('99 / 100 · 还差 1')
+    await expect(badges.locator('.achievement.is-lit')).toHaveCount(6)
+    await expect(page.getByRole('region', { name: '全账户成长', exact: true })).toContainText('109 点累计经验')
+    expect((await growth()).growth.achievements.find(item => item.id === 'actions_100')).toMatchObject({ count: 99, remaining: 1, unlocked: false })
+  })
+
+})
+
+test.describe('非首屏奖励永久链接', () => {
+  test.skip(!localPlanningRpc, '仅在显式启动的隔离本机 PostgreSQL／PostgREST 中运行')
+  test.beforeEach(async ({ context }) => { await database.install(context) })
+  test.afterEach(() => database.restore())
+  test('自动翻页并展开对应行内来源', async ({ page }) => {
+    for (let i = 0; i < 12; i++) {
+      const task = await write({ type: 'createTask', title: `分页来源 ${i}`, destination: '', description: '冻结行动说明', plannedOn: (await snapshot()).today })
+      await write({ type: 'completeTask', id: task.result.entityId })
+    }
+    const first = await growth()
+    const secondResponse = await request(`/api/adventure/growth?version=${first.version}&cursor=${first.nextCursor}`)
+    expect(secondResponse.status).toBe(200)
+    const second = await secondResponse.json() as { items: { id: string; title: string }[] }
+    expect(second.items).toHaveLength(2)
+    const target = second.items[0].id
+    const targetTitle = second.items[0].title
+    await page.goto(`/adventure?view=growth&rewardId=${target}`)
+    const journal = page.getByRole('region', { name: '有效奖励流水', exact: true })
+    await expect(journal.getByRole('article')).toHaveCount(12)
+    const source = page.getByRole('region', { name: `${targetTitle}的奖励来源`, exact: true })
+    await expect(source).toContainText('冻结行动说明')
+    const button = journal.getByRole('button', { name: new RegExp(`^查看来源：${targetTitle}，`) })
+    await expect(button).toHaveAttribute('aria-expanded', 'true')
+    const id = await button.getAttribute('aria-controls')
+    expect(id).toBeTruthy()
+    await expect(page.locator(`#${id}`)).toBeVisible()
+    await expect(page.getByRole('dialog')).toHaveCount(0)
+    await expect(page).toHaveURL(new RegExp(`rewardId=${target}`))
+  })
+})

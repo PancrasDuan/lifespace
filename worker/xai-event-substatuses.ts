@@ -1,4 +1,4 @@
-import xaiCatalogue from '../src/shared/xai-modules.json'
+import xaiCatalogue from '../src/shared/xai-modules.json' with { type: 'json' }
 import type { AiProvider } from '../src/shared/ai-status-contracts'
 
 const xaiModuleGroups = xaiCatalogue.groups

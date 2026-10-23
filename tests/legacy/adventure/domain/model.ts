@@ -1,0 +1,161 @@
+export type DateKey = string;
+export type Container = {
+  id: string;
+  kind: "main" | "side";
+  name: string;
+  archived: boolean;
+  convertedTo?: string;
+  sourceGoalId?: string;
+};
+export type Goal = {
+  id: string;
+  containerId: string;
+  sourceContainerId?: string;
+  title: string;
+  standard: string;
+  focused: boolean;
+  order: number;
+  archived: boolean;
+  completion?: GoalCompletion;
+};
+export type GoalCompletion = {
+  date: DateKey;
+  coefficient: 1 | 2 | 3;
+  reflection: string;
+  actionIds: string[];
+  settled: boolean;
+  previousFocused: boolean;
+  previousCycles: {
+    id: string;
+    status: Cycle["status"];
+    endedAt?: DateKey;
+    endedRecordedOn?: DateKey;
+    endedByGoal?: string;
+    pauses: Pause[];
+  }[];
+};
+export type Rule = {
+  effectiveFrom: DateKey;
+  cadence: "daily" | "weekly";
+  weekdays: number[];
+  endDate?: DateKey;
+};
+export type Pause = { start: DateKey; end?: DateKey };
+export type Cycle = {
+  id: string;
+  goalId: string;
+  title: string;
+  checklist: string[];
+  startDate: DateKey;
+  rules: Rule[];
+  replacedRules?: Rule[];
+  pauses: Pause[];
+  status: "running" | "paused" | "ended";
+  endedAt?: DateKey;
+  endedRecordedOn?: DateKey;
+  endedByGoal?: string;
+  qualifiedMonths: number;
+  monthsSettled: number;
+};
+export type Task = {
+  id: string;
+  actionId: string;
+  goalId: string;
+  title: string;
+  date: DateKey;
+  checklist: { text: string; done: boolean }[];
+  cycleId?: string;
+  slotDate?: DateKey;
+  extra?: boolean;
+  sourceTaskId?: string;
+  rescheduledTo?: string;
+  completedOn?: DateKey;
+  settled: boolean;
+  stopped?: boolean;
+  stoppedByGoal?: string;
+};
+export type TaskSnapshot = {
+  taskId: string;
+  actionId: string;
+  goalId: string;
+  goalTitle: string;
+  standard: string;
+  containerId: string;
+  containerName: string;
+  containerKind: Container["kind"];
+  title: string;
+  date: DateKey;
+  cycleId?: string;
+  slotDate?: DateKey;
+  sourceTaskId?: string;
+  extra?: boolean;
+};
+export type LedgerEntry = {
+  id: string;
+  kind: "action" | "goal" | "cycle";
+  sourceId: string;
+  date: DateKey;
+  settledOn: DateKey;
+  amount: number;
+  calculation: string;
+  snapshots: TaskSnapshot[];
+  coefficient?: number;
+  reflection?: string;
+  month?: {
+    index: number;
+    start: DateKey;
+    end: DateKey;
+    planned: number;
+    actual: number;
+    rate: number | null;
+    qualifiedBefore: number;
+    qualifiedAfter: number;
+    /** Accumulated long-term coefficient at settlement; not necessarily applied. */
+    multiplier: string;
+    /** Missing in older snapshots: leave unknown instead of deriving from current state. */
+    appliedMultiplier?: string;
+  };
+};
+export type Achievement = {
+  id: string;
+  kind: "action" | "goal" | "longterm";
+  threshold: number;
+  cycleId?: string;
+  unlockedOn: DateKey;
+  recordIds: string[];
+};
+export type AdventureState = {
+  schemaVersion: 1;
+  timeZone: "Asia/Shanghai";
+  containers: Container[];
+  goals: Goal[];
+  tasks: Task[];
+  cycles: Cycle[];
+  ledger: LedgerEntry[];
+  achievements: Achievement[];
+};
+export type Context = { today: DateKey; now: string; idFactory?: () => string };
+export type CommandResult = {
+  entityId?: string;
+  reward: number;
+  ledgerIds: string[];
+  achievementIds: string[];
+  levelBefore: number;
+  levelAfter: number;
+};
+export type Execution = { state: AdventureState; result: CommandResult };
+export type CycleMonth = {
+  index: number;
+  start: DateKey;
+  end: DateKey;
+  planned: number;
+  actual: number;
+  rate: number | null;
+  qualified: boolean;
+  /** Accumulated long-term coefficient K. */
+  multiplier: string;
+  /** Actual multiplier: K only for qualified months, otherwise 1. */
+  appliedMultiplier: string;
+  reward: number;
+  complete: boolean;
+};
