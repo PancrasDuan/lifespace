@@ -10,16 +10,17 @@ export const emptyPlanning: PlanningPage = {
   includeTerminal: false,
   mainlineDetail: null,
   taskProgress: { completed: 0, total: 0, ratio: null },
+  todayTaskProgress: { completed: 0, total: 0, ratio: null },
   goalDetail: null, version: 0, today: '2026-10-20', mainlines: [], goals: [],
   destinations: [],
-  page: 1, pageSize: 20, totalGoals: 0,
+  goalScope: 'all', page: 1, pageSize: 20, totalGoals: 0,
   growth: { level: 1, totalXp: 0, progress: 0, needed: 20, remaining: 20, actions: 0, achievedGoals: 0, achievements: [] },
   capabilities: { createMainline: allowed, createGoal: allowed, createTask: later, growth: later },
   limits: { name: 200, standard: 4000, standards: 50 },
 }
 export const withMainline: PlanningPage = {
   ...emptyPlanning, version: 1,
-  mainlines: [{ id: mainlineId, name: '健康', status: 'active', endedAt: null, capabilities: { rename: allowed, end: later } }],
+  mainlines: [{ id: mainlineId, name: '健康', activeGoalCount: 0, todayTaskCount: 0, status: 'active', endedAt: null, capabilities: { rename: allowed, end: later } }],
   destinations: [...emptyPlanning.destinations, { id: mainlineId, name: '健康' }],
 }
 export const withGoal: PlanningPage = {
@@ -42,6 +43,11 @@ export async function planningFixture(context: BrowserContext, initial = emptyPl
   const previews: unknown[] = []
   let previewResult: PlanningPreview | undefined
   await context.route('**/api/adventure**', async route => {
+    if (new URL(route.request().url()).pathname === '/api/adventure/task-history') {
+      const query = new URL(route.request().url()).searchParams
+      const task = page.tasks.find(item => item.id === query.get('id'))
+      return route.fulfill({ json: { version: page.version, taskId: query.get('id'), title: task?.title ?? '任务', page: Number(query.get('page') ?? 1), pageSize: 5, total: 0, items: [] } })
+    }
     if (route.request().method() === 'GET') {
       const delay = queryDelay
       queryDelay = 0

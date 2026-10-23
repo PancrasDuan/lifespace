@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import {
   ChartNoAxesCombined,
   Mountain,
+  Leaf,
   House,
   ListTodo,
   Newspaper,
@@ -22,10 +23,10 @@ export function AppLayout({
   openSettings?: () => void
 }) {
   return (
-    <div className="lifespace-app theme-light">
-      <aside className="sidebar" aria-label="主导航">
+    <div className={`lifespace-app theme-light${page === 'adventure' ? ' adventure-shell prototype-shell' : ''}`}>
+      <aside className={page === 'adventure' ? 'sidebar proto-sidebar' : 'sidebar'} aria-label="主导航">
         <PageLink className="brand-mark" href="/" aria-label="LifeSpace 首页">
-          <img src="/favicon.svg" alt="" width={38} height={38} />
+          <>{page === 'adventure' ? <Leaf size={21} aria-hidden="true" /> : <img src="/favicon.svg" alt="" width={38} height={38} />}</>
         </PageLink>
         <nav>
           <PageLink
@@ -49,7 +50,7 @@ export function AppLayout({
             href="/adventure"
             aria-current={page === 'adventure' ? 'page' : undefined}
           >
-            <Mountain size={20} />
+            <Mountain className={page === 'adventure' ? 'proto-nav-icon' : undefined} size={page === 'adventure' ? 19 : 20} />
             <span>人生冒险</span>
           </PageLink>
           {[
@@ -75,7 +76,13 @@ export function AppLayout({
           </button>
         )}
       </aside>
-      <main>{children}</main>
+      <main className={page === 'adventure' ? 'proto-main' : undefined}>{children}</main>
+      {page === 'adventure' && (
+        <button className="proto-mobile-settings" type="button" aria-label="打开设置" onClick={openSettings} disabled={!openSettings}>
+          <Settings2 size={19} />
+          <span>设置</span>
+        </button>
+      )}
     </div>
   )
 }

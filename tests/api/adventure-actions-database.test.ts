@@ -383,7 +383,8 @@ describe.skipIf(!rpcOrigin)('正式 Worker HTTP → 本机真实 PostgREST → �
   it('同归属同聚焦组排序支持相邻移动与拖动目标，非法排序回滚并保留稳定回执', async () => {
     const owner = crypto.randomUUID()
     const ids: string[] = []
-    for (let i = 0; i < 4; i++) ids.push((await command(owner, { type: 'createGoal', destination: '', title: `顺序 ${i}`, standards: ['标准'] })).result.entityId)
+    const destination = (await command(owner, { type: 'createMainline', name: '排序主线' })).result.entityId
+    for (let i = 0; i < 4; i++) ids.push((await command(owner, { type: 'createGoal', destination, title: `顺序 ${i}`, standards: ['标准'] })).result.entityId)
     const initial = await read(owner), mainlineId = initial.goals[0].mainlineId
     const original = envelope(initial.version, { type: 'reorderGoals', id: ids[3], mainlineId, direction: 'up', targetId: ids[0] })
     const receipt = await (await send(owner, original)).json()
@@ -401,7 +402,18 @@ describe.skipIf(!rpcOrigin)('正式 Worker HTTP → 本机真实 PostgREST → �
     const wrong = await read(owner)
     expect((await send(owner, envelope(wrong.version, { type: 'reorderGoals', id: ids[0], mainlineId: otherMain, direction: 'up' }))).status).toBe(404)
     expect(await read(owner)).toEqual(wrong)
-    expect((await read(owner, '?pageSize=1&page=2')).goals[0].id).toBe(ids[0])
+    const paged = await read(owner, '?pageSize=1&page=2')
+    expect(paged.goals[0].id).toBe(ids[0])
+    expect(paged.mainlines.find(item => item.id === mainlineId)?.activeGoalCount).toBe(4)
+    expect((await read(owner, `?mainlineId=${mainlineId}&pageSize=1`)).mainlineDetail?.activeGoalCount).toBe(4)
+    const focusedPage = await read(owner, '?goalScope=focus&pageSize=1')
+    expect(focusedPage.totalGoals).toBe(1)
+    expect(focusedPage.goals.map(goal => goal.id)).toEqual([ids[2]])
+    expect(focusedPage.mainlines.find(item => item.id === mainlineId)?.activeGoalCount).toBe(4)
+    await createTask(owner, '主线今天行动', focusedPage.today, ids[0])
+    const main = (await read(owner, '?taskRange=future&search=无匹配')).mainlines.find(item => item.id === mainlineId)!
+    expect(main.todayTaskCount).toBe(1)
+    expect((await read(owner, `?mainlineId=${mainlineId}`)).mainlineDetail?.todayTaskCount).toBe(1)
   })
 
   it('搜索和日期与双视图组合，分页不截断进度，取消后重算但不自动达成', async () => {
@@ -422,10 +434,11 @@ describe.skipIf(!rpcOrigin)('正式 Worker HTTP → 本机真实 PostgREST → �
     await command(owner, { type: 'completeTask', id: b })
     let page = await read(owner, '?pageSize=1&taskScope=focus&search=检索')
     expect(page).toMatchObject({ totalTasks: 4, taskProgress: { completed: 2, total: 4, ratio: 0.5 } })
+    expect(page.todayTaskProgress).toEqual({ completed: 2, total: 6, ratio: 2 / 6 })
     expect(page.tasks).toHaveLength(1)
     expect(page.goals[0].progress).toMatchObject({ completed: 2, total: 6 })
     expect((await read(owner, '?taskScope=all&search=检索')).totalTasks).toBe(5)
-    expect((await read(owner, '?taskScope=focus&search=检索&taskRange=future'))).toMatchObject({ totalTasks: 1, taskProgress: { completed: 0, total: 1, ratio: 0 } })
+    expect((await read(owner, '?taskScope=focus&search=检索&taskRange=future'))).toMatchObject({ totalTasks: 1, todayTaskProgress: { completed: 2, total: 6 }, taskProgress: { completed: 0, total: 1, ratio: 0 } })
     expect((await read(owner, '?taskScope=focus&search=检索&taskRange=past'))).toMatchObject({ totalTasks: 1, taskProgress: { completed: 0, total: 1 } })
     expect((await read(owner, '?search=%25_')).totalTasks).toBe(1)
     expect((await read(owner, '?search=行动说明')).totalTasks).toBe(6)
@@ -434,7 +447,9 @@ describe.skipIf(!rpcOrigin)('正式 Worker HTTP → 本机真实 PostgREST → �
     await command(owner, { type: 'cancelTaskCompletion', completionId })
     page = await read(owner, '?taskScope=focus&search=检索')
     expect(page.taskProgress).toMatchObject({ completed: 1, total: 4, ratio: 0.25 })
-    expect((await read(owner, '?search=没有匹配')).taskProgress).toEqual({ completed: 0, total: 0, ratio: null })
+    const noMatches = await read(owner, '?search=没有匹配')
+    expect(noMatches.taskProgress).toEqual({ completed: 0, total: 0, ratio: null })
+    expect(noMatches.todayTaskProgress).toMatchObject({ completed: 1, total: 6 })
     // Unfocused tasks remain executable.
     await command(owner, { type: 'completeTask', id: outside })
     expect((await read(owner)).totalGoals).toBe(2)

@@ -1,3 +1,4 @@
+import { openRecordActions } from './adventure-record-helpers'
 import { test, expect } from './authenticated-test'
 import { allowed, later, planningFixture, withGoal, withMainline, mainlineId } from './adventure-fixture'
 
@@ -6,6 +7,7 @@ test('主线改名与目标编辑保存后显示新查询事实', async ({ page,
   server.saved({ ...withGoal, version: 3, mainlines: [{ ...withMainline.mainlines[0], name: '健康与活力' }],
     goals: [{ ...withGoal.goals[0], mainlineName: '健康与活力' }] })
   await page.goto('/adventure')
+  await openRecordActions(page.getByRole('article', { name: '主线：' + '健康', exact: true }))
   await page.getByRole('button', { name: '修改主线 健康' }).click()
   await page.getByLabel('主线名称', { exact: true }).fill('健康与活力')
   await page.getByRole('button', { name: '保存名称' }).click()
@@ -13,12 +15,14 @@ test('主线改名与目标编辑保存后显示新查询事实', async ({ page,
   await expect(page.getByRole('article', { name: '主线：健康与活力' })).toBeVisible()
   server.saved({ ...withGoal, version: 4, goals: [{ ...withGoal.goals[0], title: '首次五公里', standards: ['户外跑完五公里'] }] })
   await page.getByRole('button', { name: '目标：五公里' }).click()
-  await page.getByRole('dialog').getByRole('button', { name: '编辑目标' }).click()
+  await openRecordActions(page.locator('.adventure-proto-goal').first())
+  await page.getByRole('region', { name: '目标详情', exact: true }).getByRole('button', { name: '编辑目标' }).click()
   await page.getByLabel('目标名称').fill('首次五公里')
   await page.getByRole('textbox', { name: '完成标准 1', exact: true }).fill('户外跑完五公里')
   await page.getByRole('button', { name: '保存目标', exact: true }).click()
   await expect(page.getByRole('dialog')).toBeHidden()
-  await expect(page.getByRole('button', { name: '目标：首次五公里' })).toContainText('户外跑完五公里')
+  await page.getByRole('button', { name: '目标：首次五公里' }).click()
+  await expect(page.getByRole('region', { name: '目标详情', exact: true })).toContainText('户外跑完五公里')
   expect(server.envelopes.map(item => item.command.type)).toEqual(['renameMainline', 'editGoal'])
 })
 
@@ -26,8 +30,8 @@ test('服务端禁止创建主线时禁用入口，目标入口仍可用', async
   await planningFixture(context, { ...withMainline, capabilities: { createMainline: { allowed: false, reason: '最多保留 5 条在用主线' }, createGoal: allowed, createTask: later, growth: later } })
   await page.goto('/adventure')
   await page.getByRole('button', { name: '新建', exact: true }).click()
-  await expect(page.getByRole('dialog').getByRole('button').filter({ hasText: '长期经营' })).toBeDisabled()
-  await expect(page.getByRole('dialog').getByRole('button').filter({ hasText: '阶段成果' })).toBeEnabled()
+  await expect(page.getByRole('region', { name: '快速新建' }).getByRole('button', { name: '一条主线', exact: true })).toBeDisabled()
+  await expect(page.getByRole('region', { name: '快速新建' }).getByRole('button', { name: '一个目标', exact: true })).toBeEnabled()
 })
 
 test('390px 手机布局、键盘焦点约束和 Escape 取消可用', async ({ page, context }) => {
@@ -36,7 +40,7 @@ test('390px 手机布局、键盘焦点约束和 Escape 取消可用', async ({ 
   await page.goto('/adventure')
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
   await page.getByRole('button', { name: '新建', exact: true }).click()
-  await page.getByRole('dialog').getByRole('button', { name: /阶段成果/ }).click()
+  await page.getByRole('region', { name: '快速新建' }).getByRole('button', { name: '一个目标', exact: true }).click()
   const dialog = page.getByRole('dialog')
   await expect(dialog.getByRole('button', { name: '关闭弹窗' })).toBeFocused()
   await page.getByRole('button', { name: '新建', exact: true }).focus()
@@ -67,39 +71,20 @@ test('桌面、中等宽度与手机下主线名称和任务正文不互相挤�
   await planningFixture(context, planning)
   const card = page.getByRole('article', { name: '任务：验收-已有行动 1', exact: true })
   const mainline = page.getByRole('article', { name: '主线：健康', exact: true })
-  const mainlineName = mainline.getByRole('heading', { name: '健康', exact: true })
-  const buttons = card.locator('.planning-task-buttons')
-  for (const width of [1440, 1139, 818, 390]) {
+  for (const width of [1440, 1139, 957, 818, 390]) {
     await page.setViewportSize({ width, height: 954 })
     await page.goto('/adventure')
-    const layout = await card.evaluate(element => {
-      const content = element.firstElementChild
-      const actions = element.lastElementChild
-      if (!content || !actions) throw new Error('任务卡缺少正文或操作')
-      const card = element.getBoundingClientRect()
-      const copy = content.getBoundingClientRect()
-      const buttons = actions.getBoundingClientRect()
-      return { direction: getComputedStyle(element).flexDirection, card: { left: card.left, right: card.right, width: card.width },
-        copy: { left: copy.left, right: copy.right, width: copy.width }, buttons: { left: buttons.left, right: buttons.right, width: buttons.width } }
-    })
-    expect(layout.copy.width).toBeGreaterThan(200)
-    expect(layout.buttons.left).toBeGreaterThanOrEqual(layout.card.left)
-    expect(layout.buttons.right).toBeLessThanOrEqual(layout.card.right)
-    expect(layout.direction).toBe('column')
-    expect(await buttons.boundingBox()).not.toBeNull()
-    const mainlineLayout = await mainline.evaluate(element => {
-      const name = element.querySelector('h3')
-      const card = element.getBoundingClientRect()
-      const title = name?.getBoundingClientRect()
-      return { nameWidth: title?.width ?? 0, left: card.left, right: card.right,
-        buttons: [...element.querySelectorAll('button')].map(button => button.getBoundingClientRect()) }
-    })
-    expect(mainlineLayout.nameWidth).toBeGreaterThan(100)
-    for (const button of mainlineLayout.buttons) {
-      expect(button.left).toBeGreaterThanOrEqual(mainlineLayout.left)
-      expect(button.right).toBeLessThanOrEqual(mainlineLayout.right)
-    }
-    await expect(mainlineName).toBeVisible()
+    await expect(card).toBeVisible()
+    const copy = card.locator('.record-copy')
+    expect((await copy.boundingBox())!.width).toBeGreaterThan(130)
+    const title = mainline.locator('.record-copy strong')
+    await expect(title).toBeVisible()
+    expect((await title.boundingBox())!.width).toBeGreaterThan(100)
+    await openRecordActions(card)
+    const before = (await card.boundingBox())!.height
+    await card.getByRole('button', { name: /^更多/ }).click()
+    expect((await card.boundingBox())!.height).toBeCloseTo(before, 0)
+    await expect(card).toContainText('用于成长流水分页和实时成就验收。')
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
   }
 })
@@ -124,6 +109,7 @@ test('独立目标编辑时归属显示与提交一致，可转入主线及清�
   server.saved(withGoal)
   await page.goto('/adventure')
   await page.getByRole('button', { name: '目标：五公里' }).click()
+  await openRecordActions(page.locator('.adventure-proto-goal').first())
   await page.getByRole('button', { name: '编辑目标', exact: true }).click()
   const destination = page.getByLabel('目标归属')
   await expect(destination).toHaveValue('')
@@ -135,6 +121,7 @@ test('独立目标编辑时归属显示与提交一致，可转入主线及清�
   await expect(page.getByRole('dialog')).toBeHidden()
   expect(server.envelopes[0].command).toMatchObject({ type: 'editGoal', destination: mainlineId })
   await page.getByRole('button', { name: '目标：五公里' }).click()
+  await openRecordActions(page.locator('.adventure-proto-goal').first())
   await page.getByRole('button', { name: '编辑目标', exact: true }).click()
   await expect(destination).toHaveValue(mainlineId)
   await destination.selectOption('')

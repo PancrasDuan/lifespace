@@ -1,3 +1,4 @@
+import { openRecordActions } from './adventure-record-helpers'
 import { test, expect } from './authenticated-test'
 import { allowed, later, planningFixture, withGoal } from './adventure-fixture'
 import type { PlanningPage } from '../../src/shared/adventure-planning'
@@ -20,7 +21,7 @@ test('一次性任务创建编辑完成、预览取消与再次完成；刷新�
   server.saved(base)
   await page.goto('/adventure')
   await page.getByRole('button', { name: '新建', exact: true }).click()
-  await page.getByRole('dialog').getByRole('button', { name: /一次性任务/ }).click()
+  await page.getByRole('region', { name: '快速新建' }).getByRole('button', { name: '一项行动', exact: true }).click()
   await page.getByLabel('任务名称', { exact: true }).fill('取回耳机')
   await expect(page.getByLabel('执行日期', { exact: true })).toHaveValue(base.today)
   await page.getByLabel('任务说明', { exact: true }).fill('修理店')
@@ -33,17 +34,20 @@ test('一次性任务创建编辑完成、预览取消与再次完成；刷新�
   expect(server.envelopes[0].command).toEqual({ type: 'createTask', title: '取回耳机', description: '修理店', plannedOn: base.today, destination: '' })
   const card = page.getByRole('article', { name: '任务：取回耳机' })
   await expect(card).toContainText('独立任务')
+  await openRecordActions(card)
   await card.getByRole('button', { name: '编辑任务', exact: true }).click()
   await page.getByLabel('任务说明', { exact: true }).fill('下午去修理店')
   server.saved({ ...base, version: 4, tasks: [{ ...base.tasks[0], description: '下午去修理店' }] })
   await page.getByRole('button', { name: '保存任务', exact: true }).click()
   await expect(page.getByRole('dialog')).toBeHidden()
   server.saved(completed)
+  await openRecordActions(card)
   await card.getByRole('button', { name: '完成', exact: true }).click()
   await expect(card.getByRole('button', { name: '取消完成', exact: true })).toBeVisible()
   expect(server.envelopes[2].command).toEqual({ type: 'completeTask', id: taskId })
   server.preview({ version: 5, today: base.today, allowed: true, requiresConfirmation: true, message: '移除本次完成与经验', completionId, reward,
     growthBefore: completed.growth, growthAfter: base.growth })
+  await openRecordActions(card)
   await card.getByRole('button', { name: '取消完成', exact: true }).click()
   const dialog = page.getByRole('dialog', { name: '取消任务完成' })
   await expect(dialog).toContainText('取消后')
@@ -55,8 +59,11 @@ test('一次性任务创建编辑完成、预览取消与再次完成；刷新�
   await expect(dialog).toBeHidden()
   expect(server.envelopes[3]).toMatchObject({ expectedVersion: 5, command: { type: 'cancelTaskCompletion', completionId } })
   server.saved({ ...completed, version: 7 })
+  await openRecordActions(card)
   await card.getByRole('button', { name: '完成', exact: true }).click()
   await page.reload()
+  await expect(card).toContainText('已完成')
+  await openRecordActions(card)
   await expect(card.getByRole('button', { name: '取消完成', exact: true })).toBeVisible()
   expect(server.envelopes).toHaveLength(5)
 })
@@ -66,6 +73,7 @@ test('取消确认遇到版本冲突后必须重新预览，不自动重放', as
   server.preview({ version: 5, today: base.today, allowed: true, requiresConfirmation: true, message: '移除本次完成与经验', completionId, reward,
     growthBefore: completed.growth, growthAfter: base.growth })
   await page.goto('/adventure')
+  await openRecordActions(page.locator('.adventure-proto-task').first())
   await page.getByRole('button', { name: '取消完成', exact: true }).click()
   const dialog = page.getByRole('dialog', { name: '取消任务完成' })
   server.saved({ ...completed, version: 6 })
@@ -92,6 +100,7 @@ test('今天未来过去由后端返回，未来任务不能提前完成', async
   await page.getByRole('button', { name: '未来', exact: true }).click()
   await expect(page.getByRole('button', { name: '未来', exact: true })).toHaveAttribute('aria-pressed', 'true')
   const future = page.getByRole('article', { name: '任务：未来行动' })
+  await openRecordActions(future)
   await expect(future.getByRole('button', { name: '完成', exact: true })).toBeDisabled()
   server.show({ ...base, taskRange: 'past', tasks: [{ ...base.tasks[0], title: '漏做行动', plannedOn: '2026-10-19', overdue: true, capabilities: { ...base.tasks[0].capabilities, complete: { allowed: false, reason: '过去不能补写完成' } } }] })
   await page.getByRole('button', { name: '过去', exact: true }).click()

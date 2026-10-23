@@ -103,7 +103,7 @@ begin
   if public.adventure_planning_command(v_owner,'clock-task-complete',1,jsonb_build_object('type','completeTask','id',v_task))<>v_receipt then raise exception 'Cross-day replay changed receipt'; end if;
   if (select total_xp from public.adventure_accounts where owner_id=v_owner)<>1 then raise exception 'Cross-day replay changed XP'; end if;
   foreach v_role in array array['anon','authenticated'] loop
-    if has_function_privilege(v_role,'public.adventure_workspace_read(uuid,integer,integer,text,integer,text,text,uuid,integer,boolean,uuid)','EXECUTE')
+    if has_function_privilege(v_role,'public.adventure_workspace_read(uuid,integer,integer,text,integer,text,text,uuid,integer,boolean,uuid,text)','EXECUTE')
       or has_function_privilege(v_role,'public.adventure_task_apply(uuid,text,bigint,jsonb,timestamptz)','EXECUTE')
       or has_function_privilege(v_role,'public.adventure_growth(uuid,bigint,integer)','EXECUTE') then raise exception 'Browser can access task RPC'; end if;
   end loop;
@@ -342,4 +342,23 @@ begin
 end $$;
 
 
+do $$
+declare
+  v_owner uuid := gen_random_uuid();
+  v_today date := (clock_timestamp() at time zone 'Asia/Shanghai')::date;
+  v_done uuid;
+  v_pending uuid;
+  v_receipt jsonb;
+  v_page jsonb;
+begin
+  v_receipt := public.adventure_planning_command(v_owner,'sort-create-done',0,jsonb_build_object('type','createTask','title','较早的已完成','description','','plannedOn',v_today,'destination',''));
+  v_done := (v_receipt->'result'->>'entityId')::uuid;
+  perform public.adventure_planning_command(v_owner,'sort-complete',1,jsonb_build_object('type','completeTask','id',v_done));
+  v_receipt := public.adventure_planning_command(v_owner,'sort-create-pending',2,jsonb_build_object('type','createTask','title','较晚的未完成','description','','plannedOn',v_today,'destination',''));
+  v_pending := (v_receipt->'result'->>'entityId')::uuid;
+  v_page := public.adventure_workspace_read(v_owner,1,1,'today',1);
+  if v_page->'tasks'->0->>'id' is distinct from v_pending::text then raise exception 'Pending task must sort before completed task across pages'; end if;
+  v_page := public.adventure_workspace_read(v_owner,1,1,'today',2);
+  if v_page->'tasks'->0->>'id' is distinct from v_done::text then raise exception 'Completed task must remain on later page'; end if;
+end $$;
 rollback;

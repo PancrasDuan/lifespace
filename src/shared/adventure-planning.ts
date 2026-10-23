@@ -81,7 +81,7 @@ export const planningTaskSchema = z.object({
 export type PlanningTask = z.infer<typeof planningTaskSchema>
 const planningMainlineSchema = z.object({
   id: z.uuid(), name: z.string(), status: z.enum(['active', 'ended']).default('active'),
-  endedAt: z.string().nullable().default(null), capabilities,
+  endedAt: z.string().nullable().default(null), activeGoalCount: version.default(0), todayTaskCount: version.default(0), capabilities,
 })
 export const planningGoalSchema = z.object({
     id: z.uuid(), title: z.string(), standards: z.array(z.string()).min(1).max(50),
@@ -96,7 +96,7 @@ export const planningPageSchema = z.object({
   includeTerminal: z.boolean().default(false),
   page: z.number().int().positive(),
   pageSize: z.number().int().positive().max(50),
-  totalGoals: version,
+  totalGoals: version, goalScope: taskScopeSchema.default('all'),
   mainlines: z.array(planningMainlineSchema),
   mainlineDetail: planningMainlineSchema.nullable().default(null),
   goals: z.array(planningGoalSchema).max(50),
@@ -104,7 +104,7 @@ export const planningPageSchema = z.object({
   destinations: z.array(z.object({ id: z.string(), name: z.string() })).max(6),
   growth: growthSchema,
   tasks: z.array(planningTaskSchema).max(50).default([]), totalTasks: version.default(0),
-  taskPage: z.number().int().positive().default(1), taskRange: taskRangeSchema.default('today'), taskScope: taskScopeSchema.default('all'), search: z.string().default(''), taskProgress: planningProgressSchema,
+  taskPage: z.number().int().positive().default(1), taskRange: taskRangeSchema.default('today'), taskScope: taskScopeSchema.default('all'), search: z.string().default(''), taskProgress: planningProgressSchema, todayTaskProgress: planningProgressSchema.default({ completed: 0, total: 0, ratio: null }),
   capabilities,
   limits: z.object({ name: z.literal(200), standard: z.literal(4000), standards: z.literal(50) }),
 })
@@ -149,7 +149,7 @@ export const planningPreviewSchema = z.union([
 
 export type PlanningPreview = z.infer<typeof planningPreviewSchema>
 
-export type PlanningQuery = { page: number; taskRange: TaskRange; taskPage: number; taskScope: TaskScope; search: string; goalId?: string; mainlineId?: string; goalTaskPage: number; includeTerminal: boolean }
+export type PlanningQuery = { goalScope?: TaskScope; page: number; taskRange: TaskRange; taskPage: number; taskScope: TaskScope; search: string; goalId?: string; mainlineId?: string; goalTaskPage: number; includeTerminal: boolean }
 
 export const migrationOptionsSchema = z.object({
   version, kind: z.enum(['goal', 'task']), entityId: z.uuid(), page: z.number().int().positive(), pageSize: z.literal(20), total: version,

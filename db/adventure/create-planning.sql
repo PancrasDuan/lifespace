@@ -807,7 +807,7 @@ $$;
 revoke execute on function public.adventure_task_view(uuid,uuid,date) from public,anon,authenticated;
 grant execute on function public.adventure_task_view(uuid,uuid,date) to service_role;
 
-create or replace function public.adventure_workspace_read(p_owner uuid,p_page integer default 1,p_page_size integer default 20,p_task_range text default 'today',p_task_page integer default 1,p_task_scope text default 'all',p_search text default '',p_goal_id uuid default null,p_goal_task_page integer default 1,p_include_terminal boolean default false,p_mainline_id uuid default null)
+create or replace function public.adventure_workspace_read(p_owner uuid,p_page integer default 1,p_page_size integer default 20,p_task_range text default 'today',p_task_page integer default 1,p_task_scope text default 'all',p_search text default '',p_goal_id uuid default null,p_goal_task_page integer default 1,p_include_terminal boolean default false,p_mainline_id uuid default null,p_goal_scope text default 'all')
 returns jsonb language plpgsql security invoker set search_path = '' set lock_timeout='3s' as $$
 declare
   v_result jsonb;
@@ -821,7 +821,7 @@ begin
   if p_task_range is null or p_task_range not in ('today','future','past') or p_task_page is null or p_task_page not between 1 and 1000000
     or p_goal_task_page is null or p_goal_task_page not between 1 and 1000000
     or p_task_scope is null or p_task_scope not in ('all','focus') or p_search is null or length(btrim(p_search))>100 then raise exception 'INVALID_COMMAND'; end if;
-  v_result:=public.adventure_planning_read(p_owner,p_page,p_page_size,p_include_terminal,p_mainline_id);
+  v_result:=public.adventure_planning_read(p_owner,p_page,p_page_size,p_include_terminal,p_mainline_id,p_goal_scope);
   v_today:=(v_result->>'today')::date;
   with filtered as materialized (
     select t.* from public.adventure_tasks t join public.adventure_goals g on (g.owner_id,g.id)=(t.owner_id,t.goal_id)
@@ -835,14 +835,17 @@ begin
     (select jsonb_build_object('completed',count(*) filter(where status='completed'),'total',count(*),
       'ratio',case when count(*)=0 then null else (count(*) filter(where status='completed'))::numeric/count(*) end)
       from filtered where status in ('pending','completed')),
-    (select coalesce(jsonb_agg(item order by planned_on,created_at,id),'[]'::jsonb) from (
-    select t.planned_on,t.created_at,t.id,public.adventure_task_view(p_owner,t.id,v_today) item
+    (select coalesce(jsonb_agg(item order by status_rank,planned_on,created_at,id),'[]'::jsonb) from (
+    select case t.status when 'pending' then 0 when 'completed' then 1 else 2 end status_rank,t.planned_on,t.created_at,t.id,public.adventure_task_view(p_owner,t.id,v_today) item
     from filtered t
-    order by t.planned_on,t.created_at,t.id limit p_page_size offset (p_task_page::bigint-1)*p_page_size
+    order by status_rank,t.planned_on,t.created_at,t.id limit p_page_size offset (p_task_page::bigint-1)*p_page_size
   ) tasks) into v_total,v_progress,v_tasks;
   v_result:=v_result||jsonb_build_object('today',v_today,'tasks',v_tasks,'totalTasks',v_total,'taskPage',p_task_page,'taskRange',p_task_range,
     'includeTerminal',p_include_terminal,
-    'taskScope',p_task_scope,'search',btrim(p_search),'taskProgress',v_progress);
+    'taskScope',p_task_scope,'search',btrim(p_search),'taskProgress',v_progress,
+    'todayTaskProgress',(select jsonb_build_object('completed',count(*) filter(where status='completed'),'total',count(*),
+      'ratio',case when count(*)=0 then null else (count(*) filter(where status='completed'))::numeric/count(*) end)
+      from public.adventure_tasks where owner_id=p_owner and deleted_at is null and status in ('pending','completed') and planned_on=v_today));
   if p_goal_id is not null then
     v_detail:=public.adventure_goal_view(p_owner,p_goal_id);
     if v_detail is null then raise exception 'NOT_FOUND'; end if;
@@ -860,10 +863,10 @@ end $$;
 
 revoke execute on function public.adventure_growth(uuid,bigint,integer),public.adventure_task_check(uuid,jsonb,date),
   public.adventure_task_capability(uuid,jsonb,date),public.adventure_task_apply(uuid,text,bigint,jsonb,timestamptz),
-  public.adventure_workspace_read(uuid,integer,integer,text,integer,text,text,uuid,integer,boolean,uuid) from public,anon,authenticated;
+  public.adventure_workspace_read(uuid,integer,integer,text,integer,text,text,uuid,integer,boolean,uuid,text) from public,anon,authenticated;
 grant execute on function public.adventure_growth(uuid,bigint,integer),public.adventure_task_check(uuid,jsonb,date),
   public.adventure_task_capability(uuid,jsonb,date),public.adventure_task_apply(uuid,text,bigint,jsonb,timestamptz),
-  public.adventure_workspace_read(uuid,integer,integer,text,integer,text,text,uuid,integer,boolean,uuid) to service_role;
+  public.adventure_workspace_read(uuid,integer,integer,text,integer,text,text,uuid,integer,boolean,uuid,text) to service_role;
 
 -- Shared final validation, called only while the account lock is held.
 create or replace function public.adventure_planning_check(p_owner uuid, p_command jsonb)
@@ -1014,7 +1017,7 @@ $$;
 revoke execute on function public.adventure_goal_view(uuid,uuid) from public,anon,authenticated;
 grant execute on function public.adventure_goal_view(uuid,uuid) to service_role;
 
-create or replace function public.adventure_planning_read(p_owner uuid, p_page integer default 1, p_page_size integer default 20, p_include_terminal boolean default false,p_mainline_id uuid default null)
+create or replace function public.adventure_planning_read(p_owner uuid, p_page integer default 1, p_page_size integer default 20, p_include_terminal boolean default false,p_mainline_id uuid default null,p_goal_scope text default 'all')
 returns jsonb language plpgsql security invoker set search_path = '' set lock_timeout = '3s' as $$
 declare
   v_account public.adventure_accounts;
@@ -1027,9 +1030,11 @@ begin
     or p_page_size is null or p_page_size not between 1 and 50 then raise exception 'INVALID_COMMAND'; end if;
   insert into public.adventure_accounts(owner_id) values(p_owner) on conflict do nothing;
   select * into strict v_account from public.adventure_accounts where owner_id = p_owner for share;
-  if p_include_terminal is null then raise exception 'INVALID_COMMAND'; end if;
+  if p_include_terminal is null or p_goal_scope is null or p_goal_scope not in ('all','focus') then raise exception 'INVALID_COMMAND'; end if;
   if p_mainline_id is not null then
     select jsonb_build_object('id',id,'name',name,'status',status,'endedAt',ended_at,
+      'activeGoalCount',(select count(*) from public.adventure_goals g where g.owner_id=p_owner and g.mainline_id=adventure_mainlines.id and g.kind='real' and g.status='active'),
+      'todayTaskCount',(select count(*) from public.adventure_tasks t join public.adventure_goals g on (g.owner_id,g.id)=(t.owner_id,t.goal_id) where t.owner_id=p_owner and g.mainline_id=adventure_mainlines.id and t.deleted_at is null and t.status in ('pending','completed') and t.planned_on=(clock_timestamp() at time zone 'Asia/Shanghai')::date),
       'capabilities',jsonb_build_object('rename',case when status='active' then v_edit else '{"allowed":false,"reason":"主线已结束，只能查看"}'::jsonb end,
         'end',public.adventure_lifecycle_capability(p_owner,jsonb_build_object('type','endMainline','id',id),(clock_timestamp() at time zone 'Asia/Shanghai')::date)))
     into v_mainline from public.adventure_mainlines where owner_id=p_owner and id=p_mainline_id and kind='normal';
@@ -1040,12 +1045,15 @@ begin
     then raise exception 'INCONSISTENT_REWARDS'; end if;
   select jsonb_build_object(
     'version',v_account.revision, 'today',(clock_timestamp() at time zone 'Asia/Shanghai')::date,
-    'page',p_page, 'pageSize',p_page_size,'mainlineDetail',v_mainline,
+    'page',p_page, 'pageSize',p_page_size,'mainlineDetail',v_mainline,'goalScope',p_goal_scope,
     'totalGoals',(select count(*) from public.adventure_goals g join public.adventure_mainlines m on (m.owner_id,m.id) = (g.owner_id,g.mainline_id)
       where g.owner_id = p_owner and g.kind = 'real'
         and (p_mainline_id is null or m.id=p_mainline_id)
+        and (p_mainline_id is not null or p_goal_scope='all' or g.focused)
         and (p_mainline_id is not null or (g.status = 'active' and m.status = 'active') or p_include_terminal)),
     'mainlines',coalesce((select jsonb_agg(jsonb_build_object('id',id,'name',name,'status',status,'endedAt',ended_at,
+      'activeGoalCount',(select count(*) from public.adventure_goals g where g.owner_id=p_owner and g.mainline_id=adventure_mainlines.id and g.kind='real' and g.status='active'),
+      'todayTaskCount',(select count(*) from public.adventure_tasks t join public.adventure_goals g on (g.owner_id,g.id)=(t.owner_id,t.goal_id) where t.owner_id=p_owner and g.mainline_id=adventure_mainlines.id and t.deleted_at is null and t.status in ('pending','completed') and t.planned_on=(clock_timestamp() at time zone 'Asia/Shanghai')::date),
       'capabilities',jsonb_build_object('rename',case when status='active' then v_edit else '{"allowed":false,"reason":"主线已结束，只能查看"}'::jsonb end,
         'end',public.adventure_lifecycle_capability(p_owner,jsonb_build_object('type','endMainline','id',id),(clock_timestamp() at time zone 'Asia/Shanghai')::date)))
       order by case when status='active' then 0 else 1 end,
@@ -1060,6 +1068,7 @@ begin
       from public.adventure_goals g join public.adventure_mainlines m on (m.owner_id,m.id) = (g.owner_id,g.mainline_id)
       where g.owner_id = p_owner and g.kind = 'real'
         and (p_mainline_id is null or m.id=p_mainline_id)
+        and (p_mainline_id is not null or p_goal_scope='all' or g.focused)
         and (p_mainline_id is not null or (g.status = 'active' and m.status = 'active') or p_include_terminal)
       order by m.created_at,m.id,case when g.status='active' then 0 else 1 end,
         case when g.status='active' then g.focused else false end desc,
@@ -1297,11 +1306,11 @@ begin
 end $$;
 
 revoke execute on function public.adventure_planning_check(uuid,jsonb) from public,anon,authenticated;
-revoke execute on function public.adventure_planning_read(uuid,integer,integer,boolean,uuid) from public,anon,authenticated;
+revoke execute on function public.adventure_planning_read(uuid,integer,integer,boolean,uuid,text) from public,anon,authenticated;
 revoke execute on function public.adventure_planning_preview(uuid,bigint,jsonb) from public,anon,authenticated;
 revoke execute on function public.adventure_planning_command(uuid,text,bigint,jsonb) from public,anon,authenticated;
 grant execute on function public.adventure_planning_check(uuid,jsonb),
-  public.adventure_planning_read(uuid,integer,integer,boolean,uuid),
+  public.adventure_planning_read(uuid,integer,integer,boolean,uuid,text),
   public.adventure_planning_preview(uuid,bigint,jsonb),
   public.adventure_planning_command(uuid,text,bigint,jsonb) to service_role;
 notify pgrst,'reload schema';

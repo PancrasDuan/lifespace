@@ -33,7 +33,7 @@ it('页面查询通过账户隔离 RPC 返回空规划，不调用旧单表或�
   const response = await app.request('/api/adventure', { headers }, env)
   expect(response.status).toBe(200)
   expect(await response.json()).toMatchObject({ version: 0, goals: [], growth: { level: 1, totalXp: 0 } })
-  expect(calls).toEqual([{ path: '/rest/v1/rpc/adventure_workspace_read', body: { p_owner: owner, p_page: 1, p_page_size: 20, p_task_range: 'today', p_task_page: 1, p_task_scope: 'all', p_search: '', p_goal_id: null, p_goal_task_page: 1, p_include_terminal: false, p_mainline_id: null } }])
+  expect(calls).toEqual([{ path: '/rest/v1/rpc/adventure_workspace_read', body: { p_owner: owner, p_page: 1, p_page_size: 20, p_task_range: 'today', p_task_page: 1, p_task_scope: 'all', p_search: '', p_goal_id: null, p_goal_task_page: 1, p_include_terminal: false, p_mainline_id: null, p_goal_scope: 'all' } }])
 })
 
 it('命令只返回稳定回执；分页页面通过下一次查询读取', async () => {

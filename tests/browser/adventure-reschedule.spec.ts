@@ -1,3 +1,4 @@
+import { openRecordActions } from './adventure-record-helpers'
 import { test, expect } from './authenticated-test'
 import { allowed, planningFixture, withGoal } from './adventure-fixture'
 import type { PlanningPage, ReschedulePreview } from '../../src/shared/adventure-planning'
@@ -11,6 +12,7 @@ const preview: ReschedulePreview = { version: initial.version, today: initial.to
   operation: 'rescheduleTask', taskId: id, title: '改期恢复', oldPlannedOn: initial.today, newPlannedOn: '2099-01-01', sourceEventId: id, message: '保留原安排' }
 const open = async (page: import('@playwright/test').Page) => {
   await page.goto('/adventure')
+  await openRecordActions(page.locator('.adventure-proto-task').first())
   await page.getByRole('button', { name: '改期', exact: true }).click()
   await page.getByLabel('新的执行日期').fill('2099-01-01')
   await page.getByRole('button', { name: '预览改期', exact: true }).click()

@@ -85,7 +85,11 @@ try {
   if (!ready) throw new Error(`本机 PostgREST 未就绪：${restError}`)
   const env = { ...cleanEnv, ADVENTURE_LOCAL_RPC_URL: url, PLAYWRIGHT_BROWSERS_PATH: '.cache/playwright' }
   await run(process.execPath, ['node_modules/vitest/vitest.mjs', 'run', 'tests/api/adventure-actions-database.test.ts', 'tests/api/adventure-lifecycle-database.test.ts', 'tests/api/adventure-reschedule-database.test.ts', 'tests/api/adventure-growth-database.test.ts', 'tests/api/adventure-integration-database.test.ts'], { env })
-  if (process.argv.includes('--browser')) await run(process.execPath, ['node_modules/@playwright/test/cli.js', 'test', 'tests/browser/adventure-actions-database.spec.ts', 'tests/browser/adventure-growth-database.spec.ts', 'tests/browser/adventure-integration-database.spec.ts'], { env })
+  if (process.argv.includes('--browser')) {
+    const browserArgs = process.argv.slice(process.argv.indexOf('--browser') + 1)
+    const specs = browserArgs.length ? [] : ['tests/browser/adventure-actions-database.spec.ts', 'tests/browser/adventure-growth-database.spec.ts', 'tests/browser/adventure-integration-database.spec.ts']
+    await run(process.execPath, ['node_modules/@playwright/test/cli.js', 'test', ...specs, ...browserArgs], { env })
+  }
   await sql('drop trigger reschedule_http_failpoint on public.adventure_events')
   await sql(await readFile(join(root, 'tests/database/adventure-actions-audit.sql'), 'utf8'))
   console.log('通过：HTTP／浏览器操作后的任务、冻结奖励、取消关联、账户经验、请求数与版本全量核对')

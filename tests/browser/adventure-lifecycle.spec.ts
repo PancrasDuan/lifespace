@@ -1,3 +1,4 @@
+import { openRecordActions } from './adventure-record-helpers'
 import { test, expect } from './authenticated-test'
 import { allowed, goalId, planningFixture, withGoal } from './adventure-fixture'
 import type { LifecyclePreview, PlanningPage } from '../../src/shared/adventure-planning'
@@ -9,6 +10,7 @@ const preview: LifecyclePreview = { version: 2, today: initial.today, allowed: t
 const openEnd = async (page: import('@playwright/test').Page) => {
   await page.goto('/adventure')
   await page.getByRole('button', { name: '目标：五公里', exact: true }).click()
+  await openRecordActions(page.locator('.adventure-proto-goal').first())
   await page.getByRole('button', { name: '结束目标', exact: true }).click()
 }
 

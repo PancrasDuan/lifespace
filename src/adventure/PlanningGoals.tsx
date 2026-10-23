@@ -1,10 +1,11 @@
-import { useRef } from 'react'
+import { useRef, type ReactNode } from 'react'
 import type { PlanningCommand, PlanningGoal } from '../shared/adventure-planning'
 import { PlanningProgress } from './PlanningProgress'
+import { PlanningRecord } from './PlanningRecord'
 
 type Action = (command: PlanningCommand) => Promise<boolean>
-export function PlanningGoals({ goals, blocked, action, detail }: {
-  goals: PlanningGoal[]; blocked: boolean; action: Action; detail: (goal: PlanningGoal) => void
+export function PlanningGoals({ goals, blocked, action, detail, expandedId, children }: {
+  goals: PlanningGoal[]; blocked: boolean; action: Action; detail: (goal: PlanningGoal) => void; expandedId?: string; children?: ReactNode
 }) {
   const dragged = useRef<PlanningGoal | undefined>(undefined)
   const move = (goal: PlanningGoal, direction: 'up' | 'down', targetId?: string) => {
@@ -23,18 +24,12 @@ export function PlanningGoals({ goals, blocked, action, detail }: {
       if (!blocked && source?.status === 'active' && goal.status === 'active' && source.id !== goal.id && source.mainlineId === goal.mainlineId && source.focused === goal.focused)
         move(source, source.sortOrder < goal.sortOrder ? 'down' : 'up', goal.id)
     }}>
-    <div role="button" tabIndex={blocked ? -1 : 0} aria-disabled={blocked} aria-label={`目标：${goal.title}`} onClick={() => { if (!blocked) detail(goal) }}
-      onKeyDown={event => { if (!blocked && (event.key === 'Enter' || event.key === ' ') && !event.nativeEvent.isComposing) { event.preventDefault(); detail(goal) } }}>
-      <span className="planning-destination">{goal.independent ? '独立目标' : goal.mainlineName}</span>
-      <h3>{goal.title}</h3><ul>{goal.standards.map((standard, index) => <li key={index}>{standard}</li>)}</ul>
-      <PlanningProgress value={goal.progress} label="目标任务进度" />
-      <footer><span>{goal.status === 'achieved' ? '已达成' : goal.status === 'ended' ? '已结束' : goal.focused ? '聚焦中' : '进行中'}</span><span aria-hidden="true">查看详情 ›</span></footer>
-    </div>
-    <div className="planning-goal-actions">
-      <button disabled={blocked || goal.status !== 'active' || !goal.capabilities.focus?.allowed} title={goal.capabilities.focus?.reason} aria-pressed={goal.focused}
-        onClick={() => { void action({ type: 'focusGoal', id: goal.id, focused: !goal.focused }) }}>{goal.focused ? '取消聚焦' : '聚焦'}</button>
-      <button aria-label={`上移目标 ${goal.title}`} disabled={blocked || goal.status !== 'active' || !goal.capabilities.moveUp?.allowed} onClick={() => move(goal, 'up')}>↑ 上移</button>
-      <button aria-label={`下移目标 ${goal.title}`} disabled={blocked || goal.status !== 'active' || !goal.capabilities.moveDown?.allowed} onClick={() => move(goal, 'down')}>↓ 下移</button>
-    </div>
+    <PlanningRecord label={`目标：${goal.title}`} open={expandedId === goal.id} disabled={blocked} toggle={() => detail(goal)} summary={<>
+      <span className="planning-record-mark">◎</span><span className="planning-record-copy"><small>{goal.independent ? '独立目标' : goal.mainlineName}{goal.focused ? ' · 聚焦中' : ''}</small>
+      <strong>{goal.title}</strong><PlanningProgress compact value={goal.progress} label="目标任务进度" /></span>
+      <span className="planning-record-meta">{goal.status === 'achieved' ? '已达成' : goal.status === 'ended' ? '已结束' : '进行中'}</span>
+    </>}>
+      {children}
+    </PlanningRecord>
   </article>)}</div>
 }

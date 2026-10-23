@@ -82,7 +82,7 @@ export async function readPlanning(c: PlanningContext) {
     pageSize: z.coerce.number().int().min(1).max(50).default(20),
     taskRange: taskRangeSchema.default('today'),
     taskPage: z.coerce.number().int().min(1).max(1_000_000).default(1),
-    taskScope: taskScopeSchema.default('all'), search: planningSearchSchema.default(''), goalId: z.uuid().optional(),
+    goalScope: taskScopeSchema.default('all'), taskScope: taskScopeSchema.default('all'), search: planningSearchSchema.default(''), goalId: z.uuid().optional(),
     goalTaskPage: z.coerce.number().int().min(1).max(1_000_000).default(1),
     mainlineId: z.uuid().optional(),
     includeTerminal: z.enum(['true', 'false']).default('false').transform(value => value === 'true'),
@@ -91,7 +91,7 @@ export async function readPlanning(c: PlanningContext) {
   return c.json(await rpc(c, 'adventure_workspace_read', { p_page: parsed.data.page, p_page_size: parsed.data.pageSize,
     p_task_range: parsed.data.taskRange, p_task_page: parsed.data.taskPage, p_task_scope: parsed.data.taskScope, p_search: parsed.data.search,
     p_goal_id: parsed.data.goalId ?? null, p_goal_task_page: parsed.data.goalTaskPage, p_include_terminal: parsed.data.includeTerminal,
-    p_mainline_id: parsed.data.mainlineId ?? null }, planningPageSchema))
+    p_mainline_id: parsed.data.mainlineId ?? null, p_goal_scope: parsed.data.goalScope }, planningPageSchema))
 }
 
 export async function previewPlanning(c: PlanningContext) {

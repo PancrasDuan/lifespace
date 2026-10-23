@@ -1,3 +1,4 @@
+import { openRecordActions } from './adventure-record-helpers'
 import { test, expect } from './authenticated-test'
 import { allowed, planningFixture, withGoal, goalId, mainlineId } from './adventure-fixture'
 import type { PlanningPage } from '../../src/shared/adventure-planning'
@@ -9,7 +10,8 @@ const moved: PlanningPage = { ...initial, version: 3, goals: [{ ...initial.goals
 async function openMigration(page: import('@playwright/test').Page) {
   await page.goto('/adventure')
   await page.getByRole('button', { name: '目标：五公里', exact: true }).click()
-  await page.getByRole('button', { name: '迁移', exact: true }).click()
+  await openRecordActions(page.locator('.adventure-proto-goal').first())
+  await page.getByRole('button', { name: '迁移目标', exact: true }).click()
 }
 
 test('迁移结果未知只重试原封套，成功后查询失败只重读', async ({ page, context }) => {

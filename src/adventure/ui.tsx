@@ -5,15 +5,19 @@ export function Modal({
   title,
   close,
   children,
+  restoreFocus,
 }: {
   title: string
   close: () => void
   children: ReactNode
+  restoreFocus?: HTMLElement
 }) {
   const dialog = useRef<HTMLDivElement>(null)
+  const closeRef = useRef(close)
+  closeRef.current = close
   useEffect(() => {
     const origin =
-      document.activeElement instanceof HTMLElement
+      document.activeElement instanceof HTMLElement && document.activeElement !== document.body
         ? document.activeElement
         : undefined
     const focusable = () =>
@@ -31,7 +35,7 @@ export function Modal({
     const keydown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         event.preventDefault()
-        close()
+        closeRef.current()
       }
       if (event.key === 'Tab') {
         const elements = focusable(),
@@ -55,15 +59,22 @@ export function Modal({
         }
       }
     }
+    const opener = origin
+    const recordSummary = restoreFocus ?? origin?.closest('article')?.querySelector<HTMLElement>(':scope > .record-summary')
     const previousOverflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
     document.addEventListener('keydown', keydown)
     return () => {
       document.body.style.overflow = previousOverflow
       document.removeEventListener('keydown', keydown)
-      origin?.focus()
+      // Restore the actual opener after the overlay is gone. The fallback is
+      // only for an opener that React replaced during an inline create step.
+      requestAnimationFrame(() => {
+        const target = opener?.isConnected ? opener : recordSummary?.isConnected ? recordSummary : document.querySelector<HTMLElement>('.heading-actions .new-button:last-child')
+        if (target && document.contains(target)) target.focus()
+      })
     }
-  }, [close])
+  }, [])
   useEffect(() => {
     dialog.current
       ?.querySelector<HTMLElement>(

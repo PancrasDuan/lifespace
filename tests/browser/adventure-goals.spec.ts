@@ -1,3 +1,4 @@
+import { openRecordActions } from './adventure-record-helpers'
 import { test, expect } from './authenticated-test'
 import { allowed, later, planningFixture, withGoal, goalId } from './adventure-fixture'
 import type { GoalAchievementPreview, PlanningPage } from '../../src/shared/adventure-planning'
@@ -34,7 +35,7 @@ test('达成结果未知安全重试同封套，成功而读取失败只重试�
   await expect(page.getByRole('button', { name: '新建', exact: true })).toBeEnabled()
   expect(server.envelopes).toHaveLength(2)
   await page.getByRole('button', { name: '查看达成结果', exact: true }).click()
-  await expect(page.getByRole('dialog')).toContainText('已达成 · 结果已冻结')
+  await expect(page.getByRole('region', { name: '目标详情', exact: true })).toContainText('已达成 · 结果已冻结')
 })
 
 test('达成409后必须重新预览，不静默替换奖励或自动提交', async ({ page, context }) => {
@@ -56,7 +57,7 @@ test('达成409后必须重新预览，不静默替换奖励或自动提交', as
   await expect(page.getByRole('dialog')).toContainText('目标奖励：2 点经验')
   server.saved({ ...achieved, version: 4 })
   await page.getByRole('button', { name: '确认达成并入账', exact: true }).click()
-  await expect(page.getByRole('dialog')).toContainText('已达成 · 结果已冻结')
+  await expect(page.getByRole('region', { name: '目标详情', exact: true })).toContainText('已达成 · 结果已冻结')
   expect(server.envelopes[1]).toMatchObject({ expectedVersion: 3, command: { type: 'achieveGoal', coefficient: 2 } })
   expect(server.envelopes[1].requestId).not.toBe(server.envelopes[0].requestId)
 })
@@ -76,6 +77,6 @@ test('永久链接首次读取失败时能退出目标查询，也能重试恢�
   await page.goto(`/adventure?goalId=${goalId}`)
   await expect(page.getByRole('button', { name: '重新读取', exact: true })).toBeVisible()
   await page.getByRole('button', { name: '重新读取', exact: true }).click()
-  await expect(page.getByRole('dialog', { name: '目标详情', exact: true })).toContainText('五公里')
+  await expect(page.getByRole('region', { name: '目标详情', exact: true })).toContainText('五公里')
   expect(server.envelopes).toHaveLength(0)
 })

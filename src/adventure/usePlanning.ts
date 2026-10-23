@@ -6,7 +6,7 @@ import { readTerminalPreference } from './planning-preferences'
 
 const initialQuery = (includeTerminal = false): PlanningQuery => ({ page: 1, taskRange: 'today', taskPage: 1, taskScope: 'all', search: '', goalTaskPage: 1,
   goalId: new URLSearchParams(window.location.search).get('goalId') ?? undefined,
-  mainlineId: new URLSearchParams(window.location.search).get('mainlineId') ?? undefined, includeTerminal })
+  includeTerminal })
 
 export function usePlanning(enabled = true) {
   const identity = useVerifiedIdentity()

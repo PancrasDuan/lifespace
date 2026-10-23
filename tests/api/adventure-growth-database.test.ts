@@ -209,7 +209,11 @@ describe.skipIf(!rpcOrigin)('正式 Worker HTTP → 本机真实 PostgREST → �
     expect(await b.json()).toEqual(done.receipt)
     for (const page of pages) {
       if (page.version === before.version) expect(page).toEqual(before)
-      else expect(page).toMatchObject({ version: before.version + 1, total: 0, items: [], growth: { totalXp: 0, actions: 0, achievements: [{ id: 'actions_1', unlocked: false }] } })
+      else {
+        expect(page).toMatchObject({ version: before.version + 1, total: 0, items: [], growth: { totalXp: 0, actions: 0 } })
+        expect(page.growth.achievements).toHaveLength(7)
+        expect(page.growth.achievements.every(item => item.count === 0 && !item.unlocked)).toBe(true)
+      }
     }
     const after = await growth(owner)
     expect(after).toMatchObject({ version: before.version + 1, total: 0, items: [], growth: { totalXp: 0, actions: 0 } })
