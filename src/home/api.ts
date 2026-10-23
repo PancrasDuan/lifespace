@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { horoscopeResultSchema, isCurrentHoroscope, type ZodiacSign } from '../shared/horoscope-contracts'
 import { weatherDetailSchema, airQualitySchema } from '../shared/weather-contracts'
 import { aiStatusResultSchema } from '../shared/ai-status-contracts'
 import { domainsResultSchema, locationsResultSchema, tasksResultSchema, weatherResultSchema, type City } from '../shared/contracts'
@@ -29,6 +30,7 @@ async function request<T>(path: string, schema: z.ZodType<T>, signal: AbortSigna
   return decoded.data
 }
 export const api = {
+  horoscope: (sign: ZodiacSign, signal: AbortSignal) => request('/api/horoscope?' + new URLSearchParams({ sign }), horoscopeResultSchema.refine(value => isCurrentHoroscope(value, sign, Date.now())), signal),
   aiStatus: (signal: AbortSignal) => request('/api/ai-status', aiStatusResultSchema, signal),
   newsSources: (signal: AbortSignal) => request('/api/news/sources', newsSourcesResultSchema, signal),
   newsSource: (id: string, signal: AbortSignal) => request('/api/news/source?' + new URLSearchParams({ id }), newsResultSchema.refine(result => result.sourceId === id), signal),

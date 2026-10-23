@@ -1,0 +1,58 @@
+[
+  {
+    "case": "anonymous-hit-2026-10-22",
+    "http": "HTTP/1.1 200 OK",
+    "headers": [
+      "Cache-Control: no-store",
+      "Server-Timing: kv_read;dur=105, total;dur=105"
+    ],
+    "response": {
+      "sign": "aries",
+      "dataDate": "2026-10-22",
+      "cacheHit": true
+    }
+  },
+  {
+    "case": "anonymous-miss-2026-10-22",
+    "http": "HTTP/1.1 401 Unauthorized",
+    "headers": [
+      "Cache-Control: no-store",
+      "Server-Timing: kv_read;dur=136, auth;dur=0, total;dur=136"
+    ],
+    "response": {
+      "error": {
+        "code": "AUTH_REQUIRED",
+        "message": "请先登录"
+      }
+    }
+  },
+  {
+    "case": "anonymous-after-midnight-2026-10-23",
+    "http": "HTTP/1.1 401 Unauthorized",
+    "headers": [
+      "Cache-Control: no-store",
+      "Server-Timing: kv_read;dur=129, auth;dur=0, total;dur=129"
+    ],
+    "response": {
+      "error": {
+        "code": "AUTH_REQUIRED",
+        "message": "请先登录"
+      }
+    }
+  },
+  {
+    "case": "authenticated-Chrome-2026-10-23",
+    "sign": "aries",
+    "http": 503,
+    "visibleMessage": "今日运势暂未更新",
+    "durationsMs": {
+      "kv_read": 135,
+      "auth": 255,
+      "alapi_headers": 3503,
+      "alapi_body": 1307,
+      "alapi": 4810,
+      "total": 5200
+    },
+    "kvWriteObserved": false
+  }
+]

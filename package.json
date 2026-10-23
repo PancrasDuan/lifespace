@@ -17,9 +17,10 @@
     "test:security": "WRANGLER_LOG_PATH=./.cache/wrangler-security.log MINIFLARE_REGISTRY_PATH=./.cache/security-registry node scripts/check-security.mjs",
     "test:security:portable": "WRANGLER_LOG_PATH=./.cache/wrangler-security.log MINIFLARE_REGISTRY_PATH=./.cache/security-registry node --test tests/security/temp-directory.test.mjs",
     "test": "npm run test:api && npm run test:browser",
-    "deploy": "WRANGLER_LOG_PATH=./.cache/wrangler.log wrangler deploy --config dist/lifespace/wrangler.json",
+    "deploy": "node scripts/strip-worker-dev-vars.mjs && WRANGLER_LOG_PATH=./.cache/wrangler.log wrangler deploy --config dist/lifespace/wrangler.json",
     "setup:supabase": "bash scripts/configure-supabase.sh",
     "setup:dnshe": "bash scripts/configure-dnshe.sh",
+    "setup:horoscope": "bash scripts/configure-horoscope.sh",
     "clean": "node --input-type=module -e \"import {rm} from 'node:fs/promises'; for (const path of ['dist','.cache','test-results','playwright-report']) await rm(path,{recursive:true,force:true});\"",
     "check:secrets": "node scripts/check-secrets.mjs",
     "setup:git": "git config --local core.hooksPath .githooks",
@@ -28,6 +29,9 @@
     "test:database": "node tests/support/run-planning-database.mjs"
   },
   "dependencies": {
+    "@dnd-kit/core": "6.3.1",
+    "@dnd-kit/sortable": "10.0.0",
+    "@dnd-kit/utilities": "3.2.2",
     "@js-temporal/polyfill": "0.5.1",
     "@photostructure/tz-lookup": "11.7.0",
     "@supabase/supabase-js": "2.117.3",

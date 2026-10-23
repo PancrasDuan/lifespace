@@ -1,0 +1,61 @@
+[
+  {
+    "label": "remote-A",
+    "timestamp": "2026-10-22T23:17:17+0800",
+    "exit": 0,
+    "clientSeconds": {
+      "http": "200",
+      "dns": "0.000061",
+      "connect": "0.000258",
+      "tls": "0.000000",
+      "firstByte": "3.218930",
+      "total": "3.218951"
+    },
+    "worker": {
+      "httpStatus": 200,
+      "code": 200,
+      "headersMs": 2705,
+      "bodyMs": 0,
+      "bytes": 8703,
+      "totalMs": 2705
+    }
+  },
+  {
+    "label": "local-ALAPI",
+    "timestamp": "2026-10-22T23:17:21+0800",
+    "exit": 0,
+    "clientSeconds": {
+      "http": "200",
+      "dns": "0.004829",
+      "connect": "0.005221",
+      "tls": "3.237913",
+      "firstByte": "3.624041",
+      "total": "3.655843"
+    },
+    "worker": {
+      "success": true,
+      "code": 200
+    }
+  },
+  {
+    "label": "remote-B",
+    "timestamp": "2026-10-22T23:17:27+0800",
+    "exit": 0,
+    "clientSeconds": {
+      "http": "200",
+      "dns": "0.000079",
+      "connect": "0.000289",
+      "tls": "0.000000",
+      "firstByte": "5.536423",
+      "total": "5.536458"
+    },
+    "worker": {
+      "httpStatus": 200,
+      "code": 200,
+      "headersMs": 5096,
+      "bodyMs": 0,
+      "bytes": 8703,
+      "totalMs": 5096
+    }
+  }
+]

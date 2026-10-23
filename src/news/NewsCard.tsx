@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { RotateCw } from 'lucide-react'
 import type { UseQueryResult } from '@tanstack/react-query'
 import type { NewsResult } from '../shared/news-contracts'
@@ -7,10 +8,11 @@ function time(value: string) {
   return new Date(value).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
 }
 
-export function NewsCard({ source, query }: { source: NewsSource; query: UseQueryResult<NewsResult, Error> }) {
+export function NewsCard({ source, query, dragHandle }: { source: NewsSource; query: UseQueryResult<NewsResult, Error>; dragHandle?: ReactNode }) {
   const data = query.data
   const failure = query.isError ? query.error.message : data?.stale ? data.warning?.message ?? '来源暂时不可用，请稍后刷新' : null
   return <article className="news-card" aria-label={source.label} aria-busy={query.isFetching}>
+    {dragHandle && <div className="news-handle-lane">{dragHandle}</div>}
     <header className="news-card-heading">
       <div><img className="news-source-icon" src={'/news-icons/' + source.id.split('-')[0] + '.png'} alt="" width={24} height={24} /><h2>{source.label}</h2></div>
       <button aria-label={'刷新' + source.label} onClick={() => { void query.refetch() }} disabled={query.isFetching}>

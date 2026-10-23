@@ -1,13 +1,13 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
-import { Activity, CalendarDays, ChevronRight, Clock3, CloudSun, Globe, ListTodo, Maximize2, Minimize2, RotateCw, X } from 'lucide-react'
+import { Activity, CalendarDays, ChevronRight, Clock3, CloudSun, Globe, ListTodo, Maximize2, Minimize2, RotateCw, Sparkles, X } from 'lucide-react'
 
-export type CardKind = 'time' | 'weather' | 'tasks' | 'calendar' | 'domains' | 'ai'
-const titles = { time: '世界时间', weather: '今日天气', tasks: '今日待办', calendar: '日期与黄历', domains: 'DNSHE 域名', ai: '服务状态' }
-export function Panel({ kind, children, footer, open, refresh, loading, actions }: { kind: CardKind; children: ReactNode; footer?: ReactNode; open: () => void; refresh?: () => void; loading?: boolean; actions?: ReactNode }) {
-  const Icon = { time: Clock3, weather: CloudSun, tasks: ListTodo, calendar: CalendarDays, domains: Globe, ai: Activity }[kind]
+export type CardKind = 'time' | 'weather' | 'tasks' | 'calendar' | 'domains' | 'ai' | 'horoscope'
+const titles = { time: '世界时间', weather: '今日天气', tasks: '今日待办', calendar: '日期与黄历', domains: 'DNSHE 域名', ai: '服务状态', horoscope: '星座运势' }
+export function Panel({ kind, children, footer, open, refresh, loading, actions }: { kind: CardKind; children: ReactNode; footer?: ReactNode; open?: () => void; refresh?: () => void; loading?: boolean; actions?: ReactNode }) {
+  const Icon = { time: Clock3, weather: CloudSun, tasks: ListTodo, calendar: CalendarDays, domains: Globe, ai: Activity, horoscope: Sparkles }[kind]
   return <article className={`info-panel panel-${kind}`}>
-    <div className="panel-heading"><span><Icon size={17} /><h2>{titles[kind]}</h2></span>{actions ? <div className="panel-heading-actions">{actions}</div> : <ChevronRight size={15} />}</div>
-    <button className="panel-open" aria-label={`查看${titles[kind]}详情`} onClick={open}>{children}</button>
+    <div className="panel-heading"><span><Icon size={17} /><h2>{titles[kind]}</h2></span>{actions ? <div className="panel-heading-actions">{actions}</div> : open ? <ChevronRight size={15} /> : null}</div>
+    {open ? <button className="panel-open" aria-label={`查看${titles[kind]}详情`} onClick={open}>{children}</button> : <div className="panel-open">{children}</div>}
     {footer && <div className="panel-footer"><span>{footer}</span>{refresh && <button onClick={refresh} aria-label={`刷新${titles[kind]}`} disabled={loading}><RotateCw size={14} className={loading ? 'spinning' : ''} /></button>}</div>}
   </article>
 }
