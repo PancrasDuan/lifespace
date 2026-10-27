@@ -66,7 +66,7 @@ test('失效凭据不影响公共缓存读取，其他业务接口仍要求登�
   const hit = await raw.request('/api/horoscope?sign=libra', { headers: { Authorization: 'Bearer invalid' } }, s.env)
   expect(hit.status).toBe(200)
   expect(await hit.json()).toMatchObject({ cacheHit: true })
-  for (const path of ['/api/auth/me', '/api/tasks/today', '/api/domains', '/api/news/source?id=baidu', '/api/weather']) {
+  for (const path of ['/api/auth/me', '/api/tasks/today', '/api/domains', '/api/news/source?id=baidu', '/api/weather/detail']) {
     expect((await raw.request(path, {}, s.env)).status).toBe(401)
   }
   expect(s.fetch).not.toHaveBeenCalled(); expect(s.put).not.toHaveBeenCalled()
