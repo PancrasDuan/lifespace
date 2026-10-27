@@ -3,7 +3,7 @@ import { readRewardSource, readGrowth, readTaskHistory, readMigrationOptions, re
 import { readHoroscope, type HoroscopeTimings } from './horoscope'
 import { readTasks } from './tasks'
 import { ApiError } from './upstream'
-import { readWeather, searchLocations } from './weather'
+import { searchLocations } from './weather'
 import { readWeatherDetail, readAirQuality } from './weather-detail'
 import { readDomainCard } from './domain-card'
 import { newsSources } from '../src/shared/news-sources'
@@ -60,7 +60,6 @@ app.get('/api/domains', async c => c.json(await readDomainCard(c.env)))
 app.get('/api/ai-status', async c => c.json(await readAiStatus()))
 app.get('/api/news/sources', c => c.json({ sources: newsSources }))
 app.get('/api/news/source', async c => c.json(await readNews(c.env, c.req.query('id'))))
-app.get('/api/weather', async c => c.json(await readWeather(c.req.query('latitude'), c.req.query('longitude'), c.req.query('timeZone'))))
 app.get('/api/weather/detail', async c => c.json(await readWeatherDetail(c.req.query('latitude'), c.req.query('longitude'), c.req.query('timeZone'))))
 app.get('/api/weather/air-quality', async c => c.json(await readAirQuality(c.req.query('latitude'), c.req.query('longitude'), c.req.query('timeZone'))))
 app.get('/api/weather/locations', async c => c.json(await searchLocations(c.req.query('q'))))

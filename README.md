@@ -110,7 +110,6 @@ npm run test:browser
 - `GET /api/domains`：DNSHE 账户内全部域名的展示信息。
 - `GET /api/ai-status`：OpenAI、xAI、Resend、GitHub、Cloudflare、Supabase、Notion、Tailscale 与腾讯云的整体状态及按提供方归属的当前异常。
 - `GET /api/weather/locations?q=<城市关键词>`：城市搜索。
-- `GET /api/weather?latitude=<纬度>&longitude=<经度>&timeZone=<IANA 时区>`：城市当地当天天气。
 - `GET /api/weather/detail?latitude=<纬度>&longitude=<经度>&timeZone=<IANA 时区>`：当前天气、未来 24 小时与七日预报。
 - `GET /api/weather/air-quality?latitude=<纬度>&longitude=<经度>&timeZone=<IANA 时区>`：美制 AQI、PM2.5 与 PM10。
 - 天气详情支持城市搜索、选择“使用当前位置”、刷新、选择预报日期和移动端横向浏览；空气质量独立加载，失败不阻断天气。预报按天气城市时区显示，缺失指标显示暂无数据。

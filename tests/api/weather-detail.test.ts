@@ -26,6 +26,33 @@ test('错位的逐时字段与过期日期不成为有效预报', async () => {
   expect((await app.request(path, {}, {})).status).toBe(502)
 })
 
+test('天气详情处理上游超时和连接失效，不暴露原始信息', async () => {
+  const path = '/api/weather/detail?latitude=39.9&longitude=116.4&timeZone=Asia%2FShanghai'
+  vi.stubGlobal('fetch', async () => { throw new DOMException('secret-detail', 'TimeoutError') })
+  const timedOut = await app.request(path, {}, {})
+  expect(timedOut.status).toBe(504)
+  expect(await timedOut.text()).not.toContain('secret-detail')
+  vi.stubGlobal('fetch', async () => new Response('private-token', { status: 401 }))
+  const rejected = await app.request(path, {}, {})
+  expect(rejected.status).toBe(502)
+  expect(await rejected.json()).toEqual({ error: { code: 'SOURCE_CONNECTION_INVALID', message: '数据源连接失效，请检查服务端配置' } })
+})
+
+test('天气详情使用请求时区并拒绝上游时区不一致', async () => {
+  vi.useFakeTimers(); vi.setSystemTime(new Date('2026-10-06T14:00:00Z'))
+  let receivedZone: string | null = null
+  vi.stubGlobal('fetch', async (input: URL) => {
+    receivedZone = input.searchParams.get('timezone')
+    return Response.json(forecast())
+  })
+  const path = '/api/weather/detail?latitude=39.9&longitude=116.4&timeZone='
+  expect((await app.request(`${path}Asia%2FShanghai`, {}, {})).status).toBe(200)
+  expect(receivedZone).toBe('Asia/Shanghai')
+  const mismatch = await app.request(`${path}America%2FNew_York`, {}, {})
+  expect(mismatch.status).toBe(502)
+  expect(await mismatch.json()).toMatchObject({ error: { code: 'SOURCE_INVALID_RESPONSE' } })
+})
+
 test('当地小时并非 UTC 整点时仍包含当前小时，空值不变为零', async () => {
   vi.useFakeTimers(); vi.setSystemTime(new Date('2026-10-06T14:50:00Z'))
   const data = forecast(); data.timezone = 'Asia/Kathmandu'; data.daily.time = data.daily.time.map(time => time + 8100)
