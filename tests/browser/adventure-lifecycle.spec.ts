@@ -29,7 +29,7 @@ test('结束结果未知只重试原封套，成功后查询失败只重读', as
   expect(server.envelopes).toHaveLength(2)
   expect(server.envelopes[0]).toEqual(server.envelopes[1])
   await page.getByRole('button', { name: '重新读取', exact: true }).click()
-  await expect(page.getByRole('button', { name: '新建', exact: true })).toBeEnabled()
+  await expect(page.getByRole('button', { name: '新建主线', exact: true })).toBeEnabled()
   expect(server.envelopes).toHaveLength(2)
 })
 
@@ -56,12 +56,6 @@ test('终态偏好按已验证账户读取，账户切换不沿用其他账户�
   const first = '00000000-0000-4000-8000-000000000001'
   const second = '00000000-0000-4000-8000-000000000066'
   let owner = first
-  await context.addInitScript(({ first }) => {
-    const id = localStorage.getItem('lifecycle-test-owner') ?? first
-    const value = JSON.parse(localStorage.getItem('sb-auth-test-auth-token')!)
-    value.user.id = id
-    localStorage.setItem('sb-auth-test-auth-token', JSON.stringify(value))
-  }, { first })
   await context.route('**/api/auth/me', route => route.fulfill({ json: { user: { id: owner, email: 'demo@example.com' } } }))
   await context.route('**/api/adventure**', route => {
     const includeTerminal = new URL(route.request().url()).searchParams.get('includeTerminal') === 'true'
@@ -74,11 +68,11 @@ test('终态偏好按已验证账户读取，账户切换不沿用其他账户�
   await page.reload()
   await expect(toggle).toBeChecked()
   owner = second
-  await page.evaluate(id => localStorage.setItem('lifecycle-test-owner', id), second)
+  await page.evaluate(id => localStorage.setItem('test-auth-owner', id), second)
   await page.reload()
   await expect(toggle).not.toBeChecked()
   owner = first
-  await page.evaluate(id => localStorage.setItem('lifecycle-test-owner', id), first)
+  await page.evaluate(id => localStorage.setItem('test-auth-owner', id), first)
   await page.reload()
   await expect(toggle).toBeChecked()
 })

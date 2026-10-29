@@ -31,7 +31,7 @@ test('迁移结果未知只重试原封套，成功后查询失败只重读', as
   expect(server.envelopes).toHaveLength(2)
   expect(server.envelopes[1]).toEqual(server.envelopes[0])
   await page.getByRole('button', { name: '重新读取', exact: true }).click()
-  await expect(page.getByRole('button', { name: '新建', exact: true })).toBeEnabled()
+  await expect(page.getByRole('button', { name: '新建主线', exact: true })).toBeEnabled()
   expect(server.envelopes).toHaveLength(2)
 })
 

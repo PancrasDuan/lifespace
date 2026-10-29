@@ -29,9 +29,8 @@ test('主线改名与目标编辑保存后显示新查询事实', async ({ page,
 test('服务端禁止创建主线时禁用入口，目标入口仍可用', async ({ page, context }) => {
   await planningFixture(context, { ...withMainline, capabilities: { createMainline: { allowed: false, reason: '最多保留 5 条在用主线' }, createGoal: allowed, createTask: later, growth: later } })
   await page.goto('/adventure')
-  await page.getByRole('button', { name: '新建', exact: true }).click()
-  await expect(page.getByRole('region', { name: '快速新建' }).getByRole('button', { name: '一条主线', exact: true })).toBeDisabled()
-  await expect(page.getByRole('region', { name: '快速新建' }).getByRole('button', { name: '一个目标', exact: true })).toBeEnabled()
+  await expect(page.getByRole('button', { name: '新建主线', exact: true })).toBeDisabled()
+  await expect(page.getByRole('button', { name: '新建目标', exact: true })).toBeEnabled()
 })
 
 test('390px 手机布局、键盘焦点约束和 Escape 取消可用', async ({ page, context }) => {
@@ -39,17 +38,16 @@ test('390px 手机布局、键盘焦点约束和 Escape 取消可用', async ({ 
   await page.setViewportSize({ width: 390, height: 844 })
   await page.goto('/adventure')
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
-  await page.getByRole('button', { name: '新建', exact: true }).click()
-  await page.getByRole('region', { name: '快速新建' }).getByRole('button', { name: '一个目标', exact: true }).click()
+  await page.getByRole('button', { name: '新建目标', exact: true }).click()
   const dialog = page.getByRole('dialog')
   await expect(dialog.getByRole('button', { name: '关闭弹窗' })).toBeFocused()
-  await page.getByRole('button', { name: '新建', exact: true }).focus()
+  await page.getByRole('button', { name: '新建目标', exact: true }).focus()
   await page.keyboard.press('Tab')
   await expect(dialog.getByRole('button', { name: '关闭弹窗' })).toBeFocused()
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
   await page.keyboard.press('Escape')
   await expect(dialog).toBeHidden()
-  await expect(page.getByRole('button', { name: '新建', exact: true })).toBeFocused()
+  await expect(page.getByRole('button', { name: '新建目标', exact: true })).toBeFocused()
   expect(server.envelopes).toHaveLength(0)
 })
 

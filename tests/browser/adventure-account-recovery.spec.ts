@@ -36,5 +36,5 @@ test('账户切换期间迟到的旧账户规划响应不能覆盖新账户或�
   await expect.poll(() => settled).toBe(true)
   await expect(page.getByRole('article', { name: '主线：旧账户私有主线', exact: true })).toHaveCount(0)
   await expect(page.getByRole('article', { name: '主线：新账户主线', exact: true })).toBeVisible()
-  await expect(page.getByRole('button', { name: '新建', exact: true })).toBeEnabled()
+  await expect(page.getByRole('button', { name: '新建主线', exact: true })).toBeEnabled()
 })

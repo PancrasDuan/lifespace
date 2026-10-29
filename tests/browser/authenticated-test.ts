@@ -26,6 +26,7 @@ export const test = base.extend({
     )
     await context.addInitScript(
       ({ user }) => {
+        const owner = localStorage.getItem('test-auth-owner') ?? user.id
         localStorage.setItem(
           'sb-auth-test-auth-token',
           JSON.stringify({
@@ -33,7 +34,7 @@ export const test = base.extend({
             refresh_token: 'test-refresh-token',
             token_type: 'bearer',
             expires_at: 4102444800,
-            user,
+            user: { ...user, id: owner },
           }),
         )
       },

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { ChevronDown, CircleCheck, ListTodo, Search } from 'lucide-react'
 import type { PlanningPage, PlanningTask, TaskRange } from '../shared/adventure-planning'
 import { PlanningTaskHistory } from './PlanningReschedule'
@@ -11,13 +11,36 @@ export function PrototypeTasks({ data, blocked, openTask, toggleTask, changeRang
   cancel: (task: PlanningTask) => void; end: (task: PlanningTask) => void; remove: (task: PlanningTask) => void
 }) {
   const [search, setSearch] = useState(data.search)
+  const [minimumHeight, setMinimumHeight] = useState(0)
+  const section = useRef<HTMLElement>(null)
   useEffect(() => setSearch(data.search), [data.search])
+  useEffect(() => {
+    if (!minimumHeight) return
+    const releaseAvailableSpace = () => {
+      if (window.scrollY <= 1) { setMinimumHeight(0); return }
+      const roomBelow = Math.max(0, document.documentElement.scrollHeight - window.innerHeight - window.scrollY)
+      if (roomBelow >= 1) setMinimumHeight(current => Math.max(0, current - Math.floor(roomBelow)))
+    }
+    window.addEventListener('scroll', releaseAvailableSpace, { passive: true })
+    window.addEventListener('resize', releaseAvailableSpace)
+    return () => {
+      window.removeEventListener('scroll', releaseAvailableSpace)
+      window.removeEventListener('resize', releaseAvailableSpace)
+    }
+  }, [minimumHeight])
+  const selectRange = (range: TaskRange) => {
+    // A shorter result can otherwise clamp the document scroll and move the filter.
+    const height = section.current?.getBoundingClientRect().height ?? 0
+    const roomBelow = Math.max(0, document.documentElement.scrollHeight - window.innerHeight - window.scrollY)
+    setMinimumHeight(Math.ceil(Math.max(0, height - roomBelow)))
+    changeRange(range)
+  }
   const label = data.taskRange === 'today' ? `今天 ${data.taskProgress.completed} / ${data.taskProgress.total}` : data.taskRange === 'future' ? '未来安排' : '过去安排'
-  return <section className="content-section adventure-proto-task-section">
+  return <section ref={section} className="content-section adventure-proto-task-section" style={minimumHeight ? { minHeight: minimumHeight } : undefined}>
     <header className="section-heading task-section-heading">
       <div><span className="eyebrow">今天要做的事</span><h2><ListTodo size={18} />一次性任务</h2></div>
       <div className="task-heading-filters"><div className="date-filter" role="group" aria-label="任务日期范围">{(['today', 'future', 'past'] as const).map(range =>
-        <button type="button" key={range} disabled={blocked} aria-pressed={data.taskRange === range} onClick={() => changeRange(range)}>{range === 'today' ? '今天' : range === 'future' ? '未来' : '过去'}</button>)}</div></div>
+        <button type="button" key={range} disabled={blocked} aria-pressed={data.taskRange === range} onClick={() => selectRange(range)}>{range === 'today' ? '今天' : range === 'future' ? '未来' : '过去'}</button>)}</div></div>
     </header>
     <div className="task-overview"><span role="group" aria-label="当前筛选任务进度">{data.taskProgress.ratio === null ? `${data.taskRange === 'today' ? '今天' : data.taskRange === 'future' ? '未来' : '过去'} · 暂无可统计任务` : label}</span>{data.taskProgress.ratio === null ? null : <Progress value={data.taskProgress.ratio} label="当前筛选任务进度" />}</div>
     <form className="task-tools" onSubmit={event => { event.preventDefault(); changeSearch(search) }}><label><Search size={14} /><span className="sr-only">搜索任务</span><input aria-label="搜索任务" type="search" maxLength={100} value={search} onChange={event => setSearch(event.target.value)} placeholder="搜索名称或说明" /></label></form>
