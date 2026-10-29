@@ -8,7 +8,7 @@ const initial: PlanningPage = { ...withGoal, goals: [{ ...withGoal.goals[0], cap
 const moved: PlanningPage = { ...initial, version: 3, goals: [{ ...initial.goals[0], mainlineId: target, mainlineName: '目的主线' }] }
 
 async function openMigration(page: import('@playwright/test').Page) {
-  await page.goto('/adventure')
+  await page.goto('/adventure?view=planning')
   await page.getByRole('button', { name: '目标：五公里', exact: true }).click()
   await openRecordActions(page.locator('.adventure-proto-goal').first())
   await page.getByRole('button', { name: '迁移目标', exact: true }).click()

@@ -15,7 +15,7 @@ test('账户切换期间迟到的旧账户规划响应不能覆盖新账户或�
       mainlines: [{ ...withMainline.mainlines[0], name: account === first ? '旧账户私有主线' : '新账户主线' }] } }).catch(() => {})
     if (account === first && held) settled = true
   })
-  await page.goto('/adventure')
+  await page.goto('/adventure?view=planning')
   await expect(page.getByRole('article', { name: '主线：旧账户私有主线', exact: true })).toBeVisible()
   hold = true
   await page.getByLabel('显示已达成／已结束', { exact: true }).check()

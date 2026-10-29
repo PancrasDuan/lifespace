@@ -8,7 +8,7 @@ const preview: LifecyclePreview = { version: 2, today: initial.today, allowed: t
   operation: 'endGoal', entityId: goalId, title: '五公里', message: '结束后不可恢复，已有完成及奖励保留。',
   stoppingGoals: [], stoppingTasks: [], preservedCompletedTasks: 0, preservedAchievedGoals: 0 }
 const openEnd = async (page: import('@playwright/test').Page) => {
-  await page.goto('/adventure')
+  await page.goto('/adventure?view=planning')
   await page.getByRole('button', { name: '目标：五公里', exact: true }).click()
   await openRecordActions(page.locator('.adventure-proto-goal').first())
   await page.getByRole('button', { name: '结束目标', exact: true }).click()
@@ -67,7 +67,7 @@ test('终态偏好按已验证账户读取，账户切换不沿用其他账户�
     const includeTerminal = new URL(route.request().url()).searchParams.get('includeTerminal') === 'true'
     return route.fulfill({ json: { ...initial, includeTerminal } })
   })
-  await page.goto('/adventure')
+  await page.goto('/adventure?view=planning')
   const toggle = page.getByLabel('显示已达成／已结束', { exact: true })
   await expect(toggle).not.toBeChecked()
   await toggle.check()
@@ -97,7 +97,7 @@ test('终态偏好存储不可用仍可读取和切换，明确提示刷新不�
   })
   await context.route('**/api/adventure**', route => route.fulfill({ json: { ...initial,
     includeTerminal: new URL(route.request().url()).searchParams.get('includeTerminal') === 'true' } }))
-  await page.goto('/adventure')
+  await page.goto('/adventure?view=planning')
   await page.getByLabel('显示已达成／已结束', { exact: true }).check()
   await expect(page.getByText('终态显示偏好未保存；本页仍可查看，刷新后使用默认设置。')).toBeVisible()
   await page.reload()

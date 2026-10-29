@@ -16,7 +16,9 @@ test('人生冒险读取失败时提供重新读取', async ({ page }) => {
 test('空规划从一级零经验开始，创建主线后查询并刷新回读', async ({ page, context }) => {
   const server = await planningFixture(context)
   await page.goto('/adventure')
-  await expect(page.getByText('Lv.1', { exact: true })).toBeVisible()
+  await expect(page.locator('.level-lockup strong')).toHaveText('01')
+  await expect(page.locator('.growth-numbers')).toContainText('累计经验0')
+  await page.getByRole('button', { name: '主线与目标', exact: true }).click()
   await expect(page.getByText('还没有主线。为长期经营的方向起一个名字。')).toBeVisible()
   server.saved(withMainline)
   await page.getByRole('button', { name: '新建', exact: true }).click()
@@ -34,7 +36,7 @@ test('空规划从一级零经验开始，创建主线后查询并刷新回读',
 test('目标归属默认为独立且可清空，多项完成标准忽略空输入', async ({ page, context }) => {
   const server = await planningFixture(context, withMainline)
   server.saved(withGoal)
-  await page.goto('/adventure')
+  await page.goto('/adventure?view=planning')
   await page.getByRole('button', { name: '新建', exact: true }).click()
   await page.getByRole('region', { name: '快速新建' }).getByRole('button', { name: '一个目标', exact: true }).click()
   server.saved({ ...withGoal, goals: [{ ...withGoal.goals[0], title: '五公里', standards: ['连续跑完五公里', '记录跑后感受'] }] })
@@ -72,7 +74,7 @@ test('独立目标直接选择独立身份，不展示系统容器或旧操作',
   const server = await planningFixture(context)
   server.saved({ ...withGoal, mainlines: [], destinations: emptyPlanning.destinations,
     goals: [{ ...withGoal.goals[0], independent: true, mainlineName: '独立区' }] })
-  await page.goto('/adventure')
+  await page.goto('/adventure?view=planning')
   await page.getByRole('button', { name: '新建', exact: true }).click()
   await page.getByRole('region', { name: '快速新建' }).getByRole('button', { name: '一个目标', exact: true }).click()
   await page.getByLabel('目标名称').fill('五公里')
@@ -87,7 +89,7 @@ test('独立目标直接选择独立身份，不展示系统容器或旧操作',
 
 test('目标卡片整体进入详情，外层没有操作按钮；新建入口统一在页面上方', async ({ page, context }) => {
   await planningFixture(context, withGoal)
-  await page.goto('/adventure')
+  await page.goto('/adventure?view=planning')
   const card = page.getByRole('button', { name: '目标：五公里' })
   await expect(card.getByRole('button', { name: '编辑目标' })).toHaveCount(0)
   await card.click()
