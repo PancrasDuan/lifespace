@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Token 看板 · 讨论原型</title>
+<!-- 讨论原型：A 与 A1 在同一路径通过 ?variant= 切换；所有数据为合成数据，不连接生产服务。 -->
+<style>
+/* Hallmark · scope: app · built: prototype · redesign: polish */
+/* Critique: preserve the existing dashboard; improve A1 accessibility and contrast. */
+:root{--font-body:Inter,system-ui,sans-serif;--white:white;--black:black;--palette-0:#624b3488;--palette-1:#26383144;--palette-2:#23382c33;--palette-3:#fff8e9;--palette-4:#fff5d9;--palette-5:#f9faf6;--palette-6:#f8faf7;--palette-7:#f7f8f6;--palette-8:#f5e4af;--palette-9:#f4f5f1;--palette-10:#f3f8f3;--palette-11:#f3f7f3;--palette-12:#f2f7f2;--palette-13:#f2f4f2;--palette-14:#f1dfba;--palette-15:#f0f3ee;--palette-16:#eef1eb;--palette-17:#edf1ed;--palette-18:#e9f4ea;--palette-19:#e9eeea;--palette-20:#e8eeea;--palette-21:#e5eee4;--palette-22:#e5eae5;--palette-23:#e1e8df;--palette-24:#e1e7e0;--palette-25:#e0eee5;--palette-26:#dde5de;--palette-27:#dceadd;--palette-28:#dce5de;--palette-29:#dbefe0;--palette-30:#d9e3da;--palette-31:#d9dfdb;--palette-32:#d7ecdc;--palette-33:#d6e4d9;--palette-34:#cfd9d1;--palette-35:#c9ddcb;--palette-36:#c5cfca;--palette-37:#bbd2be;--palette-38:#a9d5b6;--palette-39:#a8b0a9;--palette-40:#a5d5b4;--palette-41:#a46723;--palette-42:#a16e31;--palette-43:#9fb8a6;--palette-44:#96651e;--palette-45:#916321;--palette-46:#8b9890;--palette-47:#8a978d;--palette-48:#87948b;--palette-49:#82988a;--palette-50:#82672b;--palette-51:#7cb798;--palette-52:#778780;--palette-53:#77827b;--palette-54:#74847a;--palette-55:#73ac89;--palette-56:#738078;--palette-57:#6d7c72;--palette-58:#6ab78a;--palette-59:#69b58a;--palette-60:#67a783;--palette-61:#65736a;--palette-62:#62746a;--palette-63:#52685a;--palette-64:#52655a;--palette-65:#486356;--palette-66:#398764;--palette-67:#366b4f;--palette-68:#365240;--palette-69:#355345;--palette-70:#34443b;--palette-71:#31815d;--palette-72:#293337;--palette-73:#263831;--palette-74:#245c43;--palette-75:#1f6044;--palette-76:#194d35;--palette-77:#143b29;--palette-78:#fff;--a1-muted:#52635a;--a1-ink:#253c30;--a1-outline:#174a32;--a1-warning:#70420e;--model-a:#397d60;--model-b:#8cc7a0;--model-unknown:#a0a8ba;}
+html,body{overflow-x:clip}
+
+:root{font-family:var(--font-body);color:var(--palette-72);background:var(--palette-9);font-size:15px}*{box-sizing:border-box}body{margin:0}button,select{font:inherit}button,select{cursor:pointer}.shell{max-width:1420px;margin:auto;display:grid;grid-template-columns:196px minmax(0,1fr);min-height:100vh}.sidebar{background:var(--palette-5);border-right:1px solid var(--palette-24);padding:30px 18px}.brand{font-weight:800;font-size:20px;letter-spacing:-.04em;margin:0 12px 38px}.nav{padding:12px;border-radius:10px;color:var(--palette-53)}.nav.active{background:var(--palette-25);color:var(--palette-74);font-weight:700}main{padding:38px 5vw 110px;min-width:0}.notice{font-size:12px;color:var(--palette-50);background:var(--palette-4);border:1px solid var(--palette-8);padding:8px 12px;border-radius:8px;margin-bottom:25px}.eyebrow{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--palette-52);font-weight:700}h1{font-size:32px;letter-spacing:-.04em;margin:8px 0}h2{font-size:17px;margin:0}p{color:var(--palette-56);line-height:1.5}.header{display:flex;flex-direction:column;align-items:stretch;gap:14px;margin-bottom:24px}.filters{display:flex;gap:12px;flex-wrap:wrap}.filters select{min-height:44px;max-width:100%;appearance:none;background:var(--palette-78) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%2354665c' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m4 6 4 4 4-4'/%3E%3C/svg%3E") no-repeat right 12px center/16px;color:var(--palette-70);border:1px solid var(--palette-30);border-radius:10px;padding:10px 38px 10px 14px}.filters select:hover{border-color:var(--palette-43)}.filters select:focus-visible{outline:3px solid var(--palette-74);outline-offset:2px}.card{background:var(--white);border:1px solid var(--palette-23);border-radius:16px;padding:20px}.metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.metric small{color:var(--palette-54)}.metric strong{display:block;font-size:25px;letter-spacing:-.03em;margin:10px 0 3px}.metric em,.tag{font-style:normal;font-size:11px;color:var(--palette-67);background:var(--palette-18);padding:4px 7px;border-radius:6px}.muted{color:var(--palette-46);font-size:12px}.split{display:grid;grid-template-columns:minmax(0,2fr) minmax(240px,1fr);gap:12px;margin-top:12px}.sectionhead{display:flex;justify-content:space-between;align-items:center;gap:12px}.chart{height:180px;display:flex;align-items:end;gap:12px;padding-top:20px;border-bottom:1px solid var(--palette-26)}.barwrap{flex:1;display:flex;flex-direction:column;justify-content:end;align-items:center;gap:8px;height:100%;font-size:11px;color:var(--palette-47)}.bar{width:min(32px,70%);background:var(--palette-51);border-radius:5px 5px 0 0}.bar.partial{background:repeating-linear-gradient(135deg,var(--palette-37) 0 4px,var(--palette-21) 4px 8px)}.device{padding:14px 0;border-bottom:1px solid var(--palette-16)}.device:last-child{border:0}.device strong{display:block;margin-bottom:4px}.warn{color:var(--palette-41)}.line{border-top:1px solid var(--palette-17);padding:13px 0;display:flex;justify-content:space-between;gap:15px}.line:first-of-type{margin-top:14px}.status{background:var(--palette-3);border:1px solid var(--palette-14);color:var(--palette-45);border-radius:10px;padding:13px;margin:12px 0}.ledger{margin-top:22px}.ledger table{width:100%;border-collapse:collapse;text-align:left;font-size:13px}.ledger th,.ledger td{padding:14px 10px;border-bottom:1px solid var(--palette-17)}.ledger th{font-size:11px;color:var(--palette-48)}.ledger tr{cursor:pointer}.ledger tr:hover,.ledger tr.selected{background:var(--palette-10)}.detail{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px}.big-number{font-size:48px;letter-spacing:-.05em;font-weight:750;margin:14px 0 0}.stack{display:flex;height:13px;border-radius:8px;overflow:hidden;margin:18px 0}.stack span:first-child{background:var(--palette-60)}.stack span:last-child{background:var(--palette-35)}.focus{display:grid;grid-template-columns:1fr 1.5fr;gap:24px}.journal-day{border-left:2px solid var(--palette-27);padding:0 0 22px 20px;position:relative}.journal-day:before{content:'';position:absolute;left:-6px;top:5px;width:10px;height:10px;border-radius:50%;background:var(--palette-55)}.switch{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:var(--palette-73);color:var(--white);border-radius:40px;padding:5px;display:flex;align-items:center;gap:12px;box-shadow:0 5px 30px var(--palette-2);font-size:12px;z-index:10}.switch button{border:0;border-radius:50%;width:32px;height:32px;background:var(--palette-65);color:var(--white)}.switch span{min-width:135px;text-align:center}.heatmap{margin-bottom:12px}.heatmap table{width:100%;border-collapse:separate;border-spacing:4px;table-layout:fixed;margin-top:12px}.heatmap th{font-size:11px;color:var(--palette-52);font-weight:500}.heatmap td{height:40px;text-align:center;vertical-align:middle;border-radius:5px;font-size:12px;color:var(--palette-70)}.heatmap .h0{background:var(--palette-15)}.heatmap .h1{background:var(--palette-29)}.heatmap .h2{background:var(--palette-38)}.heatmap .h3{background:var(--palette-59);color:var(--palette-77)}.heatmap .h4{background:var(--palette-66);color:var(--white)}.heatmap .unknown{background:repeating-linear-gradient(135deg,var(--palette-31) 0 3px,var(--palette-7) 3px 6px)}.heatmap .partial{outline:2px dashed var(--palette-42);outline-offset:-3px}.heatmap .future{background:var(--palette-78);border:1px solid var(--palette-22);color:var(--palette-39)}.heatmap .empty{background:transparent}.heatmap td:focus{outline:3px solid var(--palette-75);outline-offset:1px}.legend{display:flex;flex-wrap:wrap;gap:8px 14px;margin-top:12px;font-size:11px;color:var(--palette-61)}.legend span{display:inline-flex;align-items:center;gap:5px}.legend i{width:14px;height:14px;border-radius:3px;display:inline-block}.legend .future{border:1px solid var(--palette-22)}.mobile-nav{display:none}@media(max-width:850px){.shell{display:block}.sidebar{display:none}.mobile-nav{display:block;font-weight:800;margin-bottom:28px}.metrics{grid-template-columns:repeat(2,1fr)}.split,.focus{grid-template-columns:1fr}.header{align-items:start;flex-direction:column}.ledger{overflow-x:auto}.ledger table{min-width:720px}main{padding:25px 18px 100px}.detail{grid-template-columns:1fr}}
+
+/* 热力图探索组件：颜色表示已知用量，纹理单独表示覆盖状态。 */
+.heatmap{margin:12px 0}.heat-tabs{display:flex;gap:6px;flex-wrap:wrap;margin:14px 0}.heat-tabs button{border:1px solid var(--palette-33);background:var(--palette-6);color:var(--palette-69);padding:7px 10px;border-radius:8px;font-size:12px}.heat-tabs button[aria-pressed=true]{background:var(--palette-74);color:var(--white);border-color:var(--palette-74)}.heat-scroll{overflow:auto;padding:5px 3px 10px}.heat-annual{display:grid;grid-auto-flow:column;grid-template-rows:repeat(7,14px);grid-auto-columns:14px;gap:3px;width:max-content}.heat-cell{appearance:none;border:0;padding:0;min-width:14px;min-height:14px;border-radius:3px;background:var(--palette-20);color:inherit;cursor:pointer}.heat-cell:focus-visible{outline:3px solid var(--palette-76);outline-offset:2px;position:relative;z-index:2}.heat-cell.h0,.legend .h0{background-color:var(--palette-19)}.heat-cell.h1,.legend .h1{background-color:var(--palette-32)}.heat-cell.h2,.legend .h2{background-color:var(--palette-40)}.heat-cell.h3,.legend .h3{background-color:var(--palette-58)}.heat-cell.h4,.legend .h4{background-color:var(--palette-71)}.heat-cell.partial,.legend .partial{background-image:repeating-linear-gradient(135deg,transparent 0 3px,var(--palette-0) 3px 4px)}.heat-cell.unknown,.legend .unknown{background:repeating-linear-gradient(45deg,var(--palette-36) 0 3px,var(--palette-13) 3px 6px)}.heat-cell.future,.legend .future{background:var(--palette-78);border:1px solid var(--palette-34)}.heat-cell.blank{background:transparent;cursor:default}.heat-detail{font-size:12px;color:var(--palette-68);background:var(--palette-12);padding:8px 10px;border-radius:7px;min-height:34px;margin:8px 0}.heat-iso{padding:95px 12px 25px;min-height:210px}.heat-iso .heat-annual{transform:perspective(700px) rotateX(40deg) rotateZ(-5deg);transform-origin:top left}.heat-iso .heat-cell{box-shadow:1px 2px 0 var(--palette-49)}.year-labels{display:grid;width:max-content;margin:0 0 5px 24px;font-size:10px;color:var(--palette-57)}.year-labels span{white-space:nowrap}.year-body{display:flex;gap:7px;width:max-content}.year-weekdays{display:grid;grid-template-rows:repeat(7,14px);gap:3px;font-size:10px;color:var(--palette-57)}.heat-legend{display:flex;flex-wrap:wrap;gap:8px 12px;font-size:11px;color:var(--palette-61);margin-top:10px}.heat-legend span{display:inline-flex;align-items:center;gap:4px}.heat-legend i{display:inline-block;width:14px;height:14px;border-radius:3px}.heat-legend i.h0{background:var(--palette-19)}.heat-legend i.h1{background:var(--palette-32)}.heat-legend i.h2{background:var(--palette-40)}.heat-legend i.h3{background:var(--palette-58)}.heat-legend i.h4{background:var(--palette-71)}.heat-legend i.partial{background-color:var(--palette-40)}.heat-legend i.unknown{background:repeating-linear-gradient(45deg,var(--palette-36) 0 3px,var(--palette-13) 3px 6px)}.heat-legend i.future{border:1px solid var(--palette-34);background:var(--white)}
+
+/* 展示形式对比：全部来自同一组合成数据，不连接实际服务。 */
+.focus>div,.split>div{min-width:0}
+
+
+.model-chart{margin:12px 0;min-width:0}.split>.model-chart{margin:0}.model-chart-legend{display:flex;flex-wrap:wrap;gap:8px 14px;margin-top:14px;font-size:12px;color:var(--palette-62)}.model-chart-legend span{display:flex;align-items:center;gap:5px}.model-chart-legend i,.model-bar-tooltip i{display:inline-block;width:12px;height:12px;border-radius:2px;flex:none}.model-chart-legend .coverage-key{background:repeating-linear-gradient(135deg,var(--palette-44) 0 2px,var(--palette-78) 2px 4px)}.model-chart-scroll{overflow-x:auto;overflow-y:visible}.model-bars{display:flex;gap:8px;align-items:end;min-width:420px;min-height:205px;border-bottom:1px solid var(--palette-28);padding:36px 4px 0}.model-bar{position:relative;display:flex;flex:1;min-width:40px;align-items:center;flex-direction:column;justify-content:end;gap:6px;padding:0;border:0;background:transparent;color:var(--palette-64);font-size:11px}.model-bar:focus-visible{outline:2px solid var(--palette-76);outline-offset:3px}.model-bar-value,.model-bar-date{white-space:nowrap}.model-bar-stack{width:min(36px,80%);display:flex;flex-direction:column-reverse;border-radius:4px 4px 0 0;overflow:hidden}.model-bar-stack span{width:100%}.model-bar-stack.partial{outline:2px dashed var(--palette-44);outline-offset:1px}.model-bar-tooltip{display:none;position:absolute;top:0;left:50%;transform:translateX(-50%);z-index:5;width:200px;text-align:left;padding:10px;border-radius:8px;background:var(--palette-73);color:var(--white);box-shadow:0 4px 14px var(--palette-1);line-height:1.5}.model-bar-tooltip span{display:flex;align-items:center;gap:6px}.model-bar:nth-child(-n+2) .model-bar-tooltip{left:0;transform:none}.model-bar:nth-last-child(-n+2) .model-bar-tooltip{left:auto;right:0;transform:none}.model-bar:hover .model-bar-tooltip,.model-bar:focus-visible .model-bar-tooltip{display:block}.model-chart-detail{margin-top:12px;background:var(--palette-11);border-radius:8px;padding:10px;color:var(--palette-63);font-size:12px;min-height:36px}.model-chart p{margin-bottom:0}
+
+/* A1 keeps the original layout and changes contrast, focus and prototype controls only. */
+body[data-variant="A1"] .eyebrow{display:none}
+body[data-variant="A1"] .muted,body[data-variant="A1"] p,body[data-variant="A1"] .metric small,body[data-variant="A1"] .year-labels,body[data-variant="A1"] .year-weekdays,body[data-variant="A1"] .heat-legend,body[data-variant="A1"] .model-chart-legend,body[data-variant="A1"] .model-bar,body[data-variant="A1"] .nav{color:var(--a1-muted)}
+body[data-variant="A1"] .nav.active{color:var(--a1-ink)}
+body[data-variant="A1"] .tag.warn{color:var(--a1-warning)}
+body[data-variant="A1"] .heat-legend i.partial{background-image:repeating-linear-gradient(135deg,transparent 0 3px,var(--palette-0) 3px 4px)}
+.scroll-hint{display:none}
+@media(max-width:850px){body[data-variant="A1"] .scroll-hint{display:block;margin:8px 0;font-size:12px;color:var(--a1-muted)}}
+body[data-variant="A1"] .filters select{border-color:var(--a1-muted)}
+body[data-variant="A1"] .filters select:hover{border-color:var(--a1-ink)}
+body[data-variant="A1"] .year-labels,body[data-variant="A1"] .year-weekdays{font-size:12px}
+body[data-variant="A1"] .switch{position:static;transform:none;box-shadow:none;align-self:flex-start;border-radius:10px;padding:4px}
+body[data-variant="A1"] .switch span{min-width:0;padding:0 8px}
+.switch button{width:auto;height:32px;border-radius:8px;padding:0 12px}
+.switch button[aria-pressed="true"]{outline:2px solid var(--white);outline-offset:-3px;font-weight:700}
+body[data-variant="A1"] :is(button,select):focus-visible{outline:3px solid var(--a1-outline);outline-offset:3px}
+body[data-variant="A1"] .switch button:focus-visible{outline-color:var(--white);outline-offset:-3px}
+body[data-variant="A1"] button:active{filter:brightness(.92)}
+body[data-variant="A1"] :is(button,select):disabled{opacity:.6;cursor:not-allowed;filter:grayscale(1)}
+</style></head><body><div class="shell"><aside class="sidebar"><div class="brand">✳ LifeSpace</div><div class="nav">概览</div><div class="nav">人生冒险</div><div class="nav">资讯</div><div class="nav active">Token 用量</div></aside><main><div class="mobile-nav">✳ LifeSpace / Token 用量</div><div class="notice">讨论原型 · 所有数字与设备均为虚构示例；统计口径和实际数据可用性尚待确认；筛选仅为演示，不改变示例数据。</div><div class="header"><div><div class="eyebrow">LifeSpace / Usage</div><h1>Token 用量</h1><p>按北京时间查看每天的使用情况</p></div><div class="filters" role="group" aria-label="筛选日期、Agent、模型和设备"><select id="date" aria-label="日期"><option>今天</option><option>近 7 天</option><option>近一个月</option><option>全部</option></select><select id="agent" aria-label="Agent"><option>全部 Agent</option><option>Codex</option><option>Claude Code（示例）</option></select><select id="model" aria-label="模型"><option>全部模型</option><option>模型 A（示例）</option><option>模型 B（示例）</option><option>未知模型</option></select><select id="device" aria-label="设备"><option>全部设备</option><option>设备 A（示例）</option><option>设备 B（示例）</option></select></div></div><div id="app"></div><noscript>此讨论原型需要启用 JavaScript 才能显示示例用量和图表。</noscript></main></div><div class="switch"><span>对比方案</span><button id="chooseA" type="button">A</button><button id="chooseA1" type="button">A1</button></div>
+<script>
+const names={A:'原方案',A1:'审计优化'};let variant=new URLSearchParams(location.search).get('variant');if(!names[variant])variant='A';let selected=0;let heatIndex=364;let userScrolled={heat:false,chart:false};let userPositions={heat:0,chart:0};let resizing=false;let wasNarrow=window.matchMedia('(max-width:850px)').matches;document.body.dataset.variant=variant;
+const days=[{date:'10月29日 · 今天',input:'1.80M',output:'0.42M',total:'2.22M',cache:'72%',cost:'$4.20 部分估算',status:'部分覆盖',height:80},{date:'10月28日',input:'2.20M',output:'0.51M',total:'2.71M',cache:'68%',cost:'$5.10 估算',status:'已同步',height:98},{date:'10月27日',input:'1.30M',output:'0.30M',total:'1.60M',cache:'61%',cost:'未知',status:'部分覆盖',height:58},{date:'10月26日',input:'1.00M',output:'0.22M',total:'1.22M',cache:'70%',cost:'$1.80 实际',status:'已同步',height:44},{date:'10月25日',input:'1.20M',output:'0.25M',total:'1.45M',cache:'66%',cost:'$2.70 估算',status:'已同步',height:52},{date:'10月24日',input:'0.90M',output:'0.20M',total:'1.10M',cache:'63%',cost:'$2.10 估算',status:'已同步',height:40},{date:'10月23日',input:'1.70M',output:'0.30M',total:'2.00M',cache:'74%',cost:'$3.90 估算',status:'已同步',height:72}];
+const devices=`<div class="device"><strong>设备 A <span class="tag">已同步</span></strong><span class="muted">最后成功同步：今天 14:00 · 连续失败 0 次</span></div><div class="device"><strong>设备 B <span class="tag warn">离线</span></strong><span class="muted">最后成功同步：昨天 19:00 · 连续失败 3 次 · 此后覆盖未知</span></div><p class="muted">连续第 3 次失败判为离线；同步成功后失败次数清零。超过预计时间没有回报时显示“状态未知 / 未按时同步”。没有用量数据不算同步失败；最近同步时间不代表历史数据完整。</p>`;
+const disclaimer=`<div class="status">部分覆盖：设备 B 离线，已显示数据可能不完整；缺失用量和费用不会按零计算。</div>`;
+// 虚构数据：已知模型和未知模型的输入、输出合计与今日已知总量一致。
+const models=[{name:'模型 A（示例）',total:'1.25M',input:'1.00M',output:'0.25M',cost:'$2.80 API 估算'},{name:'模型 B（示例）',total:'0.79M',input:'0.65M',output:'0.14M',cost:'$1.40 API 估算'},{name:'未知模型',total:'0.18M',input:'0.15M',output:'0.03M',cost:'费用未知'}];
+const modelBreakdown=`<div class="card" style="margin-top:12px"><div class="sectionhead"><h2>今日模型分类</h2><span class="muted">北京时间 · 已知用量</span></div>${models.map(m=>`<div class="device"><div class="sectionhead"><strong>${m.name}</strong><strong>${m.total} Token</strong></div><div class="muted">输入 ${m.input} / 输出 ${m.output} · ${m.cost}</div></div>`).join('')}<p class="muted">未知模型的已知用量单独列出，不猜测模型或费用；$4.20 仅为可估算部分，另有未知费用。设备未同步期间的用量尚未包括在分类中。</p></div>`;
+
+// 所有图使用同一组虚构日期数据，最近七天与上方示例一致；其余数据只用于讨论视觉形式。
+let heatMode='year';
+const heatModes={year:'近 1 年热力图',iso:'近 1 年 3D 等距热力图'};
+const recent=Object.fromEntries(days.map((d,i)=>[`2026-10-${String(29-i).padStart(2,'0')}`,{value:parseFloat(d.total),status:d.status==='部分覆盖'?'partial':'known'}]));
+function daily(date){
+  if(date>'2026-10-29')return {status:'future'};
+  if(recent[date])return recent[date];
+  const n=Number(date.slice(-2)),m=Number(date.slice(5,7));
+  if(n===4||n===13)return {status:'unknown'};
+  if(n===6||n===18)return {status:'zero',value:0};
+  return {status:n===2?'partial':'known',value:Number((0.2+((n*13+m*7)%25)/10).toFixed(2))};
+}
+function level(value){return value===0?'h0':value<0.6?'h1':value<1.4?'h2':value<2.1?'h3':'h4'}
+function item(date,scale=1,prefix=''){
+  let x=daily(date),value=x.value===undefined?undefined:Number((x.value*scale).toFixed(2));
+  let state=x.status==='unknown'?'覆盖未知，用量未知':x.status==='future'?'未来日期':x.status==='zero'?'已确认零用量，0 Token':`${x.status==='partial'?'部分覆盖，已知 ':'已知 '}${value.toFixed(2)}M Token`;
+  return {className:x.status==='unknown'?'unknown':x.status==='future'?'future':level(value)+(x.status==='partial'?' partial':''),info:`${prefix}${date} · 北京时间 · ${state}`};
+}
+function cell(data,label='',extra='') {return `<button type="button" class="heat-cell ${data.className}" data-heat-info="${data.info}" title="${data.info}" aria-label="${data.info}" ${extra}>${label}</button>`}
+function annual(){
+  // 示例中的“今天”为 2026-10-29；按 UTC 日期运算表示北京时间的日历日期，避免时区和闰日误差。
+  const lastDay=new Date(Date.UTC(2026,9,29));
+  const firstDay=new Date(lastDay.getTime()-364*86400000);
+  const firstWeekday=firstDay.getUTCDay();
+  const columns=Math.ceil((firstWeekday+365)/7);
+  let out='',labels='';
+  for(let i=0;i<firstWeekday;i++)out+='<span class="heat-cell blank" aria-hidden="true"></span>';
+  for(let i=0;i<365;i++){
+    const d=new Date(firstDay.getTime()+i*86400000);
+    const key=d.toISOString().slice(0,10);
+    if(i===0||d.getUTCDate()===1){
+      const column=Math.floor((firstWeekday+i)/7)+1;
+      labels+=`<span style="grid-column:${column}">${d.getUTCMonth()+1}月</span>`;
+    }
+    out+=cell(item(key),'',variant==='A1'?`data-heat-index="${i}" tabindex="${i===heatIndex?0:-1}"`:'');
+  }
+  return `<div class="year-labels" style="grid-template-columns:repeat(${columns},17px)">${labels}</div><div class="year-body"><div class="year-weekdays" aria-hidden="true"><span>日</span><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span></div><div class="heat-annual">${out}</div></div>`;
+}
+function heatmap(){
+ const is3d=heatMode==='iso';
+ const title=is3d?'近 1 年 · 3D 等距':'近 1 年 · 每日一格';
+ const body=is3d?`<div class="heat-iso">${annual()}</div>`:annual();
+ const note=is3d?'与近 1 年热力图使用同一组每日数据，仅展示角度不同。':'横向按周，纵向按星期；展示截至示例日期的最近 365 天。';
+ return `<section class="card heatmap"><div class="sectionhead"><h2>Token 热力图</h2><span class="muted">合成数据 · ${title}</span></div><div class="heat-tabs" aria-label="热力图形式">${Object.entries(heatModes).map(([k,v])=>`<button type="button" data-heat-mode="${k}" aria-pressed="${k===heatMode}">${v}</button>`).join('')}</div><p class="muted">${note} ${variant==='A1'?'使用方向键选择日期，或点击、悬停查看详情。':'点击、悬停或聚焦色块查看详情。'}</p>${variant==='A1'?'<p class="scroll-hint">左右滑动查看其他日期</p>':''}<div class="heat-scroll">${body}</div><div id="heat-detail" class="heat-detail" aria-live="polite">选择色块查看日期、数值和覆盖状态。</div><div class="heat-legend" aria-label="热力图图例"><span><i class="h0"></i>已确认零用量</span><span><i class="h1"></i><i class="h2"></i><i class="h3"></i><i class="h4"></i>已知用量由少到多</span><span><i class="partial"></i>部分覆盖</span><span><i class="unknown"></i>覆盖未知</span></div></section>`;
+}
+
+
+// 示例数值以 0.01M 为单位；每天各模型之和等于对应的每日总量。
+const modelSamples=[[125,79,18],[150,96,25],[86,58,16],[64,48,10],[77,58,10],[57,43,10],[110,75,15]];
+const modelColors=['var(--model-a)','var(--model-b)','var(--model-unknown)'];
+function modelChart(){
+  const legend=models.map((m,i)=>`<span><i style="background:${modelColors[i]}"></i>${m.name}</span>`).join('');
+  const bars=[...days].map((d,i)=>({d,i})).reverse().map(({d,i})=>{
+    const values=modelSamples[i];
+    const summary=`${d.date} · 已知总量 ${d.total} Token · ${d.status} · `+models.map((m,j)=>`${m.name} ${(values[j]/100).toFixed(2)}M`).join(' · ');
+    const height=Math.round(values.reduce((a,b)=>a+b,0)/271*150);
+    return `<button type="button" class="model-bar" data-bar-info="${summary}" aria-label="${summary}"><span class="model-bar-value">${d.total}</span><span class="model-bar-stack ${d.status==='部分覆盖'?'partial':''}" style="height:${height}px">${values.map((v,j)=>`<span style="height:${v/values.reduce((a,b)=>a+b,0)*100}%;background:${modelColors[j]}"></span>`).join('')}</span><span class="model-bar-date">${d.date.slice(0,5)}</span><span class="model-bar-tooltip" aria-hidden="true"><strong>${d.date}</strong><span>已知总量 ${d.total} Token · ${d.status}</span>${models.map((m,j)=>`<span><i style="background:${modelColors[j]}"></i>${m.name} ${(values[j]/100).toFixed(2)}M</span>`).join('')}</span></button>`;
+  }).join('');
+  return `<section class="card model-chart"><div class="sectionhead"><h2>近 7 天 Token 用量</h2><span class="muted">按模型分色 · 北京时间</span></div><div class="model-chart-legend">${legend}<span><i class="coverage-key"></i>部分覆盖</span></div>${variant==='A1'?'<p class="scroll-hint">左右滑动查看其他日期</p>':''}<div class="model-chart-scroll"><div class="model-bars">${bars}</div></div><div id="model-chart-detail" class="model-chart-detail" aria-live="polite">悬停、点击或聚焦柱子可查看各模型用量。</div><p class="muted">示例数据；斜纹轮廓表示部分覆盖，仅包含已收到的用量。未知模型单独显示，未知或未同步用量不按零计算。筛选仅演示，不改变示例数据。</p></section>`;
+}
+
+const filters=()=>`当前筛选：${document.querySelector('#date').value} · ${document.querySelector('#agent').value} · ${document.querySelector('#model').value} · ${document.querySelector('#device').value}。示例数字仅用于比较布局，不随筛选计算。`;
+function metric(label,value,caption){return `<div class="card metric"><small>${label}</small><strong>${value}</strong><span class="muted">${caption}</span></div>`}
+function render(options={}){
+ const oldHeat=document.querySelector('.heat-scroll');
+ const oldChart=document.querySelector('.model-chart-scroll');
+ const heatScroll=oldHeat?.scrollLeft,chartScroll=oldChart?.scrollLeft;
+ document.body.dataset.variant=variant;
+ const sw=document.querySelector('.switch');
+ if(variant==='A1')document.querySelector('.header').append(sw);else document.body.append(sw);
+ document.querySelector('#app').innerHTML=`${disclaimer}<div class="metrics">${metric('今日总 Token',days[0].total,'已知部分')}${metric('输入 / 输出',days[0].input+' / '+days[0].output,'输入 / 输出')}${metric('缓存命中率',days[0].cache,'口径待确认')}${metric('今日费用',days[0].cost,'实际费用未知')}</div><div class="split">${modelChart()}<div class="card"><h2>设备与覆盖</h2>${devices}</div></div>${modelBreakdown}${heatmap()}`;
+ if(variant==='A1'){
+  const narrow=window.matchMedia('(max-width:850px)').matches;
+  for(const [selector,previous] of [['.heat-scroll',heatScroll],['.model-chart-scroll',chartScroll]]){
+   const container=document.querySelector(selector);
+   if(narrow && (options.resetScroll || previous===undefined))container.scrollLeft=container.scrollWidth;
+   else if(!options.resetScroll && previous!==undefined)container.scrollLeft=previous;
+  }
+ }
+ if(variant==='A1'){
+  for(const [selector,key] of [['.heat-scroll','heat'],['.model-chart-scroll','chart']]){
+   const container=document.querySelector(selector);
+   for(const eventName of ['wheel','touchstart','pointerdown','keydown'])container.addEventListener(eventName,()=>{userScrolled[key]=true;userPositions[key]=container.scrollLeft},{passive:true});
+   container.addEventListener('scroll',()=>{if(userScrolled[key]&&!resizing)userPositions[key]=container.scrollLeft},{passive:true});
+  }
+ }
+ for(const key of Object.keys(names))document.querySelector('#choose'+key).setAttribute('aria-pressed',String(key===variant));
+ document.querySelectorAll('[data-heat-mode]').forEach(el=>el.onclick=()=>{const mode=el.dataset.heatMode;if(mode===heatMode)return;const previous=document.querySelector('.heat-scroll'),scroll=previous.scrollLeft,atEnd=previous.scrollWidth-previous.clientWidth-scroll<2;heatMode=mode;render();const next=document.querySelector('.heat-scroll');next.scrollLeft=variant==='A1'&&atEnd?next.scrollWidth:scroll;document.querySelector(`[data-heat-mode="${mode}"]`).focus({preventScroll:true})});
+ document.querySelectorAll('[data-bar-info]').forEach(el=>{const show=()=>{document.querySelector('#model-chart-detail').textContent=el.dataset.barInfo};el.onclick=show;el.onfocus=show;el.onmouseenter=show});
+ document.querySelectorAll('[data-heat-info]').forEach(el=>{
+  const show=()=>{document.querySelector('#heat-detail').textContent=el.dataset.heatInfo};el.onclick=()=>{show();if(variant==='A1')setHeatFocus(Number(el.dataset.heatIndex),true)};el.onfocus=show;el.onmouseenter=show;
+  if(variant==='A1')el.onkeydown=e=>{const offsets={ArrowLeft:-7,ArrowRight:7,ArrowUp:-1,ArrowDown:1,Home:-heatIndex,End:364-heatIndex};if(!(e.key in offsets))return;e.preventDefault();e.stopPropagation();setHeatFocus(Math.max(0,Math.min(364,heatIndex+offsets[e.key])),true)};
+ });
+}
+function setHeatFocus(index,focus){const cells=[...document.querySelectorAll('[data-heat-index]')];if(!cells[index])return;heatIndex=index;cells.forEach((el,i)=>el.tabIndex=i===index?0:-1);if(focus)cells[index].focus();}
+function choose(key){if(key==='A1'&&variant!=='A1'){userScrolled={heat:false,chart:false};userPositions={heat:0,chart:0}}variant=key;let u=new URL(location.href);u.searchParams.set('variant',variant);history.replaceState(null,'',u);render({resetScroll:true});document.querySelector('#choose'+key).focus({preventScroll:true})}
+window.addEventListener('resize',()=>{
+ const narrow=window.matchMedia('(max-width:850px)').matches;
+ resizing=true;
+ if(narrow&&!wasNarrow&&variant==='A1'){
+  for(const [selector,key] of [['.heat-scroll','heat'],['.model-chart-scroll','chart']]){
+   const container=document.querySelector(selector);
+   if(container)container.scrollLeft=userScrolled[key]?userPositions[key]:container.scrollWidth;
+  }
+ }
+ wasNarrow=narrow;
+ requestAnimationFrame(()=>{resizing=false});
+});
+document.querySelector('#chooseA').onclick=()=>choose('A');document.querySelector('#chooseA1').onclick=()=>choose('A1');document.querySelectorAll('select').forEach(x=>x.onchange=render);render();
+</script></body></html>
