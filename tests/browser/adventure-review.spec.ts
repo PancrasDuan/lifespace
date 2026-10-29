@@ -7,7 +7,7 @@ test('成功反馈使用浮动 toast，不推挤布局，可自动消失、再�
   await page.clock.install()
   const server = await planningFixture(context)
   server.saved(withMainline)
-  await page.goto('/adventure')
+  await page.goto('/adventure?view=planning')
   const before = await page.locator('.adventure-proto-workspace').boundingBox()
   await page.getByRole('button', { name: '新建', exact: true }).click()
   await page.getByRole('region', { name: '快速新建' }).getByRole('button', { name: '一条主线', exact: true }).click()
@@ -38,7 +38,7 @@ test('成功反馈使用浮动 toast，不推挤布局，可自动消失、再�
 test('成功后查询失败只重试读取，不重发命令', async ({ page, context }) => {
   const server = await planningFixture(context)
   server.saved(withMainline)
-  await page.goto('/adventure')
+  await page.goto('/adventure?view=planning')
   await page.getByRole('button', { name: '新建', exact: true }).click()
   await page.getByRole('region', { name: '快速新建' }).getByRole('button', { name: '一条主线', exact: true }).click()
   await page.getByLabel('主线名称').fill('健康')
@@ -55,7 +55,7 @@ test('成功后查询失败只重试读取，不重发命令', async ({ page, co
 test('结果未知时保留同一封套，弹窗内安全重试且不重复新建', async ({ page, context }) => {
   const server = await planningFixture(context)
   server.saved(withMainline)
-  await page.goto('/adventure')
+  await page.goto('/adventure?view=planning')
   await page.getByRole('button', { name: '新建', exact: true }).click()
   await page.getByRole('region', { name: '快速新建' }).getByRole('button', { name: '一条主线', exact: true }).click()
   await page.getByLabel('主线名称').fill('健康')
@@ -87,7 +87,7 @@ test('结果未知时保留同一封套，弹窗内安全重试且不重复新�
 test('版本冲突重新读取后等待用户再次确认，不自动重放', async ({ page, context }) => {
   const server = await planningFixture(context)
   server.saved(withMainline)
-  await page.goto('/adventure')
+  await page.goto('/adventure?view=planning')
   await page.getByRole('button', { name: '新建', exact: true }).click()
   await page.getByRole('region', { name: '快速新建' }).getByRole('button', { name: '一条主线', exact: true }).click()
   await page.getByLabel('主线名称').fill('职业')
@@ -105,7 +105,7 @@ test('版本冲突重新读取后等待用户再次确认，不自动重放', as
 test('早于成功版本的查询不能覆盖页面或放行新命令', async ({ page, context }) => {
   const server = await planningFixture(context)
   server.saved(withMainline)
-  await page.goto('/adventure')
+  await page.goto('/adventure?view=planning')
   await page.getByRole('button', { name: '新建', exact: true }).click()
   await page.getByRole('region', { name: '快速新建' }).getByRole('button', { name: '一条主线', exact: true }).click()
   await page.getByLabel('主线名称').fill('健康')
@@ -129,7 +129,7 @@ test('命令成功后的查询共享总超时，超时仍明确提示已保存�
   })
   const server = await planningFixture(context)
   server.saved(withMainline)
-  await page.goto('/adventure')
+  await page.goto('/adventure?view=planning')
   await page.getByRole('button', { name: '新建', exact: true }).click()
   await page.getByRole('region', { name: '快速新建' }).getByRole('button', { name: '一条主线', exact: true }).click()
   await page.getByLabel('主线名称').fill('健康')

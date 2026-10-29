@@ -6,7 +6,7 @@ test('主线改名与目标编辑保存后显示新查询事实', async ({ page,
   const server = await planningFixture(context, withGoal)
   server.saved({ ...withGoal, version: 3, mainlines: [{ ...withMainline.mainlines[0], name: '健康与活力' }],
     goals: [{ ...withGoal.goals[0], mainlineName: '健康与活力' }] })
-  await page.goto('/adventure')
+  await page.goto('/adventure?view=planning')
   await openRecordActions(page.getByRole('article', { name: '主线：' + '健康', exact: true }))
   await page.getByRole('button', { name: '修改主线 健康' }).click()
   await page.getByLabel('主线名称', { exact: true }).fill('健康与活力')
@@ -77,21 +77,23 @@ test('桌面、中等宽度与手机下主线名称和任务正文不互相挤�
     await expect(card).toBeVisible()
     const copy = card.locator('.record-copy')
     expect((await copy.boundingBox())!.width).toBeGreaterThan(130)
-    const title = mainline.locator('.record-copy strong')
-    await expect(title).toBeVisible()
-    expect((await title.boundingBox())!.width).toBeGreaterThan(100)
     await openRecordActions(card)
     const before = (await card.boundingBox())!.height
     await card.getByRole('button', { name: /^更多/ }).click()
     expect((await card.boundingBox())!.height).toBeCloseTo(before, 0)
     await expect(card).toContainText('用于成长流水分页和实时成就验收。')
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+    await page.getByRole('button', { name: '主线与目标', exact: true }).click()
+    const title = mainline.locator('.record-copy strong')
+    await expect(title).toBeVisible()
+    expect((await title.boundingBox())!.width).toBeGreaterThan(100)
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
   }
 })
 
 test('分页只展示服务端当前页，不用本页数量替代总数', async ({ page, context }) => {
   const server = await planningFixture(context, { ...withGoal, pageSize: 1, totalGoals: 2 })
-  await page.goto('/adventure')
+  await page.goto('/adventure?view=planning')
   await expect(page.getByText('共 2 个目标 · 第 1 页')).toBeVisible()
   server.show({ ...withGoal, page: 2, pageSize: 1, totalGoals: 2,
     goals: [{ ...withGoal.goals[0], title: '第二页的目标' }] })
@@ -107,7 +109,7 @@ test('独立目标编辑时归属显示与提交一致，可转入主线及清�
   const independent = { ...withGoal, goals: [{ ...withGoal.goals[0], independent: true, mainlineName: '独立区' }] }
   const server = await planningFixture(context, independent)
   server.saved(withGoal)
-  await page.goto('/adventure')
+  await page.goto('/adventure?view=planning')
   await page.getByRole('button', { name: '目标：五公里' }).click()
   await openRecordActions(page.locator('.adventure-proto-goal').first())
   await page.getByRole('button', { name: '编辑目标', exact: true }).click()

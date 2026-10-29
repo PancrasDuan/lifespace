@@ -19,7 +19,7 @@ test('达成结果未知安全重试同封套，成功而读取失败只重试�
   const server = await planningFixture(context, initial)
   server.preview(preview)
   server.saved(achieved)
-  await page.goto('/adventure')
+  await page.goto('/adventure?view=planning')
   await page.getByRole('button', { name: '目标：五公里', exact: true }).click()
   await page.getByRole('button', { name: '确认达成', exact: true }).click()
   server.loseNextResponse()
@@ -41,7 +41,7 @@ test('达成结果未知安全重试同封套，成功而读取失败只重试�
 test('达成409后必须重新预览，不静默替换奖励或自动提交', async ({ page, context }) => {
   const server = await planningFixture(context, initial)
   server.preview(preview)
-  await page.goto('/adventure')
+  await page.goto('/adventure?view=planning')
   await page.getByRole('button', { name: '目标：五公里', exact: true }).click()
   await page.getByRole('button', { name: '确认达成', exact: true }).click()
   server.saved({ ...initial, version: 3 })
@@ -60,6 +60,25 @@ test('达成409后必须重新预览，不静默替换奖励或自动提交', as
   await expect(page.getByRole('region', { name: '目标详情', exact: true })).toContainText('已达成 · 结果已冻结')
   expect(server.envelopes[1]).toMatchObject({ expectedVersion: 3, command: { type: 'achieveGoal', coefficient: 2 } })
   expect(server.envelopes[1].requestId).not.toBe(server.envelopes[0].requestId)
+})
+
+test('达成后切到今天再查看结果会返回规划并展开冻结结果', async ({ page, context }) => {
+  const server = await planningFixture(context, initial)
+  server.preview(preview)
+  await page.goto('/adventure?view=planning')
+  await page.getByRole('button', { name: '目标：五公里', exact: true }).click()
+  await page.getByRole('button', { name: '确认达成', exact: true }).click()
+  server.saved(achieved)
+  await page.getByRole('button', { name: '确认达成并入账', exact: true }).click()
+  const details = page.getByRole('region', { name: '目标详情', exact: true })
+  await expect(details).toContainText('已达成 · 结果已冻结')
+  const navigation = page.getByRole('navigation', { name: '冒险页面', exact: true })
+  await navigation.getByRole('button', { name: '今天', exact: true }).click()
+  await expect(navigation.getByRole('button', { name: '今天', exact: true })).toHaveAttribute('aria-current', 'page')
+  await page.getByRole('button', { name: '查看达成结果', exact: true }).click()
+  await expect(navigation.getByRole('button', { name: '主线与目标', exact: true })).toHaveAttribute('aria-current', 'page')
+  await expect(details).toContainText('已达成 · 结果已冻结')
+  expect(server.envelopes).toHaveLength(1)
 })
 
 

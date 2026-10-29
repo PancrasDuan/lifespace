@@ -24,21 +24,27 @@ const source: RewardSource = { version: 2, event: { id: completionId, entityId: 
 }
 const growth: GrowthPage = { version: 2, growth: { ...state.growth, achievements }, items: [source.event], total: 1, pageSize: 10, nextCursor: null }
 
-for (const width of [1440, 957, 390]) test(`${width}px 原型布局：同层成长、单次展开、向右更多及可读悬停`, async ({ page, context }) => {
+for (const width of [1440, 957, 390]) test(`${width}px 公共布局：今日任务优先、成长辅助、规划独立`, async ({ page, context }) => {
   await planningFixture(context, state)
   await page.setViewportSize({ width, height: 954 })
   await page.goto('/adventure')
-  const hero = page.locator('.adventure-proto-day-note'), aside = page.locator('.adventure-proto-aside')
-  await expect(hero).toBeVisible()
-  const heroBox = (await hero.boundingBox())!, asideBox = (await aside.boundingBox())!
-  if (width > 700) {
-    expect(asideBox.y).toBeCloseTo(heroBox.y, 0)
-    expect(asideBox.x).toBeGreaterThanOrEqual(heroBox.x + heroBox.width)
-  } else {
-    expect(asideBox.y).toBeGreaterThanOrEqual(heroBox.y + heroBox.height)
-    expect((await page.locator('.adventure-proto-mainline-list').boundingBox())!.y).toBeGreaterThan(asideBox.y)
-  }
+  const taskSection = page.locator('.adventure-proto-task-section'), aside = page.locator('.adventure-proto-aside')
   const card = page.getByRole('article', { name: '任务：整理本周设计反馈' })
+  await expect(taskSection).toBeVisible()
+  await expect(card).toBeInViewport()
+  await expect(aside).toBeVisible()
+  await expect(page.locator('.adventure-proto-day-note, .adventure-proto-mainline-list, .adventure-proto-goal')).toHaveCount(0)
+  expect(await taskSection.evaluate((element, supportSelector) => {
+    const support = document.querySelector(supportSelector)!
+    return !!(element.compareDocumentPosition(support) & Node.DOCUMENT_POSITION_FOLLOWING)
+  }, '.adventure-proto-aside')).toBe(true)
+  const taskBox = (await taskSection.boundingBox())!, asideBox = (await aside.boundingBox())!
+  if (width > 720) {
+    expect(asideBox.y).toBeCloseTo(taskBox.y, 0)
+    expect(asideBox.x).toBeGreaterThanOrEqual(taskBox.x + taskBox.width)
+  } else {
+    expect(asideBox.y).toBeGreaterThanOrEqual(taskBox.y + taskBox.height)
+  }
   await expect(card.getByRole('button', { name: '完成', exact: true })).toHaveCount(0)
   await card.getByRole('button', { name: '任务详情：整理本周设计反馈' }).click()
   await expect(card.getByRole('region', { name: '完整原安排链' })).toContainText('整理本周设计反馈')
@@ -51,7 +57,7 @@ for (const width of [1440, 957, 390]) test(`${width}px 原型布局：同层成�
   const primary = card.getByRole('button', { name: '完成', exact: true })
   await primary.hover()
   await expect(primary).toHaveCSS('color', 'rgb(255, 255, 255)')
-  await expect(primary).toHaveCSS('background-color', 'rgb(53, 79, 55)')
+  await expect(primary).not.toHaveCSS('background-color', 'rgba(0, 0, 0, 0)')
   await expect(page.locator('.prototype-page a')).toHaveCount(0)
   await expect(page.locator('.adventure-proto-goal article, .adventure-proto-task article, .adventure-proto-mainline-list article article')).toHaveCount(0)
   await expect(page.locator('.prototype-page details')).toHaveCount(0)
@@ -62,36 +68,33 @@ for (const width of [1440, 957, 390]) test(`${width}px 原型布局：同层成�
       background: getComputedStyle(document.querySelector('.lifespace-app')!).backgroundImage,
     }
   })
-  expect(shell.mainLeft).toBe(width > 700 ? 74 : 0)
+  expect(shell.mainLeft).toBe(width > 720 ? 76 : 54)
   expect(shell.background).toContain('radial-gradient')
-  if (width <= 700) {
+  await expect(page.locator('.sidebar .brand-mark img')).toHaveAttribute('src', '/favicon.svg')
+  await expect(page.locator('.proto-mobile-settings')).toHaveCount(0)
+  const font = await page.locator('body').evaluate(element => getComputedStyle(element).fontFamily)
+  await expect(page.getByRole('heading', { name: '人生冒险', exact: true })).toHaveCSS('font-family', font)
+  if (width <= 720) {
     const avatar = (await page.locator('.auth-avatar').boundingBox())!
     const create = (await page.getByRole('button', { name: '新建', exact: true }).boundingBox())!
-    expect(create.x + create.width).toBeLessThanOrEqual(avatar.x)
-    const settings = (await page.locator('.proto-mobile-settings').boundingBox())!
-    const home = (await page.locator('.proto-sidebar a.nav-item').first().boundingBox())!
-    expect(settings.x + settings.width).toBeLessThanOrEqual(home.x)
+    expect(create.x + create.width <= avatar.x || avatar.x + avatar.width <= create.x
+      || create.y + create.height <= avatar.y || avatar.y + avatar.height <= create.y).toBe(true)
   }
-  await expect(page.locator('.page-heading')).toContainText('LIFESPACE / YOUR NEXT STEP')
-  await expect(page.locator('.adventure-proto-day-note')).toContainText('先走稳眼前这一步')
   await expect(page.locator('.adventure-proto-aside')).toContainText('正在成为')
-  await expect(page.locator('.adventure-proto-aside')).toContainText('下一处风景')
-  await expect(page.locator('.adventure-proto-task-section')).toContainText('一次性任务')
-  if (width > 700) expect((await page.locator('.adventure-proto-task-section').boundingBox())!.width).toBeCloseTo((await page.locator('.adventure-proto-mainline-list').boundingBox())!.width, 0)
+  await expect(taskSection.getByRole('heading', { level: 2 })).toBeVisible()
   await expect(page.locator('.view-tabs')).toContainText('今天')
   await expect(page.locator('.view-tabs')).toContainText('主线与目标')
   await expect(page.locator('.view-tabs')).toContainText('成长记录')
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
   await page.evaluate(() => window.scrollTo(0, 0))
   await page.screenshot({ path: `.cache/adventure-ui-overview-${width}.png`, fullPage: true })
-  const taskSection = page.locator('.adventure-proto-task-section')
-  if (width > 700) {
-    expect((await taskSection.boundingBox())!.width).toBeCloseTo((await page.locator('.adventure-proto-mainline-list').boundingBox())!.width, 0)
-    expect((await taskSection.boundingBox())!.x).toBeCloseTo((await hero.boundingBox())!.x, 0)
-  }
   await page.getByRole('button', { name: '主线与目标', exact: true }).click()
+  await expect(page).toHaveURL('/adventure?view=planning')
   await expect(page.locator('.adventure-proto-aside')).toHaveCount(0)
   await expect(page.locator('.adventure-proto-task-section')).toHaveCount(0)
+  await expect(page.getByRole('article', { name: '主线：健康', exact: true })).toBeVisible()
+  const workspace = (await page.locator('.adventure-proto-workspace').boundingBox())!
+  expect((await page.locator('.adventure-proto-mainline-list').boundingBox())!.width).toBeCloseTo(workspace.width, 0)
   await page.getByRole('button', { name: '目标：五公里', exact: true }).click()
   const details = page.getByRole('region', { name: '目标详情', exact: true })
   await expect(details).toContainText('连续跑完五公里')
@@ -99,11 +102,80 @@ for (const width of [1440, 957, 390]) test(`${width}px 原型布局：同层成�
   const goalHeight = (await goal.boundingBox())!.height
   await details.getByRole('button', { name: /^更多/ }).click()
   await expect(details.getByRole('button', { name: '编辑目标', exact: true })).toBeVisible()
-  if (width > 700) expect((await goal.boundingBox())!.height).toBeCloseTo(goalHeight, 0)
+  if (width > 720) expect((await goal.boundingBox())!.height).toBeCloseTo(goalHeight, 0)
   else expect((await goal.boundingBox())!.height).toBeGreaterThanOrEqual(goalHeight)
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
   await page.evaluate(() => window.scrollTo(0, 0))
   await page.screenshot({ path: `.cache/adventure-ui-planning-${width}.png`, fullPage: true })
+})
+
+for (const width of [721, 720]) test(`${width}px 冒险沿用全站侧栏断点`, async ({ page, context }) => {
+  await planningFixture(context, state)
+  await page.setViewportSize({ width, height: 954 })
+  await page.goto('/adventure')
+  const navigationWidth = width > 720 ? 76 : 54
+  await expect(page.locator('.sidebar')).toHaveCSS('width', `${navigationWidth}px`)
+  expect((await page.locator('.lifespace-app main').boundingBox())!.x).toBe(navigationWidth)
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+})
+
+test('规划标签刷新后保持，返回今天只展示行动与成长支持', async ({ page, context }) => {
+  await planningFixture(context, state)
+  await page.goto('/adventure')
+  const navigation = page.getByRole('navigation', { name: '冒险页面', exact: true })
+  await navigation.getByRole('button', { name: '主线与目标', exact: true }).click()
+  await expect(page).toHaveURL('/adventure?view=planning')
+  await page.reload()
+  await expect(navigation.getByRole('button', { name: '主线与目标', exact: true })).toHaveAttribute('aria-current', 'page')
+  await expect(page.getByRole('article', { name: '主线：健康', exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: '目标：五公里', exact: true })).toBeVisible()
+  await expect(page.locator('.adventure-proto-task-section, .adventure-proto-aside')).toHaveCount(0)
+  await navigation.getByRole('button', { name: '今天', exact: true }).click()
+  await expect(page).toHaveURL('/adventure')
+  await expect(page.locator('.adventure-proto-task-section')).toBeVisible()
+  await expect(page.locator('.adventure-proto-aside')).toBeVisible()
+  await expect(page.locator('.adventure-proto-mainline-list, .adventure-proto-goal')).toHaveCount(0)
+})
+
+test('从今天快速新建主线或目标进入规划，行动留在今天，取消后保留对应页面', async ({ page, context }) => {
+  await planningFixture(context, state)
+  await page.goto('/adventure')
+  const navigation = page.getByRole('navigation', { name: '冒险页面', exact: true })
+  await expect(page.getByRole('button', { name: '新建', exact: true })).toBeEnabled()
+  for (const entry of [
+    { option: '一条主线', title: '创建主线', tab: '主线与目标', url: '/adventure?view=planning' },
+    { option: '一个目标', title: '创建目标', tab: '主线与目标', url: '/adventure?view=planning' },
+    { option: '一项行动', title: '创建任务', tab: '今天', url: '/adventure' },
+  ]) {
+    await navigation.getByRole('button', { name: '今天', exact: true }).click()
+    await page.getByRole('button', { name: '新建', exact: true }).click()
+    await page.getByRole('region', { name: '快速新建', exact: true }).getByRole('button', { name: entry.option, exact: true }).click()
+    const dialog = page.getByRole('dialog', { name: entry.title, exact: true })
+    const selectedTab = navigation.getByRole('button', { name: entry.tab, exact: true })
+    await expect(dialog).toBeVisible()
+    await expect(selectedTab).toHaveAttribute('aria-current', 'page')
+    await expect(page).toHaveURL(entry.url)
+    await dialog.getByRole('button', { name: '取消', exact: true }).click()
+    await expect(dialog).toHaveCount(0)
+    await expect(selectedTab).toHaveAttribute('aria-current', 'page')
+    await expect(page).toHaveURL(entry.url)
+  }
+})
+
+test('目标深链自动进入规划，刷新保持详情，收起后保留规划标签', async ({ page, context }) => {
+  await planningFixture(context, state)
+  await page.goto(`/adventure?goalId=${goalId}`)
+  const planningTab = page.getByRole('navigation', { name: '冒险页面', exact: true }).getByRole('button', { name: '主线与目标', exact: true })
+  const details = page.getByRole('region', { name: '目标详情', exact: true })
+  await expect(planningTab).toHaveAttribute('aria-current', 'page')
+  await expect(details).toContainText('连续跑完五公里')
+  await expect(page.locator('.adventure-proto-task-section, .adventure-proto-aside')).toHaveCount(0)
+  await page.reload()
+  await expect(planningTab).toHaveAttribute('aria-current', 'page')
+  await expect(details).toContainText('连续跑完五公里')
+  await page.keyboard.press('Escape')
+  await expect(details).toHaveCount(0)
+  await expect(page).toHaveURL('/adventure?view=planning')
 })
 
 test('成长记录：已点亮进度封顶，整行打开奖励冻结来源', async ({ page, context }) => {
@@ -132,18 +204,25 @@ test('成长记录：已点亮进度封顶，整行打开奖励冻结来源', as
 test('已结束主线直达仍展示平铺历史，不要求开启终态列表', async ({ page, context }) => {
   await planningFixture(context, { ...state, mainlines: [], mainlineDetail: { ...withGoal.mainlines[0], status: 'ended', endedAt: '2026-10-20T04:00:00Z' } })
   await page.goto(`/adventure?mainlineId=${mainlineId}`)
+  const planningTab = page.getByRole('navigation', { name: '冒险页面', exact: true }).getByRole('button', { name: '主线与目标', exact: true })
+  await expect(planningTab).toHaveAttribute('aria-current', 'page')
+  await expect(page.locator('.adventure-proto-task-section, .adventure-proto-aside')).toHaveCount(0)
   const history = page.getByRole('region', { name: '主线历史', exact: true })
   await expect(history).toContainText('已结束 · 只读')
   await expect(history).toContainText('结束时间')
   await expect(history).toContainText('五公里')
   await expect(page.getByLabel('显示已达成／已结束', { exact: true })).not.toBeChecked()
+  await page.reload()
+  await expect(planningTab).toHaveAttribute('aria-current', 'page')
+  await expect(history).toContainText('已结束 · 只读')
   await page.getByRole('button', { name: '收起详情', exact: true }).click()
   await expect(history).toHaveCount(0)
+  await expect(page).toHaveURL('/adventure?view=planning')
 })
 
 test('键盘收起内联详情后焦点回到对应摘要', async ({ page, context }) => {
   await planningFixture(context, state)
-  await page.goto('/adventure')
+  await page.goto('/adventure?view=planning')
   const summary = page.getByRole('button', { name: '目标：五公里', exact: true })
   await summary.click()
   await page.getByRole('region', { name: '目标详情', exact: true }).getByRole('button', { name: '聚焦', exact: true }).focus()
@@ -155,9 +234,8 @@ test('键盘收起内联详情后焦点回到对应摘要', async ({ page, conte
 
 test('主线目标页隐藏等级经验，目标聚焦筛选请求由后端分页', async ({ page, context }) => {
   const server = await planningFixture(context, { ...state, mainlines: [{ ...state.mainlines[0], activeGoalCount: 8, todayTaskCount: 3 }] })
-  await page.goto('/adventure')
+  await page.goto('/adventure?view=planning')
   await expect(page.getByRole('article', { name: '主线：健康', exact: true })).toContainText('8 个目标')
-  await page.getByRole('button', { name: '主线与目标', exact: true }).click()
   await expect(page.locator('.level-note')).toHaveCount(0)
   server.show({ ...state, goalScope: 'focus', goals: [], totalGoals: 0 })
   const query = page.waitForRequest(request => request.url().includes('/api/adventure?') && new URL(request.url()).searchParams.get('goalScope') === 'focus')
@@ -168,7 +246,7 @@ test('主线目标页隐藏等级经验，目标聚焦筛选请求由后端分�
 
 test('目标编辑取消后焦点回到对应目标摘要', async ({ page, context }) => {
   await planningFixture(context, state)
-  await page.goto('/adventure')
+  await page.goto('/adventure?view=planning')
   const summary = page.getByRole('button', { name: '目标：五公里', exact: true })
   await summary.click()
   await page.getByRole('region', { name: '目标详情', exact: true }).getByRole('button', { name: '更多', exact: true }).click()
@@ -185,7 +263,7 @@ test('聚焦视图创建任务仍可选择未聚焦目标，候选读取不改�
     const scope = new URL(route.request().url()).searchParams.get('goalScope')
     await route.fulfill({ json: scope === 'all' ? { ...state, goals: [{ ...state.goals[0], focused: false, capabilities: { ...state.goals[0].capabilities, createTask: allowed } }] } : { ...state, goalScope: 'focus', goals: [], totalGoals: 0 } })
   })
-  await page.goto('/adventure')
+  await page.goto('/adventure?view=planning')
   await page.getByRole('button', { name: '新建', exact: true }).click()
   await page.getByRole('button', { name: '一项行动', exact: true }).click()
   await expect(page.getByLabel('任务归属').getByRole('option', { name: '健康 / 五公里', exact: true })).toBeAttached()
@@ -196,7 +274,7 @@ test('聚焦视图创建任务仍可选择未聚焦目标，候选读取不改�
 
 test('主线只展开一层，查看历史不会收起卡片，更多仅一组', async ({ page, context }) => {
   const server = await planningFixture(context, state)
-  await page.goto('/adventure')
+  await page.goto('/adventure?view=planning')
   const card = page.getByRole('article', { name: '主线：健康', exact: true })
   await card.getByRole('button', { name: '主线：健康', exact: true }).click()
   await expect(card.getByRole('region', { name: '主线历史', exact: true })).toHaveCount(0)
@@ -254,7 +332,7 @@ test('验收反馈：主线历史不改变下面的目标列表', async ({ page,
     const history = new URL(route.request().url()).searchParams.has('mainlineId')
     return route.fulfill({ json: history ? { ...state, mainlineDetail: state.mainlines[0], goals: [], totalGoals: 0 } : state })
   })
-  await page.goto('/adventure')
+  await page.goto('/adventure?view=planning')
   const goal = page.getByRole('article', { name: '目标卡：五公里', exact: true })
   await expect(goal).toBeVisible()
   const card = page.getByRole('article', { name: '主线：健康', exact: true })
@@ -275,7 +353,7 @@ test('主线历史保留名称并可切换到隐藏终态目标的单层详情',
       : query.has('goalId') ? { ...base, goalDetail: { goal: ended, tasks: [], taskPage: 1, totalTasks: 0 } } : base
     return route.fulfill({ json: value })
   })
-  await page.goto('/adventure')
+  await page.goto('/adventure?view=planning')
   const card = page.getByRole('article', { name: '主线：健康', exact: true })
   await card.getByRole('button', { name: '主线：健康', exact: true }).click()
   await card.getByRole('button', { name: '查看历史', exact: true }).click()

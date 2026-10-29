@@ -87,7 +87,7 @@ function PlanningForm({ dialog, data, action, busy, close }: {
 }
 
 function Workspace() {
-  const [tab, setTab] = useState<'overview' | 'planning' | 'growth'>(() => { const params = new URLSearchParams(window.location.search); return params.get('view') === 'growth' || params.has('rewardId') ? 'growth' : 'overview' })
+  const [tab, setTab] = useState<'overview' | 'planning' | 'growth'>(() => { const params = new URLSearchParams(window.location.search); return params.get('view') === 'growth' || params.has('rewardId') ? 'growth' : params.get('view') === 'planning' || params.has('goalId') || params.has('mainlineId') ? 'planning' : 'overview' })
   const [planningEnabled, setPlanningEnabled] = useState(tab !== 'growth')
   const model = usePlanning(planningEnabled)
   const { data, busy, uncertain } = model
@@ -100,7 +100,7 @@ function Workspace() {
     const task = params.get('taskId')
     return task ? { kind: 'taskHistory', id: task } : goal ? { kind: 'detail', id: goal } : main ? { kind: 'mainlineDetail', id: main } : undefined
   })
-  const selectTab = (value: typeof tab) => { if (value === 'growth' && (busy || uncertain)) return; if (value !== 'growth') setPlanningEnabled(true); setTab(value); window.history.replaceState(null, '', value === 'growth' ? '/adventure?view=growth' : '/adventure') }
+  const selectTab = (value: typeof tab) => { if (value === 'growth' && (busy || uncertain)) return; if (value !== 'growth') setPlanningEnabled(true); setTab(value); window.history.replaceState(null, '', value === 'overview' ? '/adventure' : `/adventure?view=${value}`) }
   const [showTerminal, setShowTerminal] = useState(() => data?.includeTerminal ?? false)
   const [preferenceError, setPreferenceError] = useState('')
   useEffect(() => { if (data) setShowTerminal(data.includeTerminal) }, [data])
@@ -118,8 +118,8 @@ function Workspace() {
     const opener = focusTarget ?? returnFocus.current
     returnFocus.current = undefined
     if (dialog?.kind === 'detail' || dialog?.kind === 'mainlineDetail') requestAnimationFrame(() => { if (opener?.isConnected) opener.focus(); else if (origin?.isConnected) origin.focus() })
-    previewGeneration.current++; setOpenRecord(undefined); setDialog(undefined); model.clearGoal(); window.history.replaceState(null, '', '/adventure')
-  }, [model.clearGoal, model.load, dialog])
+    previewGeneration.current++; setOpenRecord(undefined); setDialog(undefined); model.clearGoal(); window.history.replaceState(null, '', tab === 'planning' ? '/adventure?view=planning' : '/adventure')
+  }, [model.clearGoal, model.load, dialog, tab])
   const blocked = busy || uncertain || model.readRequired
   const recovery = (uncertain || model.readRequired) && !busy ? <button type="button" onClick={() => {
     if (uncertain) void model.retry().then(saved => { if (saved) close() })
@@ -133,9 +133,11 @@ function Workspace() {
   }
   const openGoal = (id: string) => {
     if (blocked) return
-    if (dialog?.kind === 'detail' && dialog.id === id) { close(); return }
+    if (tab === 'planning' && dialog?.kind === 'detail' && dialog.id === id) { close(); return }
     previewGeneration.current++
     inlineOrigin.current = document.activeElement instanceof HTMLElement ? document.activeElement.closest('article')?.querySelector<HTMLElement>(':scope > .record-summary') ?? document.activeElement : undefined
+    setTab('planning')
+    setPlanningEnabled(true)
     setOpenRecord(`goal:${id}`)
     setDialog({ kind: 'detail', id })
     window.history.replaceState(null, '', `/adventure?goalId=${id}`)
@@ -146,6 +148,7 @@ function Workspace() {
     if (dialog?.kind === 'mainlineDetail' && dialog.id === id) return
     previewGeneration.current++
     inlineOrigin.current = document.activeElement instanceof HTMLElement ? document.activeElement.closest('article')?.querySelector<HTMLElement>(':scope > .record-summary') ?? document.activeElement : undefined
+    setTab('planning')
     setOpenRecord(`mainline:${id}`)
     setDialog({ kind: 'mainlineDetail', id })
     window.history.replaceState(null, '', `/adventure?mainlineId=${id}`)
@@ -198,24 +201,24 @@ function Workspace() {
 
   const selectedMainline = dialog?.kind === 'mainlineDetail' ? (data?.mainlineDetail?.id === dialog.id ? data.mainlineDetail : data?.mainlines.find(item => item.id === dialog.id)) : undefined
   const mainlineDetails = data && dialog?.kind === 'mainlineDetail' && <MainlineHistory key={`${dialog.id}:${data.version}`} id={dialog.id} blocked={blocked} openGoal={openGoal} />
-  return <AppLayout page="adventure" openSettings={() => setQuickCreate(false)}><div className="adventure-page planning-page prototype-page">
+  return <AppLayout page="adventure"><div className="adventure-page planning-page prototype-page">
     <header className="page-heading">
-      <div><span className="eyebrow">LIFESPACE / YOUR NEXT STEP</span><h1>人生冒险</h1><p>把想做的事，慢慢变成现实。</p></div>
-      <div className="heading-meta">
-        {tab === 'overview' && data && <div className="level-note"><span>当前等级</span><strong>Lv.{data.growth.level}</strong><small>{data.growth.progress} / {data.growth.needed} 经验</small></div>}
-        {tab !== 'growth' && <div className="heading-actions">{model.lastAchievement && <button type="button" className="new-button" disabled={blocked} onClick={() => openGoal(model.lastAchievement!)}>查看达成结果</button>}<button ref={createButton} type="button" className="new-button" disabled={!data || blocked} onClick={() => setQuickCreate(value => !value)}>{quickCreate ? <X size={14} /> : <Plus size={15} />}<span>{quickCreate ? '收起' : '新建'}</span></button></div>}
-      </div>
+      <h1>人生冒险</h1><p>把想做的事，慢慢变成现实。</p>
     </header>
+    <div className="adventure-toolbar">
+      <span>{data ? new Intl.DateTimeFormat('zh-CN', { month: 'long', day: 'numeric', weekday: 'short', timeZone: 'Asia/Shanghai' }).format(new Date(`${data.today}T12:00:00+08:00`)) : '今天，继续向前'}</span>
+      {tab !== 'growth' && <div className="heading-actions">{model.lastAchievement && <button type="button" className="new-button" disabled={blocked} onClick={() => openGoal(model.lastAchievement!)}>查看达成结果</button>}<button ref={createButton} type="button" className="new-button" disabled={!data || blocked} onClick={() => setQuickCreate(value => !value)}>{quickCreate ? <X size={14} /> : <Plus size={15} />}<span>{quickCreate ? '收起' : '新建'}</span></button></div>}
+    </div>
 
     {quickCreate && data && <section className="quick-create" aria-label="快速新建"><div><span className="eyebrow">新建</span><strong>你接下来想留下什么？</strong></div><div className="quick-create-options">
-      <button disabled={blocked || !data.capabilities.createMainline?.allowed} title={data.capabilities.createMainline?.reason} onClick={() => { setQuickCreate(false); setDialog({ kind: 'mainline' }) }}>一条主线</button>
-      <button disabled={blocked || !data.capabilities.createGoal?.allowed} onClick={() => { setQuickCreate(false); setDialog({ kind: 'goal' }) }}>一个目标</button>
+      <button disabled={blocked || !data.capabilities.createMainline?.allowed} title={data.capabilities.createMainline?.reason} onClick={() => { setQuickCreate(false); selectTab('planning'); setDialog({ kind: 'mainline' }) }}>一条主线</button>
+      <button disabled={blocked || !data.capabilities.createGoal?.allowed} onClick={() => { setQuickCreate(false); selectTab('planning'); setDialog({ kind: 'goal' }) }}>一个目标</button>
       <button disabled={blocked || !data.capabilities.createTask?.allowed} title={data.capabilities.createTask?.reason} onClick={() => { setQuickCreate(false); setDialog({ kind: 'task' }) }}>一项行动</button>
     </div></section>}
 
     <nav className="view-tabs" aria-label="冒险页面"><button aria-current={tab === 'overview' ? 'page' : undefined} onClick={() => selectTab('overview')}>今天</button>
       <button aria-current={tab === 'planning' ? 'page' : undefined} onClick={() => selectTab('planning')}>主线与目标</button>
-      <button disabled={busy || uncertain} aria-current={tab === 'growth' ? 'page' : undefined} onClick={() => selectTab('growth')}>成长记录</button><span>{data ? new Intl.DateTimeFormat('zh-CN', { month: 'long', day: 'numeric', weekday: 'short', timeZone: 'Asia/Shanghai' }).format(new Date(`${data.today}T12:00:00+08:00`)) : ''}</span></nav>
+      <button disabled={busy || uncertain} aria-current={tab === 'growth' ? 'page' : undefined} onClick={() => selectTab('growth')}>成长记录</button></nav>
 
     {tab !== 'growth' && (!dialog || inlineDetail || !data) && recovery && <div className="planning-recovery">{recovery}</div>}
     {tab !== 'growth' && (model.error ? <PlanningToast key={model.error} tone="error" withinDialog={!!dialog && !inlineDetail && !!data} message={model.error} close={model.clearError} /> : !model.readRequired && model.notice && <PlanningToast key={model.notice.id} message={model.notice.message} close={model.clearNotice} />)}
@@ -224,14 +227,18 @@ function Workspace() {
     {tab === 'growth' && <PlanningGrowth />}
 
     {data && tab !== 'growth' && <div className={`adventure-proto-workspace${tab === 'planning' ? ' adventure-proto-map' : ''}`}>
-        {tab === 'overview' && <section className="adventure-proto-day-note"><div><span className="eyebrow">今天，继续向前</span><h2>先走稳眼前这一步，<br />远方自然会靠近。</h2><p>今天安排 {data.todayTaskProgress.total} 项行动，已经完成 {data.todayTaskProgress.completed} 项。</p></div><img src={explorer} alt="背着行囊的像素冒险者" /></section>}
+        {tab === 'overview' && (data.capabilities.createTask?.allowed ? <PrototypeTasks data={data} blocked={blocked} openTask={openRecord?.startsWith('task:') ? openRecord.slice(5) : undefined} toggleTask={toggleTask}
+          changeSearch={search => { void model.load({ search, taskPage: 1 }) }} changeRange={range => { void model.load({ taskRange: range, taskPage: 1 }) }} changePage={page => { void model.load({ taskPage: page }) }}
+          reschedule={task => setDialog({ kind: 'reschedule', task })} migrate={task => setDialog({ kind: 'migrate', entityKind: 'task', id: task.id, title: task.title })} edit={task => setDialog({ kind: 'task', task })} complete={task => { void model.command({ type: 'completeTask', id: task.id }) }} cancel={task => { void cancelTask(task) }} end={task => { void openLifecycle('endTask', task.id) }} remove={task => { void openLifecycle('deleteTask', task.id) }} />
+          : <section className="content-section"><header className="section-heading"><div><span className="eyebrow">今天要做的事</span><h2>一次性任务</h2></div></header><p className="adventure-hint">{data.capabilities.createTask?.reason}</p></section>)}
 
       {tab === 'overview' && <aside className="adventure-proto-aside">
         <section className="aside-panel"><span className="eyebrow">正在成为</span><div className="level-lockup"><strong>{String(data.growth.level).padStart(2, '0')}</strong><div><span>当前等级</span><p>再获得 {data.growth.remaining} 点经验进入下一级</p></div></div><Progress value={data.growth.needed ? data.growth.progress / data.growth.needed : 0} label="当前等级经验" /><dl className="growth-numbers"><div><dt>累计经验</dt><dd>{data.growth.totalXp}</dd></div><div><dt>真实行动</dt><dd>{data.growth.actions}</dd></div><div><dt>达成目标</dt><dd>{data.growth.achievedGoals}</dd></div></dl></section>
         <section className="aside-panel next-milestone"><span className="eyebrow">下一处风景</span>{data.growth.achievements.filter(item => !item.unlocked).slice(0, 2).map((item, index) => <div className={`milestone-line${index ? ' is-muted' : ''}`} key={item.id}><span className="milestone-icon">{index ? <Sprout size={16} /> : <Star size={16} />}</span><div><strong>{item.label}</strong><p>还差 {item.remaining} {item.id.startsWith('actions_') ? '次真实行动' : '个达成目标'}</p></div></div>)}{data.growth.achievements.every(item => item.unlocked) && <div className="milestone-line"><span className="milestone-icon"><Star size={16} /></span><div><strong>全部点亮</strong><p>继续保持现在的节奏</p></div></div>}<button type="button" className="aside-link" disabled={busy || uncertain} onClick={() => selectTab('growth')}>查看完整成长记录</button></section>
-        <blockquote>重要的不是走得多快，<br />是你开始走了。</blockquote>
+        <div className="adventure-journey-note"><img src={explorer} alt="" /><p>先走稳眼前这一步，<br />远方自然会靠近。</p></div>
       </aside>}
 
+        {tab === 'planning' && <>
         <section className="content-section">
           <header className="section-heading"><div><span className="eyebrow">方向</span><h2><Flag size={17} />我的主线</h2></div><div className="section-heading-tools"><span className="section-count">{data.mainlines.filter(item => item.status === 'active').length} 条在用</span><label className="quiet-toggle"><input aria-label="显示已达成／已结束" type="checkbox" checked={showTerminal} disabled={blocked} onChange={event => changeTerminal(event.target.checked)} />显示终态</label></div></header>
           {preferenceError && <p role="status" className="adventure-hint">{preferenceError}</p>}
@@ -248,17 +255,13 @@ function Workspace() {
           {dialog?.kind === 'mainlineDetail' && !data.mainlines.some(item => item.id === dialog.id) && <div className="planning-goal planning-standalone-detail"><header><h3>{selectedMainline?.name ?? '主线历史'}</h3><button onClick={() => close()}>收起详情</button></header>{mainlineDetails}</div>}
         </section>
 
-        <section className={`content-section${tab === 'overview' ? ' adventure-proto-goal-section' : ''}`}>
-          <header className="section-heading"><div><span className="eyebrow">阶段成果</span><h2><Sprout size={18} />正在生长的目标</h2></div><div className="quiet-filter" aria-label="目标视图">{(['all', 'focus'] as const).map(scope => <button key={scope} disabled={blocked} aria-pressed={data.goalScope === scope} onClick={() => { setOpenRecord(undefined); setDialog(undefined); model.clearGoal(); window.history.replaceState(null, '', '/adventure'); void model.load({ goalScope: scope, page: 1 }) }}>{scope === 'all' ? '全部' : '聚焦'}</button>)}</div></header>
+        <section className="content-section adventure-proto-goal-section">
+          <header className="section-heading"><div><span className="eyebrow">阶段成果</span><h2><Sprout size={18} />正在生长的目标</h2></div><div className="quiet-filter" aria-label="目标视图">{(['all', 'focus'] as const).map(scope => <button key={scope} disabled={blocked} aria-pressed={data.goalScope === scope} onClick={() => { setOpenRecord(undefined); setDialog(undefined); model.clearGoal(); window.history.replaceState(null, '', '/adventure?view=planning'); void model.load({ goalScope: scope, page: 1 }) }}>{scope === 'all' ? '全部' : '聚焦'}</button>)}</div></header>
           {goals?.length === 0 ? <p className="adventure-empty">{data.totalGoals ? '本页没有目标，请返回上一页。' : '还没有目标。创建独立目标，或选择一条主线。'}</p> : <PrototypeGoals goals={goals ?? []} blocked={blocked} action={model.command} openGoal={openRecord?.startsWith('goal:') ? openRecord.slice(5) : undefined} toggleGoal={toggleGoal} detail={goal => goal.id === detailGoal?.id ? goalDetails : <p role="status">正在读取目标详情…</p>} />}
           {dialog?.kind === 'detail' && !goals?.some(goal => goal.id === dialog.id) && <div className="record adventure-proto-goal is-open planning-standalone-detail"><header><h3>{detailGoal?.title ?? '目标详情'}</h3><button onClick={() => close()}>收起详情</button></header>{goalDetails}</div>}
           {data.totalGoals > data.pageSize && <div className="planning-pagination"><small>共 {data.totalGoals} 个目标 · 第 {data.page} 页</small><div><button disabled={blocked || data.page <= 1} onClick={() => { void model.load({ page: data.page - 1 }) }}>上一页</button><button disabled={blocked || data.page * data.pageSize >= data.totalGoals} onClick={() => { void model.load({ page: data.page + 1 }) }}>下一页</button></div></div>}
         </section>
-
-        {tab === 'overview' && (data.capabilities.createTask?.allowed ? <PrototypeTasks data={data} blocked={blocked} openTask={openRecord?.startsWith('task:') ? openRecord.slice(5) : undefined} toggleTask={toggleTask}
-          changeSearch={search => { void model.load({ search, taskPage: 1 }) }} changeRange={range => { void model.load({ taskRange: range, taskPage: 1 }) }} changePage={page => { void model.load({ taskPage: page }) }}
-          reschedule={task => setDialog({ kind: 'reschedule', task })} migrate={task => setDialog({ kind: 'migrate', entityKind: 'task', id: task.id, title: task.title })} edit={task => setDialog({ kind: 'task', task })} complete={task => { void model.command({ type: 'completeTask', id: task.id }) }} cancel={task => { void cancelTask(task) }} end={task => { void openLifecycle('endTask', task.id) }} remove={task => { void openLifecycle('deleteTask', task.id) }} />
-          : <section className="content-section"><header className="section-heading"><div><span className="eyebrow">今天要做的事</span><h2>一次性任务</h2></div></header><p className="adventure-hint">{data.capabilities.createTask?.reason}</p></section>)}
+        </>}
     </div>}
 
     {dialog && !inlineDetail && data && <Modal title={title} close={close} restoreFocus={inlineOrigin.current}>
