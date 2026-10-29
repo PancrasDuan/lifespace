@@ -5,7 +5,6 @@ import type { GrowthPage, RewardEntry, RewardSource } from '../shared/adventure-
 import { planningApi, PlanningError } from './planning-api'
 import { PlanningTaskHistory } from './PlanningReschedule'
 import { PlanningToast } from './PlanningToast'
-import { Progress } from './PrototypeRecord'
 
 function Attribution({ entry }: { entry: Pick<RewardEntry, 'mainlineKind' | 'mainlineName' | 'goalId' | 'goalTitle'> }) {
   return <>{entry.mainlineKind === 'normal' ? `${entry.mainlineName} / ${entry.goalTitle}` : entry.goalId ? `独立目标 / ${entry.goalTitle}` : '独立任务'}</>
@@ -62,7 +61,7 @@ function RewardInline({ id, version, title, detailId, changed, reportError, reco
   </section>
 }
 
-export function PlanningGrowth() {
+export function PlanningGrowth({ onGrowthChange, onGrowthStatusChange }: { onGrowthChange: (snapshot: Pick<GrowthPage, 'version' | 'growth'>) => void; onGrowthStatusChange: (status: 'loading' | 'ready' | 'error') => void }) {
   const identity = useVerifiedIdentity()
   const [query, setQuery] = useState<{ attempt: number; cursor?: string; version?: number }>({ attempt: 0 })
   const locatingCursor = useRef<string | undefined>(undefined)
@@ -76,17 +75,21 @@ export function PlanningGrowth() {
     const controller = new AbortController()
     const signal = AbortSignal.any([controller.signal, identity.signal, AbortSignal.timeout(15_000)])
     setBusy(true); setError(''); setConflict(false)
+    onGrowthStatusChange('loading')
     void planningApi.growth(identity.ownerId, signal, query.version, query.cursor).then(value => {
       if (signal.aborted) return
       setData(previous => query.cursor && previous ? { ...value, items: [...previous.items, ...value.items] } : value)
+      onGrowthChange({ version: value.version, growth: value.growth })
+      onGrowthStatusChange('ready')
     }).catch(failure => {
       if (controller.signal.aborted || identity.signal.aborted) return
+      onGrowthStatusChange('error')
       setConflict(failure instanceof PlanningError && failure.status === 409)
       setError(failure instanceof PlanningError ? failure.message : '成长记录读取失败，请重试。')
       setNotice(failure instanceof PlanningError ? failure.message : '成长记录读取失败，请重试。')
     }).finally(() => { if (!controller.signal.aborted && !identity.signal.aborted) setBusy(false) })
     return () => controller.abort()
-  }, [query, identity.ownerId, identity.signal])
+  }, [query, identity.ownerId, identity.signal, onGrowthChange, onGrowthStatusChange])
   const locating = !!source && !!data && !data.items.some(item => item.id === source.id)
   useEffect(() => {
     if (!locating || !data?.nextCursor || locatingCursor.current === data.nextCursor) return
@@ -105,8 +108,7 @@ export function PlanningGrowth() {
     {source && !data && !busy && <p role="status">正在读取奖励来源…</p>}
     {source && data && !data.items.some(item => item.id === source.id) && (data.nextCursor ? <p role="status">正在查找这条奖励…</p> : <p role="status">这条奖励已不在当前有效流水中。</p>)}
     {data && <>
-      {conflict && <p>以下保留的是版本 {data.version} 的记录；重新读取后查看当前事实。</p>}
-      <section className="growth-overview" role="region" aria-label="全账户成长"><div><span>当前等级</span><strong>Lv.{data.growth.level}</strong><p>{data.growth.totalXp} 点累计经验 · 再获得 {data.growth.remaining} 点进入下一级</p><p>{data.growth.actions} 次真实行动 · {data.growth.achievedGoals} 个达成目标</p></div><Progress value={data.growth.needed ? data.growth.progress / data.growth.needed : 0} label="成长等级进度" /></section>
+      {error && <p>以下保留的是版本 {data.version} 的记录；重新读取后查看当前事实。</p>}
       <section className="growth-section" role="region" aria-label="七个实时成就"><header className="section-heading"><div><span className="eyebrow">里程碑</span><h2>最近点亮的成就</h2></div></header>
         <div className="achievement-list">{data.growth.achievements.map(item => <article key={item.id} aria-label={`成就：${item.label}`} className={item.unlocked ? 'achievement is-lit' : 'achievement'}>
           <span className="record-mark"><Star size={16} /></span><div><strong>{item.label}</strong><p>{item.unlocked ? '已点亮' : `完成 ${item.threshold} ${item.id.startsWith('actions_') ? '次真实行动' : '个目标'}`}</p></div><small>{item.unlocked ? '已点亮' : `${Math.min(item.count, item.threshold)} / ${item.threshold} · 还差 ${item.remaining}`}</small>

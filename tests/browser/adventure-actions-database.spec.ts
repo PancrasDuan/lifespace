@@ -49,8 +49,7 @@ test.describe('真实任务事务的桌面与手机浏览器验收（受控身�
     await page.goto('/adventure')
     const before = await snapshot()
     if (width === 1440) {
-      await page.getByRole('button', { name: '新建', exact: true }).click()
-      await page.getByRole('region', { name: '快速新建' }).getByRole('button', { name: '一个目标', exact: true }).click()
+      await page.getByRole('button', { name: '新建目标', exact: true }).click()
       await page.getByLabel('目标名称').fill('隔离结果')
       await page.getByRole('textbox', { name: '完成标准 1', exact: true }).fill('完成独立完整行动')
       await page.getByRole('button', { name: '创建目标', exact: true }).click()
@@ -60,8 +59,7 @@ test.describe('真实任务事务的桌面与手机浏览器验收（受控身�
       await openRecordActions(page.locator('.adventure-proto-goal').first())
       await page.getByRole('button', { name: '添加任务', exact: true }).click()
     } else {
-      await page.getByRole('button', { name: '新建', exact: true }).click()
-      await page.getByRole('region', { name: '快速新建' }).getByRole('button', { name: '一项行动', exact: true }).click()
+      await page.getByRole('button', { name: '新建行动', exact: true }).click()
       await expect(page.getByLabel('任务归属', { exact: true })).toHaveValue('')
       await expect(page.getByLabel('任务归属', { exact: true }).locator('option[value="independent"]')).toHaveCount(0)
     }
@@ -230,8 +228,7 @@ test.describe('真实任务事务的桌面与手机浏览器验收（受控身�
     const completed = page.getByRole('article', { name: '任务：已经做完', exact: true })
     await openRecordActions(completed)
     await expect(completed.getByRole('button', { name: '取消完成', exact: true })).toHaveCount(0)
-    await page.getByRole('button', { name: '新建', exact: true }).click()
-    await page.getByRole('region', { name: '快速新建' }).getByRole('button', { name: '一个目标', exact: true }).click()
+    await page.getByRole('button', { name: '新建目标', exact: true }).click()
     await page.getByLabel('目标名称', { exact: true }).fill('无任务成果')
     await page.getByRole('textbox', { name: '完成标准 1', exact: true }).fill('没有任务也能确认')
     await page.getByRole('button', { name: '创建目标', exact: true }).click()

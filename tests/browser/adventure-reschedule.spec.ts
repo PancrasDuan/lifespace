@@ -33,7 +33,7 @@ test('改期未知结果保留原封套；成功后读取失败只重读', async
   expect(server.envelopes).toHaveLength(2)
   expect(server.envelopes[0]).toEqual(server.envelopes[1])
   await page.getByRole('button', { name: '重新读取', exact: true }).click()
-  await expect(page.getByRole('button', { name: '新建', exact: true })).toBeEnabled()
+  await expect(page.getByRole('button', { name: '新建主线', exact: true })).toBeEnabled()
   expect(server.envelopes).toHaveLength(2)
 })
 test('改期409后旧预览不可确认，重新预览并确认才使用新版本', async ({ page, context }) => {

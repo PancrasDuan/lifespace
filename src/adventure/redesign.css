@@ -1,0 +1,316 @@
+/* Hallmark · theme: LifeSpace (brand) · shape: app screen · redesign: full · signature: daily planning desk · surface: absolute · v2.0.0 */
+/* Hallmark · pre-emit critique: P4 H4 E4 S4 R4 V4 · weakest: specificity; the task list leads the workspace. */
+/* Hallmark · waive 7b · surface: absolute · white action text preserves LifeSpace control contrast and the browser contract. */
+/* Hallmark · answered F24 · the subtle border and shadow match the shared LifeSpace panels. */
+:root {
+  --adventure-paper: rgba(255, 255, 255, .84);
+  --adventure-paper-hover: #fff;
+  --adventure-soft: #edf4e9;
+  --adventure-green: #52764f;
+  --adventure-green-dark: #385b3d;
+  --adventure-green-light: #dcebd6;
+  --adventure-quiet: #52695a;
+  --adventure-control-border: #748a75;
+  --adventure-border: rgba(65, 96, 73, .15);
+  --adventure-border-strong: rgba(65, 96, 73, .28);
+  --adventure-shadow: rgba(61, 91, 52, .055);
+  --adventure-white: #fff;
+  --adventure-focus: #52764f;
+}
+.adventure-page.prototype-page { --quiet: var(--adventure-quiet); }
+
+.adventure-page.prototype-page .page-heading {
+  padding: 56px 0 28px;
+  text-align: center;
+}
+.adventure-page.prototype-page .page-heading h1 {
+  margin: 20px 0 8px;
+  font-size: 40px;
+  font-weight: 500;
+  letter-spacing: 3px;
+  line-height: 1.2;
+  overflow-wrap: break-word;
+  min-width: 0;
+  text-wrap: balance;
+}
+.adventure-page.prototype-page .page-heading p { font-size: 12px; line-height: 1.6; }
+.adventure-page.prototype-page .adventure-toolbar {
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  min-height: 44px;
+  margin: 0 0 20px;
+  font-size: 14px;
+}
+.adventure-page.prototype-page .create-intro { display: grid; gap: 4px; }
+.adventure-page.prototype-page .create-intro strong { color: var(--ink); font-size: 15px; font-weight: 600; }
+.adventure-page.prototype-page .create-intro span { color: var(--quiet); font-size: 12px; }
+.adventure-page.prototype-page .heading-actions { flex-wrap: wrap; gap: 8px; }
+.adventure-page.prototype-page .new-button {
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 1px solid var(--adventure-border-strong);
+  border-radius: 12px;
+  background: var(--adventure-paper);
+  color: var(--adventure-green-dark);
+  font-size: 13px;
+  white-space: nowrap;
+}
+.adventure-page.prototype-page .new-button:hover {
+  border-color: var(--adventure-green-dark);
+  background: var(--adventure-soft);
+  color: var(--adventure-green-dark);
+}
+.adventure-page.prototype-page .new-button.create-action-primary {
+  border-color: var(--adventure-green);
+  background: var(--adventure-green);
+  color: var(--adventure-white);
+}
+.adventure-page.prototype-page .new-button.create-action-primary:hover { background: var(--adventure-green-dark); }
+.adventure-page.prototype-page .quick-create {
+  padding: 20px 24px;
+  border: 1px solid var(--adventure-border);
+  border-radius: 18px;
+  background: var(--adventure-paper);
+}
+.adventure-page.prototype-page .quick-create strong { margin: 0; font-size: 15px; }
+.adventure-page.prototype-page .quick-create-options { gap: 8px; }
+.adventure-page.prototype-page .quick-create-options button {
+  padding: 8px 12px;
+  border: 1px solid var(--adventure-border);
+  border-radius: 10px;
+  background: var(--adventure-soft);
+  color: var(--adventure-green-dark);
+  font-size: 13px;
+}
+.adventure-page.prototype-page .view-tabs { gap: 32px; padding: 0; }
+.adventure-page.prototype-page .view-tabs button {
+  min-height: 48px;
+  padding: 12px 0 16px;
+  font-size: 15px;
+}
+.adventure-page.prototype-page .view-tabs button[aria-current="page"] { color: var(--adventure-green-dark); font-weight: 600; }
+.adventure-page.prototype-page .view-tabs button[aria-current="page"]::after { background: var(--adventure-green); }
+.adventure-page.prototype-page :is(.eyebrow, .section-context) {
+  display: block;
+  margin-bottom: 12px;
+  color: var(--quiet);
+  font-size: 13px;
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.adventure-page.prototype-page .adventure-proto-workspace {
+  grid-template-columns: minmax(0, 1fr) minmax(250px, 300px);
+  gap: 24px;
+  padding-top: 28px;
+}
+.adventure-page.prototype-page .adventure-proto-workspace.adventure-proto-map {
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+}
+.adventure-page.prototype-page .adventure-proto-workspace.adventure-proto-map > .content-section { grid-column: auto; }
+.adventure-page.prototype-page .content-section,
+.adventure-page.prototype-page .aside-panel,
+.adventure-page.prototype-page .growth-overview,
+.adventure-page.prototype-page .growth-section {
+  min-width: 0;
+  padding: 24px;
+  border: 1px solid var(--adventure-white);
+  border-radius: 22px;
+  background: var(--adventure-paper);
+  box-shadow: 0 10px 35px var(--adventure-shadow);
+}
+.adventure-page.prototype-page .adventure-proto-map > .content-section {
+  padding-inline: 0;
+  border: 0;
+}
+.adventure-page.prototype-page .adventure-proto-map > .content-section > :not(.record-list) {
+  margin-inline: 24px;
+}
+.adventure-page.prototype-page .adventure-proto-map .record-summary {
+  padding-inline: 24px;
+}
+.adventure-page.prototype-page .section-heading {
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 16px;
+  padding-bottom: 16px;
+}
+.adventure-page.prototype-page .section-heading h2 { gap: 8px; font-size: 19px; }
+.adventure-page.prototype-page .section-heading h2 svg { color: var(--adventure-green); }
+.adventure-page.prototype-page .section-count { color: var(--quiet); font-size: 12px; }
+.adventure-page.prototype-page .date-filter,
+.adventure-page.prototype-page .quiet-filter { gap: 4px; }
+.adventure-page.prototype-page .date-filter button,
+.adventure-page.prototype-page .quiet-filter button {
+  min-height: 36px;
+  padding: 8px 12px;
+  border: 0;
+  border-radius: 9px;
+  color: var(--quiet);
+  font-size: 13px;
+}
+.adventure-page.prototype-page .date-filter button[aria-pressed="true"],
+.adventure-page.prototype-page .quiet-filter button[aria-pressed="true"] {
+  background: var(--adventure-soft);
+  color: var(--adventure-green-dark);
+}
+.adventure-page.prototype-page .task-overview { gap: 12px; padding: 0 0 16px; color: var(--quiet); font-size: 13px; }
+.adventure-page.prototype-page .adventure-proto-progress { height: 6px; background: var(--adventure-green-light); }
+.adventure-page.prototype-page .adventure-proto-progress span { background: var(--adventure-green); }
+.adventure-page.prototype-page .task-tools { padding-bottom: 16px; }
+.adventure-page.prototype-page .task-tools label {
+  width: 100%;
+  gap: 8px;
+  padding: 12px 12px;
+  border: 1px solid var(--adventure-control-border);
+  border-radius: 11px;
+  background: var(--adventure-white);
+  color: var(--quiet);
+}
+.adventure-page.prototype-page .task-tools label:focus-within { border-color: var(--adventure-focus); }
+.adventure-page.prototype-page .task-tools input { color: var(--ink); font-size: 14px; }
+.adventure-page.prototype-page .task-tools input::placeholder { color: var(--quiet); }
+.adventure-page.prototype-page .record-list { gap: 0; border-top: 1px solid var(--line); }
+.adventure-page.prototype-page .record,
+.adventure-page.prototype-page .record.is-open,
+.adventure-page.prototype-page .record.is-completed {
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.adventure-page.prototype-page .record:hover { background: var(--adventure-soft); }
+.adventure-page.prototype-page .record-summary {
+  grid-template-columns: 32px minmax(0, 1fr) auto;
+  gap: 16px;
+  min-height: 86px;
+  padding: 16px 8px;
+}
+.adventure-page.prototype-page .record-mark { width: 32px; height: 32px; border-radius: 10px; background: var(--adventure-soft); color: var(--adventure-green); }
+.adventure-page.prototype-page .record-copy { gap: 4px; }
+.adventure-page.prototype-page .record-copy strong { color: var(--ink); font-size: 15px; font-weight: 600; }
+.adventure-page.prototype-page .record-kicker,
+.adventure-page.prototype-page .record-copy small,
+.adventure-page.prototype-page .record-meta { color: var(--quiet); font-size: 12px; }
+.adventure-page.prototype-page .record-kicker em { font-size: 11px; }
+.adventure-page.prototype-page .record-details { padding: 0 8px 16px 56px; animation: none; }
+.adventure-page.prototype-page .record-details .planning-detail,
+.adventure-page.prototype-page .record-details .planning-detail p,
+.adventure-page.prototype-page .record-details .planning-detail h3,
+.adventure-page.prototype-page .record-details .planning-detail h4,
+.adventure-page.prototype-page .task-detail-copy p,
+.adventure-page.prototype-page .plain-facts dt,
+.adventure-page.prototype-page .plain-facts dd,
+.adventure-page.prototype-page .details-columns h3,
+.adventure-page.prototype-page .details-columns p,
+.adventure-page.prototype-page .plain-list { font-size: 13px; line-height: 1.65; }
+.adventure-page.prototype-page .record-actions { gap: 8px 16px; padding-top: 16px; }
+.adventure-page.prototype-page .record-actions button,
+.adventure-page.prototype-page .more-actions > div button,
+.adventure-page.prototype-page .more-actions > button { min-height: 36px; font-size: 13px; }
+.adventure-page.prototype-page .record-actions .action-primary { padding: 8px 16px; border-radius: 9px; background: var(--adventure-green); color: var(--adventure-white); }
+.adventure-page.prototype-page .record-actions .action-primary:hover { background: var(--adventure-green-dark); }
+.adventure-page.prototype-page .task-state { width: 20px; height: 20px; margin-left: 8px; border-color: var(--adventure-border-strong); }
+.adventure-page.prototype-page .adventure-empty { color: var(--quiet); font-size: 14px; line-height: 1.8; }
+.adventure-page.prototype-page .planning-pagination small { color: var(--quiet); }
+
+.adventure-page.prototype-page .adventure-proto-aside { gap: 16px; }
+.adventure-page.prototype-page .level-lockup { margin: 0 0 16px; }
+.adventure-page.prototype-page .level-lockup > strong { color: var(--adventure-green); font-size: 48px; }
+.adventure-page.prototype-page .level-lockup span { color: var(--ink); font-size: 14px; }
+.adventure-page.prototype-page .level-lockup p { color: var(--quiet); font-size: 12px; }
+.adventure-page.prototype-page .growth-numbers { gap: 8px; text-align: left; }
+.adventure-page.prototype-page .growth-numbers dt { color: var(--quiet); font-size: 11px; }
+.adventure-page.prototype-page .growth-numbers dd { color: var(--ink); font-size: 21px; }
+.adventure-page.prototype-page .adventure-growth-bar {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: center;
+  gap: 32px;
+  margin-bottom: 24px;
+  padding: 20px 24px;
+  border-radius: 20px;
+  background: var(--adventure-paper);
+}
+.adventure-page.prototype-page .adventure-growth-placeholder { min-height: 100px; }
+.adventure-page.prototype-page .adventure-growth-placeholder p { margin: 0; color: var(--quiet); font-size: 13px; }
+.adventure-page.prototype-page .growth-update-status { position: absolute; right: 20px; bottom: 4px; color: var(--quiet); font-size: 11px; }
+.adventure-page.prototype-page .growth-bar-level { min-width: 0; }
+.adventure-page.prototype-page .growth-bar-level .level-lockup { margin: 0 0 12px; }
+.adventure-page.prototype-page .growth-bar-level .level-lockup > strong { font-size: 40px; }
+.adventure-page.prototype-page .adventure-growth-bar .growth-numbers {
+  margin: 0;
+  padding: 0 0 0 24px;
+  border-top: 0;
+  border-left: 1px solid var(--line);
+}
+.adventure-dialog .planning-create-options > p { margin: 0 0 4px; color: var(--quiet, var(--adventure-green-dark)); font-size: 14px; }
+.adventure-dialog .planning-create-options button { gap: 4px 12px; border-radius: 12px; }
+.adventure-dialog .planning-create-options button svg { grid-row: span 2; align-self: center; color: var(--adventure-green); }
+.adventure-dialog .planning-create-options button strong { font-size: 14px; }
+.adventure-page.prototype-page .milestone-line strong { font-size: 14px; }
+.adventure-page.prototype-page .milestone-line p { color: var(--quiet); font-size: 12px; }
+.adventure-page.prototype-page .milestone-icon { width: 32px; height: 32px; background: var(--adventure-soft); color: var(--adventure-green); }
+.adventure-page.prototype-page .aside-link { min-height: 36px; color: var(--adventure-green-dark); font-size: 13px; }
+.adventure-page.prototype-page .adventure-journey-note { padding: 0 8px; font-size: 13px; }
+.adventure-page.prototype-page .adventure-journey-note img { display: none; }
+
+.adventure-page.prototype-page .adventure-proto-growth { padding-top: 28px; }
+.adventure-page.prototype-page .growth-heading { padding: 4px 0 24px; border: 0; }
+.adventure-page.prototype-page .growth-heading h2 { margin: 0 0 8px; font-size: 28px; letter-spacing: 0; }
+.adventure-page.prototype-page .growth-heading p { color: var(--quiet); font-size: 14px; }
+.adventure-page.prototype-page .growth-overview { align-items: center; gap: 32px; }
+.adventure-page.prototype-page .growth-overview span,
+.adventure-page.prototype-page .growth-overview p { color: var(--quiet); font-size: 13px; line-height: 1.7; }
+.adventure-page.prototype-page .growth-overview strong { color: var(--adventure-green); }
+.adventure-page.prototype-page .growth-section { margin-top: 20px; }
+.adventure-page.prototype-page .achievement { min-height: 68px; opacity: 1; }
+.adventure-page.prototype-page .achievement strong,
+.adventure-page.prototype-page .reward-row strong { font-size: 14px; }
+.adventure-page.prototype-page .achievement p,
+.adventure-page.prototype-page .achievement small,
+.adventure-page.prototype-page .reward-row small,
+.adventure-page.prototype-page .reward-row > span:first-child { color: var(--quiet); font-size: 12px; }
+.adventure-page.prototype-page .reward-row { min-height: 76px; }
+.adventure-page.prototype-page .reward-row:hover { background: var(--adventure-soft); }
+.adventure-page.prototype-page .reward-row > strong:last-child { color: var(--adventure-green); }
+.adventure-page.prototype-page :is(button, input, select, textarea, a):focus-visible {
+  outline: 2px solid var(--adventure-focus);
+  outline-offset: 3px;
+}
+@media (max-width: 980px) {
+  .adventure-page.prototype-page .adventure-proto-workspace { grid-template-columns: minmax(0, 1fr) minmax(220px, 260px); }
+}
+@media (max-width: 720px) {
+  .adventure-page.prototype-page .page-heading { padding: 36px 0 24px; }
+  .adventure-page.prototype-page .page-heading h1 { font-size: 32px; }
+  .adventure-page.prototype-page .adventure-toolbar { margin-bottom: 16px; }
+  .adventure-page.prototype-page .heading-actions { width: 100%; }
+  .adventure-page.prototype-page .heading-actions .new-button { flex: 1 1 auto; justify-content: center; }
+  .adventure-page.prototype-page .view-tabs { gap: 24px; }
+  .adventure-page.prototype-page .view-tabs button { font-size: 14px; }
+  .adventure-page.prototype-page .adventure-proto-workspace { grid-template-columns: minmax(0, 1fr); gap: 16px; padding-top: 20px; }
+  .adventure-page.prototype-page .content-section,
+  .adventure-page.prototype-page .aside-panel,
+  .adventure-page.prototype-page .growth-overview,
+  .adventure-page.prototype-page .growth-section { padding: 20px; border-radius: 18px; }
+  .adventure-page.prototype-page .section-heading { align-items: flex-start; }
+  .adventure-page.prototype-page .record-summary { grid-template-columns: 28px minmax(0, 1fr) auto; gap: 8px; padding: 16px 0px; }
+  .adventure-page.prototype-page .record-details { padding: 0 0 16px 8px; }
+  .adventure-page.prototype-page .more-actions > div { scrollbar-color: var(--adventure-green) var(--adventure-green-light); }
+  .adventure-page.prototype-page .record-copy strong { font-size: 14px; }
+  .adventure-page.prototype-page .growth-heading h2 { font-size: 24px; }
+  .adventure-page.prototype-page .adventure-growth-bar { grid-template-columns: minmax(0, 1fr); gap: 16px; padding: 20px; }
+  .adventure-page.prototype-page .adventure-growth-placeholder { min-height: 172px; }
+  .adventure-page.prototype-page .adventure-growth-bar .growth-numbers { padding: 16px 0 0; border-left: 0; border-top: 1px solid var(--line); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .adventure-page.prototype-page *, .adventure-page.prototype-page *::before, .adventure-page.prototype-page *::after { animation: none; transition: none; }
+}
+
+.adventure-page.prototype-page button:active:not(:disabled) { transform: translateY(1px); }
+.adventure-page.prototype-page button:disabled { cursor: not-allowed; opacity: .6; color: var(--quiet); background: var(--adventure-soft); }
