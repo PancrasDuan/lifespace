@@ -21,6 +21,7 @@ export const ledgerCreateSchema = z.strictObject({ requestId: z.uuid(), ...trans
   if ((value.direction === 'expense') !== (value.amountCents < 0)) ctx.addIssue({ code: 'custom', message: '金额符号与收支类型不符。', path: ['amountCents'] })
   if (!ledgerCategories[value.direction].some(([code]) => code === value.categoryCode)) ctx.addIssue({ code: 'custom', message: '请选择与收支类型对应的交易分类。', path: ['categoryCode'] })
 })
+export const ledgerRefundSchema = z.strictObject({ requestId: z.uuid(), amountCents: amountCents.refine(value => value > 0, '退款金额必须为正数。'), occurredAt: utcTime, note })
 export const ledgerEntrySchema = z.strictObject({
   id: z.uuid(), ...transactionFields, parentEntryId: z.uuid().nullable(), createdAt: z.iso.datetime(),
   status: z.enum(['completed', 'partial-refund', 'full-refund']),
@@ -41,11 +42,15 @@ export const ledgerErrors = {
   FUTURE_TIME: [400, '交易时间不能晚于当前北京时间'],
   REQUEST_ID_REUSED: [409, '请求编号已用于不同内容，请重新创建流水'],
   NOT_FOUND: [404, '流水不存在或不属于当前账户'],
+  REFUND_PARENT_INVALID: [409, '只能为本人未删除的普通支出登记退款'],
+  REFUND_LIMIT: [409, '退款金额超过剩余可退额度，请查看最新流水'],
+  REFUND_TIME: [400, '退款时间不能早于父支出'],
   LEDGER_UNAVAILABLE: [503, '暂时无法读取账单，请稍后重试'],
   SAVE_UNKNOWN: [503, '保存结果未确认，请沿用原请求重试或刷新查看流水'],
 } as const
 export type LedgerEntry = z.infer<typeof ledgerEntrySchema>
 export type LedgerCreate = z.infer<typeof ledgerCreateSchema>
+export type LedgerRefund = z.infer<typeof ledgerRefundSchema>
 export type LedgerPage = z.infer<typeof ledgerPageSchema>
 export type LedgerReceipt = z.infer<typeof ledgerReceiptSchema>
 export function categoryLabel(code: string) { return [...ledgerCategories.expense, ...ledgerCategories.income].find(([value]) => value === code)?.[1] ?? code }

@@ -3,8 +3,9 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { ArrowDownLeft, ArrowUpRight, CalendarDays, Check, ChevronLeft, ChevronRight, CreditCard, Plus, RefreshCw, Wallet, X } from 'lucide-react'
 import { AppLayout } from '../app/AppLayout'
 import { useVerifiedIdentity } from '../auth/identity'
-import { categoryLabel, ledgerCategories, ledgerCreateSchema, ledgerStatusLabels, type LedgerCreate, type LedgerEntry } from '../shared/ledger'
-import { LedgerError, readLedgerDetail, saveLedger } from './api'
+import { categoryLabel, ledgerCategories, ledgerCreateSchema, ledgerStatusLabels, type LedgerCreate, type LedgerEntry, type LedgerRefund } from '../shared/ledger'
+import { LedgerError, readLedgerDetail, saveLedger, saveRefund } from './api'
+import { RefundForm } from './RefundForm'
 import { formatCurrency, formatDateTime, fromDateTimeInput, toDateTimeInput, yuanToCents } from './time'
 import { TransactionDateTimeField } from './TransactionDateTimeField'
 import './finance.css'
@@ -28,8 +29,8 @@ export function Finance() {
   function selectFilter(value: Exclude<DateFilter, 'custom'>) {
     setFilter(value); selectRange(getDateRange(value)); setDateAnchor(null)
   }
-  const [panel, setPanel] = useState<{ kind: 'new'; session: string } | { kind: 'detail'; id: string } | null>(null)
-  const [unconfirmed, setUnconfirmed] = useState<{ input: LedgerCreate; session: string; pending: boolean; message: string }[]>([])
+  const [panel, setPanel] = useState<{ kind: 'new'; session: string } | { kind: 'refund'; session: string; parent: LedgerEntry; remainingCents: number } | { kind: 'detail'; id: string } | null>(null)
+  const [unconfirmed, setUnconfirmed] = useState<(({ input: LedgerCreate; parentId?: undefined } | { input: LedgerRefund; parentId: string }) & { session: string; pending: boolean; message: string })[]>([])
   const [notice, setNotice] = useState(0)
   useEffect(() => {
     if (!notice) return
@@ -47,23 +48,25 @@ export function Finance() {
   const newEntry = () => setPanel({ kind: 'new', session: crypto.randomUUID() })
   function saved(session: string) {
     if (identity.signal.aborted) return
-    setPanel(current => current?.kind === 'new' && current.session === session ? null : current)
+    setPanel(current => (current?.kind === 'new' || current?.kind === 'refund') && current.session === session ? null : current)
     setNotice(value => value + 1)
     selectFilter('all')
     void queries.invalidateQueries({ queryKey: ['ledger', identity.ownerId] })
   }
-  async function submit(input: LedgerCreate, session: string) {
+  async function submit(command: { input: LedgerCreate; parentId?: undefined } | { input: LedgerRefund; parentId: string }, session: string) {
+    const { input } = command
     if (inFlight.current.has(input.requestId)) return
     inFlight.current.add(input.requestId)
     setUnconfirmed(current => current.map(item => item.input.requestId === input.requestId ? { ...item, pending: true } : item))
     try {
-      await saveLedger(identity.ownerId, input, identity.signal)
+      if (command.parentId !== undefined) await saveRefund(identity.ownerId, command.parentId, command.input, identity.signal)
+      else await saveLedger(identity.ownerId, command.input, identity.signal)
       if (identity.signal.aborted) return
       setUnconfirmed(current => current.filter(item => item.input.requestId !== input.requestId))
       saved(session)
     } catch (error) {
       if (!identity.signal.aborted && error instanceof LedgerError && error.code === 'SAVE_UNKNOWN')
-        setUnconfirmed(current => [...current.filter(item => item.input.requestId !== input.requestId), { input, session, pending: false, message: error.message }])
+        setUnconfirmed(current => [...current.filter(item => item.input.requestId !== input.requestId), { ...command, session, pending: false, message: error.message }])
       else setUnconfirmed(current => current.map(item => item.input.requestId === input.requestId ? { ...item, pending: false, message: error instanceof Error ? error.message : '保存失败' } : item))
       throw error
     } finally { inFlight.current.delete(input.requestId) }
@@ -71,7 +74,7 @@ export function Finance() {
   return <AppLayout page="finance" className="finance-page lp-app lp-variant-a">
     <div className="lp-workspace">
       <header className="lp-page-header"><h1>账单流水<span>人民币</span></h1><button className="lp-primary" onClick={newEntry}><Plus size={17} />新建流水</button></header>
-      {unconfirmed.filter(item => panel?.kind !== 'new' || panel.session !== item.session).map(item => <div role="alert" className="lp-unknown" key={item.input.requestId}><span>{item.message}</span><button className="lp-secondary" disabled={item.pending} onClick={() => void submit(item.input, item.session).catch(() => {})}>{item.pending ? '正在重试…' : '重试原请求'}</button><button className="lp-secondary" onClick={() => void entries.refetch()}>查看最新流水</button></div>)}
+      {unconfirmed.filter(item => (panel?.kind !== 'new' && panel?.kind !== 'refund') || panel.session !== item.session).map(item => <div role="alert" className="lp-unknown" key={item.input.requestId}><span>{item.message}</span><button className="lp-secondary" disabled={item.pending} onClick={() => void submit(item, item.session).catch(() => {})}>{item.pending ? '正在重试…' : '重试原请求'}</button><button className="lp-secondary" onClick={() => void entries.refetch()}>查看最新流水</button></div>)}
       <section className="lp-table-surface" aria-label="账单流水">
         <div className="lp-top-toolbar"><div className="lp-filter-buttons">{([['all', '全部时间'], ['today', '今天'], ['week', '近 7 天'], ['month', '近 1 个月']] as const).map(([value, label]) => <button key={value} className={filter === value ? 'active' : ''} aria-pressed={filter === value} onClick={() => selectFilter(value)}>{label}</button>)}<button ref={rangeTrigger} className={filter === 'custom' ? 'active' : ''} aria-pressed={filter === 'custom'} aria-expanded={!!dateAnchor} aria-haspopup="dialog" onClick={() => setDateAnchor(current => current ? null : rangeTrigger.current!.getBoundingClientRect())}>自定义</button></div><span className="lp-timezone"><CalendarDays size={14} />北京时间</span></div>
         {range && <p className="lp-applied-range">{range.start} — {range.end}</p>}
@@ -81,7 +84,7 @@ export function Finance() {
           <th>交易时间</th><th>分类 / 备注</th><th>交易账户</th><th>收支类型</th><th>交易状态</th><th className="lp-numeric">交易金额</th><th><span className="lp-sr">查看详情</span></th>
         </tr></thead><tbody>{data.items.map(entry => <tr key={entry.id} onClick={() => setPanel({ kind: 'detail', id: entry.id })}>
           <td><time><strong>{formatDateTime(entry.occurredAt).slice(0, 10)}</strong><small>{formatDateTime(entry.occurredAt).slice(11)}</small></time></td>
-          <td><button className="lp-cell-title" onClick={event => { event.stopPropagation(); setPanel({ kind: 'detail', id: entry.id }) }}>{categoryLabel(entry.categoryCode)}</button><small className="lp-row-note">{entry.note || '—'}</small></td>
+          <td><button className="lp-cell-title" onClick={event => { event.stopPropagation(); setPanel({ kind: 'detail', id: entry.id }) }}>{categoryLabel(entry.categoryCode)}</button>{entry.parentEntryId && <span className="lp-refund-tag">退款</span>}<small className="lp-row-note">{entry.note || '—'}</small></td>
           <td><span className="lp-account"><CreditCard size={13} />{entry.accountName}</span></td>
           <td><span className={`lp-direction ${entry.direction}`}>{entry.direction === 'income' ? <ArrowDownLeft size={13} /> : <ArrowUpRight size={13} />}{entry.direction === 'income' ? '收入' : '支出'}</span></td>
           <td><Status entry={entry} /></td><td className="lp-numeric"><Amount entry={entry} /></td><td><ChevronRight size={15} /></td>
@@ -92,8 +95,9 @@ export function Finance() {
       </section>
     </div>
     {dateAnchor && <DateRangePopover start={range?.start ?? ''} end={range?.end ?? ''} anchor={dateAnchor} trigger={rangeTrigger.current} close={() => setDateAnchor(null)} apply={(start, end) => { setFilter('custom'); selectRange({ start, end }) }} />}
-    {panel?.kind === 'new' && <LedgerModal title="新建流水" close={() => setPanel(null)} form><EntryForm key={panel.session} save={input => submit(input, panel.session)} cancel={() => setPanel(null)} /></LedgerModal>}
-    {panel?.kind === 'detail' && <LedgerModal title="流水详情" close={() => setPanel(null)}><EntryDetail id={panel.id} /></LedgerModal>}
+    {panel?.kind === 'new' && <LedgerModal title="新建流水" close={() => setPanel(null)} form><EntryForm key={panel.session} save={input => submit({ input }, panel.session)} cancel={() => setPanel(null)} /></LedgerModal>}
+    {panel?.kind === 'refund' && <LedgerModal title="登记退款" close={() => setPanel(null)} form><RefundForm key={panel.session} parent={panel.parent} remainingCents={panel.remainingCents} save={input => submit({ input, parentId: panel.parent.id }, panel.session)} cancel={() => setPanel(null)} /></LedgerModal>}
+    {panel?.kind === 'detail' && <LedgerModal title="流水详情" close={() => setPanel(null)}><EntryDetail id={panel.id} open={id => setPanel({ kind: 'detail', id })} refund={(parent, remainingCents) => setPanel({ kind: 'refund', parent, remainingCents, session: crypto.randomUUID() })} /></LedgerModal>}
     {!!notice && <div role="status" className="lp-toast"><Check size={15} />流水已记录</div>}
   </AppLayout>
 }
@@ -104,14 +108,17 @@ export function LedgerModal({ title, children, close, form = false }: { title: s
     <header><h2>{title}</h2><button aria-label="关闭" onClick={close}><X size={19} /></button></header>{children}
   </dialog>
 }
-function EntryDetail({ id }: { id: string }) {
+function EntryDetail({ id, open, refund }: { id: string; open: (id: string) => void; refund: (parent: LedgerEntry, remainingCents: number) => void }) {
   const identity = useVerifiedIdentity()
   const detail = useQuery({ queryKey: ['ledger', identity.ownerId, 'detail', id], queryFn: ({ signal }) => readLedgerDetail(identity.ownerId, id, AbortSignal.any([signal, identity.signal])), retry: false })
   if (detail.isPending) return <p role="status" className="lp-feedback">正在读取详情…</p>
   if (detail.isError) return <div role="alert" className="lp-feedback">读取失败。<button className="lp-secondary" onClick={() => void detail.refetch()}>重试读取</button></div>
-  const { entry } = detail.data
-  return <div className="lp-detail"><div className="lp-detail-hero"><span>{entry.direction === 'income' ? '收入' : '支出'} · {categoryLabel(entry.categoryCode)}</span><Amount entry={entry} large /><Status entry={entry} /></div>
+  const { entry, parentEntry, refunds } = detail.data
+  return <div className="lp-detail"><div className="lp-detail-hero"><span>{entry.direction === 'income' ? '收入' : '支出'}{entry.parentEntryId ? ' · 退款' : ''} · {categoryLabel(entry.categoryCode)}</span><Amount entry={entry} large /><Status entry={entry} /></div>
     <dl className="lp-detail-fields"><div><dt>交易时间</dt><dd>{formatDateTime(entry.occurredAt)}</dd></div><div><dt>交易账户</dt><dd>{entry.accountName}</dd></div><div><dt>交易分类</dt><dd>{categoryLabel(entry.categoryCode)}</dd></div><div><dt>交易备注</dt><dd>{entry.note || '无备注'}</dd></div></dl>
+    {parentEntry && <button className="lp-secondary" onClick={() => open(parentEntry.id)}>查看父流水</button>}
+    {!!refunds.length && <section className="lp-related" aria-label="关联退款"><h3>关联退款</h3>{refunds.map(item => <button className="lp-related-entry" key={item.id} aria-label={`查看退款 ${formatCurrency(item.amountCents)} ${formatDateTime(item.occurredAt)}`} onClick={() => open(item.id)}><time>{formatDateTime(item.occurredAt)}</time><Amount entry={item} /><ChevronRight size={14} /></button>)}</section>}
+    {entry.direction === 'expense' && !entry.parentEntryId && entry.status !== 'full-refund' && <div className="lp-form-actions"><button className="lp-primary" onClick={() => refund(entry, -entry.amountCents - refunds.reduce((total, item) => total + item.amountCents, 0))}>登记退款</button></div>}
   </div>
 }
 function EntryForm({ save, cancel }: { save: (input: LedgerCreate) => Promise<unknown>; cancel: () => void }) {

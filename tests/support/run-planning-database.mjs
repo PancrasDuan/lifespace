@@ -57,7 +57,7 @@ try {
   await client.connect()
   const sql = input => { cancellation.signal.throwIfAborted(); return client.query(input) }
   await sql('create role anon; create role authenticated; create role service_role bypassrls; grant usage on schema public to service_role;')
-  for (const path of ledgerOnly ? ['db/ledger/create-ledger.sql', 'db/ledger/list-ledger.sql', 'tests/database/ledger.sql'] : ['db/adventure/create-planning.sql', 'tests/database/adventure-planning.sql', 'tests/database/adventure-actions.sql', 'tests/database/adventure-goals.sql', 'tests/database/adventure-migrations.sql', 'tests/database/adventure-lifecycle.sql', 'tests/database/adventure-reschedule.sql', 'tests/database/adventure-growth.sql']) await sql(await readFile(join(root, path), 'utf8'))
+  for (const path of ledgerOnly ? ['db/ledger/create-ledger.sql', 'db/ledger/list-ledger.sql', 'db/ledger/refunds.sql', 'tests/database/ledger.sql', 'tests/database/ledger-refunds.sql'] : ['db/adventure/create-planning.sql', 'tests/database/adventure-planning.sql', 'tests/database/adventure-actions.sql', 'tests/database/adventure-goals.sql', 'tests/database/adventure-migrations.sql', 'tests/database/adventure-lifecycle.sql', 'tests/database/adventure-reschedule.sql', 'tests/database/adventure-growth.sql']) await sql(await readFile(join(root, path), 'utf8'))
   if (!ledgerOnly) await sql(`create function pg_temp.fail_reschedule_http() returns trigger language plpgsql as $$
     begin
       if new.kind='task_rescheduled' and new.snapshot->>'title'='reschedule-http-failpoint' then raise exception 'RESCHEDULE_HTTP_FAILPOINT'; end if;
@@ -97,10 +97,10 @@ try {
   if (ledgerOnly) await verifyLedgerReadLocks(client, url)
   const scaleOwner = ledgerOnly && process.argv.includes('--ledger-scale') ? await seedLedgerScale(client, process.env.LEDGER_SCALE_INDEX_REPORT || join(root, '.cache/ledger-scale-index.json')) : undefined
   const env = { ...cleanEnv, ADVENTURE_LOCAL_RPC_URL: url, LEDGER_LOCAL_RPC_URL: url, LEDGER_LOCAL_JWT_SECRET: ledgerJwtSecret, ...(scaleOwner ? { LEDGER_SCALE_OWNER: scaleOwner } : {}), PLAYWRIGHT_BROWSERS_PATH: process.env.PLAYWRIGHT_BROWSERS_PATH || '.cache/playwright' }
-  if (!process.argv.includes('--browser-only')) await run(process.execPath, ['node_modules/vitest/vitest.mjs', 'run', ...(ledgerOnly ? ['tests/api/ledger-database.test.ts', 'tests/api/ledger-dates-database.test.ts', ...(scaleOwner ? ['tests/api/ledger-scale-database.test.ts'] : [])] : ['tests/api/adventure-actions-database.test.ts', 'tests/api/adventure-lifecycle-database.test.ts', 'tests/api/adventure-reschedule-database.test.ts', 'tests/api/adventure-growth-database.test.ts', 'tests/api/adventure-integration-database.test.ts'])], { env })
+  if (!process.argv.includes('--browser-only')) await run(process.execPath, ['node_modules/vitest/vitest.mjs', 'run', ...(ledgerOnly ? ['tests/api/ledger-database.test.ts', 'tests/api/ledger-dates-database.test.ts', 'tests/api/ledger-refunds-database.test.ts', ...(scaleOwner ? ['tests/api/ledger-scale-database.test.ts'] : [])] : ['tests/api/adventure-actions-database.test.ts', 'tests/api/adventure-lifecycle-database.test.ts', 'tests/api/adventure-reschedule-database.test.ts', 'tests/api/adventure-growth-database.test.ts', 'tests/api/adventure-integration-database.test.ts'])], { env })
   if (process.argv.includes('--browser')) {
     const browserArgs = process.argv.slice(process.argv.indexOf('--browser') + 1)
-    const specs = browserArgs.length ? [] : ledgerOnly ? ['tests/browser/ledger-database.spec.ts', 'tests/browser/ledger-dates-database.spec.ts'] : ['tests/browser/adventure-actions-database.spec.ts', 'tests/browser/adventure-growth-database.spec.ts', 'tests/browser/adventure-integration-database.spec.ts']
+    const specs = browserArgs.length ? [] : ledgerOnly ? ['tests/browser/ledger-database.spec.ts', 'tests/browser/ledger-dates-database.spec.ts', 'tests/browser/ledger-refunds-database.spec.ts'] : ['tests/browser/adventure-actions-database.spec.ts', 'tests/browser/adventure-growth-database.spec.ts', 'tests/browser/adventure-integration-database.spec.ts']
     await run(process.execPath, ['node_modules/@playwright/test/cli.js', 'test', ...specs, ...browserArgs], { env })
   }
   if (!ledgerOnly) await sql('drop trigger reschedule_http_failpoint on public.adventure_events')
