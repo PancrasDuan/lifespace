@@ -34,7 +34,7 @@ export function RefundForm({ parent, remainingCents, save, cancel }: { parent: L
     <div className="lp-form-parent"><Link2 size={15} /><div>原支出<strong>{categoryLabel(parent.categoryCode)} · {formatCurrency(parent.amountCents)}</strong><span>可退 {formatCurrency(remainingCents).replace(/^\+/, '')}</span></div></div>
     <div className="lp-form-status"><span>收支类型</span><span>收入 · 退款</span></div>
     <label className="lp-amount-field"><span>交易金额<small>人民币</small></span><div><b>+ ¥</b><input autoFocus disabled={disabled} aria-label="交易金额" inputMode="decimal" placeholder="0.00" value={amount} onChange={event => setAmount(event.target.value)} /></div></label>
-    <TransactionDateTimeField disabled={disabled} value={time} onChange={setTime} min={toDateTimeInput(parent.occurredAt)} />
+    <TransactionDateTimeField disabled={disabled} value={time} onChange={setTime} minInstant={parent.occurredAt} />
     <label className="lp-field">交易账户<input readOnly value={parent.accountName} /></label>
     <label className="lp-field">交易分类<input readOnly value={categoryLabel(parent.categoryCode)} /></label>
     <div className="lp-form-status"><span>交易状态</span><span><Check size={12} />已完成</span></div>
