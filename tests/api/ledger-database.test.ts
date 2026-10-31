@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { createHmac } from 'node:crypto'
 import { ledgerPageSchema, ledgerReceiptSchema, ledgerDetailSchema } from '../../src/shared/ledger'
 import { installLedgerDatabase, ledgerEnv, ledgerRequest, ledgerRpc, ordinaryEntry } from '../support/ledger-database'
 import app from '../../worker/index'
@@ -18,6 +19,27 @@ describe.skipIf(!ledgerRpc)('账单正式 HTTP 与隔离 PostgreSQL/PostgREST �
     expect(response.status).toBe(200)
     return ledgerReceiptSchema.parse(await response.json())
   }
+  it('浏览器 anon/authenticated 角色通过真实 PostgREST 直访两表和三个 RPC 均被拒绝', async () => {
+    const owner = crypto.randomUUID()
+    await write(owner)
+    const direct = (role: string, path: string, body?: unknown) => {
+      const encode = (value: unknown) => Buffer.from(JSON.stringify(value)).toString('base64url')
+      const payload = `${encode({ alg: 'HS256', typ: 'JWT' })}.${encode({ role, exp: Math.floor(Date.now() / 1000) + 300 })}`
+      const signature = createHmac('sha256', process.env.LEDGER_LOCAL_JWT_SECRET!).update(payload).digest('base64url')
+      return fetch(new URL(path, ledgerRpc), { method: body === undefined ? 'GET' : 'POST', headers: { Authorization: `Bearer ${payload}.${signature}`, 'Content-Type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) })
+    }
+    // A positive control proves signatures work; denials below must come from privileges.
+    expect((await direct('service_role', '/rpc/ledger_list', { p_owner: owner, p_page: 1 })).status).toBe(200)
+    for (const role of ['anon', 'authenticated']) {
+      for (const table of ['ledger_entries', 'ledger_owner_revision']) expect([401, 403, 404]).toContain((await direct(role, `/${table}?select=*`)).status)
+      for (const [name, params] of [
+        ['ledger_list', { p_owner: owner, p_page: 1 }],
+        ['ledger_detail', { p_owner: owner, p_id: crypto.randomUUID() }],
+        ['ledger_create', { p_owner: owner, p_input: ordinaryEntry() }],
+      ] as const) expect([401, 403, 404]).toContain((await direct(role, `/rpc/${name}`, params)).status)
+    }
+    expect(await read(owner)).toMatchObject({ total: 1, version: 1 })
+  })
   it('空账户版本零、首次并发独立写入、同编号并发去重、异内容拒绝且重试返回当前版本', async () => {
     const owner = crypto.randomUUID(), input = ordinaryEntry()
     expect(await read(owner)).toEqual({ items: [], total: 0, page: 1, pageSize: 30, version: 0 })
@@ -67,6 +89,12 @@ describe.skipIf(!ledgerRpc)('账单正式 HTTP 与隔离 PostgreSQL/PostgREST �
     expect(detail.entry).toMatchObject({ amountCents: -99999999999, accountName: '😀'.repeat(50), note: '中😀'.repeat(250), occurredAt: '2026-01-02T03:04:05.000Z', parentEntryId: null, status: 'completed' })
     await write(owner, ordinaryEntry({ direction: 'income', amountCents: 99999999999, categoryCode: 'salary' }))
     expect(await read(owner)).toMatchObject({ total: 2, version: 2 })
+  })
+  it('trim 只移除 Unicode 空白，保留账户和备注两端的普通字母 v', async () => {
+    const owner = crypto.randomUUID()
+    const receipt = await write(owner, ordinaryEntry({ accountName: '\vrev\v', note: '\vv\v' }))
+    const detail = ledgerDetailSchema.parse(await (await ledgerRequest(owner, `/api/ledger/entries/${receipt.entryId}`)).json())
+    expect(detail.entry).toMatchObject({ accountName: 'rev', note: 'v' })
   })
   it('每个请求重新鉴权与白名单、本人列表详情隔离，未交付命令和直接编辑拒绝', async () => {
     const owner = crypto.randomUUID(), other = crypto.randomUUID()

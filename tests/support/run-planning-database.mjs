@@ -73,10 +73,12 @@ try {
       for each row execute function pg_temp.ledger_failpoint();`)
   console.log(ledgerOnly ? '通过：隔离账单空库初始化（两表）' : '通过：空库初始化、规划／任务事务、回滚、历史锁定和权限探针')
   const rpcPort = await freePort()
+  const ledgerJwtSecret = ledgerOnly ? crypto.randomUUID() + crypto.randomUUID() : undefined
   cancellation.signal.throwIfAborted()
   rest = spawn(process.env.POSTGREST_BIN || 'postgrest', [], { cwd: work, detached: true, env: { ...cleanEnv,
     PGRST_DB_URI: `postgres://postgres@127.0.0.1:${port}/postgres`, PGRST_DB_ANON_ROLE: 'service_role', PGRST_DB_SCHEMAS: 'public',
     PGRST_SERVER_HOST: '127.0.0.1', PGRST_SERVER_PORT: String(rpcPort), PGRST_LOG_LEVEL: 'crit',
+    ...(ledgerJwtSecret ? { PGRST_JWT_SECRET: ledgerJwtSecret } : {}),
     ...(process.env.POSTGRES_LIB ? { [process.platform === 'darwin' ? 'DYLD_LIBRARY_PATH' : 'LD_LIBRARY_PATH']: process.env.POSTGRES_LIB } : {}),
   }, stdio: ['ignore', 'ignore', 'pipe'] })
   let restError = ''
@@ -91,7 +93,7 @@ try {
     await new Promise(resolve => setTimeout(resolve, 100))
   }
   if (!ready) throw new Error(`本机 PostgREST 未就绪：${restError}`)
-  const env = { ...cleanEnv, ADVENTURE_LOCAL_RPC_URL: url, LEDGER_LOCAL_RPC_URL: url, PLAYWRIGHT_BROWSERS_PATH: process.env.PLAYWRIGHT_BROWSERS_PATH || '.cache/playwright' }
+  const env = { ...cleanEnv, ADVENTURE_LOCAL_RPC_URL: url, LEDGER_LOCAL_RPC_URL: url, LEDGER_LOCAL_JWT_SECRET: ledgerJwtSecret, PLAYWRIGHT_BROWSERS_PATH: process.env.PLAYWRIGHT_BROWSERS_PATH || '.cache/playwright' }
   if (!process.argv.includes('--browser-only')) await run(process.execPath, ['node_modules/vitest/vitest.mjs', 'run', ...(ledgerOnly ? ['tests/api/ledger-database.test.ts'] : ['tests/api/adventure-actions-database.test.ts', 'tests/api/adventure-lifecycle-database.test.ts', 'tests/api/adventure-reschedule-database.test.ts', 'tests/api/adventure-growth-database.test.ts', 'tests/api/adventure-integration-database.test.ts'])], { env })
   if (process.argv.includes('--browser')) {
     const browserArgs = process.argv.slice(process.argv.indexOf('--browser') + 1)

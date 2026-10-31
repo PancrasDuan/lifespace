@@ -9,8 +9,8 @@ export const ledgerCategories = {
 } as const
 export const ledgerLimits = { amountCents: 99_999_999_999, accountName: 50, note: 500, pageSize: 30 } as const
 export const ledgerStatusLabels = { completed: '已完成', 'partial-refund': '部分退款', 'full-refund': '全部退款' } as const
-export const ledgerDirectionSchema = z.enum(['expense', 'income'])
-export const ledgerCategorySchema = z.enum(['transport', 'accommodation', 'dining', 'shopping', 'gift_expense', 'top_up', 'subscription', 'investment', 'other_expense', 'salary', 'part_time', 'gift_income', 'secondhand_sale', 'other_income'])
+export const ledgerDirectionSchema = z.enum(['expense', 'income'], { error: '请选择收入或支出。' })
+export const ledgerCategorySchema = z.enum(['transport', 'accommodation', 'dining', 'shopping', 'gift_expense', 'top_up', 'subscription', 'investment', 'other_expense', 'salary', 'part_time', 'gift_income', 'secondhand_sale', 'other_income'], { error: '请选择有效的交易分类。' })
 const accountName = z.string().trim().refine(value => [...value].length >= 1 && [...value].length <= 50, '交易账户不能为空，且最多 50 个字符。')
 const note = z.string().trim().refine(value => [...value].length <= 500, '交易备注最多 500 个字符。')
 const amountCents = z.number().int().min(-ledgerLimits.amountCents).max(ledgerLimits.amountCents).refine(value => value !== 0, '金额不能为零。')

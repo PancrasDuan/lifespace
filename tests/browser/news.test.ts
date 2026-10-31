@@ -74,7 +74,8 @@ test('新闻导航支持站内切换、直接访问、刷新和前进后退，�
   await expect(page.getByRole('heading', { name: '热点新闻', exact: true })).toBeVisible()
   await page.goForward()
   await expect(page.getByRole('heading', { name: 'LifeSpace', exact: true })).toBeVisible()
-  for (const name of ['任务管理', '个人目标', '财务', '股票行情']) await expect(page.getByRole('button', { name, exact: true })).toBeDisabled()
+  for (const name of ['任务管理', '个人目标', '股票行情']) await expect(page.getByRole('button', { name, exact: true })).toBeDisabled()
+  await expect(page.getByRole('link', { name: '财务', exact: true })).toHaveAttribute('href', '/finance')
 })
 
 test('新闻页按默认五源顺序展示真实返回内容，只请求启用来源并打开来源链接', async ({ page, context }) => {
