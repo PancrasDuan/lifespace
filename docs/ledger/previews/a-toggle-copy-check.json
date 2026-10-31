@@ -1,0 +1,98 @@
+{
+  "cards": {
+    "detail": {
+      "x": 450,
+      "y": 232.953125,
+      "width": 540,
+      "height": 614.09375
+    },
+    "deletion": {
+      "x": 540,
+      "y": 409.953125,
+      "width": 360,
+      "height": 260.09375
+    },
+    "creation": {
+      "x": 410,
+      "y": 187.4375,
+      "width": 620,
+      "height": 705.125
+    },
+    "refund": {
+      "x": 410,
+      "y": 165.6875,
+      "width": 620,
+      "height": 748.625
+    },
+    "refundInherited": [
+      "原型储蓄卡",
+      "卡片试记"
+    ],
+    "refundRows": [
+      "2026-10-3115:18:24卡片试记退款—原型储蓄卡收入已完成+¥30.00",
+      "2026-10-3115:18:23卡片试记—原型储蓄卡支出部分退款-¥120.00"
+    ]
+  },
+  "dates": {
+    "popover": {
+      "x": 412,
+      "y": 209,
+      "width": 692,
+      "height": 561
+    },
+    "pageRegions": 3,
+    "initialDraft": [
+      "2026 / 10 / 02",
+      "2026 / 10 / 31"
+    ],
+    "weekDraft": [
+      "2026 / 10 / 26",
+      "2026 / 11 / 01"
+    ],
+    "mouseToggleDiscarded": true,
+    "initialDraftRestored": [
+      "2026 / 10 / 02",
+      "2026 / 10 / 31"
+    ],
+    "monthDraft": [
+      "2026 / 10 / 01",
+      "2026 / 10 / 31"
+    ],
+    "appliedRange": "2026-10-01 至 2026-10-31",
+    "appliedDraftRestored": [
+      "2026 / 10 / 01",
+      "2026 / 10 / 31"
+    ],
+    "keyboardToggle": [
+      "Enter",
+      "Space"
+    ],
+    "doubleClickClosed": true,
+    "leapDraft": [
+      "2024 / 02 / 29",
+      "2024 / 03 / 01"
+    ],
+    "reversedRangeRejected": true
+  },
+  "mobile": {
+    "pageOverflow": false,
+    "creation": {
+      "x": 12,
+      "y": 39.34375,
+      "width": 366,
+      "height": 765.3125
+    },
+    "dates": {
+      "x": 12,
+      "y": 180,
+      "width": 366,
+      "height": 652
+    },
+    "mouseToggleDiscarded": true,
+    "appliedRange": "2026-10-26 至 2026-11-01"
+  },
+  "copy": {
+    "removedExplanations": true
+  },
+  "errors": []
+}

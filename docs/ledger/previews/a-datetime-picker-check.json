@@ -1,0 +1,39 @@
+{
+  "desktop": {
+    "nativeSegmentsEditable": true,
+    "popupFits": true,
+    "optionCounts": {
+      "小时": 24,
+      "分钟": 60,
+      "秒": 60
+    },
+    "upperWheelBounded": true,
+    "confirmed": "2026-10-30T23:59:59",
+    "lowerWheelAndKeyboardBounded": true,
+    "confirmDisabledWhileScrolling": true,
+    "confirmUsesSettledValue": true,
+    "layerDismissalPreservesForm": true,
+    "futureHoursDisabled": true,
+    "refundMinHoursDisabled": true,
+    "refundMinMinutesDisabled": true,
+    "refundMinSecondsDisabled": true,
+    "borderAndBlankOpenPicker": true,
+    "calendarDateCommitted": true
+  },
+  "mobile": {
+    "390x844": {
+      "fits": true,
+      "noOverflow": true,
+      "pickerNoOverflow": true,
+      "timeColumnsVisible": true,
+      "touchBoundsHold": true
+    },
+    "360x640": {
+      "fits": true,
+      "noOverflow": true,
+      "pickerNoOverflow": true,
+      "timeColumnsVisible": true
+    }
+  },
+  "errors": []
+}

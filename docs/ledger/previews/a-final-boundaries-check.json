@@ -1,0 +1,40 @@
+{
+  "model": {
+    "limits": {
+      "maxAmountCents": 99999999999,
+      "accountLength": 50,
+      "noteLength": 500
+    },
+    "maxExpenseAccepted": true,
+    "maxIncomeAccepted": true,
+    "maxPlusCentRejected": true,
+    "account50Accepted": true,
+    "account51Rejected": true,
+    "emojiAccount50Accepted": true,
+    "emojiAccount51Rejected": true,
+    "note500Accepted": true,
+    "note501Rejected": true,
+    "emojiNote500Accepted": true,
+    "refundNote500Accepted": true,
+    "refundNote501Rejected": true,
+    "refundCategoryStillInherited": true
+  },
+  "desktop": {
+    "accountNotTruncated": true,
+    "noteNotTruncated": true,
+    "savedMaxAmount": true,
+    "tableFits": true,
+    "cancelMethodsDiscard": true,
+    "refundNoteRejected": true,
+    "refundCancelReturnsList": true,
+    "saveResetsAllTime": true,
+    "saveReturnsFirstPage": true,
+    "oldEntryNotForcedToTop": true
+  },
+  "mobile": {
+    "detailFits": true,
+    "errorVisible": true,
+    "noOverflow": true
+  },
+  "errors": []
+}

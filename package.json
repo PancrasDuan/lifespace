@@ -8,6 +8,7 @@
   },
   "scripts": {
     "dev": "WRANGLER_LOG_PATH=./.cache/wrangler.log MINIFLARE_REGISTRY_PATH=./.cache/registry vite --host 127.0.0.1 --port 5174 --strictPort",
+    "prototype:ledger": "vite --config vite.ledger-prototype.config.ts",
     "types": "WRANGLER_LOG_PATH=./.cache/wrangler.log wrangler types --env-interface CloudflareEnv --include-runtime false --strict-vars false",
     "typecheck": "tsc --noEmit",
     "build": "npm run typecheck && WRANGLER_LOG_PATH=./.cache/wrangler.log vite build",

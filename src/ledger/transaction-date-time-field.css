@@ -1,0 +1,243 @@
+/* Transaction-time control; retain the native numeric segments. */
+.lp-field.lp-time-field { align-items: stretch; }
+.lp-time-field > label { width: 100%; }
+.lp-time-control {
+  display: flex;
+  align-items: stretch;
+  width: 100%;
+  min-width: 0;
+  min-height: 43px;
+  border: 1px solid #dce5d3;
+  border-radius: 7px;
+  background: #fff;
+  cursor: pointer;
+}
+.lp-time-control:hover { border-color: #a5bf94; }
+.lp-time-control:focus-within { border-color: #789c68; outline: 2px solid #557c53; outline-offset: 2px; }
+.lp-time-control .lp-time-native {
+  flex: 0 0 auto;
+  width: auto;
+  min-width: 0;
+  max-width: calc(100% - 44px);
+  min-height: 41px;
+  padding: 10px 0 10px 12px;
+  border: 0;
+  border-radius: 7px 0 0 7px;
+  background: #fff;
+  color: #3c583e;
+  caret-color: #365d45;
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.6;
+  color-scheme: light;
+}
+.lp-time-control .lp-time-native:focus-visible { outline: none; }
+.lp-time-native::-webkit-calendar-picker-indicator { display: none; }
+.lp-time-native::-webkit-inner-spin-button { display: none; }
+.lp-time-native::-webkit-datetime-edit { padding: 0; }
+.lp-time-control .lp-time-trigger {
+  display: flex;
+  flex: 1 0 44px;
+  align-items: center;
+  justify-content: flex-end;
+  min-width: 44px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 0 7px 7px 0;
+  background: transparent;
+  color: #4f7049;
+  cursor: pointer;
+}
+.lp-time-trigger:hover, .lp-time-trigger[aria-expanded="true"] { background: #f0f5eb; }
+.lp-time-control .lp-time-trigger:focus-visible { outline: 2px solid #557c53; outline-offset: -5px; }
+
+.lp-time-popover[popover] {
+  --lp-time-roller-height: 180px;
+  position: fixed;
+  inset: auto;
+  box-sizing: border-box;
+  width: min(520px, calc(100vw - 24px));
+  max-height: calc(100dvh - 24px);
+  margin: 0;
+  padding: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  border: 0;
+  border-radius: 12px;
+  background: #fff;
+  color: #263f34;
+  box-shadow: 0 12px 44px #294a3233;
+  font: inherit;
+  font-size: 12px;
+  color-scheme: light;
+  scrollbar-width: thin;
+  scrollbar-color: #bdcdb5 #f7faf4;
+}
+.lp-time-popover *, .lp-time-control * { box-sizing: border-box; }
+.lp-time-popover::backdrop { background: transparent; }
+.lp-time-popover:focus { outline: none; }
+.lp-time-popover ::selection { background: #dcebd3; color: #263f34; }
+.lp-time-popover button, .lp-time-popover input { font: inherit; }
+.lp-time-popover button { cursor: pointer; }
+.lp-time-popover button:focus-visible, .lp-time-popover input:focus-visible { outline: 2px solid #557c53; outline-offset: 2px; }
+.lp-time-popover[popover] button:disabled { opacity: 1; cursor: default; }
+.lp-tp-header {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 53px;
+  padding: 12px 18px;
+  border-bottom: 1px solid #e4ebdc;
+  background: #fff;
+}
+.lp-tp-header h3 { margin: 0; font-size: 14px; font-weight: 500; }
+.lp-tp-header > button {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: #64795f;
+}
+.lp-tp-header > button:hover { background: #eef4e8; }
+.lp-tp-body { display: grid; grid-template-columns: minmax(0, 1fr) 206px; }
+.lp-tp-calendar { min-width: 0; padding: 17px 18px; }
+.lp-tp-month-nav { display: flex; align-items: center; justify-content: space-between; gap: 9px; margin-bottom: 12px; }
+.lp-tp-month-nav > button {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 30px;
+  flex: 0 0 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: #506c49;
+}
+.lp-tp-month-nav > button:hover:not(:disabled) { background: #edf4e6; }
+.lp-tp-month-nav > button:disabled { color: #a1ae99; }
+.lp-tp-month-nav > input {
+  width: 144px;
+  min-width: 0;
+  height: 31px;
+  padding: 3px 5px;
+  border: 1px solid #e0e7d9;
+  border-radius: 5px;
+  background: #fff;
+  color: #46633f;
+  text-align: center;
+  font-size: 11px;
+}
+.lp-tp-weekdays, .lp-tp-days { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 3px; }
+.lp-tp-weekdays { margin-bottom: 6px; }
+.lp-tp-weekdays > span { display: grid; place-items: center; height: 23px; color: #687b5e; font-size: 10px; }
+.lp-tp-day, .lp-tp-days > span { width: 100%; height: 32px; min-width: 0; }
+.lp-tp-day {
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: transparent;
+  color: #4a6242;
+  font-variant-numeric: tabular-nums;
+}
+.lp-tp-day:hover:not(:disabled) { background: #e7f0de; }
+.lp-tp-day.is-today { border-color: #b3c6a4; }
+.lp-tp-day.is-selected { border-color: #365d45; background: #365d45; color: #fff; }
+.lp-tp-day.is-selected:hover:not(:disabled) { background: #284e36; }
+.lp-tp-day:disabled { color: #a1ae99; }
+.lp-tp-time { min-width: 0; padding: 19px 15px 17px; border-left: 1px solid #e4ebdc; }
+.lp-tp-time h4 { margin: 0 0 13px; font-size: 12px; font-weight: 500; }
+.lp-tp-rollers { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 5px; }
+.lp-tp-column { min-width: 0; }
+.lp-tp-column > span { display: block; margin-bottom: 7px; color: #64795a; font-size: 10px; text-align: center; }
+.lp-tp-roller {
+  height: var(--lp-time-roller-height);
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scroll-snap-type: y mandatory;
+  touch-action: pan-y;
+  border: 0;
+  border-radius: 7px;
+  background: #f5f8f1;
+  scrollbar-width: thin;
+  scrollbar-color: #b8cbae #f5f8f1;
+  font-variant-numeric: tabular-nums;
+}
+.lp-tp-roller:focus-visible { outline: 2px solid #557c53; outline-offset: 2px; }
+.lp-tp-spacer { height: calc((var(--lp-time-roller-height) - 36px) / 2); min-height: calc((var(--lp-time-roller-height) - 36px) / 2); margin: 0; padding: 0; pointer-events: none; }
+.lp-tp-roller .lp-tp-option {
+  display: block;
+  width: 100%;
+  height: 36px;
+  min-height: 36px;
+  max-height: 36px;
+  margin: 0;
+  padding: 0;
+  scroll-snap-align: center;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: #536c4b;
+  font-size: 13px;
+  line-height: 36px;
+  text-align: center;
+}
+.lp-tp-option:hover:not(:disabled) { background: #e4eddc; }
+.lp-tp-roller .lp-tp-option.is-selected { background: #365d45; color: #fff; font-weight: 600; }
+.lp-tp-roller .lp-tp-option:disabled { color: #a1ae99; }
+.lp-tp-roller .lp-tp-option:focus-visible { outline-offset: -3px; }
+.lp-tp-footer {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-height: 64px;
+  padding: 13px 18px;
+  border-top: 1px solid #e4ebdc;
+  background: #fff;
+}
+.lp-tp-footer > strong { flex: 1 1 145px; min-width: 0; color: #4c6943; font-size: 11px; font-weight: 400; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.lp-tp-footer > button { min-height: 34px; padding: 7px 13px; border-radius: 6px; white-space: nowrap; }
+.lp-tp-cancel { border: 1px solid #dce5d3; background: #fff; color: #55734c; }
+.lp-tp-cancel:hover { border-color: #bacead; background: #f0f6e9; }
+.lp-tp-confirm { border: 1px solid #365d45; background: #365d45; color: #fff; }
+.lp-tp-confirm:hover:not(:disabled) { border-color: #284e36; background: #284e36; }
+.lp-tp-confirm:disabled { background: #e1e9db; border-color: #e1e9db; color: #7e9072; }
+.lp-tp-error { margin: 0; padding: 0 18px 12px; color: #a1513d; font-size: 11px; line-height: 1.6; }
+
+@media (max-width: 560px) {
+  .lp-tp-body { grid-template-columns: minmax(0, 1fr); }
+  .lp-tp-calendar { padding: 14px 18px 12px; }
+  .lp-tp-month-nav { margin-bottom: 9px; }
+  .lp-tp-days { gap: 2px; }
+  .lp-tp-day, .lp-tp-days > span { height: 30px; }
+  .lp-tp-time { padding: 13px 18px 16px; border-top: 1px solid #e4ebdc; border-left: 0; }
+  .lp-tp-time h4 { margin-bottom: 9px; }
+  .lp-tp-rollers { gap: 9px; }
+  .lp-tp-footer { padding: 12px 15px; }
+  .lp-tp-footer > strong { flex-basis: 140px; }
+  .lp-tp-footer > button { padding-right: 11px; padding-left: 11px; }
+}
+@media (max-height: 650px) {
+  .lp-time-popover[popover] { --lp-time-roller-height: 144px; }
+  .lp-tp-header { min-height: 47px; padding-top: 9px; padding-bottom: 9px; }
+  .lp-tp-calendar { padding-top: 12px; padding-bottom: 10px; }
+  .lp-tp-time { padding-top: 12px; padding-bottom: 12px; }
+  .lp-tp-footer { min-height: 58px; padding-top: 10px; padding-bottom: 10px; }
+}

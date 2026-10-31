@@ -64,7 +64,7 @@ export const test = base.extend({
     page.goto = async (...args: Parameters<typeof page.goto>) => {
       const response = await goto(...args)
       await expect(
-        page.locator('.home-page, .news-page, .adventure-page'),
+        page.locator('.home-page, .news-page, .adventure-page, .finance-page'),
       ).toBeVisible()
       return response
     }
@@ -72,7 +72,7 @@ export const test = base.extend({
     page.reload = async (...args: Parameters<typeof page.reload>) => {
       const response = await reload(...args)
       await expect(
-        page.locator('.home-page, .news-page, .adventure-page'),
+        page.locator('.home-page, .news-page, .adventure-page, .finance-page'),
       ).toBeVisible()
       return response
     }

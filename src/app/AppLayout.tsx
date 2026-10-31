@@ -16,13 +16,15 @@ export function AppLayout({
   page,
   children,
   openSettings,
+  className = '',
 }: {
-  page: 'home' | 'news' | 'adventure'
+  page: 'home' | 'news' | 'adventure' | 'finance'
   children: ReactNode
+  className?: string
   openSettings?: () => void
 }) {
   return (
-    <div className="lifespace-app theme-light">
+    <div className={`lifespace-app theme-light ${className}`}>
       <aside className="sidebar" aria-label="主导航">
         <PageLink className="brand-mark" href="/" aria-label="LifeSpace 首页">
           <img src="/favicon.svg" alt="" width={38} height={38} />
@@ -57,7 +59,17 @@ export function AppLayout({
             { title: '个人目标', icon: Target },
             { title: '财务', icon: Wallet },
             { title: '股票行情', icon: ChartNoAxesCombined },
-          ].map(({ title, icon: Icon }) => (
+          ].map(({ title, icon: Icon }) => title === '财务' ? (
+            <PageLink
+              key={title}
+              className={page === 'finance' ? 'nav-item active' : 'nav-item'}
+              href="/finance"
+              aria-current={page === 'finance' ? 'page' : undefined}
+            >
+              <Icon size={20} />
+              <span>{title}</span>
+            </PageLink>
+          ) : (
             <button className="nav-item" disabled key={title}>
               <Icon size={20} />
               <span>{title}</span>

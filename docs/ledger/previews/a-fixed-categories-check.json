@@ -1,0 +1,51 @@
+{
+  "options": {
+    "expense": [
+      "交通",
+      "住宿",
+      "餐饮",
+      "购物",
+      "人情支出",
+      "充值",
+      "订阅",
+      "投资理财",
+      "其他"
+    ],
+    "income": [
+      "工资",
+      "兼职",
+      "投资理财",
+      "人情收入",
+      "二手转卖",
+      "其他收入"
+    ]
+  },
+  "desktop": {
+    "directionChangeClearsSelection": true,
+    "refundCategory": "餐饮",
+    "refundReadonly": true,
+    "savedRefund": "2026-10-31\n15:59:49\n\t餐饮退款\n退款分类继承核对\n\t\n模拟储蓄卡\t\n收入\t\n已完成\t+¥30.00\t"
+  },
+  "mobile": {
+    "overflow": false,
+    "selectBox": {
+      "x": 32,
+      "y": 482,
+      "width": 326,
+      "height": 43
+    }
+  },
+  "model": {
+    "entries": 74,
+    "seedCategoriesValid": true,
+    "emptyRejected": true,
+    "freeTextRejected": true,
+    "wrongDirectionRejected": true,
+    "investmentAmounts": [
+      -100000,
+      105000
+    ],
+    "investmentOrdinary": true
+  },
+  "errors": []
+}
