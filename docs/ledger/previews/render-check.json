@@ -1,0 +1,49 @@
+{
+  "captures": [
+    {
+      "variant": "A",
+      "viewport": "desktop",
+      "overflow": false
+    },
+    {
+      "variant": "A",
+      "viewport": "mobile",
+      "overflow": false
+    },
+    {
+      "variant": "B",
+      "viewport": "desktop",
+      "overflow": false
+    },
+    {
+      "variant": "B",
+      "viewport": "mobile",
+      "overflow": false
+    },
+    {
+      "variant": "C",
+      "viewport": "desktop",
+      "overflow": false
+    },
+    {
+      "variant": "C",
+      "viewport": "mobile",
+      "overflow": false
+    }
+  ],
+  "pagination": "31–60 / 74 条流水\n每页 30 条\n2 / 3",
+  "todayCount": "流水明细 3\n按交易时间倒序",
+  "monthRange": "开始日期\n至\n结束日期\n本周\n本月",
+  "inherited": [
+    "原型储蓄卡",
+    "原型试记"
+  ],
+  "createdRows": [
+    "2026-10-3114:47:03原型试记退款—原型储蓄卡收入退款流水已完成+¥30.00",
+    "2026-10-3114:47:02原型试记这是一笔可删除的原型演示流水原型储蓄卡支出部分退款-¥120.00"
+  ],
+  "afterDelete": [
+    "2026-10-3114:47:02原型试记这是一笔可删除的原型演示流水原型储蓄卡支出已完成-¥120.00"
+  ],
+  "errors": []
+}
