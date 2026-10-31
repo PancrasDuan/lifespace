@@ -224,3 +224,12 @@
 .finance-page .lp-workspace { padding-top: 42px; }
 .lp-unknown { display:flex; flex-wrap:wrap; align-items:center; gap:12px; padding:16px; margin-bottom:18px; border:1px solid #e9cec3; background:#fbf1e9; border-radius:10px; font-size:12px; }
 .lp-unknown > span { flex:1 1 250px; }
+.lp-refund-tag { margin-left:7px; font-size:10px; color:#386e65; background:#e8f2ee; padding:2px 5px; border-radius:4px; white-space:nowrap; }
+.lp-dialog.entry-card .lp-form-parent { grid-column:1 / -1; display:flex; align-items:flex-start; gap:10px; padding:13px; border:1px solid #e1e8da; border-radius:8px; color:#617556; background:#f4f7f0; font-size:11px; }
+.lp-form-parent strong, .lp-form-parent span { display:block; margin-top:4px; }
+.lp-form-parent strong { font-size:12px; font-weight:500; color:#3c583e; }
+.lp-related { margin-top:24px; }
+.lp-related h3 { font-size:12px; font-weight:500; color:#617556; }
+.lp-related-entry { display:flex; align-items:center; gap:12px; width:100%; text-align:left; padding:13px 0; border:0; border-top:1px solid #e7ecdf; color:#52684f; background:transparent; }
+.lp-related-entry time { flex:1; font-size:11px; }
+@media(max-width:380px) { .lp-related-entry { flex-wrap:wrap; } }
