@@ -234,3 +234,19 @@
 .lp-related-entry { display:flex; align-items:center; gap:12px; width:100%; text-align:left; padding:13px 0; border:0; border-top:1px solid #e7ecdf; color:#52684f; background:transparent; }
 .lp-related-entry time { flex:1; font-size:11px; }
 @media(max-width:380px) { .lp-related-entry { flex-wrap:wrap; } }
+.lp-detail-actions { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 22px; }
+.lp-detail-actions .lp-form-actions { border: 0; padding: 0; margin: 0; }
+.lp-delete-button, .lp-danger { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 40px; padding: 9px 13px; border: 1px solid #cba99b; border-radius: 8px; background: #fff; color: #855043; font-size: 12px; }
+.lp-delete-button:hover { background: #faf0ea; }
+.lp-danger { background: #974f40; color: #fff; border-color: #974f40; }
+.lp-danger:hover { background: #7c3f33; }
+.lp-dialog.compact { width: 380px; max-width: calc(100vw - 32px); max-height: calc(100dvh - 40px); border-radius: 14px; }
+.lp-dialog.compact > header { min-height: 57px; padding: 14px 20px; }
+.lp-dialog.compact > header h2 { font-size: 16px; }
+.lp-delete-content { padding: 18px 20px 20px; }
+.lp-delete-preview { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 12px; background: #f4f7ef; border-radius: 8px; }
+.lp-delete-preview > span { min-width: 0; font-size: 13px; overflow-wrap: anywhere; }
+.lp-delete-preview small { display: block; margin-top: 5px; color: #53684b; font-size: 11px; line-height: 1.7; }
+.lp-delete-preview .lp-amount { font-size: 16px; }
+.lp-delete-content > p { color: #526447; font-size: 12px; line-height: 1.8; margin: 18px 0; }
+.lp-delete-content .lp-form-actions { margin-top: 18px; padding-top: 0; border: 0; }

@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { authorizedFetch, authorizedMutation } from '../auth/request'
-import { ledgerDetailSchema, ledgerPageSchema, ledgerReceiptSchema, type LedgerCreate, type LedgerRefund } from '../shared/ledger'
+import { ledgerDeletePreviewSchema, ledgerDetailSchema, ledgerPageSchema, ledgerReceiptSchema, type LedgerCreate, type LedgerRefund } from '../shared/ledger'
 import type { DateRange } from './dates'
 const errorSchema = z.object({ error: z.object({ code: z.string(), message: z.string() }) })
 export class LedgerError extends Error {
@@ -35,5 +35,14 @@ export async function saveRefund(owner: string, parentId: string, input: LedgerR
   catch (error) {
     if (error instanceof LedgerError) throw error
     throw new LedgerError('SAVE_UNKNOWN', '保存结果未确认，请沿用原请求重试或刷新查看流水')
+  }
+}
+
+export const readDeletePreview = async (owner: string, id: string, signal: AbortSignal) => parse(await authorizedFetch(`/api/ledger/entries/${id}/delete-preview`, signal, owner), ledgerDeletePreviewSchema)
+export async function deleteLedger(owner: string, id: string, scope: string, signal: AbortSignal) {
+  try { return await parse(await authorizedMutation(`/api/ledger/entries/${id}/delete`, JSON.stringify({ scope }), signal, owner), ledgerReceiptSchema, true) }
+  catch (error) {
+    if (error instanceof LedgerError && error.code !== 'SAVE_UNKNOWN') throw error
+    throw new LedgerError('DELETE_UNKNOWN', '删除结果未确认，请重试删除或查看最新流水')
   }
 }

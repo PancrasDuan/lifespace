@@ -22,7 +22,11 @@ export function useLedgerList() {
     retry: false, staleTime: 0, refetchOnWindowFocus: false,
   })
   useEffect(() => {
-    if (entries.data) version.current = entries.data.version
+    if (entries.data) {
+      version.current = entries.data.version
+      const last = Math.max(1, Math.ceil(entries.data.total / 30))
+      if (entries.data.page > last) setView(current => ({ ...current, page: last }))
+    }
   }, [entries.data])
   useEffect(() => {
     if (!(entries.error instanceof LedgerError) || entries.error.code !== 'LIST_CHANGED') return
@@ -30,5 +34,9 @@ export function useLedgerList() {
     setUpdated(true)
     setView(current => ({ ...current, page: 1, session: current.session + 1 }))
   }, [entries.error])
-  return { entries, page: view.page, range: view.range, updated, selectRange, setPage: (page: number) => setView(current => ({ ...current, page })) }
+  return { entries, page: view.page, range: view.range, updated, selectRange, deleted: (revision: number) => {
+    version.current = revision
+    setUpdated(false)
+    setView(current => ({ ...current, session: current.session + 1 }))
+  }, setPage: (page: number) => setView(current => ({ ...current, page })) }
 }

@@ -29,6 +29,8 @@ export const ledgerEntrySchema = z.strictObject({
 export const ledgerPageSchema = z.strictObject({ items: z.array(ledgerEntrySchema).max(30), total: revision, page: z.number().int().min(1), pageSize: z.literal(30), version: revision })
 export const ledgerDetailSchema = z.strictObject({ entry: ledgerEntrySchema, parentEntry: ledgerEntrySchema.nullable(), refunds: z.array(ledgerEntrySchema), version: revision })
 export const ledgerReceiptSchema = z.strictObject({ entryId: z.uuid(), version: revision, deleted: z.boolean() })
+export const ledgerDeleteSchema = z.strictObject({ scope: z.string().regex(/^[a-f0-9]{64}$/) })
+export const ledgerDeletePreviewSchema = z.strictObject({ entry: ledgerEntrySchema, refundCount: revision, scope: ledgerDeleteSchema.shape.scope, version: revision })
 export const ledgerDateSchema = z.iso.date().refine(value => !value.startsWith('0000-'), '日期无效')
 export const ledgerQuerySchema = z.strictObject({
   page: z.coerce.number().int().min(1).max(1_000_000).default(1),
@@ -45,6 +47,8 @@ export const ledgerErrors = {
   REFUND_PARENT_INVALID: [409, '只能为本人未删除的普通支出登记退款'],
   REFUND_LIMIT: [409, '退款金额超过剩余可退额度，请查看最新流水'],
   REFUND_TIME: [400, '退款时间不能早于父支出'],
+  DELETE_SCOPE_CHANGED: [409, '关联退款范围已变化，请核对最新影响后再次确认删除'],
+  DELETE_UNKNOWN: [503, '删除结果未确认，请重试删除或查看最新流水'],
   LEDGER_UNAVAILABLE: [503, '暂时无法读取账单，请稍后重试'],
   SAVE_UNKNOWN: [503, '保存结果未确认，请沿用原请求重试或刷新查看流水'],
 } as const
@@ -53,4 +57,5 @@ export type LedgerCreate = z.infer<typeof ledgerCreateSchema>
 export type LedgerRefund = z.infer<typeof ledgerRefundSchema>
 export type LedgerPage = z.infer<typeof ledgerPageSchema>
 export type LedgerReceipt = z.infer<typeof ledgerReceiptSchema>
+export type LedgerDeletePreview = z.infer<typeof ledgerDeletePreviewSchema>
 export function categoryLabel(code: string) { return [...ledgerCategories.expense, ...ledgerCategories.income].find(([value]) => value === code)?.[1] ?? code }

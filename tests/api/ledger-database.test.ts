@@ -103,7 +103,7 @@ describe.skipIf(!ledgerRpc)('账单正式 HTTP 与隔离 PostgreSQL/PostgREST �
     expect((await ledgerRequest(other, `/api/ledger/entries/${receipt.entryId}`)).status).toBe(404)
     expect((await ledgerRequest(owner, `/api/ledger/entries/${receipt.entryId}`, { note: '篡改' }, 'PATCH')).status).toBe(404)
     expect((await ledgerRequest(owner, `/api/ledger/entries/${receipt.entryId}/refunds`, {})).status).toBe(400)
-    expect((await ledgerRequest(owner, `/api/ledger/entries/${receipt.entryId}/delete`, {})).status).toBe(404)
+    expect((await ledgerRequest(owner, `/api/ledger/entries/${receipt.entryId}/delete`, {})).status).toBe(400)
     const unauthenticated = await app.request('/api/ledger/entries', {}, ledgerEnv)
     expect(unauthenticated.status).toBe(401)
     const oldAllowed = ledgerEnv.AUTH_ALLOWED_EMAILS
