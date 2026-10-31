@@ -224,3 +224,4 @@
 .finance-page .lp-workspace { padding-top: 42px; }
 .lp-unknown { display:flex; flex-wrap:wrap; align-items:center; gap:12px; padding:16px; margin-bottom:18px; border:1px solid #e9cec3; background:#fbf1e9; border-radius:10px; font-size:12px; }
 .lp-unknown > span { flex:1 1 250px; }
+.lp-applied-range { margin: 0; padding: 10px 23px 0; color: #68766d; font-size: 12px; }

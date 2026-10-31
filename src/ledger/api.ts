@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { authorizedFetch, authorizedMutation } from '../auth/request'
 import { ledgerDetailSchema, ledgerPageSchema, ledgerReceiptSchema, type LedgerCreate } from '../shared/ledger'
+import type { DateRange } from './dates'
 const errorSchema = z.object({ error: z.object({ code: z.string(), message: z.string() }) })
 export class LedgerError extends Error {
   constructor(public code: string, message: string) { super(message) }
@@ -15,7 +16,12 @@ async function parse<T>(response: Response, schema: z.ZodType<T>, writing = fals
   if (!parsed || !parsed.success) throw new LedgerError(writing ? 'SAVE_UNKNOWN' : 'LEDGER_UNAVAILABLE', writing ? '保存结果未确认' : '暂时无法读取账单')
   return parsed.data
 }
-export const readLedger = async (owner: string, page: number, signal: AbortSignal) => parse(await authorizedFetch(`/api/ledger/entries?page=${page}`, signal, owner), ledgerPageSchema)
+export const readLedger = async (owner: string, page: number, signal: AbortSignal, range: DateRange | null = null, version?: number) => {
+  const query = new URLSearchParams({ page: String(page) })
+  if (range) { query.set('startDate', range.start); query.set('endDate', range.end) }
+  if (version !== undefined) query.set('version', String(version))
+  return parse(await authorizedFetch(`/api/ledger/entries?${query}`, signal, owner), ledgerPageSchema)
+}
 export const readLedgerDetail = async (owner: string, id: string, signal: AbortSignal) => parse(await authorizedFetch(`/api/ledger/entries/${id}`, signal, owner), ledgerDetailSchema)
 export async function saveLedger(owner: string, input: LedgerCreate, signal: AbortSignal) {
   try { return await parse(await authorizedMutation('/api/ledger/entries', JSON.stringify(input), signal, owner), ledgerReceiptSchema, true) }

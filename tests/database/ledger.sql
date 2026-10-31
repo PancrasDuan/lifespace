@@ -7,7 +7,7 @@ begin
   if exists(select from pg_tables where schemaname = 'public' and tablename like 'ledger_%' and not rowsecurity) then raise exception 'RLS_REQUIRED'; end if;
   if has_table_privilege('anon','public.ledger_entries','SELECT') or has_table_privilege('authenticated','public.ledger_entries','SELECT')
     or has_table_privilege('authenticated','public.ledger_owner_revision','SELECT') or has_table_privilege('service_role','public.ledger_entries','UPDATE')
-    or has_function_privilege('anon','public.ledger_list(uuid,integer)','EXECUTE') or has_function_privilege('authenticated','public.ledger_create(uuid,jsonb)','EXECUTE')
+    or has_function_privilege('anon','public.ledger_list(uuid,integer,date,date,bigint)','EXECUTE') or has_function_privilege('authenticated','public.ledger_create(uuid,jsonb)','EXECUTE')
     or has_function_privilege('authenticated','public.ledger_detail(uuid,uuid)','EXECUTE') then raise exception 'BROWSER_OR_DIRECT_WRITE_PERMISSION'; end if;
   rec := public.ledger_create(owner_a, jsonb_build_object('requestId',gen_random_uuid(),'direction','expense','amountCents',-10000,'occurredAt','2026-01-02T03:04:05.000Z','accountName','零钱','categoryCode','dining','note','原始事实'));
   id_a := (rec->>'entryId')::uuid;

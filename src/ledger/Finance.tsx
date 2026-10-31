@@ -4,10 +4,13 @@ import { ArrowDownLeft, ArrowUpRight, CalendarDays, Check, ChevronLeft, ChevronR
 import { AppLayout } from '../app/AppLayout'
 import { useVerifiedIdentity } from '../auth/identity'
 import { categoryLabel, ledgerCategories, ledgerCreateSchema, ledgerStatusLabels, type LedgerCreate, type LedgerEntry } from '../shared/ledger'
-import { LedgerError, readLedger, readLedgerDetail, saveLedger } from './api'
+import { LedgerError, readLedgerDetail, saveLedger } from './api'
 import { formatCurrency, formatDateTime, fromDateTimeInput, toDateTimeInput, yuanToCents } from './time'
 import { TransactionDateTimeField } from './TransactionDateTimeField'
 import './finance.css'
+import { getDateRange, type DateFilter } from './dates'
+import { DateRangePopover } from './DateRangePopover'
+import { useLedgerList } from './useLedgerList'
 
 function Amount({ entry, large = false }: { entry: LedgerEntry; large?: boolean }) {
   return <span className={`lp-amount ${entry.direction} ${large ? 'large' : ''}`}>{formatCurrency(entry.amountCents)}</span>
@@ -18,7 +21,13 @@ function Status({ entry }: { entry: LedgerEntry }) {
 export function Finance() {
   const identity = useVerifiedIdentity()
   const queries = useQueryClient()
-  const [page, setPage] = useState(1)
+  const { entries, page, range, updated, selectRange, setPage } = useLedgerList()
+  const [filter, setFilter] = useState<DateFilter>('all')
+  const rangeTrigger = useRef<HTMLButtonElement>(null)
+  const [dateAnchor, setDateAnchor] = useState<DOMRect | null>(null)
+  function selectFilter(value: Exclude<DateFilter, 'custom'>) {
+    setFilter(value); selectRange(getDateRange(value)); setDateAnchor(null)
+  }
   const [panel, setPanel] = useState<{ kind: 'new'; session: string } | { kind: 'detail'; id: string } | null>(null)
   const [unconfirmed, setUnconfirmed] = useState<{ input: LedgerCreate; session: string; pending: boolean; message: string }[]>([])
   const [notice, setNotice] = useState(0)
@@ -33,7 +42,6 @@ export function Finance() {
     window.addEventListener('focus', refresh)
     return () => window.removeEventListener('focus', refresh)
   }, [identity, queries])
-  const entries = useQuery({ queryKey: ['ledger', identity.ownerId, 'entries', page], queryFn: ({ signal }) => readLedger(identity.ownerId, page, AbortSignal.any([signal, identity.signal])), retry: false, staleTime: 0 })
   const data = entries.data
   const pageCount = Math.max(1, Math.ceil((data?.total ?? 0) / 30))
   const newEntry = () => setPanel({ kind: 'new', session: crypto.randomUUID() })
@@ -41,7 +49,7 @@ export function Finance() {
     if (identity.signal.aborted) return
     setPanel(current => current?.kind === 'new' && current.session === session ? null : current)
     setNotice(value => value + 1)
-    setPage(1)
+    selectFilter('all')
     void queries.invalidateQueries({ queryKey: ['ledger', identity.ownerId] })
   }
   async function submit(input: LedgerCreate, session: string) {
@@ -65,7 +73,9 @@ export function Finance() {
       <header className="lp-page-header"><h1>账单流水<span>人民币</span></h1><button className="lp-primary" onClick={newEntry}><Plus size={17} />新建流水</button></header>
       {unconfirmed.filter(item => panel?.kind !== 'new' || panel.session !== item.session).map(item => <div role="alert" className="lp-unknown" key={item.input.requestId}><span>{item.message}</span><button className="lp-secondary" disabled={item.pending} onClick={() => void submit(item.input, item.session).catch(() => {})}>{item.pending ? '正在重试…' : '重试原请求'}</button><button className="lp-secondary" onClick={() => void entries.refetch()}>查看最新流水</button></div>)}
       <section className="lp-table-surface" aria-label="账单流水">
-        <div className="lp-top-toolbar"><div className="lp-filter-buttons"><button className="active" aria-pressed="true">全部时间</button></div><span className="lp-timezone"><CalendarDays size={14} />北京时间</span></div>
+        <div className="lp-top-toolbar"><div className="lp-filter-buttons">{([['all', '全部时间'], ['today', '今天'], ['week', '近 7 天'], ['month', '近 1 个月']] as const).map(([value, label]) => <button key={value} className={filter === value ? 'active' : ''} aria-pressed={filter === value} onClick={() => selectFilter(value)}>{label}</button>)}<button ref={rangeTrigger} className={filter === 'custom' ? 'active' : ''} aria-pressed={filter === 'custom'} aria-expanded={!!dateAnchor} aria-haspopup="dialog" onClick={() => setDateAnchor(current => current ? null : rangeTrigger.current!.getBoundingClientRect())}>自定义</button></div><span className="lp-timezone"><CalendarDays size={14} />北京时间</span></div>
+        {range && <p className="lp-applied-range">{range.start} — {range.end}</p>}
+        {updated && <p role="status" className="lp-applied-range">列表已更新，已返回第一页</p>}
         <div className="lp-list-heading"><span>流水明细 <b>{data?.total ?? '—'}</b></span><button className="lp-refresh" onClick={() => void queries.invalidateQueries({ queryKey: ['ledger', identity.ownerId] })}><RefreshCw size={14} />刷新数据</button></div>
         {entries.isPending ? <p role="status" className="lp-feedback">正在读取流水…</p> : entries.isError ? <div role="alert" className="lp-feedback">读取失败，请重试。<button className="lp-secondary" onClick={() => void entries.refetch()}>重试读取</button></div> : data?.items.length ? <div className="lp-table-wrap"><table className="lp-table"><thead><tr>
           <th>交易时间</th><th>分类 / 备注</th><th>交易账户</th><th>收支类型</th><th>交易状态</th><th className="lp-numeric">交易金额</th><th><span className="lp-sr">查看详情</span></th>
@@ -75,12 +85,13 @@ export function Finance() {
           <td><span className="lp-account"><CreditCard size={13} />{entry.accountName}</span></td>
           <td><span className={`lp-direction ${entry.direction}`}>{entry.direction === 'income' ? <ArrowDownLeft size={13} /> : <ArrowUpRight size={13} />}{entry.direction === 'income' ? '收入' : '支出'}</span></td>
           <td><Status entry={entry} /></td><td className="lp-numeric"><Amount entry={entry} /></td><td><ChevronRight size={15} /></td>
-        </tr>)}</tbody></table></div> : <div className="lp-empty"><Wallet size={30} strokeWidth={1.3} /><h3>暂无流水</h3><button className="lp-secondary" onClick={newEntry}><Plus size={15} />新建流水</button></div>}
+        </tr>)}</tbody></table></div> : <div className="lp-empty"><Wallet size={30} strokeWidth={1.3} /><h3>{range ? '没有匹配的流水' : '暂无流水'}</h3><button className="lp-secondary" onClick={newEntry}><Plus size={15} />新建流水</button></div>}
         <footer className="lp-pagination"><span>{data?.total ? `${(page - 1) * 30 + 1}–${Math.min(page * 30, data.total)} / ${data.total} 条流水` : '0 条流水'}</span><div>
           <button aria-label="上一页" disabled={page === 1 || entries.isFetching} onClick={() => setPage(page - 1)}><ChevronLeft size={16} /></button><span>{page} <i>/</i> {pageCount}</span>
           <button aria-label="下一页" disabled={page === pageCount || entries.isFetching} onClick={() => setPage(page + 1)}><ChevronRight size={16} /></button></div></footer>
       </section>
     </div>
+    {dateAnchor && <DateRangePopover start={range?.start ?? ''} end={range?.end ?? ''} anchor={dateAnchor} trigger={rangeTrigger.current} close={() => setDateAnchor(null)} apply={(start, end) => { setFilter('custom'); selectRange({ start, end }) }} />}
     {panel?.kind === 'new' && <LedgerModal title="新建流水" close={() => setPanel(null)} form><EntryForm key={panel.session} save={input => submit(input, panel.session)} cancel={() => setPanel(null)} /></LedgerModal>}
     {panel?.kind === 'detail' && <LedgerModal title="流水详情" close={() => setPanel(null)}><EntryDetail id={panel.id} /></LedgerModal>}
     {!!notice && <div role="status" className="lp-toast"><Check size={15} />流水已记录</div>}

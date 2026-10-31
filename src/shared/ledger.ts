@@ -28,10 +28,16 @@ export const ledgerEntrySchema = z.strictObject({
 export const ledgerPageSchema = z.strictObject({ items: z.array(ledgerEntrySchema).max(30), total: revision, page: z.number().int().min(1), pageSize: z.literal(30), version: revision })
 export const ledgerDetailSchema = z.strictObject({ entry: ledgerEntrySchema, parentEntry: ledgerEntrySchema.nullable(), refunds: z.array(ledgerEntrySchema), version: revision })
 export const ledgerReceiptSchema = z.strictObject({ entryId: z.uuid(), version: revision, deleted: z.boolean() })
-export const ledgerQuerySchema = z.strictObject({ page: z.coerce.number().int().min(1).max(1_000_000).default(1) })
+export const ledgerDateSchema = z.iso.date().refine(value => !value.startsWith('0000-'), '日期无效')
+export const ledgerQuerySchema = z.strictObject({
+  page: z.coerce.number().int().min(1).max(1_000_000).default(1),
+  startDate: ledgerDateSchema.optional(), endDate: ledgerDateSchema.optional(),
+  version: z.string().regex(/^(0|[1-9]\d*)$/).pipe(z.coerce.number<string>().int().min(0).max(Number.MAX_SAFE_INTEGER)).optional(),
+}).refine(value => (!value.startDate && !value.endDate) || (!!value.startDate && !!value.endDate && value.startDate <= value.endDate), '日期范围无效')
 export const ledgerErrors = {
   INVALID_ENTRY: [400, '流水输入无效，请检查金额、账户、分类与交易时间'],
-  INVALID_QUERY: [400, '分页参数无效'],
+  INVALID_QUERY: [400, '日期或分页参数无效'],
+  LIST_CHANGED: [409, '列表已更新，已返回第一页'],
   FUTURE_TIME: [400, '交易时间不能晚于当前北京时间'],
   REQUEST_ID_REUSED: [409, '请求编号已用于不同内容，请重新创建流水'],
   NOT_FOUND: [404, '流水不存在或不属于当前账户'],

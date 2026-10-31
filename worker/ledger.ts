@@ -33,9 +33,10 @@ async function rpc<T>(c: LedgerContext, name: string, params: Record<string, unk
   } catch (error) { if (error instanceof ApiError) throw error; throw failure(fallback) }
 }
 export async function listLedger(c: LedgerContext) {
+  if (Object.values(c.req.queries()).some(values => values.length !== 1)) throw failure('INVALID_QUERY')
   const query = ledgerQuerySchema.safeParse(c.req.query())
   if (!query.success) throw failure('INVALID_QUERY')
-  return c.json(await rpc(c, 'ledger_list', { p_page: query.data.page }, ledgerPageSchema))
+  return c.json(await rpc(c, 'ledger_list', { p_page: query.data.page, p_start_date: query.data.startDate ?? null, p_end_date: query.data.endDate ?? null, p_version: query.data.version ?? null }, ledgerPageSchema))
 }
 export async function detailLedger(c: LedgerContext) {
   const id = z.uuid().safeParse(c.req.param('id'))
