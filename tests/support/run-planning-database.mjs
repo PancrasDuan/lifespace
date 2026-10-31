@@ -9,6 +9,7 @@ import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
+const ledgerOnly = process.argv.includes('--ledger')
 const work = await mkdtemp(join(tmpdir(), 'lifespace-actions-db-'))
 const binary = name => process.env.POSTGRES_BIN ? join(process.env.POSTGRES_BIN, name) : name
 const cleanEnv = Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('PG')))
@@ -55,15 +56,22 @@ try {
   await client.connect()
   const sql = input => { cancellation.signal.throwIfAborted(); return client.query(input) }
   await sql('create role anon; create role authenticated; create role service_role bypassrls; grant usage on schema public to service_role;')
-  for (const path of ['db/adventure/create-planning.sql', 'tests/database/adventure-planning.sql', 'tests/database/adventure-actions.sql', 'tests/database/adventure-goals.sql', 'tests/database/adventure-migrations.sql', 'tests/database/adventure-lifecycle.sql', 'tests/database/adventure-reschedule.sql', 'tests/database/adventure-growth.sql']) await sql(await readFile(join(root, path), 'utf8'))
-  await sql(`create function pg_temp.fail_reschedule_http() returns trigger language plpgsql as $$
+  for (const path of ledgerOnly ? ['db/ledger/create-ledger.sql', 'tests/database/ledger.sql'] : ['db/adventure/create-planning.sql', 'tests/database/adventure-planning.sql', 'tests/database/adventure-actions.sql', 'tests/database/adventure-goals.sql', 'tests/database/adventure-migrations.sql', 'tests/database/adventure-lifecycle.sql', 'tests/database/adventure-reschedule.sql', 'tests/database/adventure-growth.sql']) await sql(await readFile(join(root, path), 'utf8'))
+  if (!ledgerOnly) await sql(`create function pg_temp.fail_reschedule_http() returns trigger language plpgsql as $$
     begin
       if new.kind='task_rescheduled' and new.snapshot->>'title'='reschedule-http-failpoint' then raise exception 'RESCHEDULE_HTTP_FAILPOINT'; end if;
       return new;
     end $$;
     create trigger reschedule_http_failpoint before insert on public.adventure_events
       for each row execute function pg_temp.fail_reschedule_http();`)
-  console.log('通过：空库初始化、规划／任务事务、回滚、历史锁定和权限探针')
+  if (ledgerOnly) await sql(`create function pg_temp.ledger_failpoint() returns trigger language plpgsql as $$
+    begin
+      if exists(select from public.ledger_entries where owner_id=new.owner_id and note='ledger91-rollback') then raise exception 'LEDGER_TEST_ROLLBACK_AFTER_INSERT'; end if;
+      return new;
+    end $$;
+    create trigger ledger_test_failpoint before update on public.ledger_owner_revision
+      for each row execute function pg_temp.ledger_failpoint();`)
+  console.log(ledgerOnly ? '通过：隔离账单空库初始化（两表）' : '通过：空库初始化、规划／任务事务、回滚、历史锁定和权限探针')
   const rpcPort = await freePort()
   cancellation.signal.throwIfAborted()
   rest = spawn(process.env.POSTGREST_BIN || 'postgrest', [], { cwd: work, detached: true, env: { ...cleanEnv,
@@ -83,16 +91,16 @@ try {
     await new Promise(resolve => setTimeout(resolve, 100))
   }
   if (!ready) throw new Error(`本机 PostgREST 未就绪：${restError}`)
-  const env = { ...cleanEnv, ADVENTURE_LOCAL_RPC_URL: url, PLAYWRIGHT_BROWSERS_PATH: '.cache/playwright' }
-  await run(process.execPath, ['node_modules/vitest/vitest.mjs', 'run', 'tests/api/adventure-actions-database.test.ts', 'tests/api/adventure-lifecycle-database.test.ts', 'tests/api/adventure-reschedule-database.test.ts', 'tests/api/adventure-growth-database.test.ts', 'tests/api/adventure-integration-database.test.ts'], { env })
+  const env = { ...cleanEnv, ADVENTURE_LOCAL_RPC_URL: url, LEDGER_LOCAL_RPC_URL: url, PLAYWRIGHT_BROWSERS_PATH: process.env.PLAYWRIGHT_BROWSERS_PATH || '.cache/playwright' }
+  if (!process.argv.includes('--browser-only')) await run(process.execPath, ['node_modules/vitest/vitest.mjs', 'run', ...(ledgerOnly ? ['tests/api/ledger-database.test.ts'] : ['tests/api/adventure-actions-database.test.ts', 'tests/api/adventure-lifecycle-database.test.ts', 'tests/api/adventure-reschedule-database.test.ts', 'tests/api/adventure-growth-database.test.ts', 'tests/api/adventure-integration-database.test.ts'])], { env })
   if (process.argv.includes('--browser')) {
     const browserArgs = process.argv.slice(process.argv.indexOf('--browser') + 1)
-    const specs = browserArgs.length ? [] : ['tests/browser/adventure-actions-database.spec.ts', 'tests/browser/adventure-growth-database.spec.ts', 'tests/browser/adventure-integration-database.spec.ts']
+    const specs = browserArgs.length ? [] : ledgerOnly ? ['tests/browser/ledger-database.spec.ts'] : ['tests/browser/adventure-actions-database.spec.ts', 'tests/browser/adventure-growth-database.spec.ts', 'tests/browser/adventure-integration-database.spec.ts']
     await run(process.execPath, ['node_modules/@playwright/test/cli.js', 'test', ...specs, ...browserArgs], { env })
   }
-  await sql('drop trigger reschedule_http_failpoint on public.adventure_events')
-  await sql(await readFile(join(root, 'tests/database/adventure-actions-audit.sql'), 'utf8'))
-  console.log('通过：HTTP／浏览器操作后的任务、冻结奖励、取消关联、账户经验、请求数与版本全量核对')
+  if (!ledgerOnly) await sql('drop trigger reschedule_http_failpoint on public.adventure_events')
+  if (!ledgerOnly) await sql(await readFile(join(root, 'tests/database/adventure-actions-audit.sql'), 'utf8'))
+  console.log(ledgerOnly ? '通过：真实账单数据库验收，临时环境将清理' : '通过：HTTP／浏览器操作后的任务、冻结奖励、取消关联、账户经验、请求数与版本全量核对')
   result = 0
 } catch (error) {
   console.error(error instanceof Error ? error.message : '隔离数据库验收失败')

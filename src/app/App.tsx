@@ -1,3 +1,4 @@
+import { Finance } from '../ledger/Finance'
 import { Adventure } from '../adventure/Adventure'
 import { Home } from '../home/Home'
 import { News } from '../news/News'
@@ -8,7 +9,7 @@ export function App() {
   const path = usePagePath()
   return (
     <AuthGate>
-      {path === '/adventure' ? (
+      {path === '/finance' ? <Finance /> : path === '/adventure' ? (
         <Adventure />
       ) : path === '/news' ? (
         <News />

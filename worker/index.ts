@@ -1,4 +1,5 @@
 import { Hono } from 'hono'
+import { listLedger, detailLedger, createLedger } from './ledger'
 import { readRewardSource, readGrowth, readTaskHistory, readMigrationOptions, readPlanning, previewPlanning, commandPlanning } from './adventure/planning'
 import { readHoroscope, type HoroscopeTimings } from './horoscope'
 import { readTasks } from './tasks'
@@ -48,6 +49,9 @@ app.use('/api/*', async (c, next) => {
   await next()
 })
 app.get('/api/auth/me', c => c.json({ user: c.get('identity') }))
+app.get('/api/ledger/entries', listLedger)
+app.get('/api/ledger/entries/:id', detailLedger)
+app.post('/api/ledger/entries', createLedger)
 app.get('/api/adventure', readPlanning)
 app.get('/api/adventure/migration-options', readMigrationOptions)
 app.get('/api/adventure/task-history', readTaskHistory)
