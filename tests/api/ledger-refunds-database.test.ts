@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createHmac } from 'node:crypto'
-import { ledgerDetailSchema, ledgerPageSchema, ledgerReceiptSchema } from '../../src/shared/ledger'
+import { writeFile } from 'node:fs/promises'
+import { ledgerDeletePreviewSchema, ledgerDetailSchema, ledgerPageSchema, ledgerReceiptSchema } from '../../src/shared/ledger'
 import { installLedgerDatabase, ledgerRequest, ledgerRpc, ordinaryEntry } from '../support/ledger-database'
 
 const refundInput = (overrides: Record<string, unknown> = {}) => ({ requestId: crypto.randomUUID(), amountCents: 3000, occurredAt: '2026-01-02T03:04:05.000Z', note: '', ...overrides })
@@ -26,6 +27,61 @@ describe.skipIf(!ledgerRpc)('退款正式 HTTP 与隔离 PostgreSQL/PostgREST �
     return ledgerReceiptSchema.parse(await response.json())
   }
   const detail = async (owner: string, id: string) => ledgerDetailSchema.parse(await (await ledgerRequest(owner, `/api/ledger/entries/${id}`)).json())
+  it('500笔最大备注合法退款的父详情保持有界且所有关联可稳定翻页访问', async () => {
+    const owner = crypto.randomUUID(), parent = await write(owner, ordinaryEntry({ amountCents: -501 }))
+    const ids: string[] = []
+    for (let index = 0; index < 500; index++) ids.push((await refund(owner, parent.entryId, refundInput({ amountCents: 1, note: '😀'.repeat(500) }))).entryId)
+    const first = await ledgerRequest(owner, `/api/ledger/entries/${parent.entryId}`)
+    expect(first.status).toBe(200)
+    const raw = await first.text()
+    expect(Buffer.byteLength(raw)).toBeLessThan(16000)
+    expect(JSON.parse(raw)).toMatchObject({ entry: { amountCents: -501, status: 'partial-refund' }, refundCount: 500, refundedCents: 500, refundPage: 1, refundPageSize: 30, version: 501 })
+    const seen: string[] = [], observations: { page: number; bytes: number; ms: number }[] = []
+    for (let page = 1; page <= 17; page++) {
+      const start = performance.now()
+      const response = await ledgerRequest(owner, `/api/ledger/entries/${parent.entryId}?refundPage=${page}&version=501`)
+      expect(response.status).toBe(200)
+      expect(response.headers.get('Cache-Control')).toBe('no-store')
+      const text = await response.text(), value = ledgerDetailSchema.parse(JSON.parse(text))
+      observations.push({ page, bytes: Buffer.byteLength(text), ms: performance.now() - start })
+      expect(Buffer.byteLength(text)).toBeLessThan(16000)
+      expect(value).toMatchObject({ refundCount: 500, refundedCents: 500, refundPage: page, version: 501, entry: { status: 'partial-refund', amountCents: -501 } })
+      expect(value.refunds).toHaveLength(page === 17 ? 20 : 30)
+      seen.push(...value.refunds.map(item => item.id))
+      if (page === 8) expect(await (await ledgerRequest(owner, `/api/ledger/entries/${parent.entryId}?refundPage=8&version=501`)).json()).toEqual(value)
+    }
+    expect(seen).toEqual(ids.sort().reverse())
+    expect(new Set(seen).size).toBe(500)
+    for (const id of seen) expect(await detail(owner, id)).toMatchObject({ entry: { id, note: '😀'.repeat(500), amountCents: 1 }, parentEntry: { id: parent.entryId, status: 'partial-refund' } })
+    for (const query of ['refundPage=0', 'refundPage=1&refundPage=2', 'refundPage=1e1', 'refundPage=9007199254740992', 'version=-1', 'owner=forged'])
+      expect((await ledgerRequest(owner, `/api/ledger/entries/${parent.entryId}?${query}`)).status).toBe(400)
+    expect((await ledgerRequest(crypto.randomUUID(), `/api/ledger/entries/${parent.entryId}?refundPage=17&version=501`)).status).toBe(404)
+    // A far page remains a valid bounded query, rather than hiding links behind a product cap.
+    expect(await (await ledgerRequest(owner, `/api/ledger/entries/${parent.entryId}?refundPage=1000001`)).json()).toMatchObject({ refunds: [], refundCount: 500 })
+    expect((await ledgerRequest(owner, path(parent.entryId), refundInput({ amountCents: 2 }))).status).toBe(409)
+    const preview = async (id: string) => ledgerDeletePreviewSchema.parse(await (await ledgerRequest(owner, `/api/ledger/entries/${id}/delete-preview`)).json())
+    const before = await preview(parent.entryId)
+    expect(before.refundCount).toBe(500)
+    const lastInput = refundInput({ amountCents: 1 }), last = await refund(owner, parent.entryId, lastInput)
+    expect(await detail(owner, parent.entryId)).toMatchObject({ entry: { amountCents: -501, status: 'full-refund' }, refundCount: 501, refundedCents: 501 })
+    const stale = await ledgerRequest(owner, `/api/ledger/entries/${parent.entryId}?refundPage=2&version=501`)
+    expect(stale.status).toBe(409)
+    expect(await stale.json()).toMatchObject({ error: { code: 'LIST_CHANGED' } })
+    expect((await ledgerRequest(owner, `/api/ledger/entries/${parent.entryId}/delete`, { scope: before.scope })).status).toBe(409)
+    const childScope = (await preview(seen[0])).scope
+    const removed = await ledgerRequest(owner, `/api/ledger/entries/${seen[0]}/delete`, { scope: childScope })
+    expect(await removed.json()).toMatchObject({ deleted: true, version: 503 })
+    expect(await (await ledgerRequest(owner, `/api/ledger/entries/${seen[0]}/delete`, { scope: childScope })).json()).toMatchObject({ version: 503 })
+    expect(await detail(owner, parent.entryId)).toMatchObject({ entry: { amountCents: -501, status: 'partial-refund' }, refundedCents: 500, refundCount: 500 })
+    const after = await preview(parent.entryId)
+    expect(after.refundCount).toBe(500)
+    expect(after.scope).not.toBe(before.scope)
+    expect(await (await ledgerRequest(owner, `/api/ledger/entries/${parent.entryId}/delete`, { scope: after.scope })).json()).toMatchObject({ deleted: true, version: 504 })
+    expect(await read(owner)).toMatchObject({ total: 0, version: 504 })
+    for (const id of [parent.entryId, last.entryId, ...seen]) expect((await ledgerRequest(owner, `/api/ledger/entries/${id}`)).status).toBe(404)
+    expect(await refund(owner, parent.entryId, lastInput)).toMatchObject({ entryId: last.entryId, deleted: true, version: 504 })
+    await writeFile(process.env.LEDGER_ASSOCIATION_HTTP_REPORT || '.cache/ledger-association-http.json', JSON.stringify({ refunds: 500, linksRead: seen.length, pages: observations, fullAndPartialStatus: true, deleteVersion: 504 }, null, 2))
+  }, 30000)
   it('并发退款共享 owner 事务锁，累计不超额且失败无流水或版本增量', async () => {
     const owner = crypto.randomUUID(), parent = await write(owner)
     const outcomes = await Promise.all(Array.from({ length: 10 }, () => ledgerRequest(owner, path(parent.entryId), refundInput())))
@@ -67,7 +123,8 @@ describe.skipIf(!ledgerRpc)('退款正式 HTTP 与隔离 PostgreSQL/PostgREST �
   it('单笔上限的正金额退款完整保存，不经浮点元运算且原支出金额不变', async () => {
     const owner = crypto.randomUUID(), parent = await write(owner, ordinaryEntry({ amountCents: -99999999999, categoryCode: 'dining' }))
     const child = await refund(owner, parent.entryId, refundInput({ amountCents: 99999999999 }))
-    expect(await detail(owner, parent.entryId)).toMatchObject({ entry: { amountCents: -99999999999, status: 'full-refund' }, refunds: [{ id: child.entryId, amountCents: 99999999999, status: 'completed' }], version: 2 })
+    expect(await detail(owner, parent.entryId)).toMatchObject({ entry: { amountCents: -99999999999, status: 'full-refund' }, refunds: [{ id: child.entryId, amountCents: 99999999999 }], refundedCents: 99999999999, version: 2 })
+    expect((await detail(owner, child.entryId)).entry.status).toBe('completed')
   })
   it('父资格、跨账户操作和所有非法覆盖字段拒绝；同秒及 Unicode 边界合法并继承支出分类', async () => {
     const owner = crypto.randomUUID(), other = crypto.randomUUID(), parent = await write(owner)

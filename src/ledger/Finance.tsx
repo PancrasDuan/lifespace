@@ -128,7 +128,7 @@ export function Finance() {
     {dateAnchor && <DateRangePopover start={range?.start ?? ''} end={range?.end ?? ''} anchor={dateAnchor} trigger={rangeTrigger.current} close={() => setDateAnchor(null)} apply={(start, end) => { setFilter('custom'); selectRange({ start, end }) }} />}
     {panel?.kind === 'new' && <LedgerModal title="新建流水" close={() => setPanel(null)} form><EntryForm key={panel.session} save={input => submit({ input }, panel.session)} cancel={() => setPanel(null)} /></LedgerModal>}
     {panel?.kind === 'refund' && <LedgerModal title="登记退款" close={() => setPanel(null)} form><RefundForm key={panel.session} parent={panel.parent} remainingCents={panel.remainingCents} save={input => submit({ input, parentId: panel.parent.id }, panel.session)} cancel={() => setPanel(null)} /></LedgerModal>}
-    {panel?.kind === 'detail' && <LedgerModal title="流水详情" close={() => setPanel(null)}><EntryDetail id={panel.id} remove={() => setPanel({ kind: 'delete', id: panel.id, session: crypto.randomUUID() })} open={id => setPanel({ kind: 'detail', id })} refund={(parent, remainingCents) => setPanel({ kind: 'refund', parent, remainingCents, session: crypto.randomUUID() })} /></LedgerModal>}
+    {panel?.kind === 'detail' && <LedgerModal title="流水详情" close={() => setPanel(null)}><EntryDetail key={panel.id} id={panel.id} remove={() => setPanel({ kind: 'delete', id: panel.id, session: crypto.randomUUID() })} open={id => setPanel({ kind: 'detail', id })} refund={(parent, remainingCents) => setPanel({ kind: 'refund', parent, remainingCents, session: crypto.randomUUID() })} /></LedgerModal>}
     {panel?.kind === 'delete' && <LedgerModal title="删除流水" close={() => setPanel(null)} compact><DeleteConfirmation key={panel.session} session={panel.session} id={panel.id} cancel={() => setPanel(null)} save={scope => submitDelete({ id: panel.id, scope, session: panel.session })} /></LedgerModal>}
     {!!notice && <div role="status" className="lp-toast"><Check size={15} />流水已记录</div>}
   </AppLayout>
@@ -142,17 +142,34 @@ export function LedgerModal({ title, children, close, form = false, compact = fa
 }
 function EntryDetail({ id, open, refund, remove }: { remove: () => void; id: string; open: (id: string) => void; refund: (parent: LedgerEntry, remainingCents: number) => void }) {
   const identity = useVerifiedIdentity()
-  const detail = useQuery({ queryKey: ['ledger', identity.ownerId, 'detail', id], queryFn: ({ signal }) => readLedgerDetail(identity.ownerId, id, AbortSignal.any([signal, identity.signal])), retry: false })
+  const [view, setView] = useState({ page: 1, session: 0 })
+  const version = useRef<number | undefined>(undefined)
+  const [updated, setUpdated] = useState(false)
+  const detail = useQuery({ queryKey: ['ledger', identity.ownerId, 'detail', id, view.page, view.session], queryFn: ({ signal }) => readLedgerDetail(identity.ownerId, id, AbortSignal.any([signal, identity.signal]), view.page, version.current), retry: false, staleTime: 0, refetchOnWindowFocus: false })
+  useEffect(() => { if (detail.data) version.current = detail.data.version }, [detail.data])
+  useEffect(() => {
+    if (!(detail.error instanceof LedgerError) || detail.error.code !== 'LIST_CHANGED') return
+    version.current = undefined
+    setUpdated(true)
+    setView(current => ({ page: 1, session: current.session + 1 }))
+  }, [detail.error])
   if (detail.isPending) return <p role="status" className="lp-feedback">正在读取详情…</p>
   if (detail.isError && detail.error instanceof LedgerError && detail.error.code === 'NOT_FOUND') return <p role="alert" className="lp-feedback">流水已删除或不可访问。</p>
   if (detail.isError) return <div role="alert" className="lp-feedback">读取失败。<button className="lp-secondary" onClick={() => void detail.refetch()}>重试读取</button></div>
-  const { entry, parentEntry, refunds } = detail.data
+  const { entry, parentEntry, refunds, refundCount, refundedCents, refundPage, refundPageSize } = detail.data
+  const pageCount = Math.max(1, Math.ceil(refundCount / refundPageSize))
   return <div className="lp-detail"><div className="lp-detail-hero"><span>{entry.direction === 'income' ? '收入' : '支出'}{entry.parentEntryId ? ' · 退款' : ''} · {categoryLabel(entry.categoryCode)}</span><Amount entry={entry} large /><Status entry={entry} /></div>
     <dl className="lp-detail-fields"><div><dt>交易时间</dt><dd>{formatDateTime(entry.occurredAt)}</dd></div><div><dt>交易账户</dt><dd>{entry.accountName}</dd></div><div><dt>交易分类</dt><dd>{categoryLabel(entry.categoryCode)}</dd></div><div><dt>交易备注</dt><dd>{entry.note || '无备注'}</dd></div></dl>
     {parentEntry && <button className="lp-secondary" onClick={() => open(parentEntry.id)}>查看父流水</button>}
-    {!!refunds.length && <section className="lp-related" aria-label="关联退款"><h3>关联退款</h3>{refunds.map(item => <button className="lp-related-entry" key={item.id} aria-label={`查看退款 ${formatCurrency(item.amountCents)} ${formatDateTime(item.occurredAt)}`} onClick={() => open(item.id)}><time>{formatDateTime(item.occurredAt)}</time><Amount entry={item} /><ChevronRight size={14} /></button>)}</section>}
+    {updated && <p role="status">关联退款已更新，已返回第一页</p>}
+    {!!refundCount && <section className="lp-related" aria-label="关联退款"><h3>关联退款 · {refundCount} 笔</h3>{refunds.map(item => <button className="lp-related-entry" key={item.id} aria-label={`查看退款 ${formatCurrency(item.amountCents)} ${formatDateTime(item.occurredAt)}`} onClick={() => open(item.id)}><time>{formatDateTime(item.occurredAt)}</time><span className="lp-amount income">{formatCurrency(item.amountCents)}</span><ChevronRight size={14} /></button>)}
+      {pageCount > 1 && <nav className="lp-pagination" aria-label="关联退款分页"><span>{refundPage} / {pageCount}</span><div>
+        <button aria-label="上一页退款" disabled={refundPage === 1 || detail.isFetching} onClick={() => setView(current => ({ ...current, page: current.page - 1 }))}><ChevronLeft size={16} /></button>
+        <button aria-label="下一页退款" disabled={refundPage === pageCount || detail.isFetching} onClick={() => setView(current => ({ ...current, page: current.page + 1 }))}><ChevronRight size={16} /></button>
+      </div></nav>}
+    </section>}
     <div className="lp-detail-actions"><button className="lp-delete-button" onClick={remove}><Trash2 size={14} />删除流水</button>
-    {entry.direction === 'expense' && !entry.parentEntryId && entry.status !== 'full-refund' && <div className="lp-form-actions"><button className="lp-primary" onClick={() => refund(entry, -entry.amountCents - refunds.reduce((total, item) => total + item.amountCents, 0))}>登记退款</button></div>}</div>
+    {entry.direction === 'expense' && !entry.parentEntryId && entry.status !== 'full-refund' && <div className="lp-form-actions"><button className="lp-primary" onClick={() => refund(entry, -entry.amountCents - refundedCents)}>登记退款</button></div>}</div>
   </div>
 }
 function DeleteConfirmation({ id, session, cancel, save }: { session: string; id: string; cancel: () => void; save: (scope: string) => Promise<unknown> }) {

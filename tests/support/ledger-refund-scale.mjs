@@ -30,6 +30,9 @@ export async function seedLedgerRefundScale(client, reportPath) {
       where owner_id=$1 and parent_entry_id='20000000-0000-4000-8000-000000030000' and deleted_at is null` },
     { name: '删除范围全部有效退款标识', index: 'ledger_entries_active_refunds', text: `select id from public.ledger_entries
       where owner_id=$1 and parent_entry_id='20000000-0000-4000-8000-000000030000' and deleted_at is null order by id` },
+    { name: '有界关联页按交易时间和标识排序', index: 'ledger_entries_active_refunds', text: `select id,amount_cents,occurred_at from public.ledger_entries
+      where owner_id=$1 and parent_entry_id='20000000-0000-4000-8000-000000030000' and deleted_at is null
+      order by occurred_at desc,id desc limit 30 offset 0` },
   ]
   const plans = []
   for (const query of queries) {

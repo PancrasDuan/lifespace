@@ -42,4 +42,10 @@ npm run test:database -- --ledger --ledger-scale --browser
 
 `tests/database/ledger-delete.sql` 仅补充核对逻辑删除的底层事实保留、同一删除时间、不可恢复和不可物理删除；主业务通过 HTTP／页面回读断言。两种十万条 owner 数据分别验证普通日期／深页和退款派生／关联／删除范围，SQL EXPLAIN 是索引补充证据，不代替真实 HTTP，也不承诺性能指标或产品条数上限。
 
+最终评审修复的定向回归：`ledger-database.spec.ts` 真实原生时分秒的六个双向边界、重复方向键与数字编辑保存；`ledger-dates-database.spec.ts` 在非北京时间设备上验证 1988 年夏令时显示／补录／自然日筛选、冬季、重复小时确定解释与 gap 输入保留。`ledger-refunds-database.test.ts` 经真实 Worker 写入 500 笔各含 500 emoji 的合法退款，遍历 17 个有界关联页及全部单笔详情，校验同秒 UUID 稳定顺序、全量状态／余额、版本冲突、权限和全部删除范围／旧请求回执。HTTP 响应字节数与耗时在 `.cache/ledger-association-http.json`（可用 `LEDGER_ASSOCIATION_HTTP_REPORT` 指定）记录。`ledger-refunds-database.spec.ts` 在 390px 手机页面遍历全部 500 个独立链接，读取末页完整备注、返回父详情、核对剩余一分、其他客户端新增后的关联第一页提示，以及单删和父联动删除。
+
+修复过程日志保留红灯与最终绿灯，红灯和环境／测试构造失败不合并计为通过；旧 #94 完整浏览器日志的 35 passed／2 failed 与后续定向 2 passed 仍按历史事实分别记录。本次完整串行结果单独记账，不能用历史分散通过代替。双轴发现、处理及证据见 [review.md](review.md)。
+
+本次修复实现者的完整隔离运行：真实数据库 API 24 passed、0 skipped（含两种十万条规模）；账单浏览器完整串行 40 passed、0 skipped，覆盖上述三项新增回归及全部旧账单用例。默认 API 另为 203 passed、83 环境门控 skipped；密钥扫描／hook 自测、portable／完整安全检查、类型与构建通过。关联 500 退款的 17 页 HTTP 响应实测为 2,457–3,477 字节；所有完整退款详情均能读取，不把环境门控跳过或静态大小估算计为通过。
+
 实现者自动验证不关闭 #90–#94。最终双轴评审、真实登录与用户预览、具体 PR 合并授权、远端 DDL、CI 和生产部署 SHA／只读／密钥隔离门禁由集成交付统一完成。

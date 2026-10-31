@@ -27,15 +27,18 @@ export const ledgerEntrySchema = z.strictObject({
   status: z.enum(['completed', 'partial-refund', 'full-refund']),
 })
 export const ledgerPageSchema = z.strictObject({ items: z.array(ledgerEntrySchema).max(30), total: revision, page: z.number().int().min(1), pageSize: z.literal(30), version: revision })
-export const ledgerDetailSchema = z.strictObject({ entry: ledgerEntrySchema, parentEntry: ledgerEntrySchema.nullable(), refunds: z.array(ledgerEntrySchema), version: revision })
+const refundLinkSchema = ledgerEntrySchema.pick({ id: true, amountCents: true, occurredAt: true })
+export const ledgerDetailSchema = z.strictObject({ entry: ledgerEntrySchema, parentEntry: ledgerEntrySchema.nullable(), refunds: z.array(refundLinkSchema).max(30), refundCount: revision, refundedCents: revision.max(ledgerLimits.amountCents), refundPage: revision.min(1), refundPageSize: z.literal(30), version: revision })
 export const ledgerReceiptSchema = z.strictObject({ entryId: z.uuid(), version: revision, deleted: z.boolean() })
 export const ledgerDeleteSchema = z.strictObject({ scope: z.string().regex(/^[a-f0-9]{64}$/) })
 export const ledgerDeletePreviewSchema = z.strictObject({ entry: ledgerEntrySchema, refundCount: revision, scope: ledgerDeleteSchema.shape.scope, version: revision })
 export const ledgerDateSchema = z.iso.date().refine(value => !value.startsWith('0000-'), '日期无效')
+const queryRevision = z.string().regex(/^(0|[1-9]\d*)$/).pipe(z.coerce.number<string>().int().min(0).max(Number.MAX_SAFE_INTEGER))
+export const ledgerDetailQuerySchema = z.strictObject({ refundPage: queryRevision.pipe(revision.min(1)).default(1), version: queryRevision.optional() })
 export const ledgerQuerySchema = z.strictObject({
   page: z.coerce.number().int().min(1).max(1_000_000).default(1),
   startDate: ledgerDateSchema.optional(), endDate: ledgerDateSchema.optional(),
-  version: z.string().regex(/^(0|[1-9]\d*)$/).pipe(z.coerce.number<string>().int().min(0).max(Number.MAX_SAFE_INTEGER)).optional(),
+  version: queryRevision.optional(),
 }).refine(value => (!value.startDate && !value.endDate) || (!!value.startDate && !!value.endDate && value.startDate <= value.endDate), '日期范围无效')
 export const ledgerErrors = {
   INVALID_ENTRY: [400, '流水输入无效，请检查金额、账户、分类与交易时间'],

@@ -22,20 +22,21 @@ export const readLedger = async (owner: string, page: number, signal: AbortSigna
   if (version !== undefined) query.set('version', String(version))
   return parse(await authorizedFetch(`/api/ledger/entries?${query}`, signal, owner), ledgerPageSchema)
 }
-export const readLedgerDetail = async (owner: string, id: string, signal: AbortSignal) => parse(await authorizedFetch(`/api/ledger/entries/${id}`, signal, owner), ledgerDetailSchema)
-export async function saveLedger(owner: string, input: LedgerCreate, signal: AbortSignal) {
-  try { return await parse(await authorizedMutation('/api/ledger/entries', JSON.stringify(input), signal, owner), ledgerReceiptSchema, true) }
+export const readLedgerDetail = async (owner: string, id: string, signal: AbortSignal, refundPage = 1, version?: number) => {
+  const query = new URLSearchParams({ refundPage: String(refundPage) })
+  if (version !== undefined) query.set('version', String(version))
+  return parse(await authorizedFetch(`/api/ledger/entries/${id}?${query}`, signal, owner), ledgerDetailSchema)
+}
+async function saveEntry(path: string, owner: string, input: LedgerCreate | LedgerRefund, signal: AbortSignal) {
+  try { return await parse(await authorizedMutation(path, JSON.stringify(input), signal, owner), ledgerReceiptSchema, true) }
   catch (error) {
     if (error instanceof LedgerError) throw error
     throw new LedgerError('SAVE_UNKNOWN', '保存结果未确认，请沿用原请求重试或刷新查看流水')
   }
 }
+export const saveLedger = (owner: string, input: LedgerCreate, signal: AbortSignal) => saveEntry('/api/ledger/entries', owner, input, signal)
 export async function saveRefund(owner: string, parentId: string, input: LedgerRefund, signal: AbortSignal) {
-  try { return await parse(await authorizedMutation(`/api/ledger/entries/${parentId}/refunds`, JSON.stringify(input), signal, owner), ledgerReceiptSchema, true) }
-  catch (error) {
-    if (error instanceof LedgerError) throw error
-    throw new LedgerError('SAVE_UNKNOWN', '保存结果未确认，请沿用原请求重试或刷新查看流水')
-  }
+  return saveEntry(`/api/ledger/entries/${parentId}/refunds`, owner, input, signal)
 }
 
 export const readDeletePreview = async (owner: string, id: string, signal: AbortSignal) => parse(await authorizedFetch(`/api/ledger/entries/${id}/delete-preview`, signal, owner), ledgerDeletePreviewSchema)

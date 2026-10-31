@@ -12,19 +12,33 @@ language sql stable set search_path = pg_catalog, public as $$
        from public.ledger_entries r where r.owner_id = p_entry.owner_id and r.parent_entry_id = p_entry.id and r.deleted_at is null)
       else 'completed' end);
 $$;
-create or replace function public.ledger_detail(p_owner uuid, p_id uuid) returns jsonb
+drop function public.ledger_detail(uuid,uuid);
+-- Sorted compact association pages; never aggregate unbounded transaction notes.
+drop index public.ledger_entries_active_refunds;
+create index ledger_entries_active_refunds on public.ledger_entries (owner_id, parent_entry_id, occurred_at desc, id desc) where deleted_at is null and parent_entry_id is not null;
+create function public.ledger_detail(p_owner uuid, p_id uuid, p_refund_page bigint default 1, p_version bigint default null) returns jsonb
 language plpgsql security definer set search_path = pg_catalog, public as $$
-declare v bigint; entry public.ledger_entries; parent jsonb; refunds jsonb;
+declare v bigint; entry public.ledger_entries; parent jsonb; refunds jsonb; refund_count bigint; refunded bigint;
 begin
+  if p_refund_page is null or p_refund_page < 1 or p_refund_page > 9007199254740991 or
+    p_version < 0 or p_version > 9007199254740991 then raise exception 'INVALID_QUERY'; end if;
   select revision into v from public.ledger_owner_revision where owner_id = p_owner for share;
   if not found then raise exception 'NOT_FOUND'; end if;
   select * into entry from public.ledger_entries where owner_id = p_owner and id = p_id and deleted_at is null;
   if not found then raise exception 'NOT_FOUND'; end if;
+  if p_version is not null and p_version <> v then raise exception 'LIST_CHANGED'; end if;
   select public.ledger_entry_json(e) into parent from public.ledger_entries e
     where e.owner_id = p_owner and e.id = entry.parent_entry_id and e.deleted_at is null;
-  select coalesce(jsonb_agg(public.ledger_entry_json(e) order by e.occurred_at desc, e.id desc), '[]'::jsonb) into refunds
-    from public.ledger_entries e where e.owner_id = p_owner and e.parent_entry_id = entry.id and e.deleted_at is null;
-  return jsonb_build_object('entry',public.ledger_entry_json(entry),'parentEntry',parent,'refunds',refunds,'version',v);
+  select count(*), coalesce(sum(amount_cents),0) into refund_count, refunded from public.ledger_entries
+    where owner_id = p_owner and parent_entry_id = entry.id and deleted_at is null;
+  select coalesce(jsonb_agg(jsonb_build_object('id', e.id, 'amountCents', e.amount_cents,
+    'occurredAt', to_char(e.occurred_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'))
+    order by e.occurred_at desc, e.id desc), '[]'::jsonb) into refunds
+    from (select id, amount_cents, occurred_at from public.ledger_entries
+      where owner_id = p_owner and parent_entry_id = entry.id and deleted_at is null
+      order by occurred_at desc, id desc limit 30 offset (p_refund_page - 1) * 30) e;
+  return jsonb_build_object('entry',public.ledger_entry_json(entry),'parentEntry',parent,'refunds',refunds,
+    'refundCount',refund_count,'refundedCents',refunded,'refundPage',p_refund_page,'refundPageSize',30,'version',v);
 end $$;
 create or replace function public.ledger_refund(p_owner uuid, p_parent uuid, p_input jsonb) returns jsonb
 language plpgsql security definer set search_path = pg_catalog, public as $$
@@ -65,7 +79,7 @@ begin
   update public.ledger_owner_revision set revision = revision + 1, updated_at = now() where owner_id = p_owner returning revision into v;
   return jsonb_build_object('entryId',inserted_id,'version',v,'deleted',false);
 end $$;
-revoke all on function public.ledger_refund(uuid,uuid,jsonb), public.ledger_entry_json(public.ledger_entries), public.ledger_detail(uuid,uuid) from public, anon, authenticated, service_role;
-grant execute on function public.ledger_refund(uuid,uuid,jsonb), public.ledger_detail(uuid,uuid) to service_role;
+revoke all on function public.ledger_refund(uuid,uuid,jsonb), public.ledger_entry_json(public.ledger_entries), public.ledger_detail(uuid,uuid,bigint,bigint) from public, anon, authenticated, service_role;
+grant execute on function public.ledger_refund(uuid,uuid,jsonb), public.ledger_detail(uuid,uuid,bigint,bigint) to service_role;
 notify pgrst, 'reload schema';
 commit;

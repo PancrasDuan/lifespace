@@ -66,6 +66,43 @@ test.describe('正式财务页 → Worker → PostgreSQL（受控身份）', () 
     await expect(page.getByRole('table').locator('tbody tr')).toHaveCount(3)
   })
   test.afterEach(() => restore?.())
+  test('原生时分秒双向边界停止且直接数字仍可编辑保存', async ({ page }) => {
+    await page.goto('/finance')
+    await page.getByRole('button', { name: '新建流水' }).first().click()
+    const form = page.getByRole('dialog', { name: '新建流水', exact: true })
+    const time = form.getByLabel('交易时间', { exact: true })
+    for (const [segment, upper, lower] of [
+      [3, '2026-01-02T23:09:10', '2026-01-02T00:09:10'],
+      [4, '2026-01-02T08:59:10', '2026-01-02T08:00:10'],
+      [5, '2026-01-02T08:09:59', '2026-01-02T08:09'],
+    ] as const) {
+      for (const [value, key] of [[upper, 'ArrowUp'], [lower, 'ArrowDown']] as const) {
+        await time.fill(value)
+        await time.focus()
+        for (let index = 0; index < 8; index++) await time.press('ArrowLeft')
+        for (let index = 0; index < segment; index++) await time.press('ArrowRight')
+        await time.press(key)
+        await time.press(key)
+        await expect.soft(time, `segment ${segment} ${key}`).toHaveValue(value, { timeout: 1000 })
+      }
+    }
+    await time.fill('2026-01-02T08:09:10')
+    for (let index = 0; index < 8; index++) await time.press('ArrowLeft')
+    for (let index = 0; index < 3; index++) await time.press('ArrowRight')
+    await time.press('7')
+    await expect(time).toHaveValue('2026-01-02T07:09:10')
+    for (let index = 0; index < 8; index++) await time.press('ArrowLeft')
+    for (let index = 0; index < 3; index++) await time.press('ArrowRight')
+    await time.press('ArrowDown')
+    await expect(time).toHaveValue('2026-01-02T06:09:10')
+    await form.getByLabel('交易金额').fill('1.23')
+    await form.getByLabel('交易账户', { exact: true }).fill('原生数字直编')
+    await form.getByLabel('交易分类', { exact: true }).selectOption('dining')
+    await form.getByRole('button', { name: '保存流水' }).click()
+    await expect(form).toBeHidden()
+    await page.reload()
+    await expect(page.getByRole('table')).toContainText('06:09:10')
+  })
   test('分页后补录回第一页按交易时间排序，刷新与重新进入恢复第一页', async ({ page }) => {
     await Promise.all(Array.from({ length: 31 }, () => ledgerRequest(owner, '/api/ledger/entries', ordinaryEntry())))
     await page.goto('/finance')

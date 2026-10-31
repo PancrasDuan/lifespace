@@ -34,7 +34,7 @@ describe.skipIf(!ledgerRpc)('账单正式 HTTP 与隔离 PostgreSQL/PostgREST �
       for (const table of ['ledger_entries', 'ledger_owner_revision']) expect([401, 403, 404]).toContain((await direct(role, `/${table}?select=*`)).status)
       for (const [name, params] of [
         ['ledger_list', { p_owner: owner, p_page: 1 }],
-        ['ledger_detail', { p_owner: owner, p_id: crypto.randomUUID() }],
+        ['ledger_detail', { p_owner: owner, p_id: crypto.randomUUID(), p_refund_page: 2, p_version: 1 }],
         ['ledger_create', { p_owner: owner, p_input: ordinaryEntry() }],
       ] as const) expect([401, 403, 404]).toContain((await direct(role, `/rpc/${name}`, params)).status)
     }

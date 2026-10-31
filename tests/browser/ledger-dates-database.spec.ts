@@ -27,6 +27,55 @@ test.describe('北京时间筛选 → 正式 Worker → 隔离数据库', () => 
   })
   test.afterEach(() => restore?.())
 
+  test('历史上海夏令时的显示、补录和自然日筛选一致', async ({ page }) => {
+    expect((await ledgerRequest(owner, '/api/ledger/entries', ordinaryEntry({ occurredAt: '1988-05-31T15:30:00.000Z', accountName: '历史上海' }))).status).toBe(200)
+    await page.goto('/finance')
+    await expect(page.getByRole('table')).toContainText('1988-06-01')
+    await expect(page.getByRole('table')).toContainText('00:30:00')
+    await page.getByRole('button', { name: '新建流水' }).first().click()
+    const form = page.getByRole('dialog', { name: '新建流水', exact: true })
+    await form.getByLabel('交易金额').fill('2.34')
+    await form.getByLabel('交易账户', { exact: true }).fill('历史补录')
+    await form.getByLabel('交易分类', { exact: true }).selectOption('dining')
+    await form.getByLabel('交易时间', { exact: true }).fill('1988-06-01T00:30')
+    await form.getByRole('button', { name: '保存流水' }).click()
+    await expect(form).toBeHidden()
+    const result = await (await ledgerRequest(owner, '/api/ledger/entries?startDate=1988-06-01&endDate=1988-06-01')).json() as { items: { accountName: string; occurredAt: string }[] }
+    expect(result.items.find(item => item.accountName === '历史补录')?.occurredAt).toBe('1988-05-31T15:30:00.000Z')
+    await page.getByRole('button', { name: '自定义', exact: true }).click()
+    const picker = page.getByRole('dialog', { name: '自定义日期范围' })
+    for (const title of ['开始日期', '结束日期']) {
+      await picker.getByLabel(`${title}的显示月份`).fill('1988-06')
+      await picker.getByRole('button', { name: `${title} 1988-06-01`, exact: true }).click()
+    }
+    await picker.getByRole('button', { name: '应用', exact: true }).click()
+    await expect(page.locator('tbody tr')).toHaveCount(2)
+    for (const row of await page.locator('tbody tr').all()) await expect(row).toContainText('1988-06-01')
+    await page.getByRole('button', { name: '餐饮', exact: true }).click()
+    await expect(page.getByRole('dialog', { name: '流水详情', exact: true })).toContainText('1988-06-01 00:30:00')
+    await page.getByRole('dialog', { name: '流水详情', exact: true }).getByRole('button', { name: '关闭', exact: true }).click()
+    expect(await (await ledgerRequest(owner, '/api/ledger/entries?startDate=1988-05-31&endDate=1988-05-31')).json()).toMatchObject({ total: 0 })
+    for (const [local, instant] of [['1988-01-01T08:30', '1988-01-01T00:30:00.000Z'], ['1988-09-11T01:30', '1988-09-10T17:30:00.000Z']]) {
+      await page.getByRole('button', { name: '新建流水' }).first().click()
+      await form.getByLabel('交易金额').fill('1.00')
+      await form.getByLabel('交易账户', { exact: true }).fill(local)
+      await form.getByLabel('交易分类', { exact: true }).selectOption('dining')
+      await form.getByLabel('交易时间', { exact: true }).fill(local)
+      await form.getByRole('button', { name: '保存流水' }).click()
+      await expect(form).toBeHidden()
+      const data = await (await ledgerRequest(owner)).json() as { items: { accountName: string; occurredAt: string }[] }
+      expect(data.items.find(item => item.accountName === local)?.occurredAt).toBe(instant)
+    }
+    await page.getByRole('button', { name: '新建流水' }).first().click()
+    await form.getByLabel('交易金额').fill('1.00')
+    await form.getByLabel('交易账户', { exact: true }).fill('不存在的本地时刻')
+    await form.getByLabel('交易分类', { exact: true }).selectOption('dining')
+    await form.getByLabel('交易时间', { exact: true }).fill('1988-04-17T02:30')
+    await form.getByRole('button', { name: '保存流水' }).click()
+    await expect(form.getByRole('alert')).toContainText('历史时区规则')
+    await expect(form.getByLabel('交易时间', { exact: true })).toHaveValue('1988-04-17T02:30')
+  })
+
   test('快速切换忽略迟到范围，加载、无匹配、失败及重试清晰区分', async ({ page }) => {
     for (const occurredAt of ['2026-10-01T16:00:00Z', '2026-09-25T16:00:00Z', '2026-09-02T16:00:00Z'])
       expect((await ledgerRequest(owner, '/api/ledger/entries', ordinaryEntry({ occurredAt }))).status).toBe(200)

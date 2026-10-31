@@ -257,6 +257,7 @@ export function TransactionDateTimeField({ value, onChange, min, disabled }: Pro
   const id = useId()
   const control = useRef<HTMLDivElement>(null)
   const trigger = useRef<HTMLButtonElement>(null)
+  const arrow = useRef<{ key: string; value: string } | null>(null)
   const [open, setOpen] = useState(false)
   const close = useCallback((restoreFocus = true) => {
     setOpen(false)
@@ -265,7 +266,22 @@ export function TransactionDateTimeField({ value, onChange, min, disabled }: Pro
   return <div className="lp-field lp-time-field"><label htmlFor={id}>交易时间</label>
     <div className="lp-time-control" ref={control} onClick={event => { if (!disabled && event.target === event.currentTarget) setOpen(current => !current) }}>
       <input disabled={disabled} id={id} className="lp-time-native" type="datetime-local" step="1" required value={value} min={min} max={toDateTimeInput()}
-        onPointerDown={() => { if (open) close(false) }} onChange={event => onChange(event.target.value)} />
+        onPointerDown={() => { arrow.current = null; if (open) close(false) }}
+        onKeyDown={event => { arrow.current = ['ArrowUp', 'ArrowDown'].includes(event.key) ? { key: event.key, value: event.currentTarget.value } : null }}
+        onKeyUp={() => { arrow.current = null }} onBlur={() => { arrow.current = null }}
+        onChange={event => {
+          const previous = arrow.current
+          arrow.current = null
+          const next = event.currentTarget.value
+          // Native controls do not expose the selected segment. Compare the
+          // arrow's actual edit, allowing dates and digits but rejecting time wrap.
+          if (previous && next.slice(0, 10) === previous.value.slice(0, 10) && [11, 14, 17].some(start => {
+            const before = Number(previous.value.slice(start, start + 2) || '0')
+            const after = Number(next.slice(start, start + 2) || '0')
+            return previous.key === 'ArrowUp' ? after < before : after > before
+          })) { event.currentTarget.value = previous.value; return }
+          onChange(next)
+        }} />
       <button disabled={disabled} type="button" ref={trigger} className="lp-time-trigger" aria-label="选择交易时间" aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen(current => !current)}><CalendarDays size={16} /></button>
     </div>
     {open && control.current && <DateTimePopover value={value} min={min} control={control.current} close={close} apply={onChange} />}

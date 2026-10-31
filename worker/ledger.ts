@@ -3,12 +3,19 @@ import type { Context } from 'hono'
 import type { AuthEnv, Identity } from './auth'
 import { ApiError } from './upstream'
 import { readBoundedBody } from './read-body'
-import { ledgerCreateSchema, ledgerDeletePreviewSchema, ledgerDeleteSchema, ledgerDetailSchema, ledgerErrors, ledgerPageSchema, ledgerQuerySchema, ledgerReceiptSchema, ledgerRefundSchema } from '../src/shared/ledger'
+import { ledgerCreateSchema, ledgerDeletePreviewSchema, ledgerDeleteSchema, ledgerDetailQuerySchema, ledgerDetailSchema, ledgerErrors, ledgerPageSchema, ledgerQuerySchema, ledgerReceiptSchema, ledgerRefundSchema } from '../src/shared/ledger'
 
 type LedgerContext = Context<{ Bindings: AuthEnv; Variables: { identity: Identity } }>
 function failure(code: keyof typeof ledgerErrors, message?: string) {
   const [status, text] = ledgerErrors[code]
   return new ApiError(code, message ?? text, status)
+}
+async function readInput(c: LedgerContext, maxBytes: number): Promise<unknown> {
+  if (!/^application\/json(?:;|$)/i.test(c.req.header('Content-Type') ?? '')) throw failure('INVALID_ENTRY')
+  try {
+    if (!c.req.raw.body) throw new Error()
+    return JSON.parse(await readBoundedBody(c.req.raw.body, maxBytes, 5_000))
+  } catch { throw failure('INVALID_ENTRY') }
 }
 async function rpc<T>(c: LedgerContext, name: string, params: Record<string, unknown>, schema: z.ZodType<T>, writing: boolean | 'delete' = false): Promise<T> {
   const fallback = writing === 'delete' ? 'DELETE_UNKNOWN' : writing ? 'SAVE_UNKNOWN' : 'LEDGER_UNAVAILABLE'
@@ -41,15 +48,13 @@ export async function listLedger(c: LedgerContext) {
 export async function detailLedger(c: LedgerContext) {
   const id = z.uuid().safeParse(c.req.param('id'))
   if (!id.success) throw failure('NOT_FOUND')
-  if (Object.keys(c.req.query()).length) throw failure('INVALID_QUERY')
-  return c.json(await rpc(c, 'ledger_detail', { p_id: id.data }, ledgerDetailSchema))
+  if (Object.values(c.req.queries()).some(values => values.length !== 1)) throw failure('INVALID_QUERY')
+  const query = ledgerDetailQuerySchema.safeParse(c.req.query())
+  if (!query.success) throw failure('INVALID_QUERY')
+  return c.json(await rpc(c, 'ledger_detail', { p_id: id.data, p_refund_page: query.data.refundPage, p_version: query.data.version ?? null }, ledgerDetailSchema))
 }
 export async function createLedger(c: LedgerContext) {
-  if (!/^application\/json(?:;|$)/i.test(c.req.header('Content-Type') ?? '')) throw failure('INVALID_ENTRY')
-  let raw: unknown
-  try { if (!c.req.raw.body) throw new Error(); raw = JSON.parse(await readBoundedBody(c.req.raw.body, 16_384, 5_000)) }
-  catch { throw failure('INVALID_ENTRY') }
-  const value = ledgerCreateSchema.safeParse(raw)
+  const value = ledgerCreateSchema.safeParse(await readInput(c, 16_384))
   if (!value.success) throw failure('INVALID_ENTRY', value.error.issues[0]?.message)
   if (Date.parse(value.data.occurredAt) > Date.now()) throw failure('FUTURE_TIME')
   return c.json(await rpc(c, 'ledger_create', { p_input: value.data }, ledgerReceiptSchema, true))
@@ -58,11 +63,7 @@ export async function refundLedger(c: LedgerContext) {
   const parent = z.uuid().safeParse(c.req.param('id'))
   if (!parent.success) throw failure('NOT_FOUND')
   if (Object.keys(c.req.query()).length) throw failure('INVALID_QUERY')
-  if (!/^application\/json(?:;|$)/i.test(c.req.header('Content-Type') ?? '')) throw failure('INVALID_ENTRY')
-  let raw: unknown
-  try { if (!c.req.raw.body) throw new Error(); raw = JSON.parse(await readBoundedBody(c.req.raw.body, 16_384, 5_000)) }
-  catch { throw failure('INVALID_ENTRY') }
-  const value = ledgerRefundSchema.safeParse(raw)
+  const value = ledgerRefundSchema.safeParse(await readInput(c, 16_384))
   if (!value.success) throw failure('INVALID_ENTRY', value.error.issues[0]?.message)
   if (Date.parse(value.data.occurredAt) > Date.now()) throw failure('FUTURE_TIME')
   return c.json(await rpc(c, 'ledger_refund', { p_parent: parent.data, p_input: value.data }, ledgerReceiptSchema, true))
@@ -78,11 +79,7 @@ export async function deleteLedger(c: LedgerContext) {
   const id = z.uuid().safeParse(c.req.param('id'))
   if (!id.success) throw failure('NOT_FOUND')
   if (Object.keys(c.req.query()).length) throw failure('INVALID_QUERY')
-  if (!/^application\/json(?:;|$)/i.test(c.req.header('Content-Type') ?? '')) throw failure('INVALID_ENTRY')
-  let raw: unknown
-  try { if (!c.req.raw.body) throw new Error(); raw = JSON.parse(await readBoundedBody(c.req.raw.body, 1024, 5_000)) }
-  catch { throw failure('INVALID_ENTRY') }
-  const value = ledgerDeleteSchema.safeParse(raw)
+  const value = ledgerDeleteSchema.safeParse(await readInput(c, 1024))
   if (!value.success) throw failure('INVALID_ENTRY')
   return c.json(await rpc(c, 'ledger_delete', { p_id: id.data, p_scope: value.data.scope }, ledgerReceiptSchema, 'delete'))
 }

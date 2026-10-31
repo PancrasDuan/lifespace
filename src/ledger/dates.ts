@@ -1,6 +1,8 @@
+import { toDateTimeInput } from './time'
+
 export type DateRange = { start: string; end: string }
 export type DateFilter = 'all' | 'today' | 'week' | 'month' | 'custom'
-export const beijingDateKey = (value: Date | string | number = new Date()) => new Date(new Date(value).getTime() + 8 * 3600_000).toISOString().slice(0, 10)
+export const beijingDateKey = (value: Date | string | number = new Date()) => toDateTimeInput(value).slice(0, 10)
 export function getDateRange(filter: Exclude<DateFilter, 'custom'> | 'this-week' | 'this-month', now = new Date()): DateRange | null {
   if (filter === 'all') return null
   const today = beijingDateKey(now)
