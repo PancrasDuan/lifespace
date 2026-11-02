@@ -7,7 +7,7 @@
     "node": "^22.12.0 || >=24.0.0"
   },
   "scripts": {
-    "dev": "WRANGLER_LOG_PATH=./.cache/wrangler.log MINIFLARE_REGISTRY_PATH=./.cache/registry vite --host 127.0.0.1 --port 5174 --strictPort",
+    "dev": "WRANGLER_LOG_PATH=./.cache/wrangler.log CLOUDFLARE_DEV_REGISTRY_PATH=./.cache/registry vite --host 127.0.0.1 --port 5174 --strictPort",
     "prototype:ledger": "vite --config vite.ledger-prototype.config.ts",
     "types": "WRANGLER_LOG_PATH=./.cache/wrangler.log wrangler types --env-interface CloudflareEnv --include-runtime false --strict-vars false",
     "typecheck": "tsc --noEmit",
@@ -15,8 +15,8 @@
     "build:ci": "npm run test:api && npm run test:security:portable && npm run build",
     "test:api": "vitest run",
     "test:browser": "PLAYWRIGHT_BROWSERS_PATH=.cache/playwright playwright test",
-    "test:security": "WRANGLER_LOG_PATH=./.cache/wrangler-security.log MINIFLARE_REGISTRY_PATH=./.cache/security-registry node scripts/check-security.mjs",
-    "test:security:portable": "WRANGLER_LOG_PATH=./.cache/wrangler-security.log MINIFLARE_REGISTRY_PATH=./.cache/security-registry node --test tests/security/temp-directory.test.mjs",
+    "test:security": "WRANGLER_LOG_PATH=./.cache/wrangler-security.log CLOUDFLARE_DEV_REGISTRY_PATH=./.cache/security-registry node scripts/check-security.mjs",
+    "test:security:portable": "WRANGLER_LOG_PATH=./.cache/wrangler-security.log CLOUDFLARE_DEV_REGISTRY_PATH=./.cache/security-registry node --test tests/security/temp-directory.test.mjs",
     "test": "npm run test:api && npm run test:browser",
     "deploy": "node scripts/strip-worker-dev-vars.mjs && WRANGLER_LOG_PATH=./.cache/wrangler.log wrangler deploy --config dist/lifespace/wrangler.json",
     "setup:supabase": "bash scripts/configure-supabase.sh",
@@ -44,21 +44,21 @@
     "react-dom": "19.3.0",
     "standardwebhooks": "1.1.1",
     "tyme4ts": "1.5.3",
-    "zod": "4.6.5"
+    "zod": "4.6.7"
   },
   "devDependencies": {
-    "@cloudflare/vite-plugin": "1.62.5",
-    "@cloudflare/workers-types": "5.20261005.1",
+    "@cloudflare/vite-plugin": "1.67.0",
+    "@cloudflare/workers-types": "5.20261102.1",
     "@playwright/test": "1.63.0",
     "@types/node": "26.6.4",
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
     "@vitejs/plugin-react": "6.1.2",
-    "miniflare": "5.20261001.0-alpha",
+    "miniflare": "5.20261101.0-beta",
     "pg": "8.23.1",
     "typescript": "7.0.2",
-    "vite": "8.3.2",
+    "vite": "8.3.5",
     "vitest": "5.0.3",
-    "wrangler": "4.147.0"
+    "wrangler": "4.156.1"
   }
 }
