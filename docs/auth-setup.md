@@ -4,7 +4,9 @@
 
 ## 配置
 
-1. 在现有 Supabase 项目 `personal_os` 启用邮箱密码认证与邮箱确认。保持多会话可用，不设置固定登录期限，关闭匿名登录及未使用的登录方式。
+现有 Supabase 项目显示名为 `lifespace`，曾用名为 `personal_os`。在控制台按仓库 [wrangler.jsonc](../wrangler.jsonc) 中 `SUPABASE_URL` 的项目标识确认同一项目，再配置该项目的认证与密钥。
+
+1. 在该项目启用邮箱密码认证与邮箱确认。保持多会话可用，不设置固定登录期限，关闭匿名登录及未使用的登录方式。
 2. 配置 Site URL 为 `https://lifespace.onepeace.cc.cd`，允许回跳 `/auth/callback` 和 `/auth/reset`；本地调试只添加所用回环地址，不使用宽泛生产通配地址。PKCE 邮件链接应在发起注册或恢复的浏览器打开。注册验证链接在其他浏览器打开时，可能已完成邮箱验证，但不能自动登录；使用邮箱和密码登录即可继续。
 3. 将以下值保存为 Worker runtime secrets。本地使用忽略的 `.dev.vars`，示例见根目录 `.dev.vars.example`，不要把真实值写进 Issue、终端日志或聊天。
 

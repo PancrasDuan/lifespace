@@ -1,6 +1,6 @@
 # LifeSpace
 
-个人日常工作台，包含首页、新闻与人生冒险。首页提供：Google 搜索、本地与海外时间、Open-Meteo 天气与预报、Supabase 今日待办、本地黄历、DNSHE 域名信息及服务状态。采用浅色布局；首页卡片与详情只读，人生冒险提供个人规划与成长记录。
+个人日常工作台，包含首页、新闻、人生冒险与个人账单。首页提供：Google 搜索、本地与海外时间、Open-Meteo 天气与预报、Supabase 今日待办、本地黄历、DNSHE 域名信息及服务状态。采用浅色布局；首页卡片与详情只读，人生冒险提供个人规划与成长记录，财务页管理本人收支。
 
 访问采用邮箱白名单与 Supabase Auth，前端 SDK 管理登录及续期，Worker 在线验证会话和准入。星座运势的有效当日 KV 缓存允许匿名读取，未命中仍须登录并通过白名单后才能回源；其余业务接口逐次鉴权。配置及真实邮件验收见 [认证接入](docs/auth-setup.md)，职责与撤销边界见 [认证决策](docs/adr/0001-supabase-auth.md)。
 
@@ -29,9 +29,15 @@ npm run dev
 
 有效需求见 [冒险规格](docs/adventure/spec.md)，A 方案及职责边界见 [前端设计](docs/adventure/decisions-frontend.md)，后端设计稿见 [数据库设计](docs/adventure/backend-database.md) 与 [业务逻辑](docs/adventure/backend-business-logic.md)，领域规则见 [领域选择](docs/adventure/decisions-domain.md)，本地任务与既有验证边界见 [覆盖记录](docs/adventure/coverage.md)。父规格 #53 的当前发布稿见 [Issue 规格](docs/adventure/issue-spec.md)，本期任务正文、标签及原生依赖已同步，实施顺序见覆盖记录；#54 本地实现与自动验证见 [本票验收](docs/adventure/qa-planning.md)，尚未合并或发布应用。
 
+## 个人账单
+
+通过侧边导航进入 `/finance`，新建、查看和删除本人普通收支，追加退款，按日期筛选并分页浏览。退款独立记为收入，原支出金额保持不变；流水按访问账户隔离，删除不提供恢复。
+
+接口契约、代码与数据库位置、验证记录及历史设计见 [账单文档入口](docs/ledger/README.md)。
+
 ## 接入任务来源
 
-项目已配置 `personal_os` 的 Supabase URL。运行以下命令，在终端隐藏输入已有服务端 secret key；也兼容 legacy service_role。
+项目已配置 `lifespace` 的 Supabase URL，项目定位方式见 [认证配置](docs/auth-setup.md#配置)。运行以下命令，在终端隐藏输入已有服务端 secret key；也兼容 legacy service_role。
 
 ```bash
 npm run setup:supabase
@@ -93,6 +99,8 @@ npm run test:browser
 | `src/home/` | 首页、信息卡片与设置 |
 | `src/app/`、`src/news/` | 共享导航、新闻页与请求队列 |
 | `src/adventure/`、`src/shared/adventure-*.ts` | 人生冒险页面与后端投影契约 |
+| `src/ledger/`、`src/shared/ledger.ts`、`worker/ledger.ts` | 个人账单页面、共享契约与接口 |
+| `db/ledger/`、`docs/ledger/` | 账单数据库 SQL 与[文档入口](docs/ledger/README.md) |
 | `src/shared/` | 前后端数据契约 |
 | `worker/` | Hono 接口与数据来源接入 |
 | `tests/api/`、`tests/browser/` | HTTP 与浏览器验收测试 |
