@@ -1,29 +1,27 @@
 /* Confirmed A layout, scoped to the production ledger. */
 .lp-app {
+  background: #f4f7f1;
+  color-scheme: light;
+}
+.lp-app main {
   --ink: #263f34;
   --quiet: #68766d;
   --accent: #365d45;
   --line: #e3e9df;
   --surface: #fff;
-  background: #f4f7f1;
   font-size: 14px;
   line-height: 1.5;
-  color-scheme: light;
 }
 .lp-app::before { display: none; }
-.lp-app ::selection { background: #d9e8d1; color: #263f34; }
-.lp-app button, .lp-app input, .lp-app textarea, .lp-app select { transition: background-color .16s, border-color .16s; }
-.lp-app button:focus-visible, .lp-app a:focus-visible, .lp-app input:focus-visible, .lp-app textarea:focus-visible, .lp-app select:focus-visible {
+.lp-app main ::selection { background: #d9e8d1; color: #263f34; }
+.lp-app main button, .lp-app main input, .lp-app main textarea, .lp-app main select { transition: background-color .16s, border-color .16s; }
+.lp-app main button:focus-visible, .lp-app main a:focus-visible, .lp-app main input:focus-visible, .lp-app main textarea:focus-visible, .lp-app main select:focus-visible {
   outline: 2px solid #557c53;
   outline-offset: 3px;
 }
-.lp-app button:disabled { opacity: .4; cursor: default; }
+.lp-app main button:disabled { opacity: .4; cursor: default; }
 .lp-app main { margin-left: 76px; padding: 0 40px 118px; }
 .lp-app main > .lp-workspace { max-width: 1280px; margin: 0 auto; }
-.lp-app .sidebar { width: 76px; background: #edf3e9; backdrop-filter: none; border-color: #dfe7d9; }
-.lp-app .sidebar nav { margin-top: 44px; gap: 12px; }
-.lp-app .nav-item { letter-spacing: 0; }
-.lp-app .nav-item.active { color: #365d45; background: #dbe8d4; }
 .lp-page-header { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 31px 0 29px; }
 .lp-page-header h1 { display: flex; align-items: center; gap: 14px; margin: 0; font-size: 30px; line-height: 1.25; font-weight: 600; letter-spacing: -.025em; }
 .lp-page-header h1 > span { padding: 3px 7px; border: 1px solid #d7e1d1; border-radius: 5px; color: #66765f; font-size: 10px; font-weight: 400; letter-spacing: 0; }
@@ -158,9 +156,6 @@
 .lp-timezone { display: none; }
 }
 @media (max-width: 720px) {
-.lp-app .sidebar { width: 54px; padding: 18px 0; }
-.lp-app .sidebar nav { margin-top: 32px; gap: 10px; }
-.lp-app .nav-item { width: 42px; font-size: 9px; gap: 6px; padding: 8px 2px; }
 .lp-app main { margin-left: 54px; padding-left: 16px; padding-right: 16px; padding-bottom: 110px; }
 .lp-page-header { padding: 24px 0; gap: 12px; }
 .lp-page-header h1 { gap: 8px; font-size: 24px; letter-spacing: -.025em; }
