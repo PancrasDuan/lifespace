@@ -1,6 +1,6 @@
 # 前端 SDK 管理认证，Worker 验证准入
 
-LifeSpace 复用 Supabase 项目 `personal_os`。前端固定使用 `@supabase/supabase-js` 管理邮箱密码注册、登录、验证、恢复及自动续期；Worker 不接收 refresh token、不转发续期、不保存会话。认证规格见 [#33](https://github.com/PancrasDuan/lifespace/issues/33)，页面采用已确认的 [B 原型](https://github.com/PancrasDuan/lifespace/tree/codex/33-auth-prototype/docs/poc/auth-prototype)。
+LifeSpace 复用既有 Supabase 项目，决策时显示名为 `personal_os`；现名及项目定位方式见 [认证配置](../auth-setup.md#配置)。前端固定使用 `@supabase/supabase-js` 管理邮箱密码注册、登录、验证、恢复及自动续期；Worker 不接收 refresh token、不转发续期、不保存会话。认证规格见 [#33](https://github.com/PancrasDuan/lifespace/issues/33)，页面采用已确认的 [B 原型](https://github.com/PancrasDuan/lifespace/tree/codex/33-auth-prototype/docs/poc/auth-prototype)。
 
 ## 准入与撤销
 

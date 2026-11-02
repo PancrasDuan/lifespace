@@ -1,5 +1,7 @@
 # 个人账单系统需求草案
 
+> 历史需求确认稿；下文状态与标签为规格发布时的记录，正式接口、验证与交付记录见 [账单文档入口](README.md)。
+
 状态：本期产品需求已完成本轮确认，正式规格已发布至 [GitHub Issue #90](https://github.com/PancrasDuan/lifespace/issues/90)，标签为 `ready-for-agent`。此文件保留为本地需求核对稿，正式规格的本地副本见 [个人账单规格](issue-spec.md)；开发任务按项目约定登记到同一仓库的 GitHub Issues。
 
 领域术语见根目录 `CONTEXT.md`，流水与退款的建模选择见 `docs/adr/0003-ledger-refund-entries.md`。

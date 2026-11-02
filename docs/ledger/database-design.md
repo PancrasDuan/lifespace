@@ -1,5 +1,7 @@
 # 个人账单数据库设计
 
+> 实施前设计快照；下文建表状态与 SQL 为当时的设计记录，实际数据库 SQL 及验证见 [账单文档入口](README.md)。
+
 状态：已确认仅使用流水表与所有者版本表，收入／支出两值与父关联识别退款；尚未建表或执行迁移。采用现有 Supabase PostgreSQL；接口见 [技术方案](technical-design-draft.md)，业务规则见 [需求明细](requirements-draft.md)。
 
 只使用两张表：`ledger_entries` 保存流水并通过创建请求编号去重，`ledger_owner_revision` 处理事务与分页版本。两表均为所有用户共用，通过 `owner_id` 区分数据。
