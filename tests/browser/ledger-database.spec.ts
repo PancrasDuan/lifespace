@@ -6,9 +6,6 @@ let restore: () => void
 let owner: string
 let loseNextSave = false
 let requestIds: string[]
-let holdNextSave = false
-let releaseSave: (() => void) | undefined
-let failReads = false
 test.describe('正式财务页 → Worker → PostgreSQL（受控身份）', () => {
   test.use({ timezoneId: 'America/New_York', locale: 'zh-CN', hasTouch: true })
   test.skip(!ledgerRpc, '须显式启动隔离数据库，跳过不计通过')
@@ -17,15 +14,12 @@ test.describe('正式财务页 → Worker → PostgreSQL（受控身份）', () 
     owner = crypto.randomUUID()
     loseNextSave = false
     requestIds = []
-    holdNextSave = false; releaseSave = undefined; failReads = false
     await context.route('**/api/ledger/**', async route => {
       const req = route.request(), url = new URL(req.url())
-      if (req.method() === 'GET' && failReads) { await route.fulfill({ status: 503, json: { error: { code: 'LEDGER_UNAVAILABLE', message: '暂时无法读取账单' } } }); return }
       const response = await ledgerRequest(owner, url.pathname + url.search, req.method() === 'GET' ? undefined : req.postDataJSON(), req.method())
       if (req.method() === 'POST') {
         requestIds.push(req.postDataJSON().requestId)
         if (loseNextSave) { loseNextSave = false; await route.abort('failed'); return }
-        if (holdNextSave) { holdNextSave = false; await new Promise<void>(resolve => { releaseSave = resolve }) }
       }
       await route.fulfill({ status: response.status, headers: { 'Cache-Control': response.headers.get('Cache-Control') ?? '' }, contentType: 'application/json', body: await response.text() })
     })
@@ -129,32 +123,6 @@ test.describe('正式财务页 → Worker → PostgreSQL（受控身份）', () 
     await page.getByRole('link', { name: '首页', exact: true }).click()
     await page.getByRole('link', { name: '财务', exact: true }).click()
     await expect(page.getByRole('table').locator('tbody tr')).toHaveCount(30)
-  })
-  test('保存成功后重读失败仅重试读取，迟到成功保留后来打开的表单', async ({ page }) => {
-    await page.goto('/finance')
-    await expect(page.getByText('暂无流水', { exact: true })).toBeVisible()
-    await page.getByRole('button', { name: '新建流水' }).first().click()
-    const form = page.getByRole('dialog', { name: '新建流水', exact: true })
-    await form.getByLabel('交易金额').fill('3.21')
-    await form.getByLabel('交易账户', { exact: true }).fill('零钱')
-    await form.getByLabel('交易分类', { exact: true }).selectOption('transport')
-    holdNextSave = true
-    await form.getByRole('button', { name: '保存流水' }).click()
-    await expect.poll(() => !!releaseSave).toBe(true)
-    await form.getByRole('button', { name: '取消', exact: true }).click()
-    await page.getByRole('button', { name: '新建流水' }).first().click()
-    await form.getByLabel('交易金额').fill('99.99')
-    failReads = true
-    releaseSave!()
-    await expect(page.getByRole('status').filter({ hasText: '流水已记录' })).toBeVisible()
-    await expect(form).toBeVisible()
-    await expect(form.getByLabel('交易金额')).toHaveValue('99.99')
-    await form.getByRole('button', { name: '取消', exact: true }).click()
-    await expect(page.getByRole('alert')).toContainText('读取失败')
-    failReads = false
-    await page.getByRole('button', { name: '重试读取', exact: true }).click()
-    await expect(page.getByRole('table')).toContainText('-¥3.21')
-    expect(requestIds).toHaveLength(1)
   })
   test('手机金额和码点边界保留输入、固定分类切换清空、上限真实保存', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 })

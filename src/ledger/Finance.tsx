@@ -3,8 +3,8 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { ArrowDownLeft, ArrowUpRight, CalendarDays, Check, ChevronLeft, ChevronRight, CreditCard, Plus, RefreshCw, Wallet, Trash2, X } from 'lucide-react'
 import { AppLayout } from '../app/AppLayout'
 import { useVerifiedIdentity } from '../auth/identity'
-import { categoryLabel, ledgerCategories, ledgerCreateSchema, ledgerStatusLabels, type LedgerCreate, type LedgerEntry, type LedgerRefund } from '../shared/ledger'
-import { LedgerError, readLedgerDetail, saveLedger, saveRefund, readDeletePreview, deleteLedger } from './api'
+import { categoryLabel, ledgerCategories, ledgerCreateSchema, ledgerStatusLabels, type LedgerCreate, type LedgerEntry } from '../shared/ledger'
+import { LedgerError, readLedgerDetail, readDeletePreview, deleteLedger } from './api'
 import { RefundForm } from './RefundForm'
 import { formatCurrency, formatDateTime, fromDateTimeInput, toDateTimeInput, yuanToCents } from './time'
 import { TransactionDateTimeField } from './TransactionDateTimeField'
@@ -12,6 +12,7 @@ import './finance.css'
 import { getDateRange, type DateFilter } from './dates'
 import { DateRangePopover } from './DateRangePopover'
 import { useLedgerList } from './useLedgerList'
+import { useLedgerSubmission, type FormSubmission } from './useLedgerSubmission'
 
 function Amount({ entry, large = false }: { entry: LedgerEntry; large?: boolean }) {
   return <span className={`lp-amount ${entry.direction} ${large ? 'large' : ''}`}>{formatCurrency(entry.amountCents)}</span>
@@ -29,8 +30,7 @@ export function Finance() {
   function selectFilter(value: Exclude<DateFilter, 'custom'>) {
     setFilter(value); selectRange(getDateRange(value)); setDateAnchor(null)
   }
-  const [panel, setPanel] = useState<{ kind: 'new'; session: string } | { kind: 'refund'; session: string; parent: LedgerEntry; remainingCents: number } | { kind: 'detail'; id: string } | { kind: 'delete'; id: string; session: string } | null>(null)
-  const [unconfirmed, setUnconfirmed] = useState<(({ input: LedgerCreate; parentId?: undefined } | { input: LedgerRefund; parentId: string }) & { session: string; pending: boolean; message: string })[]>([])
+  const [panel, setPanel] = useState<{ kind: 'detail'; id: string } | { kind: 'delete'; id: string; session: string } | null>(null)
   type DeleteCommand = { id: string; scope: string; session: string }
   const [unknownDeletes, setUnknownDeletes] = useState<(DeleteCommand & { pending: boolean; code: string; message: string })[]>([])
   async function submitDelete(command: DeleteCommand) {
@@ -70,36 +70,22 @@ export function Finance() {
   }, [identity, queries])
   const data = entries.data
   const pageCount = Math.max(1, Math.ceil((data?.total ?? 0) / 30))
-  const newEntry = () => setPanel({ kind: 'new', session: crypto.randomUUID() })
-  function saved(session: string) {
+  const submission = useLedgerSubmission(() => {
     if (identity.signal.aborted) return
-    setPanel(current => (current?.kind === 'new' || current?.kind === 'refund') && current.session === session ? null : current)
     setNotice(value => value + 1)
     selectFilter('all')
     void queries.invalidateQueries({ queryKey: ['ledger', identity.ownerId] })
-  }
-  async function submit(command: { input: LedgerCreate; parentId?: undefined } | { input: LedgerRefund; parentId: string }, session: string) {
-    const { input } = command
-    if (inFlight.current.has(input.requestId)) return
-    inFlight.current.add(input.requestId)
-    setUnconfirmed(current => current.map(item => item.input.requestId === input.requestId ? { ...item, pending: true } : item))
-    try {
-      if (command.parentId !== undefined) await saveRefund(identity.ownerId, command.parentId, command.input, identity.signal)
-      else await saveLedger(identity.ownerId, command.input, identity.signal)
-      if (identity.signal.aborted) return
-      setUnconfirmed(current => current.filter(item => item.input.requestId !== input.requestId))
-      saved(session)
-    } catch (error) {
-      if (!identity.signal.aborted && error instanceof LedgerError && error.code === 'SAVE_UNKNOWN')
-        setUnconfirmed(current => [...current.filter(item => item.input.requestId !== input.requestId), { ...command, session, pending: false, message: error.message }])
-      else setUnconfirmed(current => current.map(item => item.input.requestId === input.requestId ? { ...item, pending: false, message: error instanceof Error ? error.message : '保存失败' } : item))
-      throw error
-    } finally { inFlight.current.delete(input.requestId) }
+  })
+  const form = submission.form
+  const newEntry = () => { setPanel(null); submission.openNew() }
+  function openDetail(id: string) {
+    submission.close()
+    setPanel({ kind: 'detail', id })
   }
   return <AppLayout page="finance" className="finance-page lp-app lp-variant-a">
     <div className="lp-workspace">
       <header className="lp-page-header"><h1>账单流水<span>人民币</span></h1><button className="lp-primary" onClick={newEntry}><Plus size={17} />新建流水</button></header>
-      {unconfirmed.filter(item => (panel?.kind !== 'new' && panel?.kind !== 'refund') || panel.session !== item.session).map(item => <div role="alert" className="lp-unknown" key={item.input.requestId}><span>{item.message}</span><button className="lp-secondary" disabled={item.pending} onClick={() => void submit(item, item.session).catch(() => {})}>{item.pending ? '正在重试…' : '重试原请求'}</button><button className="lp-secondary" onClick={() => void entries.refetch()}>查看最新流水</button></div>)}
+      {submission.unconfirmed.map(item => <div role="alert" className="lp-unknown" key={item.key}><span>{item.message}</span><button className="lp-secondary" disabled={item.pending} onClick={() => void item.retry()}>{item.pending ? '正在重试…' : '重试原请求'}</button><button className="lp-secondary" onClick={() => void entries.refetch()}>查看最新流水</button></div>)}
       {unknownDeletes.filter(item => panel?.kind !== 'delete' || panel.session !== item.session).map(item => <div role="alert" className="lp-unknown" key={item.id}><span>{item.message}</span><button className="lp-secondary" disabled={item.pending} onClick={() => {
         if (item.code === 'DELETE_SCOPE_CHANGED') {
           setUnknownDeletes(current => current.filter(value => value.id !== item.id))
@@ -113,9 +99,9 @@ export function Finance() {
         <div className="lp-list-heading"><span>流水明细 <b>{data?.total ?? '—'}</b></span><button className="lp-refresh" onClick={() => void queries.invalidateQueries({ queryKey: ['ledger', identity.ownerId] })}><RefreshCw size={14} />刷新数据</button></div>
         {entries.isPending ? <p role="status" className="lp-feedback">正在读取流水…</p> : entries.isError ? <div role="alert" className="lp-feedback">读取失败，请重试。<button className="lp-secondary" onClick={() => void entries.refetch()}>重试读取</button></div> : data?.items.length ? <div className="lp-table-wrap"><table className="lp-table"><thead><tr>
           <th>交易时间</th><th>分类 / 备注</th><th>交易账户</th><th>收支类型</th><th>交易状态</th><th className="lp-numeric">交易金额</th><th><span className="lp-sr">查看详情</span></th>
-        </tr></thead><tbody>{data.items.map(entry => <tr key={entry.id} onClick={() => setPanel({ kind: 'detail', id: entry.id })}>
+        </tr></thead><tbody>{data.items.map(entry => <tr key={entry.id} onClick={() => openDetail(entry.id)}>
           <td><time><strong>{formatDateTime(entry.occurredAt).slice(0, 10)}</strong><small>{formatDateTime(entry.occurredAt).slice(11)}</small></time></td>
-          <td><button className="lp-cell-title" onClick={event => { event.stopPropagation(); setPanel({ kind: 'detail', id: entry.id }) }}>{categoryLabel(entry.categoryCode)}</button>{entry.parentEntryId && <span className="lp-refund-tag">退款</span>}<small className="lp-row-note">{entry.note || '—'}</small></td>
+          <td><button className="lp-cell-title" onClick={event => { event.stopPropagation(); openDetail(entry.id) }}>{categoryLabel(entry.categoryCode)}</button>{entry.parentEntryId && <span className="lp-refund-tag">退款</span>}<small className="lp-row-note">{entry.note || '—'}</small></td>
           <td><span className="lp-account"><CreditCard size={13} />{entry.accountName}</span></td>
           <td><span className={`lp-direction ${entry.direction}`}>{entry.direction === 'income' ? <ArrowDownLeft size={13} /> : <ArrowUpRight size={13} />}{entry.direction === 'income' ? '收入' : '支出'}</span></td>
           <td><Status entry={entry} /></td><td className="lp-numeric"><Amount entry={entry} /></td><td><ChevronRight size={15} /></td>
@@ -126,9 +112,9 @@ export function Finance() {
       </section>
     </div>
     {dateAnchor && <DateRangePopover start={range?.start ?? ''} end={range?.end ?? ''} anchor={dateAnchor} trigger={rangeTrigger.current} close={() => setDateAnchor(null)} apply={(start, end) => { setFilter('custom'); selectRange({ start, end }) }} />}
-    {panel?.kind === 'new' && <LedgerModal title="新建流水" close={() => setPanel(null)} form><EntryForm key={panel.session} save={input => submit({ input }, panel.session)} cancel={() => setPanel(null)} /></LedgerModal>}
-    {panel?.kind === 'refund' && <LedgerModal title="登记退款" close={() => setPanel(null)} form><RefundForm key={panel.session} parent={panel.parent} remainingCents={panel.remainingCents} save={input => submit({ input, parentId: panel.parent.id }, panel.session)} cancel={() => setPanel(null)} /></LedgerModal>}
-    {panel?.kind === 'detail' && <LedgerModal title="流水详情" close={() => setPanel(null)}><EntryDetail key={panel.id} id={panel.id} remove={() => setPanel({ kind: 'delete', id: panel.id, session: crypto.randomUUID() })} open={id => setPanel({ kind: 'detail', id })} refund={(parent, remainingCents) => setPanel({ kind: 'refund', parent, remainingCents, session: crypto.randomUUID() })} /></LedgerModal>}
+    {form?.kind === 'new' && <LedgerModal title="新建流水" close={submission.close} form><EntryForm key={form.key} submission={form.submission} cancel={submission.close} /></LedgerModal>}
+    {form?.kind === 'refund' && <LedgerModal title="登记退款" close={submission.close} form><RefundForm key={form.key} parent={form.parent} remainingCents={form.remainingCents} submission={form.submission} cancel={submission.close} /></LedgerModal>}
+    {panel?.kind === 'detail' && <LedgerModal title="流水详情" close={() => setPanel(null)}><EntryDetail key={panel.id} id={panel.id} remove={() => setPanel({ kind: 'delete', id: panel.id, session: crypto.randomUUID() })} open={openDetail} refund={(parent, remainingCents) => { setPanel(null); submission.openRefund(parent, remainingCents) }} /></LedgerModal>}
     {panel?.kind === 'delete' && <LedgerModal title="删除流水" close={() => setPanel(null)} compact><DeleteConfirmation key={panel.session} session={panel.session} id={panel.id} cancel={() => setPanel(null)} save={scope => submitDelete({ id: panel.id, scope, session: panel.session })} /></LedgerModal>}
     {!!notice && <div role="status" className="lp-toast"><Check size={15} />流水已记录</div>}
   </AppLayout>
@@ -200,41 +186,30 @@ function DeleteConfirmation({ id, session, cancel, save }: { session: string; id
     <div className="lp-form-actions"><button className="lp-secondary" onClick={cancel}>取消</button><button className="lp-danger" disabled={pending || preview.isFetching} onClick={() => void submit()}>{pending ? '正在删除…' : '确认删除'}</button></div>
   </div>
 }
-function EntryForm({ save, cancel }: { save: (input: LedgerCreate) => Promise<unknown>; cancel: () => void }) {
+function EntryForm({ submission, cancel }: { submission: FormSubmission<LedgerCreate>; cancel: () => void }) {
   const [direction, setDirection] = useState<'income' | 'expense'>('expense')
   const [amount, setAmount] = useState(''), [time, setTime] = useState(toDateTimeInput), [account, setAccount] = useState(''), [category, setCategory] = useState(''), [note, setNote] = useState('')
-  const [error, setError] = useState(''), [pending, setPending] = useState(false)
-  const submitting = useRef(false)
-  const [uncertainInput, setUncertainInput] = useState<LedgerCreate>()
-  async function submit(event: FormEvent) {
+  const { pending, frozen, message } = submission
+  function submit(event: FormEvent) {
     event.preventDefault()
-    if (submitting.current) return
-    setError('')
-    let input: LedgerCreate
-    try {
+    void submission.submit(() => {
       const cents = yuanToCents(amount)
       const parsed = ledgerCreateSchema.safeParse({ requestId: crypto.randomUUID(), direction, amountCents: direction === 'expense' ? -cents : cents, occurredAt: fromDateTimeInput(time), accountName: account, categoryCode: category, note })
       if (!parsed.success) throw new Error(parsed.error.issues[0]?.message)
-      input = uncertainInput ?? parsed.data
+      const input = parsed.data
       if (Date.parse(input.occurredAt) > Date.now()) throw new Error('交易时间不能晚于当前北京时间。')
-    } catch (error) { setError(error instanceof Error ? error.message : '请检查输入'); return }
-    submitting.current = true; setPending(true)
-    try { await save(input) }
-    catch (error) {
-      if (error instanceof LedgerError && error.code === 'SAVE_UNKNOWN') setUncertainInput(input)
-      setError(error instanceof Error ? error.message : '保存失败，请重试')
-    }
-    finally { submitting.current = false; setPending(false) }
+      return input
+    })
   }
   return <form className="lp-entry-form" onSubmit={submit} noValidate>
-    <div className="lp-direction-picker" aria-label="收支类型">{(['expense', 'income'] as const).map(value => <button disabled={pending || !!uncertainInput} type="button" key={value} aria-pressed={direction === value} className={direction === value ? 'active' : ''} onClick={() => { if (value !== direction) { setDirection(value); setCategory('') } }}>{value === 'expense' ? <ArrowUpRight size={15} /> : <ArrowDownLeft size={15} />}{value === 'expense' ? '支出' : '收入'}</button>)}</div>
-    <label className="lp-amount-field"><span>交易金额<small>人民币</small></span><div><b>{direction === 'expense' ? '−' : '+'} ¥</b><input disabled={pending || !!uncertainInput} autoFocus aria-label="交易金额" inputMode="decimal" placeholder="0.00" required value={amount} onChange={event => setAmount(event.target.value)} /></div></label>
-    <TransactionDateTimeField disabled={pending || !!uncertainInput} value={time} onChange={setTime} />
-    <label className="lp-field">交易账户<input disabled={pending || !!uncertainInput} placeholder="招商储蓄卡" required value={account} onChange={event => setAccount(event.target.value)} /></label>
-    <label className="lp-field">交易分类<select disabled={pending || !!uncertainInput} aria-label="交易分类" required value={category} onChange={event => setCategory(event.target.value)}><option value="" disabled>选择分类</option>{ledgerCategories[direction].map(([code, name]) => <option value={code} key={code}>{name}</option>)}</select></label>
+    <div className="lp-direction-picker" aria-label="收支类型">{(['expense', 'income'] as const).map(value => <button disabled={pending || frozen} type="button" key={value} aria-pressed={direction === value} className={direction === value ? 'active' : ''} onClick={() => { if (value !== direction) { setDirection(value); setCategory('') } }}>{value === 'expense' ? <ArrowUpRight size={15} /> : <ArrowDownLeft size={15} />}{value === 'expense' ? '支出' : '收入'}</button>)}</div>
+    <label className="lp-amount-field"><span>交易金额<small>人民币</small></span><div><b>{direction === 'expense' ? '−' : '+'} ¥</b><input disabled={pending || frozen} autoFocus aria-label="交易金额" inputMode="decimal" placeholder="0.00" required value={amount} onChange={event => setAmount(event.target.value)} /></div></label>
+    <TransactionDateTimeField disabled={pending || frozen} value={time} onChange={setTime} />
+    <label className="lp-field">交易账户<input disabled={pending || frozen} placeholder="招商储蓄卡" required value={account} onChange={event => setAccount(event.target.value)} /></label>
+    <label className="lp-field">交易分类<select disabled={pending || frozen} aria-label="交易分类" required value={category} onChange={event => setCategory(event.target.value)}><option value="" disabled>选择分类</option>{ledgerCategories[direction].map(([code, name]) => <option value={code} key={code}>{name}</option>)}</select></label>
     <div className="lp-form-status"><span>交易状态</span><span><Check size={12} />已完成</span></div>
-    <label className="lp-field">交易备注<span className="lp-optional">选填</span><textarea disabled={pending || !!uncertainInput} aria-label="交易备注" rows={3} placeholder="添加备注" value={note} onChange={event => setNote(event.target.value)} /></label>
-    {error && <p className="lp-form-error" role="alert">{error}</p>}
-    <div className="lp-form-actions"><button type="button" className="lp-secondary" onClick={cancel}>取消</button><button className="lp-primary" type="submit" disabled={pending}>{pending ? '正在保存…' : uncertainInput ? '重试原请求' : '保存流水'}</button></div>
+    <label className="lp-field">交易备注<span className="lp-optional">选填</span><textarea disabled={pending || frozen} aria-label="交易备注" rows={3} placeholder="添加备注" value={note} onChange={event => setNote(event.target.value)} /></label>
+    {message && <p className="lp-form-error" role="alert">{message}</p>}
+    <div className="lp-form-actions"><button type="button" className="lp-secondary" onClick={cancel}>取消</button><button className="lp-primary" type="submit" disabled={pending}>{pending ? '正在保存…' : frozen ? '重试原请求' : '保存流水'}</button></div>
   </form>
 }

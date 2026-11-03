@@ -79,6 +79,8 @@ test('天气城市保存失败不切城，搜索 Esc 先关闭候选再关闭详
   await page.getByRole('option', { name: '选择上海 上海市 · 中国' }).click()
   await expect(page.getByRole('dialog')).toContainText('浏览器未允许保存天气城市')
   await expect(page.locator('.weather-place')).toContainText('北京')
+  await expect(input).toHaveValue('')
+  await expect(input).toHaveAttribute('aria-expanded', 'false')
   await page.keyboard.press('Escape'); await expect(page.getByRole('dialog')).toHaveCount(0)
 })
 

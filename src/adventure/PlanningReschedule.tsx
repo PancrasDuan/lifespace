@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useVerifiedIdentity } from '../auth/identity'
 import { planningApi } from './planning-api'
-import type { PlanningCommand, PlanningTask, ReschedulePreview, TaskHistory } from '../shared/adventure-planning'
+import type { PlanningTask, TaskHistory } from '../shared/adventure-planning'
+import type { PlanningConfirmation } from './usePlanning'
 import { PlanningMore } from './PlanningRecord'
 
 function ArrangementItems({ items }: { items: TaskHistory['items'] }) {
@@ -48,29 +49,24 @@ export function PlanningTaskHistory({ id }: { id: string }) {
   </section>
 }
 
-export function PlanningReschedule({ task, version, blocked, preview, action, close }: {
-  task: PlanningTask; version: number; blocked: boolean;
-  preview: (command: PlanningCommand) => Promise<ReschedulePreview | undefined>;
-  action: (command: PlanningCommand, expectedVersion?: number) => Promise<boolean>; close: () => void
+export function PlanningReschedule({ task, confirmation, close }: {
+  task: PlanningTask; confirmation: PlanningConfirmation; close: () => void
 }) {
   const [plannedOn, setPlannedOn] = useState('')
-  const [current, setCurrent] = useState<ReschedulePreview>()
-  const generation = useRef(0)
-  const stale = !current || current.version !== version || current.newPlannedOn !== plannedOn
+  const { blocked, stale, preview } = confirmation
+  const current = preview && 'operation' in preview && preview.operation === 'rescheduleTask' ? preview : undefined
   return <form onSubmit={event => {
     event.preventDefault()
-    if (!current || stale) return
-    void action({ type: 'rescheduleTask', id: task.id, plannedOn: current.newPlannedOn }, current.version).then(saved => { if (saved) close() })
+    void confirmation.confirm({ type: 'rescheduleTask', id: task.id, plannedOn }, close)
   }}><fieldset disabled={blocked}>
     <h3>{task.title}</h3><p>当前执行日期：{task.plannedOn}</p>
-    <label>新的执行日期<input required type="date" min={task.rescheduleMin} value={plannedOn} onChange={event => { generation.current++; setPlannedOn(event.target.value); setCurrent(undefined) }} /></label>
+    <label>新的执行日期<input required type="date" min={task.rescheduleMin} value={plannedOn} onChange={event => { setPlannedOn(event.target.value); confirmation.invalidate() }} /></label>
     <PlanningArrangements task={task} />
     {current && <section aria-label="改期预览"><p>{current.oldPlannedOn} → {current.newPlannedOn}</p><p>{current.message}</p></section>}
     {current && stale && <p role="status">数据已变化，请重新预览后确认改期。</p>}
     <div className="adventure-form-footer"><button type="button" onClick={close}>取消</button>
       <button type="button" disabled={blocked || !plannedOn} onClick={() => {
-        const attempt = ++generation.current
-        void preview({ type: 'rescheduleTask', id: task.id, plannedOn }).then(value => { if (attempt === generation.current) setCurrent(value) })
+        void confirmation.refresh({ type: 'rescheduleTask', id: task.id, plannedOn })
       }}>预览改期</button>
       <button className="adventure-primary" type="submit" disabled={blocked || stale}>确认改期</button>
     </div>

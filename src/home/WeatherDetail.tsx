@@ -6,7 +6,7 @@ import type { WeatherDetailResult } from '../shared/weather-contracts'
 import { dateKey } from './time'
 import { api } from './api'
 import { weatherCondition, temperature } from './WeatherContent'
-import { WeatherCityPicker } from './WeatherCityPicker'
+import { CityPicker } from './CityPicker'
 import './weather.css'
 
 const metric = (value: number | null, unit: string) => value === null ? '暂无数据' : `${Math.round(value * 10) / 10}${unit}`
@@ -47,7 +47,7 @@ export function WeatherDetail({ query, city, now, chooseCity, cityError, locatio
   const direction = data?.windDirection === null || data?.windDirection === undefined ? '' : ['北', '东北', '东', '东南', '南', '西南', '西', '西北'][Math.round(data.windDirection / 45) % 8]
   const refresh = () => { void query.refetch(); void air.refetch() }
   return <div className="weather-detail">
-    <div className="weather-toolbar"><div className="weather-place"><MapPin size={16} /><strong>{city.name}</strong><span>{city.region}</span></div><div className="weather-tools"><WeatherCityPicker choose={chooseCity} /><button className="weather-refresh" aria-label="刷新天气详情" disabled={query.isFetching || air.isFetching} onClick={refresh}><RotateCw size={16} className={query.isFetching || air.isFetching ? 'spinning' : ''} /></button></div></div>
+    <div className="weather-toolbar"><div className="weather-place"><MapPin size={16} /><strong>{city.name}</strong><span>{city.region}</span></div><div className="weather-tools"><CityPicker variant="weather" choose={chooseCity} /><button className="weather-refresh" aria-label="刷新天气详情" disabled={query.isFetching || air.isFetching} onClick={refresh}><RotateCw size={16} className={query.isFetching || air.isFetching ? 'spinning' : ''} /></button></div></div>
     {location.pending && <p className="weather-location-status" role="status">正在定位，暂时显示北京天气</p>}
     {location.error && <p className="weather-location-status" role="status">{location.error}；可再次选择“使用当前位置”重试。</p>}
     {cityError && <p role="alert" className="inline-error">{cityError}</p>}

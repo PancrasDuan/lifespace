@@ -1,52 +1,13 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { Temporal } from '@js-temporal/polyfill'
-import app from '../../worker/index'
-import { planningPageSchema, planningPreviewSchema, planningReceiptSchema, type PlanningCommand } from '../../src/shared/adventure-planning'
+import { planningPreviewSchema, planningReceiptSchema, type PlanningCommand } from '../../src/shared/adventure-planning'
+import { localPlanningRpc as rpcOrigin, planningDatabase } from '../support/planning-database'
 
-const rpcOrigin = process.env.ADVENTURE_LOCAL_RPC_URL
-const nativeFetch = globalThis.fetch
-const env = {
-  SUPABASE_URL: 'https://planning-local-test.supabase.co',
-  SUPABASE_SECRET_KEY: 'sb_secret_local-test-only',
-  SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_local-test-only',
-  AUTH_ALLOWED_EMAILS: 'lifecycle@example.invalid',
-}
-const encode = (value: unknown) => btoa(JSON.stringify(value)).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_')
-const request = (owner: string, path = '/api/adventure', body?: unknown) => app.request(path, {
-  method: body === undefined ? 'GET' : 'POST',
-  headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${encode({ alg: 'HS256' })}.${encode({ sub: owner, session_id: owner, exp: 4102444800 })}.local-test` },
-  body: body === undefined ? undefined : JSON.stringify(body),
-}, env)
-const read = async (owner: string, query = '') => {
-  const response = await request(owner, `/api/adventure${query}`)
-  expect(response.status).toBe(200)
-  return planningPageSchema.parse(await response.json())
-}
-const envelope = (version: number, command: PlanningCommand) => ({ requestId: crypto.randomUUID(), expectedVersion: version, command })
-const send = (owner: string, value: ReturnType<typeof envelope>) => request(owner, '/api/adventure/commands', value)
-const command = async (owner: string, value: PlanningCommand) => {
-  const response = await send(owner, envelope((await read(owner)).version, value))
-  expect(response.status).toBe(200)
-  return planningReceiptSchema.parse(await response.json())
-}
-
+const database = planningDatabase('lifecycle@example.invalid')
+const { request, read, envelope, send, command } = database
 describe.skipIf(!rpcOrigin)('正式 Worker HTTP → 本机真实 PostgREST → 独立 PostgreSQL 生命周期事务', () => {
-  beforeEach(() => {
-    const target = new URL(rpcOrigin!)
-    if (target.hostname !== '127.0.0.1' || target.protocol !== 'http:' || target.username || target.password) throw new Error('仅允许独立本机 RPC 验收')
-    vi.stubGlobal('fetch', async (input: string | URL | Request, init: RequestInit = {}) => {
-      const url = new URL(input instanceof Request ? input.url : input)
-      if (url.origin !== env.SUPABASE_URL) throw new Error('禁止非验收请求')
-      if (url.pathname === '/auth/v1/user') {
-        const token = new Headers(init.headers).get('Authorization')!.split('.')[1]
-        const identity: { sub: string } = JSON.parse(atob(token))
-        return Response.json({ id: identity.sub, email: 'lifecycle@example.invalid', email_confirmed_at: '2026-10-21', is_anonymous: false })
-      }
-      if (!url.pathname.startsWith('/rest/v1/rpc/adventure_')) throw new Error('禁止非 RPC 请求')
-      return nativeFetch(new URL(url.pathname.replace('/rest/v1', ''), target), init)
-    })
-  })
-  afterEach(() => vi.unstubAllGlobals())
+  beforeEach(() => database.install())
+  afterEach(() => database.restore())
 
   let owner: string
   beforeEach(() => { owner = crypto.randomUUID() })
