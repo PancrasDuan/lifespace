@@ -14,4 +14,4 @@
 
 ### 开发与交付
 
-开始开发、提交代码、创建或合并 PR、部署验收时，先读 `docs/agents/git-workflow.md`；密钥扫描是提交和 CI 的首项检查。
+开始开发、创建或切换分支、并行开发、评审、提交、创建或合并 PR、部署验收及清理工作区前，先读 `docs/agents/git-workflow.md`。
