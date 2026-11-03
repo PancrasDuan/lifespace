@@ -3,6 +3,7 @@ import { test, expect } from '@playwright/test'
 const user = { id: '00000000-0000-4000-8000-000000000001', email: 'demo@example.com', aud: 'authenticated', role: 'authenticated', email_confirmed_at: '2026-10-11', app_metadata: {}, user_metadata: {}, created_at: '2026-10-11' }
 
 test('远端退出成功但本地清理失败时，重试只完成清理，不重复撤销旧会话', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 360 })
   await page.addInitScript(({ user }) => {
     localStorage.setItem('sb-auth-test-auth-token', JSON.stringify({ access_token: 'test-access-token', refresh_token: 'test-refresh-token', expires_at: 4102444800, token_type: 'bearer', user }))
     const remove = Storage.prototype.removeItem
@@ -26,6 +27,13 @@ test('远端退出成功但本地清理失败时，重试只完成清理，不�
   await page.getByRole('button', { name: '账户菜单' }).click()
   await page.getByRole('menuitem', { name: '退出登录' }).click()
   await expect(page.getByRole('alert')).toHaveText('服务端已退出，但浏览器清理失败，请重试')
+  const menu = page.getByRole('menu', { name: '账户' })
+  const bounds = (await menu.boundingBox())!
+  expect(bounds.x).toBeGreaterThan(54)
+  expect(bounds.x + bounds.width).toBeLessThanOrEqual(320)
+  expect(bounds.y).toBeGreaterThanOrEqual(0)
+  const size = await menu.evaluate(element => ({ width: element.clientWidth, content: element.scrollWidth }))
+  expect(size.content).toBeLessThanOrEqual(size.width)
   await page.getByRole('menuitem', { name: '退出登录' }).click()
   await expect(page.getByRole('heading', { name: '欢迎回来' })).toBeVisible()
   expect(remoteLogouts).toBe(1)

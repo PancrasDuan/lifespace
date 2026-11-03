@@ -4,10 +4,12 @@ import {
   ListTodo,
   Mountain,
   Newspaper,
-  Settings2,
   Target,
   Wallet,
 } from 'lucide-react'
+import { useContext } from 'react'
+import { AccountMenu } from '../auth/AccountMenu'
+import { VerifiedIdentityContext } from '../auth/identity'
 import { PageLink } from './navigation'
 
 export type AppPage = 'home' | 'news' | 'adventure' | 'finance'
@@ -22,7 +24,8 @@ const items = [
   { title: '股票行情', icon: ChartNoAxesCombined },
 ] as const
 
-export function AppNavigation({ page, openSettings }: { page: AppPage; openSettings?: () => void }) {
+export function AppNavigation({ page }: { page: AppPage }) {
+  const identity = useContext(VerifiedIdentityContext)
   return <aside className="sidebar app-navigation" aria-label="主导航">
     <PageLink className="brand-mark" href="/" aria-label="LifeSpace 首页">
       <img src="/favicon.svg" alt="" width={38} height={38} />
@@ -40,8 +43,6 @@ export function AppNavigation({ page, openSettings }: { page: AppPage; openSetti
         ) : <button className="nav-item" type="button" disabled key={item.title}>{content}</button>
       })}
     </nav>
-    {openSettings && <button className="nav-settings" type="button" aria-label="打开设置" onClick={openSettings}>
-      <Settings2 size={20} /><span>设置</span>
-    </button>}
+    <AccountMenu email={identity?.email} disabled={!identity} />
   </aside>
 }

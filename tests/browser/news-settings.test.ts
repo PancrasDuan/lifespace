@@ -114,8 +114,12 @@ test('电脑和手机设置可用键盘操作，关闭后恢复入口焦点与�
     await expect(page.getByRole('link', { name: '来源标题-zhihu' })).toBeVisible()
     await page.mouse.wheel(0, 650)
     await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0)
+    const entry = page.getByRole('button', { name: '新闻来源设置', exact: true })
+    // 本次入口位于页头；先返回页头，再验证面板保留打开时的阅读位置。
+    await page.evaluate(() => window.scrollTo(0, 0))
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0)
+    await expect(entry).toBeInViewport()
     const before = await page.evaluate(() => window.scrollY)
-    const entry = page.getByRole('button', { name: '打开设置', exact: true })
     await entry.click()
     const dialog = page.getByRole('dialog', { name: '新闻来源设置', exact: true })
     await expect(dialog).toBeVisible()

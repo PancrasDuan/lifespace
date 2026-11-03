@@ -248,6 +248,10 @@ test('刷新时显示首页骨架屏，准入完成前不请求或展示业务�
     expect(businessRequests).toBe(readyRequests)
     for (const width of [1440, 390]) {
       await page.setViewportSize({ width, height: 954 })
+      const avatar = page.locator('.sidebar .auth-avatar')
+      await expect(avatar).toBeDisabled()
+      await expect(page.locator('.auth-avatar')).toHaveCount(1)
+      expect((await avatar.boundingBox())!.y).toBeGreaterThan(844)
       const sizes = await page.evaluate(() => ({ viewport: document.documentElement.clientWidth, content: document.documentElement.scrollWidth }))
       expect(sizes.content).toBeLessThanOrEqual(sizes.viewport)
     }

@@ -2,10 +2,10 @@ import { expect, test, type Page } from './authenticated-test'
 import { planningFixture } from './adventure-fixture'
 
 const pages = [
-  { path: '/', name: '首页', settings: true },
-  { path: '/news', name: '新闻', settings: true },
-  { path: '/adventure', name: '人生冒险', settings: false },
-  { path: '/finance', name: '财务', settings: false },
+  { path: '/', name: '首页' },
+  { path: '/news', name: '新闻' },
+  { path: '/adventure', name: '人生冒险' },
+  { path: '/finance', name: '财务' },
 ] as const
 
 test.beforeEach(async ({ context }) => {
@@ -54,6 +54,7 @@ async function navigationSnapshot(page: Page) {
       },
       brand: layout(sidebar.querySelector('.brand-mark')!),
       nav: layout(sidebar.querySelector('nav')!),
+      account: layout(sidebar.querySelector('.auth-avatar')!),
       items: [...sidebar.querySelectorAll('.nav-item')].map(layout),
       states: {
         active: appearances('.nav-item[aria-current="page"]'),
@@ -68,12 +69,10 @@ for (const width of [1440, 957, 721, 720, 701, 700, 390, 320]) {
   test(`${width}px 各页面共用相同导航结构、品牌和布局`, async ({ page }) => {
     await page.setViewportSize({ width, height: 954 })
     await page.goto('/')
-    // 首页骨架也包含导航；设置入口出现后才完成真实页面的测量。
-    await expect(page.getByRole('button', { name: '打开设置', exact: true })).toBeVisible()
+    await expect(page.getByRole('button', { name: '账户菜单', exact: true })).toBeEnabled()
     const baseline = await navigationSnapshot(page)
-    const baselineSettings = await page.getByRole('button', { name: '打开设置', exact: true }).boundingBox()
 
-    for (const { path, name, settings } of pages) {
+    for (const { path, name } of pages) {
       if (path !== '/') await page.goto(path)
       const navigation = page.getByLabel('主导航', { exact: true })
       await expect(navigation).toBeVisible()
@@ -82,14 +81,14 @@ for (const width of [1440, 957, 721, 720, 701, 700, 390, 320]) {
       await expect(navigation.locator('button.nav-item:disabled')).toHaveCount(3)
       expect.soft(await navigationSnapshot(page), `${path} 应与首页使用同一导航`).toEqual(baseline)
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
-      const settingsButton = page.getByRole('button', { name: '打开设置', exact: true })
-      if (settings) {
-        await expect(settingsButton).toBeVisible()
-        expect(await settingsButton.boundingBox()).toEqual(baselineSettings)
-      } else await expect(settingsButton).toHaveCount(0)
+      await expect(page.getByRole('button', { name: '打开设置', exact: true })).toHaveCount(0)
+      await expect(page.getByRole('button', { name: '账户菜单', exact: true })).toHaveCount(1)
+      const account = navigation.getByRole('button', { name: '账户菜单', exact: true })
+      await expect(account).toBeInViewport()
+      const avatar = (await account.boundingBox())!
+      expect(avatar.y).toBeGreaterThan(844)
 
       if (width === 1440 || width === 390) {
-        await page.screenshot({ path: `.cache/nav-${path === '/' ? 'home' : path.slice(1)}-${width}.png`, fullPage: true })
         await navigation.getByRole('link', { name: 'LifeSpace 首页', exact: true }).focus()
         for (const destination of pages) {
           await page.keyboard.press('Tab')
@@ -97,22 +96,67 @@ for (const width of [1440, 957, 721, 720, 701, 700, 390, 320]) {
         }
         // 财务前后的禁用占位都不能截住键盘焦点。
         await page.keyboard.press('Tab')
-        if (settings) {
-          await expect(settingsButton).toBeFocused()
-          await settingsButton.click()
-          const dialog = page.getByRole('dialog', { name: path === '/' ? '首页设置' : '新闻来源设置', exact: true })
-          await expect(dialog).toBeVisible()
-          await page.keyboard.press('Escape')
-          await expect(dialog).toHaveCount(0)
-        } else await expect(navigation.locator(':focus')).toHaveCount(0)
+        await expect(account).toBeFocused()
+        await page.keyboard.press('Enter')
+        const menu = page.getByRole('menu', { name: '账户', exact: true })
+        await expect(menu).toContainText('demo@example.com')
+        const box = (await menu.boundingBox())!
+        expect(box.x).toBeGreaterThan(baseline.sidebar.width)
+        expect(box.x + box.width).toBeLessThanOrEqual(width)
+        expect(box.y).toBeGreaterThanOrEqual(0)
+        expect(box.y + box.height).toBeLessThanOrEqual(avatar.y + avatar.height)
+        await page.keyboard.press('Tab')
+        const logout = menu.getByRole('menuitem', { name: '退出登录' })
+        await expect(logout).toBeFocused()
+        expect(await logout.evaluate(element => {
+          const box = element.getBoundingClientRect()
+          return element.contains(document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2))
+        })).toBe(true)
+        await page.screenshot({ path: `.cache/nav-${path === '/' ? 'home' : path.slice(1)}-${width}.png` })
+        await page.keyboard.press('Escape')
+        await expect(menu).toHaveCount(0)
+        await expect(account).toBeFocused()
+        await account.click()
+        await page.locator('main').click({ position: { x: 5, y: 5 } })
+        await expect(menu).toHaveCount(0)
       }
+    }
+  })
+}
+
+for (const [width, height] of [[1440, 360], [390, 360], [320, 240]]) {
+  test(`${width}×${height} 矮视口中导航可滚动且不遮挡底部账户`, async ({ page }) => {
+    for (const { path } of pages) {
+      await page.setViewportSize({ width, height })
+      await page.goto(path)
+      const navigation = page.getByLabel('主导航', { exact: true })
+      const account = navigation.getByRole('button', { name: '账户菜单' })
+      const avatar = (await account.boundingBox())!
+      await expect(account).toBeInViewport()
+      const nav = (await navigation.locator('nav').boundingBox())!
+      expect(nav.y + nav.height).toBeLessThanOrEqual(avatar.y)
+      for (const name of ['财务', '首页']) {
+        const link = navigation.getByRole('link', { name, exact: true })
+        await link.focus()
+        await expect(link).toBeInViewport()
+        expect(await account.boundingBox()).toEqual(avatar)
+      }
+      await account.click()
+      const menu = page.getByRole('menu', { name: '账户', exact: true })
+      await expect(menu.getByRole('menuitem', { name: '退出登录' })).toBeInViewport()
+      const box = (await menu.boundingBox())!
+      expect(box.y).toBeGreaterThanOrEqual(0)
+      expect(box.x + box.width).toBeLessThanOrEqual(width)
+      if (path === '/') await page.screenshot({ path: `.cache/nav-short-${width}.png` })
+      await page.keyboard.press('Escape')
+      await expect(account).toBeFocused()
     }
   })
 }
 
 test('导航切页、刷新和浏览器前进后退正确标识当前页面', async ({ page }) => {
   await page.goto('/')
-  await expect(page.getByRole('button', { name: '打开设置', exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: '账户菜单', exact: true })).toBeEnabled()
   for (const { path, name } of pages.slice(1)) {
     await page.getByLabel('主导航', { exact: true }).getByRole('link', { name, exact: true }).click()
     await expect(page).toHaveURL(path)

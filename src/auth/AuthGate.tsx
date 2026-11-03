@@ -280,10 +280,10 @@ export function AuthGate({ children }: { children: ReactNode }) {
   if (state.kind === 'allowed')
     return (
       <>
-        <AccountMenu email={state.email} />
         <VerifiedIdentityContext
           value={{
             ownerId: state.id,
+            email: state.email,
             signal: verified.current!.controller.signal,
           }}
         >

@@ -1,4 +1,4 @@
-import { Activity, CalendarDays, Clock3, CloudSun, Globe, ListTodo, Search, Settings2, Sparkles, UserRound } from 'lucide-react'
+import { Activity, CalendarDays, Clock3, CloudSun, Globe, ListTodo, Search, Settings2, Sparkles } from 'lucide-react'
 import { AppLayout } from '../app/AppLayout'
 import './home-skeleton.css'
 
@@ -17,7 +17,6 @@ export function HomeSkeleton() {
   return <section className="auth-loading" role="status" aria-label="正在确认访问资格" aria-busy="true">
     <span className="skeleton-sr-only">正在确认访问资格，请稍候。</span>
     <div inert aria-hidden="true">
-      <div className="auth-account"><button className="auth-avatar" disabled tabIndex={-1}><UserRound size={18} /></button></div>
       <AppLayout page="home"><div className="auth-home-skeleton">
         <header className="masthead">
           <div className="page-kicker"><span className="live-dot" />我的每日空间</div>
