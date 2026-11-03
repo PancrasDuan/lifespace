@@ -1,0 +1,62 @@
+import { strict as assert } from 'node:assert'
+import app from '../../worker/index'
+import { planningPageSchema, planningReceiptSchema, type PlanningCommand } from '../../src/shared/adventure-planning'
+
+export const localPlanningRpc = process.env.ADVENTURE_LOCAL_RPC_URL
+const encode = (value: unknown) => btoa(JSON.stringify(value)).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_')
+
+// Identity and the RPC address are controlled; business requests still use the real Worker and database.
+export function planningDatabase(email = 'lifecycle@example.invalid') {
+  const env = {
+    SUPABASE_URL: 'https://planning-local-test.supabase.co', SUPABASE_SECRET_KEY: 'sb_secret_local-test-only',
+    SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_local-test-only', AUTH_ALLOWED_EMAILS: email,
+  }
+  let previousFetch: typeof fetch | undefined
+  const request = (owner: string, path = '/api/adventure', body?: unknown) => app.request(path, {
+    method: body === undefined ? 'GET' : 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${encode({ alg: 'HS256' })}.${encode({ sub: owner, session_id: owner, exp: 4102444800 })}.local-test` },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  }, env)
+  const read = async (owner: string, query = '') => {
+    const response = await request(owner, `/api/adventure${query}`)
+    assert.equal(response.status, 200)
+    return planningPageSchema.parse(await response.json())
+  }
+  const envelope = (version: number, command: PlanningCommand) => ({ requestId: crypto.randomUUID(), expectedVersion: version, command })
+  // Send an existing envelope unchanged, including intentionally stale versions and historical requestIds.
+  const send = (owner: string, value: ReturnType<typeof envelope>) => request(owner, '/api/adventure/commands', value)
+  const command = async (owner: string, value: PlanningCommand) => {
+    const response = await send(owner, envelope((await read(owner)).version, value))
+    assert.equal(response.status, 200)
+    return planningReceiptSchema.parse(await response.json())
+  }
+  return {
+    request, read, envelope, send, command,
+    install(options?: { browserOwner: string }) {
+      const target = new URL(localPlanningRpc!)
+      if (target.hostname !== '127.0.0.1' || target.protocol !== 'http:' || target.username || target.password) throw new Error('仅允许独立本机 RPC 验收')
+      if (previousFetch) throw new Error('隔离运行环境已安装')
+      const nativeFetch = globalThis.fetch
+      previousFetch = nativeFetch
+      globalThis.fetch = async (input: string | URL | Request, init: RequestInit = {}) => {
+        const url = new URL(input instanceof Request ? input.url : input)
+        if (url.origin !== env.SUPABASE_URL) {
+          // Browser setup also needs unrelated HTTP requests; interface suites reject them.
+          if (options) return nativeFetch(input, init)
+          throw new Error('禁止非验收请求')
+        }
+        if (url.pathname === '/auth/v1/user') {
+          const token = new Headers(init.headers).get('Authorization')
+          const owner = options ? options.browserOwner : (JSON.parse(atob(token!.split('.')[1])) as { sub: string }).sub
+          return Response.json({ id: owner, email, email_confirmed_at: '2026-10-21', is_anonymous: false })
+        }
+        if (!url.pathname.startsWith('/rest/v1/rpc/adventure_')) throw new Error('禁止非 RPC 请求')
+        return nativeFetch(new URL(url.pathname.replace('/rest/v1', ''), target), init)
+      }
+    },
+    restore() {
+      if (previousFetch) globalThis.fetch = previousFetch
+      previousFetch = undefined
+    },
+  }
+}

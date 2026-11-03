@@ -88,6 +88,8 @@ git diff --check
 
 临时数据库运行器从空库创建五表，执行全部 SQL 探针、正式 Worker HTTP 和真实数据库浏览器流程，最后执行 `adventure-actions-audit.sql` 全库核对，再销毁临时实例。API 测试调用正式 `app.request`；浏览器路由转交同一个正式 Worker handler，Auth 使用受控响应，RPC 转发本机真实 PostgREST。它证明应用 HTTP 契约与数据库事务，不冒称真实登录或生产网络验收。
 
+五组数据库 API 测试与浏览器桥接共用 `tests/support/planning-database.ts` 的本机 RPC 校验、受控身份、正式 Worker 请求及 fetch 安装／恢复。API 按每个请求的 token 确定 owner，拒绝非验收请求；`planning-database-browser.ts` 继续管理浏览器路由，采用安装时固定的 owner 并放行无关请求。`send` 原样发送调用者持有的封套，供并发、旧版本和历史 requestId 测试使用；`command` 只用于读取当前版本后准备成功场景，不自动重试。各 suite 的业务断言及真实提交后丢响应控制保留，数据库进程生命周期仍由原运行器管理。
+
 跨日现有 SQL 探针用过去完成事实验证日期冻结与旧回执重试；没有修改系统时钟，也没有等待真实午夜。网络故障测试在真实事务提交后丢弃响应，再验证原封套重试及只读恢复。账户切换测试使用 SDK 跨标签页会话通知和受控投影，单独标为交互证据。
 
 ## 当前结果与交付门禁
