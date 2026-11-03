@@ -1,21 +1,17 @@
-import { useEffect, useRef, useState } from 'react'
-import type { GoalAchievementPreview, PlanningCommand, PlanningPreview } from '../shared/adventure-planning'
+import { useState } from 'react'
+import type { GoalAchievementPreview } from '../shared/adventure-planning'
+import type { PlanningConfirmation } from './usePlanning'
 
-export function GoalAchievement({ preview, version, blocked, action, repreview, saved, cancel }: {
-  preview: GoalAchievementPreview; version: number; blocked: boolean;
-  action: (command: PlanningCommand, expectedVersion?: number) => Promise<boolean>;
-  repreview: () => Promise<PlanningPreview | undefined>; saved: () => void; cancel: () => void
+export function GoalAchievement({ preview: current, confirmation, saved, cancel }: {
+  preview: GoalAchievementPreview; confirmation: PlanningConfirmation; saved: () => void; cancel: () => void
 }) {
-  const [current, setCurrent] = useState(preview)
   const [coefficient, setCoefficient] = useState(1)
   const [reflection, setReflection] = useState('')
-  const mounted = useRef(true)
-  useEffect(() => { mounted.current = true; return () => { mounted.current = false } }, [])
   const reward = current.rewards.find(item => item.calculation.coefficient === coefficient)!
-  const stale = current.version !== version
+  const { blocked, stale } = confirmation
   return <form onSubmit={event => {
     event.preventDefault()
-    void action({ type: 'achieveGoal', id: current.goalId, coefficient, reflection }, current.version).then(ok => { if (ok && mounted.current) saved() })
+    void confirmation.confirm({ type: 'achieveGoal', id: current.goalId, coefficient, reflection }, saved)
   }}><fieldset disabled={blocked}>
     <h3>{current.title}</h3><h4>完成标准</h4><ul>{current.standards.map((item, i) => <li key={i}>{item}</li>)}</ul>
     <p>{current.message}</p><p>规划日期：{current.today} · 有效计奖行动：{reward.calculation.count} 次</p>
@@ -30,7 +26,7 @@ export function GoalAchievement({ preview, version, blocked, action, repreview, 
     <p>已有完成及奖励保留，达成后全部下属任务只读，当天也不能取消完成。</p>
     {stale && <p role="status">数据已变化，请重新预览后确认奖励及影响。</p>}
     <div className="adventure-form-footer"><button type="button" onClick={cancel}>取消</button>
-      <button type="button" onClick={() => { void repreview().then(value => { if (mounted.current && value && 'goalId' in value && value.operation === 'achieveGoal') setCurrent(value) }) }}>重新预览达成</button>
+      <button type="button" onClick={() => { void confirmation.refresh() }}>重新预览达成</button>
       <button className="adventure-primary" type="submit" disabled={blocked || stale}>确认达成并入账</button></div>
   </fieldset></form>
 }

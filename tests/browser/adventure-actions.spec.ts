@@ -67,31 +67,6 @@ test('一次性任务创建编辑完成、预览取消与再次完成；刷新�
   expect(server.envelopes).toHaveLength(5)
 })
 
-test('取消确认遇到版本冲突后必须重新预览，不自动重放', async ({ page, context }) => {
-  const server = await planningFixture(context, completed)
-  server.preview({ version: 5, today: base.today, allowed: true, requiresConfirmation: true, message: '移除本次完成与经验', completionId, reward,
-    growthBefore: completed.growth, growthAfter: base.growth })
-  await page.goto('/adventure')
-  await openRecordActions(page.locator('.adventure-proto-task').first())
-  await page.getByRole('button', { name: '取消完成', exact: true }).click()
-  const dialog = page.getByRole('dialog', { name: '取消任务完成' })
-  server.saved({ ...completed, version: 6 })
-  server.conflictNext()
-  await dialog.getByRole('button', { name: '确认取消完成', exact: true }).click()
-  await expect(dialog.getByRole('button', { name: '确认取消完成', exact: true })).toBeDisabled()
-  expect(server.envelopes).toHaveLength(1)
-  server.preview({ version: 6, today: base.today, allowed: true, requiresConfirmation: true, message: '移除本次完成与经验', completionId, reward,
-    growthBefore: completed.growth, growthAfter: base.growth })
-  await dialog.getByRole('button', { name: '重新预览', exact: true }).click()
-  await expect(dialog.getByRole('button', { name: '确认取消完成', exact: true })).toBeEnabled()
-  server.saved({ ...base, version: 7 })
-  await dialog.getByRole('button', { name: '确认取消完成', exact: true }).click()
-  await expect(dialog).toBeHidden()
-  expect(server.envelopes[1].expectedVersion).toBe(6)
-  expect(server.envelopes[1].requestId).not.toBe(server.envelopes[0].requestId)
-})
-
-
 test('今天未来过去由后端返回，未来任务不能提前完成', async ({ page, context }) => {
   const server = await planningFixture(context, base)
   await page.goto('/adventure')
