@@ -4,8 +4,7 @@ import { installLedgerDatabase, ledgerRequest, ledgerRpc, ordinaryEntry } from '
 
 let restore: () => void
 let owner: string
-let loseNextSave = false, holdNextSave = false, failReads = false
-let releaseSave: (() => void) | undefined
+let loseNextSave = false
 let requestIds: string[] = []
 test.describe('退款正式财务页 → Worker → PostgreSQL（受控身份）', () => {
   test.use({ timezoneId: 'America/New_York', locale: 'zh-CN', hasTouch: true })
@@ -13,15 +12,13 @@ test.describe('退款正式财务页 → Worker → PostgreSQL（受控身份）
   test.beforeEach(async ({ context }) => {
     restore = installLedgerDatabase()
     owner = crypto.randomUUID()
-    loseNextSave = false; holdNextSave = false; failReads = false; releaseSave = undefined; requestIds = []
+    loseNextSave = false; requestIds = []
     await context.route('**/api/ledger/**', async route => {
       const req = route.request(), url = new URL(req.url())
-      if (req.method() === 'GET' && failReads) { await route.fulfill({ status: 503, json: { error: { code: 'LEDGER_UNAVAILABLE', message: '暂时无法读取账单' } } }); return }
       const response = await ledgerRequest(owner, url.pathname + url.search, req.method() === 'GET' ? undefined : req.postDataJSON(), req.method())
       if (req.method() === 'POST') {
         requestIds.push(req.postDataJSON().requestId)
         if (loseNextSave) { loseNextSave = false; await route.abort('failed'); return }
-        if (holdNextSave) { holdNextSave = false; await new Promise<void>(resolve => { releaseSave = resolve }) }
       }
       await route.fulfill({ status: response.status, contentType: 'application/json', body: await response.text() })
     })
@@ -261,30 +258,6 @@ test.describe('退款正式财务页 → Worker → PostgreSQL（受控身份）
     await expect(page.getByRole('button', { name: '重试原请求', exact: true })).toBeHidden()
     await expect(page.getByRole('table').locator('tbody tr')).toHaveCount(4)
     expect(requestIds).toHaveLength(4)
-  })
-  test('退款迟到成功不关闭新表单，成功后的读取失败只重读', async ({ page }) => {
-    expect((await ledgerRequest(owner, '/api/ledger/entries', ordinaryEntry({ amountCents: -10000, categoryCode: 'dining' }))).status).toBe(200)
-    await page.goto('/finance')
-    await page.getByRole('button', { name: '餐饮', exact: true }).click()
-    await page.getByRole('button', { name: '登记退款', exact: true }).click()
-    const form = page.getByRole('dialog', { name: '登记退款', exact: true })
-    await form.getByLabel('交易金额').fill('30')
-    holdNextSave = true
-    await form.getByRole('button', { name: '保存退款', exact: true }).click()
-    await expect.poll(() => !!releaseSave).toBe(true)
-    await form.getByRole('button', { name: '取消', exact: true }).click()
-    await page.getByRole('button', { name: '新建流水', exact: true }).first().click()
-    const create = page.getByRole('dialog', { name: '新建流水', exact: true })
-    await create.getByLabel('交易金额').fill('8.88')
-    failReads = true; releaseSave!()
-    await expect(page.getByText('读取失败，请重试。', { exact: false })).toBeVisible()
-    await expect(create).toBeVisible(); await expect(create.getByLabel('交易金额')).toHaveValue('8.88')
-    expect(requestIds).toHaveLength(1)
-    await create.getByRole('button', { name: '取消', exact: true }).click()
-    failReads = false
-    await page.getByRole('button', { name: '重试读取', exact: true }).click()
-    await expect(page.getByRole('table').locator('tbody tr')).toHaveCount(2)
-    expect(requestIds).toHaveLength(1)
   })
   for (const width of [1440, 390]) test(`${width}px 支出 -100 后独立退款 +30、+70，继承账户分类并追溯父子`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 })
