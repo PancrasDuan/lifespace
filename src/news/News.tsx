@@ -46,7 +46,7 @@ export function News() {
   })) })
   const entries = new Map(sources.map((source, index) => [source.id, { source, query: queries[index] }]))
   const refreshing = queries.some(query => query.isFetching)
-  return <AppLayout page="news" openSettings={() => setSettingsOpen(true)}><div className="news-page"><header className="masthead">
+  return <AppLayout page="news"><div className="news-page"><header className="masthead">
     <div className="page-kicker"><span className="live-dot" />LifeSpace · 每日阅读</div>
     <h1>热点新闻</h1><p>把值得关注的消息放在一起</p>
   </header>

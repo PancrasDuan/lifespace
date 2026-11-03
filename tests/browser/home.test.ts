@@ -55,10 +55,13 @@ test('电脑和手机布局无横向溢出，导航占位保持禁用', async ({
     expect(dimensions.content).toBeLessThanOrEqual(dimensions.viewport)
     for (const name of ['任务管理', '个人目标', '股票行情']) await expect(page.getByRole('button', { name, exact: true })).toBeDisabled()
     await expect(page.getByRole('link', { name: '财务', exact: true })).toHaveAttribute('href', '/finance')
-    await page.getByRole('button', { name: '打开设置' }).click()
+    const settings = page.getByRole('button', { name: '首页设置', exact: true })
+    await expect(settings).toBeInViewport()
+    await settings.click()
     await expect(page.getByRole('dialog')).toBeVisible()
     await page.keyboard.press('Escape')
     await expect(page.getByRole('dialog')).toHaveCount(0)
+    await expect(settings).toBeFocused()
   }
 })
 
@@ -80,7 +83,7 @@ test('手机显示较长城市名称时，地点与 UTC 时差仍为单行', asy
   await page.setViewportSize({ width: 390, height: 844 })
   await page.route(/\/api\/(?!auth\/)/, route => route.fulfill({ status: 503, json: { error: { code: 'TASKS_NOT_CONFIGURED', message: '任务来源尚未配置' } } }))
   await page.goto('/')
-  await page.getByRole('button', { name: '打开设置' }).click()
+  await page.getByRole('button', { name: '首页设置', exact: true }).click()
   await page.getByLabel('纽约', { exact: true }).uncheck()
   await page.getByLabel('加尔各答', { exact: true }).check()
   await page.getByRole('button', { name: '保存设置', exact: true }).click()

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { UserRound, LogOut } from 'lucide-react'
 import { revokeSession, LogoutFailure } from './client'
 
-export function AccountMenu({ email }: { email?: string }) {
+export function AccountMenu({ email, disabled = false }: { email?: string; disabled?: boolean }) {
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -24,7 +24,7 @@ export function AccountMenu({ email }: { email?: string }) {
     } catch (error) { setError(error instanceof LogoutFailure ? error.message : '退出未完成，请重试') }
     finally { setBusy(false) }
   }
-  return <div className="auth-account" ref={root}><button ref={trigger} className="auth-avatar" aria-label="账户菜单" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(!open)}><UserRound size={20} /></button>
+  return <div className="auth-account" ref={root}><button ref={trigger} className="auth-avatar" disabled={disabled} aria-label="账户菜单" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(!open)}><UserRound size={20} /></button>
     {open && <div className="auth-account-menu" role="menu" aria-label="账户">
       <p>{email ?? '尚未登录'}</p><button role="menuitem" disabled={!email || busy} onClick={() => { void logout() }}><LogOut size={16} />{busy ? '正在退出…' : '退出登录'}</button>
       {error && <p className="auth-menu-error" role="alert">{error}</p>}
