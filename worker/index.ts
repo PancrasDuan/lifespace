@@ -1,5 +1,5 @@
 import { Hono } from 'hono'
-import { listLedger, detailLedger, createLedger, refundLedger, previewLedgerDelete, deleteLedger, listLedgerAccounts, createLedgerAccount, updateLedgerAccount } from './ledger'
+import { listLedger, detailLedger, createLedger, createLedgerTransfer, refundLedger, previewLedgerDelete, deleteLedger, listLedgerAccounts, createLedgerAccount, updateLedgerAccount } from './ledger'
 import { readRewardSource, readGrowth, readTaskHistory, readMigrationOptions, readPlanning, previewPlanning, commandPlanning } from './adventure/planning'
 import { readHoroscope, type HoroscopeTimings } from './horoscope'
 import { readTasks } from './tasks'
@@ -55,6 +55,7 @@ app.post('/api/ledger/accounts', createLedgerAccount)
 app.patch('/api/ledger/accounts/:id', updateLedgerAccount)
 app.get('/api/ledger/entries/:id', detailLedger)
 app.post('/api/ledger/entries', createLedger)
+app.post('/api/ledger/transfers', createLedgerTransfer)
 app.post('/api/ledger/entries/:id/refunds', refundLedger)
 app.get('/api/ledger/entries/:id/delete-preview', previewLedgerDelete)
 app.post('/api/ledger/entries/:id/delete', deleteLedger)

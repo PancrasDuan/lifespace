@@ -7,6 +7,7 @@ import { categoryLabel, ledgerCategories, ledgerCreateSchema, ledgerStatusLabels
 import { LedgerError, readLedgerAccounts, readLedgerDetail, readDeletePreview, deleteLedger } from './api'
 import { RefundForm } from './RefundForm'
 import { LedgerModal } from './LedgerModal'
+import { TransferForm } from './TransferForm'
 import { Accounts } from './Accounts'
 import { formatCurrency, formatDateTime, fromDateTimeInput, toDateTimeInput, yuanToCents } from './time'
 import { TransactionDateTimeField } from './TransactionDateTimeField'
@@ -95,7 +96,7 @@ export function Finance() {
           setPanel({ kind: 'delete', id: item.id, session: crypto.randomUUID() })
         } else void submitDelete(item).catch(() => {})
       }}>{item.pending ? '正在重试…' : item.code === 'DELETE_SCOPE_CHANGED' ? '重新确认删除' : '重试删除'}</button><button className="lp-secondary" onClick={() => void entries.refetch()}>查看最新流水</button></div>)}
-      <Accounts closeKey={form?.key ?? (panel ? (panel.kind === 'delete' ? panel.session : panel.id) : null)} onOpen={() => { submission.close(); setPanel(null) }} />
+      <Accounts onTransfer={from => { setPanel(null); submission.openTransfer(from) }} closeKey={form?.key ?? (panel ? (panel.kind === 'delete' ? panel.session : panel.id) : null)} onOpen={() => { submission.close(); setPanel(null) }} />
       <section className="lp-table-surface" aria-label="账单流水">
         <div className="la-ledger-heading"><h2>账单流水</h2><button className="lp-secondary" onClick={newEntry}><Plus size={15} />新建流水</button></div>
         <div className="lp-top-toolbar"><div className="lp-filter-buttons">{([['all', '全部时间'], ['today', '今天'], ['week', '近 7 天'], ['month', '近 1 个月']] as const).map(([value, label]) => <button key={value} className={filter === value ? 'active' : ''} aria-pressed={filter === value} onClick={() => selectFilter(value)}>{label}</button>)}<button ref={rangeTrigger} className={filter === 'custom' ? 'active' : ''} aria-pressed={filter === 'custom'} aria-expanded={!!dateAnchor} aria-haspopup="dialog" onClick={() => setDateAnchor(current => current ? null : rangeTrigger.current!.getBoundingClientRect())}>自定义</button></div><span className="lp-timezone"><CalendarDays size={14} />北京时间</span></div>
@@ -106,7 +107,7 @@ export function Finance() {
           <th>交易时间</th><th>分类 / 备注</th><th>交易账户</th><th>收支类型</th><th>交易状态</th><th className="lp-numeric">交易金额</th><th><span className="lp-sr">查看详情</span></th>
         </tr></thead><tbody>{data.items.map(entry => <tr key={entry.id} onClick={() => openDetail(entry.id)}>
           <td><time><strong>{formatDateTime(entry.occurredAt).slice(0, 10)}</strong><small>{formatDateTime(entry.occurredAt).slice(11)}</small></time></td>
-          <td><button className="lp-cell-title" onClick={event => { event.stopPropagation(); openDetail(entry.id) }}>{categoryLabel(entry.categoryCode)}</button>{entry.parentEntryId && <span className="lp-refund-tag">退款</span>}<small className="lp-row-note">{entry.note || '—'}</small></td>
+          <td><button className="lp-cell-title" onClick={event => { event.stopPropagation(); openDetail(entry.id) }}>{categoryLabel(entry.categoryCode)}</button>{entry.parentEntryId && <span className="lp-refund-tag">退款</span>}{entry.transferId && <span className="lp-refund-tag">关联</span>}<small className="lp-row-note">{entry.note || '—'}</small></td>
           <td><span className="lp-account"><CreditCard size={13} />{entry.accountName}</span></td>
           <td><span className={`lp-direction ${entry.direction}`}>{entry.direction === 'income' ? <ArrowDownLeft size={13} /> : <ArrowUpRight size={13} />}{entry.direction === 'income' ? '收入' : '支出'}</span></td>
           <td><Status entry={entry} /></td><td className="lp-numeric"><Amount entry={entry} /></td><td><ChevronRight size={15} /></td>
@@ -118,6 +119,7 @@ export function Finance() {
     </div>
     {dateAnchor && <DateRangePopover start={range?.start ?? ''} end={range?.end ?? ''} anchor={dateAnchor} trigger={rangeTrigger.current} close={() => setDateAnchor(null)} apply={(start, end) => { setFilter('custom'); selectRange({ start, end }) }} />}
     {form?.kind === 'new' && <LedgerModal title="新建流水" close={submission.close} form><EntryForm key={form.key} submission={form.submission} cancel={submission.close} /></LedgerModal>}
+    {form?.kind === 'transfer' && <LedgerModal title="账户转账" close={submission.close} form><TransferForm key={form.key} fromAccountId={form.fromAccountId} submission={form.submission} cancel={submission.close} /></LedgerModal>}
     {form?.kind === 'refund' && <LedgerModal title="登记退款" close={submission.close} form><RefundForm key={form.key} parent={form.parent} remainingCents={form.remainingCents} submission={form.submission} cancel={submission.close} /></LedgerModal>}
     {panel?.kind === 'detail' && <LedgerModal title="流水详情" close={() => setPanel(null)}><EntryDetail key={panel.id} id={panel.id} remove={() => setPanel({ kind: 'delete', id: panel.id, session: crypto.randomUUID() })} open={openDetail} refund={(parent, remainingCents) => { setPanel(null); submission.openRefund(parent, remainingCents) }} /></LedgerModal>}
     {panel?.kind === 'delete' && <LedgerModal title="删除流水" close={() => setPanel(null)} compact><DeleteConfirmation key={panel.session} session={panel.session} id={panel.id} cancel={() => setPanel(null)} save={scope => submitDelete({ id: panel.id, scope, session: panel.session })} /></LedgerModal>}
@@ -140,11 +142,12 @@ function EntryDetail({ id, open, refund, remove }: { remove: () => void; id: str
   if (detail.isPending || detail.isFetching) return <p role="status" className="lp-feedback">正在读取详情…</p>
   if (detail.isError && detail.error instanceof LedgerError && detail.error.code === 'NOT_FOUND') return <p role="alert" className="lp-feedback">流水已删除或不可访问。</p>
   if (detail.isError) return <div role="alert" className="lp-feedback">读取失败。<button className="lp-secondary" onClick={() => void detail.refetch()}>重试读取</button></div>
-  const { entry, parentEntry, refunds, refundCount, refundedCents, refundPage, refundPageSize } = detail.data
+  const { entry, parentEntry, transferEntry, refunds, refundCount, refundedCents, refundPage, refundPageSize } = detail.data
   const pageCount = Math.max(1, Math.ceil(refundCount / refundPageSize))
   return <div className="lp-detail"><div className="lp-detail-hero"><span>{entry.direction === 'income' ? '收入' : '支出'}{entry.parentEntryId ? ' · 退款' : ''} · {categoryLabel(entry.categoryCode)}</span><Amount entry={entry} large /><Status entry={entry} /></div>
     <dl className="lp-detail-fields"><div><dt>交易时间</dt><dd>{formatDateTime(entry.occurredAt)}</dd></div><div><dt>交易账户</dt><dd>{entry.accountName}</dd></div><div><dt>交易分类</dt><dd>{categoryLabel(entry.categoryCode)}</dd></div><div><dt>交易备注</dt><dd>{entry.note || '无备注'}</dd></div></dl>
     {parentEntry && <button className="lp-secondary" onClick={() => open(parentEntry.id)}>查看父流水</button>}
+    {transferEntry && <section className="lp-related" aria-label="关联转账"><h3>关联转账</h3><button className="lp-related-entry" aria-label={`查看关联${categoryLabel(transferEntry.categoryCode)} ${transferEntry.accountName}`} onClick={() => open(transferEntry.id)}><span>{transferEntry.accountName}<small>{categoryLabel(transferEntry.categoryCode)}</small></span><Amount entry={transferEntry} /><ChevronRight size={14} /></button></section>}
     {updated && <p role="status">关联退款已更新，已返回第一页</p>}
     {!!refundCount && <section className="lp-related" aria-label="关联退款"><h3>关联退款 · {refundCount} 笔</h3>{refunds.map(item => <button className="lp-related-entry" key={item.id} aria-label={`查看退款 ${formatCurrency(item.amountCents)} ${formatDateTime(item.occurredAt)}`} onClick={() => open(item.id)}><time>{formatDateTime(item.occurredAt)}</time><span className="lp-amount income">{formatCurrency(item.amountCents)}</span><ChevronRight size={14} /></button>)}
       {pageCount > 1 && <nav className="lp-pagination" aria-label="关联退款分页"><span>{refundPage} / {pageCount}</span><div>
@@ -152,8 +155,8 @@ function EntryDetail({ id, open, refund, remove }: { remove: () => void; id: str
         <button aria-label="下一页退款" disabled={refundPage === pageCount || detail.isFetching} onClick={() => setView(current => ({ ...current, page: current.page + 1 }))}><ChevronRight size={16} /></button>
       </div></nav>}
     </section>}
-    <div className="lp-detail-actions"><button className="lp-delete-button" onClick={remove}><Trash2 size={14} />删除流水</button>
-    {entry.direction === 'expense' && !entry.parentEntryId && entry.status !== 'full-refund' && <div className="lp-form-actions"><button className="lp-primary" onClick={() => refund(entry, -entry.amountCents - refundedCents)}>登记退款</button></div>}</div>
+    <div className="lp-detail-actions"><button className="lp-delete-button" onClick={remove}><Trash2 size={14} />{entry.transferId ? '删除整笔转账' : '删除流水'}</button>
+    {entry.direction === 'expense' && !entry.parentEntryId && !entry.transferId && entry.status !== 'full-refund' && <div className="lp-form-actions"><button className="lp-primary" onClick={() => refund(entry, -entry.amountCents - refundedCents)}>登记退款</button></div>}</div>
   </div>
 }
 function DeleteConfirmation({ id, session, cancel, save }: { session: string; id: string; cancel: () => void; save: (scope: string) => Promise<unknown> }) {
@@ -177,9 +180,10 @@ function DeleteConfirmation({ id, session, cancel, save }: { session: string; id
   }
   if (preview.isPending) return <p role="status" className="lp-feedback">正在读取删除范围…</p>
   if (preview.isError) return <div role="alert" className="lp-feedback">{preview.error instanceof LedgerError && preview.error.code === 'NOT_FOUND' ? '流水已删除或不可访问。' : '读取删除范围失败。'}<button className="lp-secondary" onClick={() => void preview.refetch()}>重试读取</button></div>
-  const { entry, refundCount } = preview.data
+  const { entry, transferEntry, refundCount } = preview.data
   return <div className="lp-delete-content"><div className="lp-delete-preview"><span>{categoryLabel(entry.categoryCode)}{entry.parentEntryId ? ' · 退款' : ''}<small>{entry.accountName} · {formatDateTime(entry.occurredAt)}</small></span><Amount entry={entry} /></div>
-    <p>{entry.direction === 'expense' ? `同时删除 ${refundCount} 笔退款。` : ''}删除后不可恢复。</p>
+    {transferEntry && <div className="lp-delete-preview"><span>{categoryLabel(transferEntry.categoryCode)}<small>{transferEntry.accountName} · {formatDateTime(transferEntry.occurredAt)}</small></span><Amount entry={transferEntry} /></div>}
+    <p>{transferEntry ? '两条关联流水将同时删除，并撤销对应的账户余额变动。' : entry.direction === 'expense' ? `同时删除 ${refundCount} 笔退款。` : ''}删除后不可恢复。</p>
     {error && <p role="alert" className="lp-form-error">{error}</p>}
     <div className="lp-form-actions"><button className="lp-secondary" onClick={cancel}>取消</button><button className="lp-danger" disabled={pending || preview.isFetching} onClick={() => void submit()}>{pending ? '正在删除…' : '确认删除'}</button></div>
   </div>

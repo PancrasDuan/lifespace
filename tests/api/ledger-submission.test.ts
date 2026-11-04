@@ -68,7 +68,8 @@ describe('账单当前页内提交协作', () => {
     const form = submission.getSnapshot().form!
     const ordinary = input(), refund = { requestId: crypto.randomUUID(), amountCents: 300, occurredAt: '2026-01-03T03:04:05.000Z', note: '退款' }
     if (form.kind === 'new') await form.submission.submit(() => ordinary)
-    else await form.submission.submit(() => refund)
+    else if (form.kind === 'refund') await form.submission.submit(() => refund)
+    else throw new Error('应打开普通流水或退款表单')
     const firstRequest = request.mock.calls[0]
     expect(firstRequest[0]).toBe(kind === 'new' ? '/api/ledger/entries' : `/api/ledger/entries/${parent.id}/refunds`)
     expect(firstRequest[2]).toBe(signal)

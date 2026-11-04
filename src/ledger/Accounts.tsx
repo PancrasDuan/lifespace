@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Pencil, Plus, Wallet } from 'lucide-react'
+import { ArrowRightLeft, ArrowUpRight, Pencil, Plus, Wallet } from 'lucide-react'
 import { useVerifiedIdentity } from '../auth/identity'
 import { ledgerAccountCreateSchema, ledgerAccountUpdateSchema } from '../shared/ledger'
 import { readLedgerAccounts } from './api'
@@ -18,7 +18,7 @@ function balanceInput(value: string) {
   return Number(negative ? -cents : cents)
 }
 
-export function Accounts({ closeKey, onOpen }: { closeKey: string | null; onOpen: () => void }) {
+export function Accounts({ closeKey, onOpen, onTransfer }: { closeKey: string | null; onOpen: () => void; onTransfer: (fromAccountId?: string) => void }) {
   const identity = useVerifiedIdentity(), queries = useQueryClient()
   const accounts = useQuery({ queryKey: ['ledger', identity.ownerId, 'accounts'], queryFn: ({ signal }) => readLedgerAccounts(identity.ownerId, AbortSignal.any([signal, identity.signal])), retry: false, staleTime: 0, refetchOnWindowFocus: false })
   const [saved, setSaved] = useState(false)
@@ -35,12 +35,13 @@ export function Accounts({ closeKey, onOpen }: { closeKey: string | null; onOpen
   }, [saved])
   const openNew = () => { onOpen(); submission.open() }
   return <section aria-label="交易账户" className="la-accounts">
-    <div className="la-section-heading"><h2>交易账户 <span>{accounts.data?.accounts.length ?? '—'}</span></h2><button className="lp-primary" onClick={openNew}><Plus size={17} />新增账户</button></div>
+    <div className="la-section-heading"><h2>交易账户 <span>{accounts.data?.accounts.length ?? '—'}</span></h2><div className="la-heading-actions"><button className="lp-secondary" onClick={() => onTransfer()}><ArrowRightLeft size={16} />账户转账</button><button className="lp-primary" onClick={openNew}><Plus size={17} />新增账户</button></div></div>
     {saved && <p role="status" className="la-feedback">账户已保存</p>}
     {submission.unconfirmed.map(session => <div role="alert" className="lp-unknown" key={session.key}><span>{session.message}</span><button className="lp-secondary" disabled={session.pending} onClick={() => { onOpen(); submission.resume(session.key); void submission.submit(session.key) }}>{session.pending ? '正在重试…' : '重试原账户请求'}</button><button className="lp-secondary" onClick={() => void accounts.refetch()}>查看最新账户</button></div>)}
     {accounts.isPending ? <p role="status" className="la-feedback">正在读取账户…</p> : accounts.isError ? <div role="alert" className="la-feedback">账户读取失败，请重试。<button className="lp-secondary" onClick={() => void accounts.refetch()}>重试读取账户</button></div> : accounts.data.accounts.length ? <div className="la-account-grid">{accounts.data.accounts.map(account => <article className={`la-account-card ${Math.abs(account.balanceCents) >= 10_000_000 ? 'la-wide-balance' : ''}`} key={account.id} aria-label={account.name}>
       <div className="la-card-heading"><span className="la-account-icon"><Wallet size={18} strokeWidth={1.65} /></span><h3 title={account.name}>{account.name}</h3><button className="la-edit" aria-label={`修改${account.name}`} onClick={() => { onOpen(); submission.open(account) }}><Pencil size={15} /></button></div>
       <p className="la-balance-label">当前余额</p><p className={`la-balance ${account.balanceCents < 0 ? 'negative' : ''}`}><span>¥</span>{balanceText(account.balanceCents)}</p>
+      <button className="la-transfer" aria-label={`从${account.name}转账`} onClick={() => onTransfer(account.id)}>转账<ArrowUpRight size={13} /></button>
     </article>)}</div> : <div className="la-empty"><Wallet size={28} strokeWidth={1.5} /><h3>还没有交易账户</h3><p>添加银行卡、零钱或饭卡，并填写当前余额。</p><button className="lp-secondary" onClick={openNew}><Plus size={15} />新增账户</button></div>}
     {submission.form && <LedgerModal title={submission.form.account ? '修改账户' : '新增账户'} close={submission.close}><AccountForm key={submission.form.key} session={submission.form} submit={input => submission.submit(submission.form!.key, input)} cancel={submission.close} /></LedgerModal>}
   </section>

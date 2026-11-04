@@ -21,7 +21,7 @@ async function responses(context: BrowserContext) {
       if (failReads) return route.fulfill({ status: 503, json: { error: { code: 'LEDGER_UNAVAILABLE', message: '读取失败' } } })
       if (path.endsWith('/accounts')) return route.fulfill({ json: { version: 0, accounts: [{ id: parent.accountId, name: '零钱', balanceCents: 0, createdAt: parent.createdAt, updatedAt: parent.createdAt }] } })
       return route.fulfill({ json: path.endsWith(parent.id)
-        ? { entry: parent, parentEntry: null, refunds: [], refundCount: 0, refundedCents: 0, refundPage: 1, refundPageSize: 30, version: 0 }
+        ? { entry: parent, parentEntry: null, transferEntry: null, refunds: [], refundCount: 0, refundedCents: 0, refundPage: 1, refundPageSize: 30, version: 0 }
         : { items: [parent], total: 1, page: 1, pageSize: 30, version: 0 } })
     }
     writes.push({ path, input: req.postDataJSON() })

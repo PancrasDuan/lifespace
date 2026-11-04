@@ -1,7 +1,7 @@
 import { useMemo, useRef, useSyncExternalStore } from 'react'
 import { useVerifiedIdentity } from '../auth/identity'
-import type { LedgerCreate, LedgerEntry, LedgerRefund } from '../shared/ledger'
-import { LedgerError, saveLedger, saveRefund } from './api'
+import type { LedgerCreate, LedgerEntry, LedgerRefund, LedgerTransfer } from '../shared/ledger'
+import { LedgerError, saveLedger, saveRefund, saveTransfer } from './api'
 
 export type FormSubmission<Input> = {
   pending: boolean
@@ -9,9 +9,10 @@ export type FormSubmission<Input> = {
   message: string
   submit: (readInput: () => Input) => Promise<void>
 }
-type Command = { input: LedgerCreate; parentId?: undefined } | { input: LedgerRefund; parentId: string }
+type Command = { kind: 'new'; input: LedgerCreate } | { kind: 'refund'; input: LedgerRefund; parentId: string } | { kind: 'transfer'; input: LedgerTransfer }
 type Session = { key: string; pending: boolean; frozen: boolean; message: string; command?: Command }
-type Form = { kind: 'new'; key: string; submission: FormSubmission<LedgerCreate> }
+type Form = { kind: 'transfer'; key: string; fromAccountId?: string; submission: FormSubmission<LedgerTransfer> }
+  | { kind: 'new'; key: string; submission: FormSubmission<LedgerCreate> }
   | { kind: 'refund'; key: string; parent: LedgerEntry; remainingCents: number; submission: FormSubmission<LedgerRefund> }
 type Unconfirmed = { key: string; pending: boolean; message: string; retry: () => Promise<void> }
 type Snapshot = { form: Form | null; unconfirmed: Unconfirmed[] }
@@ -52,7 +53,8 @@ export function createLedgerSubmission(owner: string, signal: AbortSignal, onSav
     publish()
     const command = session.command
     try {
-      if (command.parentId !== undefined) await saveRefund(owner, command.parentId, command.input, signal)
+      if (command.kind === 'refund') await saveRefund(owner, command.parentId, command.input, signal)
+      else if (command.kind === 'transfer') await saveTransfer(owner, command.input, signal)
       else await saveLedger(owner, command.input, signal)
     } catch (error) {
       if (!signal.aborted) {
@@ -84,12 +86,17 @@ export function createLedgerSubmission(owner: string, signal: AbortSignal, onSav
     subscribe(listener: () => void) { listeners.add(listener); return () => { listeners.delete(listener) } },
     getSnapshot: () => snapshot,
     openNew() {
-      const form = createForm<LedgerCreate>(input => ({ input }))
+      const form = createForm<LedgerCreate>(input => ({ kind: 'new', input }))
       current = { session: form.session, view: () => ({ kind: 'new', key: form.session.key, submission: form.view() }) }
       publish()
     },
+    openTransfer(fromAccountId?: string) {
+      const form = createForm<LedgerTransfer>(input => ({ kind: 'transfer', input }))
+      current = { session: form.session, view: () => ({ kind: 'transfer', key: form.session.key, fromAccountId, submission: form.view() }) }
+      publish()
+    },
     openRefund(parent: LedgerEntry, remainingCents: number) {
-      const form = createForm<LedgerRefund>(input => ({ input, parentId: parent.id }))
+      const form = createForm<LedgerRefund>(input => ({ kind: 'refund', input, parentId: parent.id }))
       current = { session: form.session, view: () => ({ kind: 'refund', key: form.session.key, parent, remainingCents, submission: form.view() }) }
       publish()
     },

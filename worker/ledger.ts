@@ -3,7 +3,7 @@ import type { Context } from 'hono'
 import type { AuthEnv, Identity } from './auth'
 import { ApiError } from './upstream'
 import { readBoundedBody } from './read-body'
-import { ledgerAccountCreateSchema, ledgerAccountUpdateSchema, ledgerAccountReceiptSchema, ledgerAccountsSchema, ledgerCreateSchema, ledgerDeletePreviewSchema, ledgerDeleteSchema, ledgerDetailQuerySchema, ledgerDetailSchema, ledgerErrors, ledgerPageSchema, ledgerQuerySchema, ledgerReceiptSchema, ledgerRefundSchema } from '../src/shared/ledger'
+import { ledgerTransferSchema, ledgerTransferReceiptSchema, ledgerAccountCreateSchema, ledgerAccountUpdateSchema, ledgerAccountReceiptSchema, ledgerAccountsSchema, ledgerCreateSchema, ledgerDeletePreviewSchema, ledgerDeleteSchema, ledgerDetailQuerySchema, ledgerDetailSchema, ledgerErrors, ledgerPageSchema, ledgerQuerySchema, ledgerReceiptSchema, ledgerRefundSchema } from '../src/shared/ledger'
 
 type LedgerContext = Context<{ Bindings: AuthEnv; Variables: { identity: Identity } }>
 function failure(code: keyof typeof ledgerErrors, message?: string) {
@@ -76,6 +76,13 @@ export async function createLedger(c: LedgerContext) {
   if (!value.success) throw failure('INVALID_ENTRY', value.error.issues[0]?.message)
   if (Date.parse(value.data.occurredAt) > Date.now()) throw failure('FUTURE_TIME')
   return c.json(await rpc(c, 'ledger_create', { p_input: value.data }, ledgerReceiptSchema, true))
+}
+export async function createLedgerTransfer(c: LedgerContext) {
+  if (Object.keys(c.req.query()).length) throw failure('INVALID_QUERY')
+  const value = ledgerTransferSchema.safeParse(await readInput(c, 16_384))
+  if (!value.success) throw failure('INVALID_ENTRY', value.error.issues[0]?.message)
+  if (Date.parse(value.data.occurredAt) > Date.now()) throw failure('FUTURE_TIME')
+  return c.json(await rpc(c, 'ledger_transfer', { p_input: value.data }, ledgerTransferReceiptSchema, true))
 }
 export async function refundLedger(c: LedgerContext) {
   const parent = z.uuid().safeParse(c.req.param('id'))

@@ -11,6 +11,7 @@ export const ledgerLimits = { amountCents: 99_999_999_999, accountName: 50, note
 export const ledgerStatusLabels = { completed: '已完成', 'partial-refund': '部分退款', 'full-refund': '全部退款' } as const
 export const ledgerDirectionSchema = z.enum(['expense', 'income'], { error: '请选择收入或支出。' })
 export const ledgerCategorySchema = z.enum(['transport', 'accommodation', 'dining', 'shopping', 'gift_expense', 'top_up', 'subscription', 'investment', 'other_expense', 'salary', 'part_time', 'gift_income', 'secondhand_sale', 'other_income'], { error: '请选择有效的交易分类。' })
+const entryCategorySchema = z.union([ledgerCategorySchema, z.enum(['transfer_in', 'transfer_out'])])
 const accountName = z.string().trim().refine(value => [...value].length >= 1 && [...value].length <= 50, '交易账户不能为空，且最多 50 个字符。')
 const note = z.string().trim().refine(value => [...value].length <= 500, '交易备注最多 500 个字符。')
 const amountCents = z.number().int().min(-ledgerLimits.amountCents).max(ledgerLimits.amountCents).refine(value => value !== 0, '金额不能为零。')
@@ -29,16 +30,19 @@ export const ledgerCreateSchema = z.strictObject({ requestId: z.uuid(), ...trans
   if (!ledgerCategories[value.direction].some(([code]) => code === value.categoryCode)) ctx.addIssue({ code: 'custom', message: '请选择与收支类型对应的交易分类。', path: ['categoryCode'] })
 })
 export const ledgerRefundSchema = z.strictObject({ requestId: z.uuid(), amountCents: amountCents.refine(value => value > 0, '退款金额必须为正数。'), occurredAt: utcTime, note })
+export const ledgerTransferSchema = z.strictObject({ requestId: z.uuid(), fromAccountId: z.uuid({ error: '请选择转出账户。' }), toAccountId: z.uuid({ error: '请选择转入账户。' }), amountCents: amountCents.refine(value => value > 0, '转账金额必须为正数。'), occurredAt: utcTime, note: note.default('') })
+  .refine(value => value.fromAccountId !== value.toAccountId, '转出与转入账户不能相同。')
+export const ledgerTransferReceiptSchema = z.strictObject({ transferId: z.uuid(), outEntryId: z.uuid(), inEntryId: z.uuid(), version: revision, deleted: z.boolean() })
 export const ledgerEntrySchema = z.strictObject({
-  id: z.uuid(), ...transactionFields, accountName, transferId: z.uuid().nullable(), parentEntryId: z.uuid().nullable(), createdAt: z.iso.datetime(),
+  id: z.uuid(), ...transactionFields, categoryCode: entryCategorySchema, accountName, transferId: z.uuid().nullable(), parentEntryId: z.uuid().nullable(), createdAt: z.iso.datetime(),
   status: z.enum(['completed', 'partial-refund', 'full-refund']),
 })
 export const ledgerPageSchema = z.strictObject({ items: z.array(ledgerEntrySchema).max(30), total: revision, page: z.number().int().min(1), pageSize: z.literal(30), version: revision })
 const refundLinkSchema = ledgerEntrySchema.pick({ id: true, amountCents: true, occurredAt: true })
-export const ledgerDetailSchema = z.strictObject({ entry: ledgerEntrySchema, parentEntry: ledgerEntrySchema.nullable(), refunds: z.array(refundLinkSchema).max(30), refundCount: revision, refundedCents: revision.max(ledgerLimits.amountCents), refundPage: revision.min(1), refundPageSize: z.literal(30), version: revision })
+export const ledgerDetailSchema = z.strictObject({ entry: ledgerEntrySchema, parentEntry: ledgerEntrySchema.nullable(), transferEntry: ledgerEntrySchema.nullable(), refunds: z.array(refundLinkSchema).max(30), refundCount: revision, refundedCents: revision.max(ledgerLimits.amountCents), refundPage: revision.min(1), refundPageSize: z.literal(30), version: revision })
 export const ledgerReceiptSchema = z.strictObject({ entryId: z.uuid(), version: revision, deleted: z.boolean() })
 export const ledgerDeleteSchema = z.strictObject({ scope: z.string().regex(/^[a-f0-9]{64}$/) })
-export const ledgerDeletePreviewSchema = z.strictObject({ entry: ledgerEntrySchema, refundCount: revision, scope: ledgerDeleteSchema.shape.scope, version: revision })
+export const ledgerDeletePreviewSchema = z.strictObject({ entry: ledgerEntrySchema, transferEntry: ledgerEntrySchema.nullable(), refundCount: revision, scope: ledgerDeleteSchema.shape.scope, version: revision })
 export const ledgerDateSchema = z.iso.date().refine(value => !value.startsWith('0000-'), '日期无效')
 const queryRevision = z.string().regex(/^(0|[1-9]\d*)$/).pipe(z.coerce.number<string>().int().min(0).max(Number.MAX_SAFE_INTEGER))
 export const ledgerDetailQuerySchema = z.strictObject({ refundPage: queryRevision.pipe(revision.min(1)).default(1), version: queryRevision.optional() })
@@ -62,7 +66,7 @@ export const ledgerErrors = {
   REFUND_PARENT_INVALID: [409, '只能为本人未删除的普通支出登记退款'],
   REFUND_LIMIT: [409, '退款金额超过剩余可退额度，请查看最新流水'],
   REFUND_TIME: [400, '退款时间不能早于父支出'],
-  DELETE_SCOPE_CHANGED: [409, '关联退款范围已变化，请核对最新影响后再次确认删除'],
+  DELETE_SCOPE_CHANGED: [409, '关联流水范围已变化，请核对最新影响后再次确认删除'],
   DELETE_UNKNOWN: [503, '删除结果未确认，请重试删除或查看最新流水'],
   LEDGER_UNAVAILABLE: [503, '暂时无法读取账单，请稍后重试'],
   SAVE_UNKNOWN: [503, '保存结果未确认，请沿用原请求重试或刷新查看流水'],
@@ -70,10 +74,11 @@ export const ledgerErrors = {
 export type LedgerEntry = z.infer<typeof ledgerEntrySchema>
 export type LedgerCreate = z.infer<typeof ledgerCreateSchema>
 export type LedgerRefund = z.infer<typeof ledgerRefundSchema>
+export type LedgerTransfer = z.infer<typeof ledgerTransferSchema>
 export type LedgerPage = z.infer<typeof ledgerPageSchema>
 export type LedgerReceipt = z.infer<typeof ledgerReceiptSchema>
 export type LedgerDeletePreview = z.infer<typeof ledgerDeletePreviewSchema>
 export type LedgerAccount = z.infer<typeof ledgerAccountSchema>
 export type LedgerAccountCreate = z.infer<typeof ledgerAccountCreateSchema>
 export type LedgerAccountUpdate = z.infer<typeof ledgerAccountUpdateSchema>
-export function categoryLabel(code: string) { return [...ledgerCategories.expense, ...ledgerCategories.income].find(([value]) => value === code)?.[1] ?? code }
+export function categoryLabel(code: string) { return code === 'transfer_out' ? '转出' : code === 'transfer_in' ? '转入' : [...ledgerCategories.expense, ...ledgerCategories.income].find(([value]) => value === code)?.[1] ?? code }
