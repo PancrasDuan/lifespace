@@ -23,14 +23,14 @@ export const ledgerAccountUpdateSchema = z.strictObject({ requestId: z.uuid(), n
 export const ledgerAccountSchema = z.strictObject({ id: z.uuid(), name: accountName, balanceCents, createdAt: z.iso.datetime(), updatedAt: z.iso.datetime() })
 export const ledgerAccountsSchema = z.strictObject({ accounts: z.array(ledgerAccountSchema), version: revision })
 export const ledgerAccountReceiptSchema = z.strictObject({ accountId: z.uuid(), version: revision })
-const transactionFields = { direction: ledgerDirectionSchema, amountCents, occurredAt: utcTime, accountName, categoryCode: ledgerCategorySchema, note }
+const transactionFields = { direction: ledgerDirectionSchema, amountCents, occurredAt: utcTime, accountId: z.uuid({ error: '请选择交易账户。' }), categoryCode: ledgerCategorySchema, note }
 export const ledgerCreateSchema = z.strictObject({ requestId: z.uuid(), ...transactionFields }).superRefine((value, ctx) => {
   if ((value.direction === 'expense') !== (value.amountCents < 0)) ctx.addIssue({ code: 'custom', message: '金额符号与收支类型不符。', path: ['amountCents'] })
   if (!ledgerCategories[value.direction].some(([code]) => code === value.categoryCode)) ctx.addIssue({ code: 'custom', message: '请选择与收支类型对应的交易分类。', path: ['categoryCode'] })
 })
 export const ledgerRefundSchema = z.strictObject({ requestId: z.uuid(), amountCents: amountCents.refine(value => value > 0, '退款金额必须为正数。'), occurredAt: utcTime, note })
 export const ledgerEntrySchema = z.strictObject({
-  id: z.uuid(), ...transactionFields, parentEntryId: z.uuid().nullable(), createdAt: z.iso.datetime(),
+  id: z.uuid(), ...transactionFields, accountName, transferId: z.uuid().nullable(), parentEntryId: z.uuid().nullable(), createdAt: z.iso.datetime(),
   status: z.enum(['completed', 'partial-refund', 'full-refund']),
 })
 export const ledgerPageSchema = z.strictObject({ items: z.array(ledgerEntrySchema).max(30), total: revision, page: z.number().int().min(1), pageSize: z.literal(30), version: revision })
@@ -52,6 +52,7 @@ export const ledgerErrors = {
   ACCOUNT_NAME_TAKEN: [409, '已有同名账户，请使用其他名称'],
   ACCOUNT_NOT_FOUND: [404, '交易账户不存在或不属于本人'],
   BALANCE_CHANGED: [409, '余额已变化，请核对最新余额后再次保存'],
+  BALANCE_LIMIT: [409, '操作后的账户余额超出允许范围，未保存本次变更'],
   INVALID_ENTRY: [400, '流水输入无效，请检查金额、账户、分类与交易时间'],
   INVALID_QUERY: [400, '日期或分页参数无效'],
   LIST_CHANGED: [409, '列表已更新，已返回第一页'],

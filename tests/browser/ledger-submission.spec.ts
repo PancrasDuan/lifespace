@@ -2,7 +2,7 @@ import type { BrowserContext } from '@playwright/test'
 import { test, expect, type Page } from './authenticated-test'
 import type { LedgerEntry } from '../../src/shared/ledger'
 
-const parent: LedgerEntry = {
+const parent: LedgerEntry = { accountId: '00000000-0000-4000-8000-000000000004', transferId: null,
   id: '00000000-0000-4000-8000-000000000112', direction: 'expense', amountCents: -10000,
   occurredAt: '2026-01-02T03:04:05.000Z', createdAt: '2026-01-02T03:04:05.000Z',
   accountName: '零钱', categoryCode: 'dining', note: '原支出', parentEntryId: null, status: 'completed',
@@ -19,6 +19,7 @@ async function responses(context: BrowserContext) {
     const req = route.request(), path = new URL(req.url()).pathname
     if (req.method() === 'GET') {
       if (failReads) return route.fulfill({ status: 503, json: { error: { code: 'LEDGER_UNAVAILABLE', message: '读取失败' } } })
+      if (path.endsWith('/accounts')) return route.fulfill({ json: { version: 0, accounts: [{ id: parent.accountId, name: '零钱', balanceCents: 0, createdAt: parent.createdAt, updatedAt: parent.createdAt }] } })
       return route.fulfill({ json: path.endsWith(parent.id)
         ? { entry: parent, parentEntry: null, refunds: [], refundCount: 0, refundedCents: 0, refundPage: 1, refundPageSize: 30, version: 0 }
         : { items: [parent], total: 1, page: 1, pageSize: 30, version: 0 } })
@@ -47,7 +48,7 @@ async function open(page: Page, kind: 'new' | 'refund') {
   const form = page.getByRole('dialog', { name: kind === 'new' ? '新建流水' : '登记退款', exact: true })
   await form.getByLabel('交易金额').fill('3.21')
   if (kind === 'new') {
-    await form.getByLabel('交易账户', { exact: true }).fill('零钱')
+    await form.getByLabel('交易账户', { exact: true }).selectOption(parent.accountId)
     await form.getByLabel('交易分类', { exact: true }).selectOption('transport')
   }
   return form

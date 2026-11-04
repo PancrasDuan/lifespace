@@ -7,14 +7,16 @@ export async function verifyLedgerReadLocks(client, rpcUrl) {
   const writer = new pg.Client({ host: '127.0.0.1', port: client.port, user: 'postgres', database: 'postgres', ssl: false })
   await writer.connect()
   const owner = crypto.randomUUID()
-  const input = () => JSON.stringify({ requestId: crypto.randomUUID(), direction: 'expense', amountCents: -100,
-    occurredAt: '2024-02-29T00:00:00Z', accountName: '隔离锁验证', categoryCode: 'dining', note: '' })
+  const createAccount = async owner => (await client.query('select public.ledger_account_create($1,$2) as receipt', [owner, { requestId: crypto.randomUUID(), name: '隔离锁验证', balanceCents: 0 }])).rows[0].receipt.accountId
+  const accountId = await createAccount(owner)
+  const input = (id = accountId) => JSON.stringify({ requestId: crypto.randomUUID(), direction: 'expense', amountCents: -100,
+    occurredAt: '2024-02-29T00:00:00Z', accountId: id, categoryCode: 'dining', note: '' })
   let writing
   try {
     await client.query('select public.ledger_create($1,$2)', [owner, input()])
     await client.query('begin')
     const before = await client.query('select public.ledger_list($1) as page', [owner])
-    assert.equal(before.rows[0].page.version, 1)
+    assert.equal(before.rows[0].page.version, 2)
     await writer.query("set statement_timeout='3s'")
     writing = writer.query('select public.ledger_create($1,$2)', [owner, input()])
     // Observe the lock, instead of assuming a sleep means the write has started.
@@ -25,15 +27,16 @@ export async function verifyLedgerReadLocks(client, rpcUrl) {
       await new Promise(resolve => setTimeout(resolve, 10))
     }
     assert.ok(blocked, '列表共享锁未阻止同 owner 写入')
-    await client.query('select public.ledger_create($1,$2)', [crypto.randomUUID(), input()])
+    const other = crypto.randomUUID()
+    await client.query('select public.ledger_create($1,$2)', [other, input(await createAccount(other))])
     const held = await client.query('select public.ledger_list($1) as page', [owner])
-    assert.deepEqual([held.rows[0].page.total, held.rows[0].page.items.length, held.rows[0].page.version], [1, 1, 1])
+    assert.deepEqual([held.rows[0].page.total, held.rows[0].page.items.length, held.rows[0].page.version], [1, 1, 2])
     await client.query('commit')
     await writing
     const response = await fetch(new URL('/rpc/ledger_list', rpcUrl), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ p_owner: owner }) })
     assert.equal(response.status, 200)
     const current = await response.json()
-    assert.deepEqual([current.total, current.items.length, current.version], [2, 2, 2])
+    assert.deepEqual([current.total, current.items.length, current.version], [2, 2, 3])
     console.log('通过：真实列表共享锁阻止同 owner 写入、允许独立 owner；条目／总数／版本在提交前后保持一致')
   } finally {
     await client.query('rollback')
@@ -49,22 +52,24 @@ export async function seedLedgerScale(client, reportPath) {
   const started = performance.now()
   await client.query('begin')
   await client.query('insert into public.ledger_owner_revision(owner_id, revision) values ($1, 100000)', [owner])
-  await client.query(`insert into public.ledger_entries(id, owner_id, request_id, direction, amount_cents, occurred_at, account_name, category_code, note)
+  const accountId = crypto.randomUUID()
+  await client.query("insert into public.ledger_accounts(id,owner_id,name,balance_cents,request_id,request_hash) values($1,$2,'合成规模验证',-10000000,gen_random_uuid(),repeat('0',64))", [accountId,owner])
+  await client.query(`insert into public.ledger_entries(id, owner_id, request_id, direction, amount_cents, occurred_at, account_id, category_code, note)
     select ('00000000-0000-4000-8000-' || lpad(n::text,12,'0'))::uuid, $1,
       ('10000000-0000-4000-8000-' || lpad(n::text,12,'0'))::uuid,
       'expense', -100, timestamptz '2024-01-01T00:00:00+08:00' + ((n-1)/10) * interval '1 hour',
-      '合成规模验证', 'dining', '隔离环境合成数据'
-    from generate_series(1,100000) n`, [owner])
+      $2, 'dining', '隔离环境合成数据'
+    from generate_series(1,100000) n`, [owner,accountId])
   await client.query('commit')
   const seedMs = performance.now() - started
   await client.query('vacuum analyze public.ledger_entries')
   const queries = [
-    { name: '日期末页', text: `select * from public.ledger_entries where owner_id=$1 and deleted_at is null
+    { name: '日期末页', text: `select * from public.ledger_entries where owner_id=$1 and deleted_at is null and account_id is not null
       and occurred_at >= '2024-02-29T00:00:00+08:00' and occurred_at < '2024-03-01T00:00:00+08:00'
       order by occurred_at desc,id desc limit 30 offset 210` },
-    { name: '全部时间深页3334', text: `select * from public.ledger_entries where owner_id=$1 and deleted_at is null
+    { name: '全部时间深页3334', text: `select * from public.ledger_entries where owner_id=$1 and deleted_at is null and account_id is not null
       order by occurred_at desc,id desc limit 30 offset 99990` },
-    { name: '日期总数', text: `select count(*) from public.ledger_entries where owner_id=$1 and deleted_at is null
+    { name: '日期总数', text: `select count(*) from public.ledger_entries where owner_id=$1 and deleted_at is null and account_id is not null
       and occurred_at >= '2024-02-29T00:00:00+08:00' and occurred_at < '2024-03-01T00:00:00+08:00'` },
   ]
   const plans = []

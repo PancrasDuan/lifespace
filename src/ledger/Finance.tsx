@@ -4,7 +4,7 @@ import { ArrowDownLeft, ArrowUpRight, CalendarDays, Check, ChevronLeft, ChevronR
 import { AppLayout } from '../app/AppLayout'
 import { useVerifiedIdentity } from '../auth/identity'
 import { categoryLabel, ledgerCategories, ledgerCreateSchema, ledgerStatusLabels, type LedgerCreate, type LedgerEntry } from '../shared/ledger'
-import { LedgerError, readLedgerDetail, readDeletePreview, deleteLedger } from './api'
+import { LedgerError, readLedgerAccounts, readLedgerDetail, readDeletePreview, deleteLedger } from './api'
 import { RefundForm } from './RefundForm'
 import { LedgerModal } from './LedgerModal'
 import { Accounts } from './Accounts'
@@ -46,6 +46,7 @@ export function Finance() {
       setUnknownDeletes(current => current.filter(item => item.id !== command.id))
       setPanel(current => current?.kind === 'delete' && current.session === command.session ? null : current)
       deleted(receipt.version)
+      void queries.invalidateQueries({ queryKey: ['ledger', identity.ownerId, 'accounts'] })
       void queries.invalidateQueries({ queryKey: ['ledger', identity.ownerId, 'detail'] })
     } catch (error) {
       if (!identity.signal.aborted) {
@@ -136,7 +137,7 @@ function EntryDetail({ id, open, refund, remove }: { remove: () => void; id: str
     setUpdated(true)
     setView(current => ({ page: 1, session: current.session + 1 }))
   }, [detail.error])
-  if (detail.isPending) return <p role="status" className="lp-feedback">正在读取详情…</p>
+  if (detail.isPending || detail.isFetching) return <p role="status" className="lp-feedback">正在读取详情…</p>
   if (detail.isError && detail.error instanceof LedgerError && detail.error.code === 'NOT_FOUND') return <p role="alert" className="lp-feedback">流水已删除或不可访问。</p>
   if (detail.isError) return <div role="alert" className="lp-feedback">读取失败。<button className="lp-secondary" onClick={() => void detail.refetch()}>重试读取</button></div>
   const { entry, parentEntry, refunds, refundCount, refundedCents, refundPage, refundPageSize } = detail.data
@@ -184,6 +185,8 @@ function DeleteConfirmation({ id, session, cancel, save }: { session: string; id
   </div>
 }
 function EntryForm({ submission, cancel }: { submission: FormSubmission<LedgerCreate>; cancel: () => void }) {
+  const identity = useVerifiedIdentity()
+  const accounts = useQuery({ queryKey: ['ledger', identity.ownerId, 'accounts'], queryFn: ({ signal }) => readLedgerAccounts(identity.ownerId, AbortSignal.any([signal, identity.signal])), retry: false, refetchOnWindowFocus: false })
   const [direction, setDirection] = useState<'income' | 'expense'>('expense')
   const [amount, setAmount] = useState(''), [time, setTime] = useState(toDateTimeInput), [account, setAccount] = useState(''), [category, setCategory] = useState(''), [note, setNote] = useState('')
   const { pending, frozen, message } = submission
@@ -191,7 +194,7 @@ function EntryForm({ submission, cancel }: { submission: FormSubmission<LedgerCr
     event.preventDefault()
     void submission.submit(() => {
       const cents = yuanToCents(amount)
-      const parsed = ledgerCreateSchema.safeParse({ requestId: crypto.randomUUID(), direction, amountCents: direction === 'expense' ? -cents : cents, occurredAt: fromDateTimeInput(time), accountName: account, categoryCode: category, note })
+      const parsed = ledgerCreateSchema.safeParse({ requestId: crypto.randomUUID(), direction, amountCents: direction === 'expense' ? -cents : cents, occurredAt: fromDateTimeInput(time), accountId: account, categoryCode: category, note })
       if (!parsed.success) throw new Error(parsed.error.issues[0]?.message)
       const input = parsed.data
       if (Date.parse(input.occurredAt) > Date.now()) throw new Error('交易时间不能晚于当前北京时间。')
@@ -202,11 +205,13 @@ function EntryForm({ submission, cancel }: { submission: FormSubmission<LedgerCr
     <div className="lp-direction-picker" aria-label="收支类型">{(['expense', 'income'] as const).map(value => <button disabled={pending || frozen} type="button" key={value} aria-pressed={direction === value} className={direction === value ? 'active' : ''} onClick={() => { if (value !== direction) { setDirection(value); setCategory('') } }}>{value === 'expense' ? <ArrowUpRight size={15} /> : <ArrowDownLeft size={15} />}{value === 'expense' ? '支出' : '收入'}</button>)}</div>
     <label className="lp-amount-field"><span>交易金额<small>人民币</small></span><div><b>{direction === 'expense' ? '−' : '+'} ¥</b><input disabled={pending || frozen} autoFocus aria-label="交易金额" inputMode="decimal" placeholder="0.00" required value={amount} onChange={event => setAmount(event.target.value)} /></div></label>
     <TransactionDateTimeField disabled={pending || frozen} value={time} onChange={setTime} />
-    <label className="lp-field">交易账户<input disabled={pending || frozen} placeholder="招商储蓄卡" required value={account} onChange={event => setAccount(event.target.value)} /></label>
+    <label className="lp-field">交易账户<select aria-label="交易账户" disabled={pending || frozen || !accounts.data?.accounts.length} required value={account} onChange={event => setAccount(event.target.value)}><option value="" disabled>{accounts.isPending ? '正在读取账户…' : '选择账户'}</option>{accounts.data?.accounts.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
+    {accounts.isError && <p role="alert" className="lp-form-error">账户读取失败，请重试。<button className="lp-secondary" type="button" onClick={() => void accounts.refetch()}>重试读取账户</button></p>}
+    {accounts.data?.accounts.length === 0 && <p role="status" className="lp-form-error">暂无交易账户，请先在上方账户区新增账户。</p>}
     <label className="lp-field">交易分类<select disabled={pending || frozen} aria-label="交易分类" required value={category} onChange={event => setCategory(event.target.value)}><option value="" disabled>选择分类</option>{ledgerCategories[direction].map(([code, name]) => <option value={code} key={code}>{name}</option>)}</select></label>
     <div className="lp-form-status"><span>交易状态</span><span><Check size={12} />已完成</span></div>
     <label className="lp-field">交易备注<span className="lp-optional">选填</span><textarea disabled={pending || frozen} aria-label="交易备注" rows={3} placeholder="添加备注" value={note} onChange={event => setNote(event.target.value)} /></label>
     {message && <p className="lp-form-error" role="alert">{message}</p>}
-    <div className="lp-form-actions"><button type="button" className="lp-secondary" onClick={cancel}>取消</button><button className="lp-primary" type="submit" disabled={pending}>{pending ? '正在保存…' : frozen ? '重试原请求' : '保存流水'}</button></div>
+    <div className="lp-form-actions"><button type="button" className="lp-secondary" onClick={cancel}>取消</button><button className="lp-primary" type="submit" disabled={pending || (!frozen && !accounts.data?.accounts.length)}>{pending ? '正在保存…' : frozen ? '重试原请求' : '保存流水'}</button></div>
   </form>
 }

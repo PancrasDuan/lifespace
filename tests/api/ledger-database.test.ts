@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createHmac } from 'node:crypto'
 import { ledgerPageSchema, ledgerReceiptSchema, ledgerDetailSchema } from '../../src/shared/ledger'
-import { installLedgerDatabase, ledgerEnv, ledgerRequest, ledgerRpc, ordinaryEntry } from '../support/ledger-database'
+import { installLedgerDatabase, ledgerEnv, ledgerRequest, ledgerRpc, ledgerTestAccount, ordinaryEntry } from '../support/ledger-database'
 import app from '../../worker/index'
 
 describe.skipIf(!ledgerRpc)('账单正式 HTTP 与隔离 PostgreSQL/PostgREST 边界补充', () => {
@@ -14,7 +14,8 @@ describe.skipIf(!ledgerRpc)('账单正式 HTTP 与隔离 PostgreSQL/PostgREST �
     expect(response.headers.get('Cache-Control')).toBe('no-store')
     return ledgerPageSchema.parse(await response.json())
   }
-  const write = async (owner: string, input = ordinaryEntry()) => {
+  const write = async (owner: string, input?: Awaited<ReturnType<typeof ordinaryEntry>>) => {
+    input ??= await ordinaryEntry(owner)
     const response = await ledgerRequest(owner, '/api/ledger/entries', input)
     expect(response.status).toBe(200)
     return ledgerReceiptSchema.parse(await response.json())
@@ -30,30 +31,32 @@ describe.skipIf(!ledgerRpc)('账单正式 HTTP 与隔离 PostgreSQL/PostgREST �
     }
     // A positive control proves signatures work; denials below must come from privileges.
     expect((await direct('service_role', '/rpc/ledger_list', { p_owner: owner, p_page: 1 })).status).toBe(200)
+    expect([401, 403, 404]).toContain((await direct('service_role', '/rpc/ledger_apply_balance', { p_owner: owner, p_account: await ledgerTestAccount(owner), p_delta: 1 })).status)
     for (const role of ['anon', 'authenticated']) {
       for (const table of ['ledger_entries', 'ledger_owner_revision']) expect([401, 403, 404]).toContain((await direct(role, `/${table}?select=*`)).status)
       for (const [name, params] of [
         ['ledger_list', { p_owner: owner, p_page: 1 }],
-        ['ledger_detail', { p_owner: owner, p_id: crypto.randomUUID(), p_refund_page: 2, p_version: 1 }],
-        ['ledger_create', { p_owner: owner, p_input: ordinaryEntry() }],
+        ['ledger_detail', { p_owner: owner, p_id: crypto.randomUUID(), p_refund_page: 2, p_version: 2 }],
+        ['ledger_create', { p_owner: owner, p_input: await ordinaryEntry(owner) }],
       ] as const) expect([401, 403, 404]).toContain((await direct(role, `/rpc/${name}`, params)).status)
     }
-    expect(await read(owner)).toMatchObject({ total: 1, version: 1 })
+    expect(await read(owner)).toMatchObject({ total: 1, version: 2 })
   })
   it('空账户版本零、首次并发独立写入、同编号并发去重、异内容拒绝且重试返回当前版本', async () => {
-    const owner = crypto.randomUUID(), input = ordinaryEntry()
+    const owner = crypto.randomUUID()
     expect(await read(owner)).toEqual({ items: [], total: 0, page: 1, pageSize: 30, version: 0 })
+    const input = await ordinaryEntry(owner)
     const receipts = await Promise.all(Array.from({ length: 8 }, () => write(owner, input)))
     expect(new Set(receipts.map(item => item.entryId)).size).toBe(1)
-    expect(await read(owner)).toMatchObject({ total: 1, version: 1 })
+    expect(await read(owner)).toMatchObject({ total: 1, version: 2 })
     const copies = await Promise.all(Array.from({ length: 5 }, () => write(owner)))
     expect(new Set(copies.map(item => item.entryId)).size).toBe(5)
-    expect(await read(owner)).toMatchObject({ total: 6, version: 6 })
-    expect(await write(owner, input)).toEqual({ entryId: receipts[0].entryId, version: 6, deleted: false })
+    expect(await read(owner)).toMatchObject({ total: 6, version: 7 })
+    expect(await write(owner, input)).toEqual({ entryId: receipts[0].entryId, version: 7, deleted: false })
     const reused = await ledgerRequest(owner, '/api/ledger/entries', { ...input, note: '另一笔内容' })
     expect(reused.status).toBe(409)
     expect(await reused.json()).toMatchObject({ error: { code: 'REQUEST_ID_REUSED' } })
-    expect(await read(owner)).toMatchObject({ total: 6, version: 6 })
+    expect(await read(owner)).toMatchObject({ total: 6, version: 7 })
   })
   it('61 条同秒流水分页 30／30／1，标识稳定倒序且不漏不重', async () => {
     const owner = crypto.randomUUID()
@@ -62,17 +65,17 @@ describe.skipIf(!ledgerRpc)('账单正式 HTTP 与隔离 PostgreSQL/PostgREST �
     expect(pages.map(page => page.items.length)).toEqual([30, 30, 1])
     const ids = pages.flatMap(page => page.items.map(entry => entry.id))
     expect(ids).toEqual(receipts.map(item => item.entryId).sort().reverse())
-    expect(pages.every(page => page.total === 61 && page.version === 61)).toBe(true)
+    expect(pages.every(page => page.total === 61 && page.version === 62)).toBe(true)
     expect(await read(owner, '?page=2')).toEqual(pages[1])
   })
   it('插入后版本更新故障完整回滚，错误响应不泄露数据库细节且同 owner 可继续创建', async () => {
     const owner = crypto.randomUUID()
-    const response = await ledgerRequest(owner, '/api/ledger/entries', ordinaryEntry({ note: 'ledger91-rollback' }))
+    const response = await ledgerRequest(owner, '/api/ledger/entries', await ordinaryEntry(owner, { note: 'ledger91-rollback' }))
     expect(response.status).toBe(503)
     expect(await response.json()).toMatchObject({ error: { code: 'SAVE_UNKNOWN' } })
-    expect(await read(owner)).toMatchObject({ items: [], total: 0, version: 0 })
+    expect(await read(owner)).toMatchObject({ items: [], total: 0, version: 1 })
     await write(owner)
-    expect(await read(owner)).toMatchObject({ total: 1, version: 1 })
+    expect(await read(owner)).toMatchObject({ total: 1, version: 2 })
   })
   it('金额、分类、Unicode 码点、trim 与 UTC 秒精度约束拒绝无效写入并保留版本', async () => {
     const owner = crypto.randomUUID()
@@ -82,17 +85,17 @@ describe.skipIf(!ledgerRpc)('账单正式 HTTP 与隔离 PostgreSQL/PostgREST �
       { accountName: '😀'.repeat(51) }, { note: '中'.repeat(500) + '😀' }, { occurredAt: '2099-01-01T00:00:00.000Z' },
       { occurredAt: '2026-01-02T03:04:05.001Z' }, { occurredAt: '2026-02-30T00:00:00.000Z' },
       { owner: crypto.randomUUID() }, { ownerId: crypto.randomUUID() }, { parentEntryId: crypto.randomUUID() }, { status: 'completed' },
-    ]) expect((await ledgerRequest(owner, '/api/ledger/entries', ordinaryEntry(invalid))).status).toBe(400)
-    expect(await read(owner)).toMatchObject({ total: 0, version: 0 })
-    const receipt = await write(owner, ordinaryEntry({ amountCents: -99999999999, accountName: '\u3000' + '😀'.repeat(50) + '\u00a0', note: '\n' + '中😀'.repeat(250) + '\t' }))
+    ]) expect((await ledgerRequest(owner, '/api/ledger/entries', await ordinaryEntry(owner, invalid))).status).toBe(400)
+    expect(await read(owner)).toMatchObject({ total: 0, version: 1 })
+    const receipt = await write(owner, await ordinaryEntry(owner, { amountCents: -99999999999, accountId: await ledgerTestAccount(owner, '\u3000' + '😀'.repeat(50) + '\u00a0'), note: '\n' + '中😀'.repeat(250) + '\t' }))
     const detail = ledgerDetailSchema.parse(await (await ledgerRequest(owner, `/api/ledger/entries/${receipt.entryId}`)).json())
     expect(detail.entry).toMatchObject({ amountCents: -99999999999, accountName: '😀'.repeat(50), note: '中😀'.repeat(250), occurredAt: '2026-01-02T03:04:05.000Z', parentEntryId: null, status: 'completed' })
-    await write(owner, ordinaryEntry({ direction: 'income', amountCents: 99999999999, categoryCode: 'salary' }))
-    expect(await read(owner)).toMatchObject({ total: 2, version: 2 })
+    await write(owner, await ordinaryEntry(owner, { direction: 'income', amountCents: 99999999999, categoryCode: 'salary' }))
+    expect(await read(owner)).toMatchObject({ total: 2, version: 4 })
   })
   it('trim 只移除 Unicode 空白，保留账户和备注两端的普通字母 v', async () => {
     const owner = crypto.randomUUID()
-    const receipt = await write(owner, ordinaryEntry({ accountName: '\vrev\v', note: '\vv\v' }))
+    const receipt = await write(owner, await ordinaryEntry(owner, { accountId: await ledgerTestAccount(owner, '\vrev\v'), note: '\vv\v' }))
     const detail = ledgerDetailSchema.parse(await (await ledgerRequest(owner, `/api/ledger/entries/${receipt.entryId}`)).json())
     expect(detail.entry).toMatchObject({ accountName: 'rev', note: 'v' })
   })
@@ -110,6 +113,6 @@ describe.skipIf(!ledgerRpc)('账单正式 HTTP 与隔离 PostgreSQL/PostgREST �
     ledgerEnv.AUTH_ALLOWED_EMAILS = 'removed@example.invalid'
     try { expect((await ledgerRequest(owner)).status).toBe(403) } finally { ledgerEnv.AUTH_ALLOWED_EMAILS = oldAllowed }
     for (const query of ['?ownerId=' + other, '?page=0', '?page=1.2', '?pageSize=100']) expect((await ledgerRequest(owner, '/api/ledger/entries' + query)).status).toBe(400)
-    expect(await read(owner)).toMatchObject({ total: 1, version: 1 })
+    expect(await read(owner)).toMatchObject({ total: 1, version: 2 })
   })
 })

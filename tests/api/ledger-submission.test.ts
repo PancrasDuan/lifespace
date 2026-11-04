@@ -9,8 +9,8 @@ vi.mock('../../src/auth/request', () => ({ authorizedMutation: vi.fn() }))
 const request = vi.mocked(authorizedMutation)
 const owner = '00000000-0000-4000-8000-000000000001'
 const receipt = { entryId: '00000000-0000-4000-8000-000000000002', version: 1, deleted: false }
-const input = (): LedgerCreate => ({ requestId: crypto.randomUUID(), direction: 'expense', amountCents: -1234, occurredAt: '2026-01-02T03:04:05.000Z', accountName: '零钱', categoryCode: 'dining', note: '' })
-const parent: LedgerEntry = { direction: 'expense', amountCents: -1234, occurredAt: '2026-01-02T03:04:05.000Z', accountName: '零钱', categoryCode: 'dining', note: '', id: '00000000-0000-4000-8000-000000000003', createdAt: '2026-01-02T03:04:05.000Z', status: 'completed', parentEntryId: null }
+const input = (): LedgerCreate => ({ requestId: crypto.randomUUID(), direction: 'expense', amountCents: -1234, occurredAt: '2026-01-02T03:04:05.000Z', accountId: '00000000-0000-4000-8000-000000000004', categoryCode: 'dining', note: '' })
+const parent: LedgerEntry = { accountId: '00000000-0000-4000-8000-000000000004', transferId: null, direction: 'expense', amountCents: -1234, occurredAt: '2026-01-02T03:04:05.000Z', accountName: '零钱', categoryCode: 'dining', note: '', id: '00000000-0000-4000-8000-000000000003', createdAt: '2026-01-02T03:04:05.000Z', status: 'completed', parentEntryId: null }
 type Submission = ReturnType<typeof createLedgerSubmission>
 function newForm(submission: Submission) {
   submission.openNew()
