@@ -164,7 +164,7 @@ test.describe('正式页面账户流水 → Worker → 隔离数据库', () => {
   })
 
   test('未归属旧流水隐藏，账户为空时不能提交且刷新不清除已填金额', async ({ page }) => {
-    owner = '12000000-0000-4000-8000-000000000001'
+    owner = '12100000-0000-4000-8000-000000000001'
     await page.goto('/finance')
     await expect(page.getByText('暂无流水', { exact: true })).toBeVisible()
     await expect(page.getByText('旧名称保留', { exact: true })).toHaveCount(0)
