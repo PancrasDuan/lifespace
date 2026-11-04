@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createHmac } from 'node:crypto'
 import app from '../../worker/index'
 import { ledgerAccountReceiptSchema, ledgerAccountsSchema } from '../../src/shared/ledger'
-import { installLedgerDatabase, ledgerEnv, ledgerRequest, ledgerRpc } from '../support/ledger-database'
+import { installLedgerDatabase, ledgerEnv, ledgerRequest, ledgerRpc, ordinaryEntry } from '../support/ledger-database'
 
 const read = async (owner: string) => {
   const response = await ledgerRequest(owner, '/api/ledger/accounts')
@@ -20,6 +20,112 @@ describe.skipIf(!ledgerRpc)('本人交易账户：正式 HTTP → 隔离 Postgre
   let restore: () => void
   beforeEach(() => { restore = installLedgerDatabase() })
   afterEach(() => restore())
+
+  it('旧改名请求重试保留后续名称与收支余额，回执仍指向原账户且不推进版本', async () => {
+    const owner = crypto.randomUUID(), { accountId } = await create(owner, { balanceCents: 100000 })
+    const rename = { requestId: crypto.randomUUID(), name: '工资卡' }
+    expect((await patch(owner, accountId, rename)).status).toBe(200)
+    expect((await patch(owner, accountId, { name: '现用卡' })).status).toBe(200)
+    expect((await ledgerRequest(owner, '/api/ledger/entries', await ordinaryEntry(owner, { accountId, amountCents: -10000 }))).status).toBe(200)
+    const before = await read(owner)
+    expect(before).toMatchObject({ version: 4, accounts: [{ id: accountId, name: '现用卡', balanceCents: 90000 }] })
+    const retry = await patch(owner, accountId, rename)
+    expect(retry.status).toBe(200)
+    expect(await retry.json()).toEqual({ accountId, version: 4 })
+    expect(await read(owner)).toEqual(before)
+  })
+
+  it('改名请求核对规范化名称、账户及完整修改字段，同号不同输入返回 REQUEST_ID_REUSED', async () => {
+    const owner = crypto.randomUUID(), { accountId } = await create(owner)
+    const rename = { requestId: crypto.randomUUID(), name: '工资卡' }
+    expect((await patch(owner, accountId, rename)).status).toBe(200)
+    expect((await patch(owner, accountId, { ...rename, name: ' \u3000工资卡\t' })).status).toBe(200)
+    const other = await create(owner, { name: '饭卡' }), before = await read(owner)
+    for (const fields of [{ name: '别名' }, {}, { name: '工资卡', balanceCents: 0, expectedBalanceCents: 0 }]) {
+      const response = await patch(owner, accountId, { requestId: rename.requestId, ...fields })
+      expect(response.status).toBe(409)
+      expect(await response.json()).toMatchObject({ error: { code: 'REQUEST_ID_REUSED' } })
+    }
+    const reused = await patch(owner, other.accountId, rename)
+    expect(reused.status).toBe(409)
+    expect(await reused.json()).toMatchObject({ error: { code: 'REQUEST_ID_REUSED' } })
+    expect(await read(owner)).toEqual(before)
+    // The same request number belongs to a different namespace for another owner.
+    const otherOwner = crypto.randomUUID(), otherAccount = await create(otherOwner)
+    expect((await patch(otherOwner, otherAccount.accountId, rename)).status).toBe(200)
+  })
+
+  for (const [label, fields] of [
+    ['混合修改', { name: '工资卡', balanceCents: 90000, expectedBalanceCents: 100000 }],
+    ['余额修正', { balanceCents: 90000, expectedBalanceCents: 100000 }],
+    ['改名并提交未变余额', { name: '工资卡', balanceCents: 100000, expectedBalanceCents: 100000 }],
+  ] as const) it(`${label}的旧请求先识别成功重试，不覆盖后续名称和余额`, async () => {
+    const owner = crypto.randomUUID(), { accountId } = await create(owner, { balanceCents: 100000 })
+    const original = { requestId: crypto.randomUUID(), ...fields }
+    expect((await patch(owner, accountId, original)).status).toBe(200)
+    expect((await patch(owner, accountId, { name: '现用卡' })).status).toBe(200)
+    expect((await ledgerRequest(owner, '/api/ledger/entries', await ordinaryEntry(owner, { accountId, amountCents: -10000 }))).status).toBe(200)
+    const before = await read(owner)
+    expect(before).toMatchObject({ version: 4, accounts: [{ name: '现用卡', balanceCents: label === '改名并提交未变余额' ? 90000 : 80000 }] })
+    const retry = await patch(owner, accountId, original)
+    expect(retry.status).toBe(200)
+    expect(await retry.json()).toEqual({ accountId, version: 4 })
+    expect(await read(owner)).toEqual(before)
+  })
+
+  for (const [label, fields] of [
+    ['空修改', {}], ['同名', { name: '零钱' }],
+    ['同余额', { balanceCents: 100, expectedBalanceCents: 100 }],
+    ['同名同余额', { name: '零钱', balanceCents: 100, expectedBalanceCents: 100 }],
+  ] as const) it(`当初${label}的成功请求在后续改名和收支后重试，保留当前状态与版本`, async () => {
+    const owner = crypto.randomUUID(), { accountId } = await create(owner, { balanceCents: 100 })
+    const before = await read(owner), noop = { requestId: crypto.randomUUID(), ...fields }
+    const response = await patch(owner, accountId, noop)
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({ accountId, version: 1 })
+    expect(await read(owner)).toEqual(before)
+    expect((await patch(owner, accountId, { name: '现用卡', balanceCents: 200, expectedBalanceCents: 100 })).status).toBe(200)
+    expect((await ledgerRequest(owner, '/api/ledger/entries', await ordinaryEntry(owner, { accountId, amountCents: -10 }))).status).toBe(200)
+    const latest = await read(owner)
+    expect(latest).toMatchObject({ version: 3, accounts: [{ name: '现用卡', balanceCents: 190 }] })
+    const retry = await patch(owner, accountId, noop)
+    expect(retry.status).toBe(200)
+    expect(await retry.json()).toEqual({ accountId, version: 3 })
+    const reused = await patch(owner, accountId, { ...noop, name: '别名' })
+    expect(reused.status).toBe(409)
+    expect(await reused.json()).toMatchObject({ error: { code: 'REQUEST_ID_REUSED' } })
+    expect(await read(owner)).toEqual(latest)
+  })
+
+  it('并发改名同号只推进一次版本，跨账户竞争同一修改号只接受一方', async () => {
+    const owner = crypto.randomUUID(), { accountId } = await create(owner)
+    const rename = { requestId: crypto.randomUUID(), name: '工资卡' }
+    const retries = await Promise.all(Array.from({ length: 8 }, () => patch(owner, accountId, rename)))
+    for (const response of retries) {
+      expect(response.status).toBe(200)
+      expect(await response.json()).toEqual({ accountId, version: 2 })
+    }
+    const other = await create(owner, { name: '饭卡' }), requestId = crypto.randomUUID()
+    const competing = await Promise.all([patch(owner, accountId, { requestId }), patch(owner, other.accountId, { requestId })])
+    expect(competing.map(response => response.status).sort()).toEqual([200, 409])
+    const rejected = competing.find(response => response.status === 409)!
+    expect(await rejected.json()).toMatchObject({ error: { code: 'REQUEST_ID_REUSED' } })
+    expect(await read(owner)).toMatchObject({ version: 3, accounts: [{ name: '工资卡', balanceCents: 0 }, { name: '饭卡', balanceCents: 0 }] })
+  })
+
+  it('改名在版本提交故障后不占用请求号，名称冲突与余额冲突也不占用失败请求号', async () => {
+    const owner = crypto.randomUUID(), { accountId } = await create(owner), requestId = crypto.randomUUID()
+    expect((await patch(owner, accountId, { requestId, name: 'ledger119-rollback' })).status).toBe(503)
+    expect(await read(owner)).toMatchObject({ version: 1, accounts: [{ name: '零钱' }] })
+    expect((await patch(owner, accountId, { requestId, name: '现金' })).status).toBe(200)
+    await create(owner, { name: '饭卡' })
+    const duplicate = crypto.randomUUID(), stale = crypto.randomUUID()
+    expect((await patch(owner, accountId, { requestId: duplicate, name: '饭卡' })).status).toBe(409)
+    expect((await patch(owner, accountId, { requestId: duplicate, name: '工资卡' })).status).toBe(200)
+    expect((await patch(owner, accountId, { requestId: stale, balanceCents: 100, expectedBalanceCents: 1 })).status).toBe(409)
+    expect((await patch(owner, accountId, { requestId: stale, balanceCents: 100, expectedBalanceCents: 0 })).status).toBe(200)
+    expect(await read(owner)).toMatchObject({ version: 5, accounts: [{ name: '工资卡', balanceCents: 100 }, { name: '饭卡', balanceCents: 0 }] })
+  })
 
   it('新增账户可重新读取，稳定身份与初始余额持久化', async () => {
     const owner = crypto.randomUUID()
@@ -109,7 +215,7 @@ describe.skipIf(!ledgerRpc)('本人交易账户：正式 HTTP → 隔离 Postgre
     expect(await read(owner)).toEqual({ version: 0, accounts: [] })
     const { accountId } = await create(owner, { name: '\u00a0' + '😀'.repeat(50) + '\u3000', balanceCents: -99999999999 })
     expect(await read(owner)).toMatchObject({ version: 1, accounts: [{ name: '😀'.repeat(50), balanceCents: -99999999999 }] })
-    for (const fields of [{ balanceCents: 1 }, { expectedBalanceCents: 0 }, { balanceCents: null, expectedBalanceCents: 0 }, { balanceCents: 1.1, expectedBalanceCents: -99999999999 }, { balanceCents: 100000000000, expectedBalanceCents: -99999999999 }, { name: '😀'.repeat(51) }, { owner_id: crypto.randomUUID() }, { requestId: null }]) {
+    for (const fields of [{ balanceCents: 1 }, { expectedBalanceCents: 0 }, { balanceCents: null, expectedBalanceCents: 0 }, { balanceCents: 1.1, expectedBalanceCents: -99999999999 }, { balanceCents: 100000000000, expectedBalanceCents: -99999999999 }, { name: '😀'.repeat(51) }, { owner_id: crypto.randomUUID() }, { requestId: null }, { update_requests: {} }]) {
       expect((await patch(owner, accountId, fields)).status).toBe(400)
     }
     expect((await patch(owner, accountId, { balanceCents: 99999999999, expectedBalanceCents: -99999999999 })).status).toBe(200)
@@ -165,6 +271,7 @@ describe.skipIf(!ledgerRpc)('本人交易账户：正式 HTTP → 隔离 Postgre
     expect((await direct('service_role', '/rpc/ledger_accounts_list', { p_owner: owner })).status).toBe(200)
     for (const role of ['anon', 'authenticated', 'service_role']) {
       for (const table of ['ledger_accounts', 'ledger_balance_adjustments']) expect([401, 403, 404]).toContain((await direct(role, `/${table}?select=*`)).status)
+      expect([401, 403, 404]).toContain((await direct(role, '/ledger_accounts', { update_requests: {} })).status)
       if (role === 'service_role') continue
       for (const [name, params] of [
         ['ledger_accounts_list', { p_owner: owner }],
@@ -173,5 +280,7 @@ describe.skipIf(!ledgerRpc)('本人交易账户：正式 HTTP → 隔离 Postgre
       ] as const) expect([401, 403, 404]).toContain((await direct(role, `/rpc/${name}`, params)).status)
     }
     expect(await read(owner)).toMatchObject({ version: 1, accounts: [{ name: '零钱' }] })
+    const visible = await (await ledgerRequest(owner, '/api/ledger/accounts')).json() as { accounts: Record<string, unknown>[] }
+    expect(Object.keys(visible.accounts[0]).sort()).toEqual(['balanceCents', 'createdAt', 'id', 'name', 'updatedAt'])
   })
 })

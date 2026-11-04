@@ -14,9 +14,13 @@ create table public.ledger_accounts (
   balance_cents bigint not null check (balance_cents between -99999999999 and 99999999999),
   request_id uuid not null,
   request_hash text not null check (request_hash ~ '^[a-f0-9]{64}$'),
+  -- Settled PATCH request ID -> normalized input hash, retained with this account.
+  -- Includes no-ops; bookkeeping must not change the business timestamp/version.
+  update_requests jsonb not null default '{}'::jsonb check (jsonb_typeof(update_requests) = 'object'),
   created_at timestamptz not null default now(), updated_at timestamptz not null default now(),
   unique (owner_id, id), unique (owner_id, name), unique (owner_id, request_id)
 );
+create index ledger_accounts_update_requests on public.ledger_accounts using gin (update_requests);
 alter table public.ledger_accounts enable row level security;
 revoke all on public.ledger_accounts from public, anon, authenticated, service_role;
 create table public.ledger_balance_adjustments (
@@ -39,6 +43,9 @@ begin
   if (new.id,new.owner_id,new.request_id,new.request_hash,new.created_at)
     is distinct from (old.id,old.owner_id,old.request_id,old.request_hash,old.created_at)
     then raise exception 'LEDGER_IMMUTABLE' using errcode = '23514'; end if;
+  if not (new.update_requests @> old.update_requests) then
+    raise exception 'LEDGER_IMMUTABLE' using errcode = '23514';
+  end if;
   return new;
 end $$;
 create trigger ledger_account_immutable before update or delete on public.ledger_accounts
@@ -100,7 +107,7 @@ begin
 end $$;
 create function public.ledger_account_update(p_owner uuid, p_id uuid, p_input jsonb) returns jsonb
 language plpgsql security definer set search_path = pg_catalog, public as $$
-declare v bigint; account public.ledger_accounts; prior public.ledger_balance_adjustments;
+declare v bigint; account public.ledger_accounts; prior public.ledger_accounts;
   input_request uuid; account_name text; amount bigint; expected bigint; input_hash text; normalized jsonb;
 begin
   if p_owner is null or p_id is null or jsonb_typeof(p_input) is distinct from 'object' or not (p_input ? 'requestId') or
@@ -127,16 +134,21 @@ begin
   input_hash := encode(sha256(convert_to(normalized::text, 'UTF8')), 'hex');
   select revision into v from public.ledger_owner_revision where owner_id = p_owner for update;
   if not found then raise exception 'ACCOUNT_NOT_FOUND'; end if;
+  -- The owner lock serializes lookup and append across ALL of this owner's accounts.
+  -- Check settled requests (including rename/no-op) before current balance validation.
+  -- The digest binds the original account and every submitted field.
+  select * into prior from public.ledger_accounts
+    where owner_id = p_owner and update_requests ? input_request::text;
+  if found then
+    if prior.update_requests->>input_request::text <> input_hash then raise exception 'REQUEST_ID_REUSED'; end if;
+    return jsonb_build_object('accountId', prior.id, 'version', v);
+  end if;
   select * into account from public.ledger_accounts where owner_id = p_owner and id = p_id;
   if not found then raise exception 'ACCOUNT_NOT_FOUND'; end if;
-  -- A settled correction is checked before the current balance, so retrying it
-  -- cannot undo subsequent writes. The digest includes the account and all submitted fields.
-  select * into prior from public.ledger_balance_adjustments where owner_id = p_owner and request_id = input_request;
-  if found then
-    if prior.request_hash <> input_hash then raise exception 'REQUEST_ID_REUSED'; end if;
-    return jsonb_build_object('accountId', account.id, 'version', v);
-  end if;
   if p_input ? 'balanceCents' and account.balance_cents <> expected then raise exception 'BALANCE_CHANGED'; end if;
+  -- Appended in the same transaction as the business write; any failure rolls it back.
+  update public.ledger_accounts set update_requests = update_requests || jsonb_build_object(input_request::text, input_hash)
+    where owner_id = p_owner and id = p_id;
   account_name := coalesce(account_name, account.name); amount := coalesce(amount, account.balance_cents);
   if (account.name, account.balance_cents) is not distinct from (account_name, amount) then
     return jsonb_build_object('accountId', account.id, 'version', v);

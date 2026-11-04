@@ -1,5 +1,5 @@
 import { test, expect } from './authenticated-test'
-import { installLedgerDatabase, ledgerRequest, ledgerRpc } from '../support/ledger-database'
+import { installLedgerDatabase, ledgerRequest, ledgerRpc, ordinaryEntry } from '../support/ledger-database'
 import { ledgerAccountReceiptSchema, ledgerAccountsSchema } from '../../src/shared/ledger'
 import { writeFile } from 'node:fs/promises'
 
@@ -130,6 +130,34 @@ test.describe('正式财务页账户 → Worker → 隔离数据库', () => {
     await expect(form).toBeHidden()
     await page.reload()
     await expect(page.getByRole('article', { name: '银行卡', exact: true })).toContainText('900.00')
+  })
+
+  test('改名响应丢失后重试旧请求，保留后续名称、收支余额和版本', async ({ page }) => {
+    const id = await create()
+    await page.goto('/finance')
+    await page.getByRole('button', { name: '修改银行卡', exact: true }).click()
+    const edit = page.getByRole('dialog', { name: '修改账户', exact: true })
+    await edit.getByLabel('账户名称', { exact: true }).fill('工资卡')
+    loseNextSave = true
+    await edit.getByRole('button', { name: '保存修改', exact: true }).click()
+    await expect(edit.getByRole('alert')).toContainText('保存结果未确认')
+    await edit.getByRole('button', { name: '取消', exact: true }).click()
+    await page.getByRole('button', { name: '查看最新账户', exact: true }).click()
+    await page.getByRole('button', { name: '修改工资卡', exact: true }).click()
+    await edit.getByLabel('账户名称', { exact: true }).fill('现用卡')
+    await edit.getByRole('button', { name: '保存修改', exact: true }).click()
+    await expect(edit).toBeHidden()
+    expect((await ledgerRequest(owner, '/api/ledger/entries', await ordinaryEntry(owner, { accountId: id, amountCents: -10000 }))).status).toBe(200)
+    const before = ledgerAccountsSchema.parse(await (await ledgerRequest(owner, '/api/ledger/accounts')).json())
+    expect(before).toMatchObject({ version: 4, accounts: [{ id, name: '现用卡', balanceCents: 90000 }] })
+    await page.getByRole('button', { name: '重试原账户请求', exact: true }).click()
+    await expect(edit).toBeHidden()
+    expect(writes).toHaveLength(3)
+    expect(writes[2].body).toEqual(writes[0].body)
+    expect(Object.keys(writes[0].body).sort()).toEqual(['name', 'requestId'])
+    expect(ledgerAccountsSchema.parse(await (await ledgerRequest(owner, '/api/ledger/accounts')).json())).toEqual(before)
+    await page.reload()
+    await expect(page.getByRole('article', { name: '现用卡', exact: true })).toContainText('900.00')
   })
 
   test('保存响应丢失后原请求显式重试，开户和修正均不重复也不覆盖后续余额', async ({ page }) => {
