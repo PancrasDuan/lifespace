@@ -1,3 +1,4 @@
+import { ledgerAccountReceiptSchema } from '../../src/shared/ledger'
 import app from '../../worker/index'
 
 export const ledgerRpc = process.env.LEDGER_LOCAL_RPC_URL
@@ -31,7 +32,22 @@ export function installLedgerDatabase() {
   }
   return () => { globalThis.fetch = nativeFetch }
 }
-export const ordinaryEntry = (overrides: Record<string, unknown> = {}) => ({
+// Fixture preparation uses the same real account command as the page.
+const testAccounts = new Map<string, Promise<string>>()
+export function ledgerTestAccount(owner: string, name = '招商储蓄卡') {
+  const key = owner + ':' + name
+  let account = testAccounts.get(key)
+  if (!account) {
+    account = (async () => {
+      const response = await ledgerRequest(owner, '/api/ledger/accounts', { requestId: crypto.randomUUID(), name, balanceCents: 0 })
+      if (response.status !== 200) throw new Error('隔离账户 fixture 创建失败')
+      return ledgerAccountReceiptSchema.parse(await response.json()).accountId
+    })()
+    testAccounts.set(key, account)
+  }
+  return account
+}
+export const ordinaryEntry = async (owner: string, overrides: Record<string, unknown> = {}) => ({
   requestId: crypto.randomUUID(), direction: 'expense', amountCents: -100000,
-  occurredAt: '2026-01-02T03:04:05.000Z', accountName: '招商储蓄卡', categoryCode: 'investment', note: '买入', ...overrides,
+  occurredAt: '2026-01-02T03:04:05.000Z', accountId: overrides.accountId ?? await ledgerTestAccount(owner), categoryCode: 'investment', note: '买入', ...overrides,
 })

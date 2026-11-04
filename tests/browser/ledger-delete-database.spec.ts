@@ -1,6 +1,6 @@
 import { test, expect } from './authenticated-test'
 import { ledgerReceiptSchema } from '../../src/shared/ledger'
-import { installLedgerDatabase, ledgerRequest, ledgerRpc, ordinaryEntry } from '../support/ledger-database'
+import { installLedgerDatabase, ledgerRequest, ledgerRpc, ledgerTestAccount, ordinaryEntry } from '../support/ledger-database'
 
 let restore: () => void, owner: string
 let loseDelete = false, holdDelete = false, failReads = false
@@ -10,6 +10,7 @@ test.describe('删除正式财务页 → Worker → PostgreSQL（受控身份）
   test.skip(!ledgerRpc, '须显式启动隔离数据库，跳过不计通过')
   test.beforeEach(async ({ context }) => {
     restore = installLedgerDatabase(); owner = crypto.randomUUID()
+    await ledgerTestAccount(owner)
     loseDelete = false; holdDelete = false; failReads = false; releaseDelete = undefined; deletes = 0
     await context.route('**/api/ledger/**', async route => {
       const req = route.request(), url = new URL(req.url())
@@ -24,7 +25,8 @@ test.describe('删除正式财务页 → Worker → PostgreSQL（受控身份）
     })
   })
   test.afterEach(() => restore?.())
-  const create = async (input = ordinaryEntry({ amountCents: -10000, categoryCode: 'dining' })) => {
+  const create = async (input?: Awaited<ReturnType<typeof ordinaryEntry>>) => {
+    input ??= await ordinaryEntry(owner, { amountCents: -10000, categoryCode: 'dining' })
     const res = await ledgerRequest(owner, '/api/ledger/entries', input)
     expect(res.status).toBe(200)
     return ledgerReceiptSchema.parse(await res.json()).entryId
@@ -86,7 +88,7 @@ test.describe('删除正式财务页 → Worker → PostgreSQL（受控身份）
       expect((await ledgerRequest(owner, `/api/ledger/entries/${first}/delete`, { scope: preview.scope })).status).toBe(200)
     }
     if (change === '新增' || change === '等数量替换') await refund(parent, 2000)
-    if (change === '无关新建') await create(ordinaryEntry({ direction: 'income', amountCents: 800, categoryCode: 'salary' }))
+    if (change === '无关新建') await create(await ordinaryEntry(owner, { direction: 'income', amountCents: 800, categoryCode: 'salary' }))
     await confirm.getByRole('button', { name: '确认删除', exact: true }).click()
     if (change !== '无关新建') {
       await expect(confirm.getByRole('alert')).toContainText('范围已变化')
@@ -116,7 +118,8 @@ test.describe('删除正式财务页 → Worker → PostgreSQL（受控身份）
     const form = page.getByRole('dialog', { name: '新建流水', exact: true })
     await form.getByRole('button', { name: '收入', exact: true }).click()
     await form.getByLabel('交易金额').fill('8')
-    await form.getByLabel('交易账户', { exact: true }).fill('新交易')
+    await form.getByLabel('交易账户', { exact: true }).selectOption({ label: '招商储蓄卡' })
+    await form.getByLabel('交易备注').fill('新交易')
     await form.getByLabel('交易分类', { exact: true }).selectOption('salary')
     await form.getByLabel('交易时间', { exact: true }).fill('2026-01-02T11:04:05')
     await form.getByRole('button', { name: '保存流水', exact: true }).click()
@@ -150,7 +153,7 @@ test.describe('删除正式财务页 → Worker → PostgreSQL（受控身份）
     const form = page.getByRole('dialog', { name: '新建流水', exact: true })
     await form.getByLabel('交易金额').fill('9.99')
     failReads = true; releaseDelete!()
-    await expect(page.getByText('读取失败，请重试。', { exact: false })).toBeVisible()
+    await expect(page.getByRole('region', { name: '账单流水', exact: true }).getByRole('alert')).toBeVisible()
     await expect(form.getByLabel('交易金额')).toHaveValue('9.99')
     await form.getByRole('button', { name: '取消', exact: true }).click()
     failReads = false
@@ -160,8 +163,8 @@ test.describe('删除正式财务页 → Worker → PostgreSQL（受控身份）
   })
   test('筛选内删空末页回最近有效页，再删除保持当前有效页', async ({ page }) => {
     test.setTimeout(30000)
-    await Promise.all(Array.from({ length: 61 }, (_, n) => create(ordinaryEntry({ direction: 'income', amountCents: n + 1, categoryCode: 'salary' }))))
-    await create(ordinaryEntry({ occurredAt: '2025-01-02T03:04:05Z' }))
+    await Promise.all(Array.from({ length: 61 }, async (_, n) => create(await ordinaryEntry(owner, { direction: 'income', amountCents: n + 1, categoryCode: 'salary' }))))
+    await create(await ordinaryEntry(owner, { occurredAt: '2025-01-02T03:04:05Z' }))
     await page.goto('/finance')
     await page.getByRole('button', { name: '自定义', exact: true }).click()
     const picker = page.getByRole('dialog', { name: '自定义日期范围' })
@@ -191,7 +194,7 @@ test.describe('删除正式财务页 → Worker → PostgreSQL（受控身份）
 
   test('9月父支出与10月退款按自身时间筛选，范围外关联、退款复原和删父清空筛选', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 })
-    const parent = await create(ordinaryEntry({ amountCents: -10000, categoryCode: 'dining', occurredAt: '2026-09-01T00:00:00Z' }))
+    const parent = await create(await ordinaryEntry(owner, { amountCents: -10000, categoryCode: 'dining', occurredAt: '2026-09-01T00:00:00Z' }))
     await refund(parent, 3000); await refund(parent, 7000)
     await page.goto('/finance')
     const selectOctober = async () => {
@@ -240,7 +243,7 @@ test.describe('删除正式财务页 → Worker → PostgreSQL（受控身份）
   test('其他设备退款及删除引发版本提示，保留筛选和新表单；已删除关联不显示旧正文', async ({ page }) => {
     test.setTimeout(30000)
     const parent = await create()
-    await Promise.all(Array.from({ length: 31 }, () => create(ordinaryEntry({ categoryCode: 'salary', direction: 'income', amountCents: 1000 }))))
+    await Promise.all(Array.from({ length: 31 }, async () => create(await ordinaryEntry(owner, { categoryCode: 'salary', direction: 'income', amountCents: 1000 }))))
     await page.goto('/finance')
     await page.getByRole('button', { name: '自定义', exact: true }).click()
     const picker = page.getByRole('dialog', { name: '自定义日期范围' })
@@ -298,7 +301,7 @@ test.describe('删除正式财务页 → Worker → PostgreSQL（受控身份）
     await expect(page.getByText('暂无流水', { exact: true })).toBeVisible()
   })
   test('真实数据库删父子后提交故障回滚，错误反馈与原父子回读一致', async ({ page }) => {
-    const parent = await create(ordinaryEntry({ amountCents: -10000, categoryCode: 'dining', note: 'ledger94-delete-rollback' }))
+    const parent = await create(await ordinaryEntry(owner, { amountCents: -10000, categoryCode: 'dining', note: 'ledger94-delete-rollback' }))
     await refund(parent, 3000)
     await page.goto('/finance')
     await page.getByRole('table').locator('tbody tr').filter({ hasText: '-¥100.00' }).getByRole('button', { name: '餐饮', exact: true }).click()

@@ -1,0 +1,25 @@
+.la-heading-actions { display: flex; align-items: center; gap: 10px; }
+.la-transfer { display: flex; align-items: center; justify-content: flex-end; gap: 5px; margin: 13px 0 0 auto; padding: 5px 0 0 10px; border: 0; background: transparent; color: #47673e; font-size: 11px; }
+.la-transfer:hover { color: #284b31; text-decoration: underline; text-underline-offset: 3px; }
+.lt-accounts { display: grid; grid-template-columns: minmax(0, 1fr) 30px minmax(0, 1fr); align-items: start; gap: 10px; }
+.lp-dialog.entry-card .lt-form > .lt-accounts, .lp-dialog.entry-card .lt-form > .lt-balances, .lp-dialog.entry-card .lt-form > .lt-hint, .lp-dialog.entry-card .lt-form > p { grid-column: 1 / -1; }
+.lt-accounts .lp-field { min-width: 0; }
+.lt-accounts small { color: #627160; line-height: 1.6; overflow-wrap: anywhere; }
+.lt-swap { display: grid; place-items: center; align-self: start; margin-top: 41px; padding: 7px 4px; border: 0; border-radius: 6px; background: transparent; color: #47673e; }
+.lt-swap:hover:enabled { background: #eef4e7; }
+.lt-swap:disabled { opacity: .45; cursor: default; }
+.lt-balances { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 14px 16px; margin: 16px 0; background: #f0f5ea; border-radius: 8px; color: #47673e; font-size: 11px; }
+.lt-balances > span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.lt-balances > span:last-child { text-align: right; }
+.lt-balances strong { display: block; margin-top: 6px; font-size: 14px; font-weight: 500; font-variant-numeric: tabular-nums; }
+.lt-hint { display: flex; align-items: center; gap: 6px; color: #627160; font-size: 11px; line-height: 1.7; }
+.lp-related-entry > span:first-child { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.lp-related-entry small { display: block; margin-top: 5px; color: #627160; }
+@media (max-width: 720px) {
+  .la-heading-actions { gap: 6px; }
+  .la-heading-actions > button { padding: 7px 9px; min-height: 38px; font-size: 11px; }
+  .la-transfer { min-height: 38px; margin-top: 5px; }
+  .lt-accounts { grid-template-columns: minmax(0, 1fr) 24px minmax(0, 1fr); gap: 6px; }
+  .lt-accounts .lp-field select { padding-left: 8px; padding-right: 4px; }
+  .lt-swap { min-height: 38px; }
+}

@@ -1,0 +1,80 @@
+{
+  "scope": "Selected layout A; fictional in-memory UI prototype only",
+  "checks": [
+    "account create with negative balance",
+    "rename keeps stable identity",
+    "balance correction recorded",
+    "transfer creates linked equal opposite entries",
+    "paired delete restores both balances",
+    "entries reference IDs instead of names",
+    "selected layout A, no variant controls",
+    "390px and 360px mobile layouts",
+    "mobile transfer dialog",
+    "no business API calls",
+    "no runtime page errors"
+  ],
+  "layouts": [
+    {
+      "name": "desktop-create",
+      "viewport": 1440,
+      "width": 1440,
+      "dialogs": [
+        {
+          "x": 455,
+          "y": 335.109375,
+          "right": 985,
+          "bottom": 744.890625,
+          "height": 409.78125
+        }
+      ]
+    },
+    {
+      "name": "desktop-transfer",
+      "viewport": 1440,
+      "width": 1440,
+      "dialogs": [
+        {
+          "x": 455,
+          "y": 172.328125,
+          "right": 985,
+          "bottom": 907.671875,
+          "height": 735.34375
+        }
+      ]
+    },
+    {
+      "name": "desktop-A",
+      "viewport": 1440,
+      "width": 1440,
+      "dialogs": []
+    },
+    {
+      "name": "mobile-390",
+      "viewport": 390,
+      "width": 390,
+      "dialogs": []
+    },
+    {
+      "name": "mobile-360",
+      "viewport": 360,
+      "width": 360,
+      "dialogs": []
+    },
+    {
+      "name": "mobile-transfer",
+      "viewport": 390,
+      "width": 390,
+      "dialogs": [
+        {
+          "x": 12,
+          "y": 62.828125,
+          "right": 378,
+          "bottom": 781.171875,
+          "height": 718.34375
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "apiRequests": []
+}

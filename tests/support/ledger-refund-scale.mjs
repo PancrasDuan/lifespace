@@ -9,27 +9,29 @@ export async function seedLedgerRefundScale(client, reportPath) {
   const owner = crypto.randomUUID(), started = performance.now()
   await client.query('begin')
   await client.query('insert into public.ledger_owner_revision(owner_id,revision) values($1,100000)', [owner])
-  await client.query(`insert into public.ledger_entries(id,owner_id,request_id,direction,amount_cents,occurred_at,account_name,category_code,note)
+  const accountId = crypto.randomUUID()
+  await client.query("insert into public.ledger_accounts(id,owner_id,name,balance_cents,request_id,request_hash) values($1,$2,'退款规模合成',-2700000,gen_random_uuid(),repeat('0',64))", [accountId,owner])
+  await client.query(`insert into public.ledger_entries(id,owner_id,request_id,direction,amount_cents,occurred_at,account_id,category_code,note)
     select ('20000000-0000-4000-8000-'||lpad(n::text,12,'0'))::uuid,$1,gen_random_uuid(),'expense',-100,
-      timestamptz '2024-01-01T00:00:00+08:00'+n*interval '1 second','退款规模合成','dining','隔离环境合成数据'
-    from generate_series(1,40000)n`, [owner])
+      timestamptz '2024-01-01T00:00:00+08:00'+n*interval '1 second',$2,'dining','隔离环境合成数据'
+    from generate_series(1,40000)n`, [owner,accountId])
   for (const [prefix, amount, deleted] of [['3', 30, 'n%3=2'], ['4', 70, 'n%3<>0']]) {
-    await client.query(`insert into public.ledger_entries(id,owner_id,request_id,direction,amount_cents,occurred_at,account_name,category_code,note,parent_entry_id,deleted_at)
+    await client.query(`insert into public.ledger_entries(id,owner_id,request_id,direction,amount_cents,occurred_at,account_id,category_code,note,parent_entry_id,deleted_at)
       select ('${prefix}0000000-0000-4000-8000-'||lpad(n::text,12,'0'))::uuid,$1,gen_random_uuid(),'income',${amount},
-        timestamptz '2024-02-01T00:00:00+08:00'+n*interval '1 second','退款规模合成','dining','隔离环境合成数据',
+        timestamptz '2024-02-01T00:00:00+08:00'+n*interval '1 second',$2,'dining','隔离环境合成数据',
         ('20000000-0000-4000-8000-'||lpad(n::text,12,'0'))::uuid,case when ${deleted} then now() else null end
-      from generate_series(1,30000)n`, [owner])
+      from generate_series(1,30000)n`, [owner,accountId])
   }
   await client.query('commit')
   const seedMs = performance.now() - started
   await client.query('vacuum analyze public.ledger_entries')
   const queries = [
     { name: '退款加入后深页及派生状态', index: 'ledger_entries_active_time', text: `select public.ledger_entry_json(e) from
-      (select * from public.ledger_entries where owner_id=$1 and deleted_at is null order by occurred_at desc,id desc limit 30 offset 69990)e` },
+      (select * from public.ledger_entries where owner_id=$1 and deleted_at is null and account_id is not null order by occurred_at desc,id desc limit 30 offset 69990)e` },
     { name: '有效退款关联及额度', index: 'ledger_entries_active_refunds', text: `select sum(amount_cents),count(*) from public.ledger_entries
       where owner_id=$1 and parent_entry_id='20000000-0000-4000-8000-000000030000' and deleted_at is null` },
     { name: '删除范围全部有效退款标识', index: 'ledger_entries_active_refunds', text: `select id from public.ledger_entries
-      where owner_id=$1 and parent_entry_id='20000000-0000-4000-8000-000000030000' and deleted_at is null order by id` },
+      where owner_id=$1 and parent_entry_id='20000000-0000-4000-8000-000000030000' and deleted_at is null and account_id is not null order by id` },
     { name: '有界关联页按交易时间和标识排序', index: 'ledger_entries_active_refunds', text: `select id,amount_cents,occurred_at from public.ledger_entries
       where owner_id=$1 and parent_entry_id='20000000-0000-4000-8000-000000030000' and deleted_at is null
       order by occurred_at desc,id desc limit 30 offset 0` },

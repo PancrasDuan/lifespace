@@ -18,9 +18,9 @@ const items = [
   { page: 'home', title: '首页', href: '/', icon: House },
   { page: 'news', title: '新闻', href: '/news', icon: Newspaper },
   { page: 'adventure', title: '人生冒险', href: '/adventure', icon: Mountain },
+  { page: 'finance', title: '财务', href: '/finance', icon: Wallet },
   { title: '任务管理', icon: ListTodo },
   { title: '个人目标', icon: Target },
-  { page: 'finance', title: '财务', href: '/finance', icon: Wallet },
   { title: '股票行情', icon: ChartNoAxesCombined },
 ] as const
 

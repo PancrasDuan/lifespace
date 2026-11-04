@@ -1,6 +1,6 @@
 import { test, expect } from './authenticated-test'
 import { ledgerReceiptSchema } from '../../src/shared/ledger'
-import { installLedgerDatabase, ledgerRequest, ledgerRpc, ordinaryEntry } from '../support/ledger-database'
+import { installLedgerDatabase, ledgerRequest, ledgerRpc, ledgerTestAccount, ordinaryEntry } from '../support/ledger-database'
 
 let restore: () => void
 let owner: string
@@ -12,6 +12,7 @@ test.describe('退款正式财务页 → Worker → PostgreSQL（受控身份）
   test.beforeEach(async ({ context }) => {
     restore = installLedgerDatabase()
     owner = crypto.randomUUID()
+    await ledgerTestAccount(owner)
     loseNextSave = false; requestIds = []
     await context.route('**/api/ledger/**', async route => {
       const req = route.request(), url = new URL(req.url())
@@ -25,7 +26,7 @@ test.describe('退款正式财务页 → Worker → PostgreSQL（受控身份）
   })
   test.afterEach(() => restore?.())
   test('历史重复小时的退款浮窗按父UTC瞬间允许较晚的01:30并真实保存', async ({ page }) => {
-    expect((await ledgerRequest(owner, '/api/ledger/entries', ordinaryEntry({ amountCents: -100, categoryCode: 'dining', occurredAt: '1988-09-10T16:45:00.000Z' }))).status).toBe(200)
+    expect((await ledgerRequest(owner, '/api/ledger/entries', await ordinaryEntry(owner, { amountCents: -100, categoryCode: 'dining', occurredAt: '1988-09-10T16:45:00.000Z' }))).status).toBe(200)
     await page.goto('/finance')
     await page.getByRole('button', { name: '餐饮', exact: true }).click()
     await page.getByRole('button', { name: '登记退款', exact: true }).click()
@@ -58,7 +59,7 @@ test.describe('退款正式财务页 → Worker → PostgreSQL（受控身份）
   })
   test('500笔大备注退款全部关联可翻页，剩余额度与版本更新及删除范围始终全量', async ({ page }) => {
     test.setTimeout(90000)
-    const parent = ledgerReceiptSchema.parse(await (await ledgerRequest(owner, '/api/ledger/entries', ordinaryEntry({ amountCents: -501, categoryCode: 'dining' }))).json())
+    const parent = ledgerReceiptSchema.parse(await (await ledgerRequest(owner, '/api/ledger/entries', await ordinaryEntry(owner, { amountCents: -501, categoryCode: 'dining' }))).json())
     const ids: string[] = []
     for (let index = 0; index < 500; index++) {
       const response = await ledgerRequest(owner, `/api/ledger/entries/${parent.entryId}/refunds`, { requestId: crypto.randomUUID(), amountCents: 1, occurredAt: new Date(Date.parse('2026-02-01T00:00:00Z') + index * 1000).toISOString(), note: '😀'.repeat(496) + String(index).padStart(4, '0') })
@@ -122,8 +123,9 @@ test.describe('退款正式财务页 → Worker → PostgreSQL（受控身份）
   })
   for (const [width, height] of [[1440, 650], [390, 640], [360, 568]]) test(`${width}px 退款时间下界、有限滚轮、短屏和取消不保留草稿`, async ({ page }) => {
     await page.setViewportSize({ width, height })
+    await page.clock.install({ time: new Date('2026-10-01T15:58:00Z') })
     await page.clock.setFixedTime(new Date('2026-10-01T15:59:59Z'))
-    expect((await ledgerRequest(owner, '/api/ledger/entries', ordinaryEntry({ amountCents: -10000, categoryCode: 'dining', occurredAt: '2026-10-01T15:59:30Z' }))).status).toBe(200)
+    expect((await ledgerRequest(owner, '/api/ledger/entries', await ordinaryEntry(owner, { amountCents: -10000, categoryCode: 'dining', occurredAt: '2026-10-01T15:59:30Z' }))).status).toBe(200)
     await page.goto('/finance')
     const form = page.getByRole('dialog', { name: '登记退款', exact: true })
     const open = async () => {
@@ -147,9 +149,13 @@ test.describe('退款正式财务页 → Worker → PostgreSQL（受控身份）
     await expect(seconds.getByRole('option', { name: '30', exact: true })).toBeEnabled()
     await seconds.focus(); await page.keyboard.press('Home'); await page.keyboard.press('ArrowUp')
     await expect(seconds.getByRole('option', { name: '30', exact: true })).toHaveAttribute('aria-selected', 'true')
+    // Hold the short scrolling state until its visible disabled control is checked.
+    await page.clock.pauseAt(new Date('2026-10-01T15:59:59Z'))
     await seconds.evaluate(element => { element.scrollTop = 40 * 36; element.dispatchEvent(new Event('scroll')) })
     await expect(picker.getByRole('button', { name: '确认时间', exact: true })).toBeDisabled()
+    await page.clock.runFor(150)
     await expect(picker.getByRole('button', { name: '确认时间', exact: true })).toBeEnabled()
+    await page.clock.resume()
     await seconds.focus(); await page.keyboard.press('End'); await page.keyboard.press('ArrowDown')
     await expect(seconds.getByRole('option', { name: '59', exact: true })).toHaveAttribute('aria-selected', 'true')
     const box = await picker.boundingBox()
@@ -173,7 +179,7 @@ test.describe('退款正式财务页 → Worker → PostgreSQL（受控身份）
     }
   })
   test('退款非法金额、备注和未来时间保留输入且不截断；额度以服务端最新状态为准', async ({ page }) => {
-    const parent = ledgerReceiptSchema.parse(await (await ledgerRequest(owner, '/api/ledger/entries', ordinaryEntry({ amountCents: -10000, categoryCode: 'dining' }))).json())
+    const parent = ledgerReceiptSchema.parse(await (await ledgerRequest(owner, '/api/ledger/entries', await ordinaryEntry(owner, { amountCents: -10000, categoryCode: 'dining' }))).json())
     await page.goto('/finance')
     await page.getByRole('button', { name: '餐饮', exact: true }).click()
     await page.getByRole('button', { name: '登记退款', exact: true }).click()
@@ -211,8 +217,8 @@ test.describe('退款正式财务页 → Worker → PostgreSQL（受控身份）
     await expect(form).toBeHidden()
   })
   test('后页登记补录退款成功回全部时间第一页，按退款自身时间排序', async ({ page }) => {
-    expect((await ledgerRequest(owner, '/api/ledger/entries', ordinaryEntry({ amountCents: -10000, categoryCode: 'dining' }))).status).toBe(200)
-    await Promise.all(Array.from({ length: 30 }, () => ledgerRequest(owner, '/api/ledger/entries', ordinaryEntry({ occurredAt: '2026-02-01T00:00:00.000Z' }))))
+    expect((await ledgerRequest(owner, '/api/ledger/entries', await ordinaryEntry(owner, { amountCents: -10000, categoryCode: 'dining' }))).status).toBe(200)
+    await Promise.all(Array.from({ length: 30 }, async () => ledgerRequest(owner, '/api/ledger/entries', await ordinaryEntry(owner, { occurredAt: '2026-02-01T00:00:00.000Z' }))))
     await page.goto('/finance')
     await page.getByRole('button', { name: '下一页', exact: true }).click()
     await page.getByRole('button', { name: '餐饮', exact: true }).click()
@@ -231,7 +237,7 @@ test.describe('退款正式财务页 → Worker → PostgreSQL（受控身份）
     await expect(page.getByRole('table')).toContainText('部分退款')
   })
   test('退款未知结果不阻塞其他退款，沿用请求重试且刷新后不恢复提交', async ({ page }) => {
-    expect((await ledgerRequest(owner, '/api/ledger/entries', ordinaryEntry({ amountCents: -10000, categoryCode: 'dining' }))).status).toBe(200)
+    expect((await ledgerRequest(owner, '/api/ledger/entries', await ordinaryEntry(owner, { amountCents: -10000, categoryCode: 'dining' }))).status).toBe(200)
     await page.goto('/finance')
     const form = page.getByRole('dialog', { name: '登记退款', exact: true })
     const open = async () => {
@@ -248,7 +254,7 @@ test.describe('退款正式财务页 → Worker → PostgreSQL（受控身份）
     await expect(form).toBeHidden()
     await page.getByRole('button', { name: '重试原请求', exact: true }).click()
     await expect(page.getByRole('alert').filter({ hasText: '保存结果未确认' })).toBeHidden()
-    expect(requestIds).toHaveLength(3)
+    await expect.poll(() => requestIds).toHaveLength(3)
     expect(requestIds[0]).toBe(requestIds[2]); expect(requestIds[0]).not.toBe(requestIds[1])
     await expect(page.getByRole('table').locator('tbody tr')).toHaveCount(3)
     await open(); loseNextSave = true
@@ -265,7 +271,7 @@ test.describe('退款正式财务页 → Worker → PostgreSQL（受控身份）
     await page.getByRole('button', { name: '新建流水' }).first().click()
     const create = page.getByRole('dialog', { name: '新建流水', exact: true })
     await create.getByLabel('交易金额').fill('100')
-    await create.getByLabel('交易账户', { exact: true }).fill('招商储蓄卡')
+    await create.getByLabel('交易账户', { exact: true }).selectOption({ label: '招商储蓄卡' })
     await create.getByLabel('交易分类', { exact: true }).selectOption('dining')
     await create.getByLabel('交易时间', { exact: true }).fill('2026-01-02T11:04:05')
     await create.getByRole('button', { name: '保存流水' }).click()

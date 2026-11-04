@@ -3,7 +3,7 @@ import pg from 'pg'
 import { once } from 'node:events'
 import { createServer } from 'node:net'
 import { existsSync } from 'node:fs'
-import { mkdtemp, readFile, rm } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -51,6 +51,7 @@ const run = async (command, args, { input, env = cleanEnv, quiet = false, interr
 }
 let rest, client, result = 1
 try {
+  await mkdir(join(root, '.cache'), { recursive: true })
   const port = await freePort()
   await run(binary('initdb'), ['-D', work, '-U', 'postgres', '-A', 'trust', '--no-locale', '--encoding=UTF8'], { quiet: true, interruptible: false })
   await run(binary('pg_ctl'), ['-D', work, '-l', join(work, 'postgres.log'), '-o', `-h 127.0.0.1 -p ${port} -c unix_socket_directories=''`, '-w', '-t', '15', 'start'], { quiet: true, interruptible: false })
@@ -58,7 +59,7 @@ try {
   await client.connect()
   const sql = input => { cancellation.signal.throwIfAborted(); return client.query(input) }
   await sql('create role anon; create role authenticated; create role service_role bypassrls; grant usage on schema public to service_role;')
-  for (const path of ledgerOnly ? ['db/ledger/create-ledger.sql', 'db/ledger/list-ledger.sql', 'db/ledger/refunds.sql', 'db/ledger/delete.sql', 'tests/database/ledger.sql', 'tests/database/ledger-refunds.sql', 'tests/database/ledger-delete.sql'] : ['db/adventure/create-planning.sql', 'tests/database/adventure-planning.sql', 'tests/database/adventure-actions.sql', 'tests/database/adventure-goals.sql', 'tests/database/adventure-migrations.sql', 'tests/database/adventure-lifecycle.sql', 'tests/database/adventure-reschedule.sql', 'tests/database/adventure-growth.sql']) await sql(await readFile(join(root, path), 'utf8'))
+  for (const path of ledgerOnly ? ['db/ledger/create-ledger.sql', 'db/ledger/list-ledger.sql', 'db/ledger/refunds.sql', 'db/ledger/delete.sql', 'tests/database/ledger.sql', 'tests/database/ledger-refunds.sql', 'tests/database/ledger-delete.sql', 'db/ledger/accounts.sql', 'tests/database/ledger-accounts.sql', 'tests/database/ledger-legacy-fixture.sql', 'db/ledger/account-entries.sql', 'db/ledger/transfers.sql', 'tests/database/ledger-transfers.sql'] : ['db/adventure/create-planning.sql', 'tests/database/adventure-planning.sql', 'tests/database/adventure-actions.sql', 'tests/database/adventure-goals.sql', 'tests/database/adventure-migrations.sql', 'tests/database/adventure-lifecycle.sql', 'tests/database/adventure-reschedule.sql', 'tests/database/adventure-growth.sql']) await sql(await readFile(join(root, path), 'utf8'))
   if (!ledgerOnly) await sql(`create function pg_temp.fail_reschedule_http() returns trigger language plpgsql as $$
     begin
       if new.kind='task_rescheduled' and new.snapshot->>'title'='reschedule-http-failpoint' then raise exception 'RESCHEDULE_HTTP_FAILPOINT'; end if;
@@ -70,11 +71,19 @@ try {
     begin
       if exists(select from public.ledger_entries where owner_id=new.owner_id and note='ledger91-rollback') then raise exception 'LEDGER_TEST_ROLLBACK_AFTER_INSERT'; end if;
       if exists(select from public.ledger_entries where owner_id=new.owner_id and note='ledger94-delete-rollback' and deleted_at is not null) then raise exception 'LEDGER_TEST_ROLLBACK_AFTER_DELETE'; end if;
+      if exists(select from public.ledger_accounts where owner_id=new.owner_id and name='ledger119-rollback') then raise exception 'LEDGER_TEST_ROLLBACK_AFTER_ACCOUNT'; end if;
       return new;
     end $$;
     create trigger ledger_test_failpoint before update on public.ledger_owner_revision
-      for each row execute function pg_temp.ledger_failpoint();`)
-  console.log(ledgerOnly ? '通过：隔离账单空库初始化（两表）' : '通过：空库初始化、规划／任务事务、回滚、历史锁定和权限探针')
+      for each row execute function pg_temp.ledger_failpoint();
+    create function pg_temp.ledger_transfer_failpoint() returns trigger language plpgsql as $$
+    begin
+      if new.category_code='transfer_in' and new.note='ledger121-second-side-failure' then raise exception 'LEDGER_TEST_SECOND_SIDE'; end if;
+      return new;
+    end $$;
+    create trigger ledger_transfer_test_failpoint before insert on public.ledger_entries
+      for each row execute function pg_temp.ledger_transfer_failpoint();`)
+  console.log(ledgerOnly ? '通过：隔离账单基线与账户结构升级（四表）' : '通过：空库初始化、规划／任务事务、回滚、历史锁定和权限探针')
   const rpcPort = await freePort()
   const ledgerJwtSecret = ledgerOnly ? crypto.randomUUID() + crypto.randomUUID() : undefined
   cancellation.signal.throwIfAborted()
@@ -100,10 +109,13 @@ try {
   const scaleOwner = ledgerOnly && process.argv.includes('--ledger-scale') ? await seedLedgerScale(client, process.env.LEDGER_SCALE_INDEX_REPORT || join(root, '.cache/ledger-scale-index.json')) : undefined
   const refundScaleOwner = scaleOwner ? await seedLedgerRefundScale(client, process.env.LEDGER_REFUND_SCALE_INDEX_REPORT || join(root, '.cache/ledger-refund-scale-index.json')) : undefined
   const env = { ...cleanEnv, ADVENTURE_LOCAL_RPC_URL: url, LEDGER_LOCAL_RPC_URL: url, LEDGER_LOCAL_JWT_SECRET: ledgerJwtSecret, ...(scaleOwner ? { LEDGER_SCALE_OWNER: scaleOwner, LEDGER_REFUND_SCALE_OWNER: refundScaleOwner } : {}), PLAYWRIGHT_BROWSERS_PATH: process.env.PLAYWRIGHT_BROWSERS_PATH || '.cache/playwright' }
-  if (!process.argv.includes('--browser-only')) await run(process.execPath, ['node_modules/vitest/vitest.mjs', 'run', ...(ledgerOnly ? ['tests/api/ledger-database.test.ts', 'tests/api/ledger-dates-database.test.ts', 'tests/api/ledger-refunds-database.test.ts', 'tests/api/ledger-delete-database.test.ts', ...(scaleOwner ? ['tests/api/ledger-scale-database.test.ts', 'tests/api/ledger-refund-scale-database.test.ts'] : [])] : ['tests/api/adventure-actions-database.test.ts', 'tests/api/adventure-lifecycle-database.test.ts', 'tests/api/adventure-reschedule-database.test.ts', 'tests/api/adventure-growth-database.test.ts', 'tests/api/adventure-integration-database.test.ts'])], { env })
+  const apiArgs = process.argv.includes('--api') ? process.argv.slice(process.argv.indexOf('--api') + 1, process.argv.includes('--browser') ? process.argv.indexOf('--browser') : undefined) : []
+  if (!process.argv.includes('--browser-only')) await run(process.execPath, ['node_modules/vitest/vitest.mjs', 'run', ...(apiArgs.length ? apiArgs : ledgerOnly ? ['tests/api/ledger-database.test.ts', 'tests/api/ledger-accounts-database.test.ts', 'tests/api/ledger-account-entries-database.test.ts', 'tests/api/ledger-transfers-database.test.ts', 'tests/api/ledger-dates-database.test.ts', 'tests/api/ledger-refunds-database.test.ts', 'tests/api/ledger-delete-database.test.ts', ...(scaleOwner ? ['tests/api/ledger-scale-database.test.ts', 'tests/api/ledger-refund-scale-database.test.ts'] : [])] : ['tests/api/adventure-actions-database.test.ts', 'tests/api/adventure-lifecycle-database.test.ts', 'tests/api/adventure-reschedule-database.test.ts', 'tests/api/adventure-growth-database.test.ts', 'tests/api/adventure-integration-database.test.ts'])], { env })
   if (process.argv.includes('--browser')) {
     const browserArgs = process.argv.slice(process.argv.indexOf('--browser') + 1)
-    const specs = browserArgs.length ? [] : ledgerOnly ? ['tests/browser/ledger-database.spec.ts', 'tests/browser/ledger-dates-database.spec.ts', 'tests/browser/ledger-refunds-database.spec.ts', 'tests/browser/ledger-delete-database.spec.ts'] : ['tests/browser/adventure-actions-database.spec.ts', 'tests/browser/adventure-growth-database.spec.ts', 'tests/browser/adventure-integration-database.spec.ts']
+    // Flags such as --output/--grep refine the domain defaults; a leading file
+    // selector replaces them. Never run another domain against this database.
+    const specs = browserArgs.length && !browserArgs[0].startsWith('-') ? [] : ledgerOnly ? ['tests/browser/ledger-database.spec.ts', 'tests/browser/ledger-accounts-database.spec.ts', 'tests/browser/ledger-account-entries-database.spec.ts', 'tests/browser/ledger-transfers-database.spec.ts', 'tests/browser/ledger-dates-database.spec.ts', 'tests/browser/ledger-refunds-database.spec.ts', 'tests/browser/ledger-delete-database.spec.ts'] : ['tests/browser/adventure-actions-database.spec.ts', 'tests/browser/adventure-growth-database.spec.ts', 'tests/browser/adventure-integration-database.spec.ts']
     await run(process.execPath, ['node_modules/@playwright/test/cli.js', 'test', ...specs, ...browserArgs], { env })
   }
   if (!ledgerOnly) await sql('drop trigger reschedule_http_failpoint on public.adventure_events')

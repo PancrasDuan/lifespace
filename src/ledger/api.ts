@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { authorizedFetch, authorizedMutation } from '../auth/request'
-import { ledgerDeletePreviewSchema, ledgerDetailSchema, ledgerPageSchema, ledgerReceiptSchema, type LedgerCreate, type LedgerRefund } from '../shared/ledger'
+import { ledgerAccountsSchema, ledgerAccountReceiptSchema, ledgerDeletePreviewSchema, ledgerDetailSchema, ledgerPageSchema, ledgerReceiptSchema, ledgerTransferReceiptSchema, type LedgerTransfer, type LedgerAccountCreate, type LedgerAccountUpdate, type LedgerCreate, type LedgerRefund } from '../shared/ledger'
 import type { DateRange } from './dates'
 const errorSchema = z.object({ error: z.object({ code: z.string(), message: z.string() }) })
 export class LedgerError extends Error {
@@ -35,6 +35,22 @@ async function saveEntry(path: string, owner: string, input: LedgerCreate | Ledg
   }
 }
 export const saveLedger = (owner: string, input: LedgerCreate, signal: AbortSignal) => saveEntry('/api/ledger/entries', owner, input, signal)
+export async function saveTransfer(owner: string, input: LedgerTransfer, signal: AbortSignal) {
+  try { return await parse(await authorizedMutation('/api/ledger/transfers', JSON.stringify(input), signal, owner), ledgerTransferReceiptSchema, true) }
+  catch (error) {
+    if (error instanceof LedgerError) throw error
+    throw new LedgerError('SAVE_UNKNOWN', '保存结果未确认，请沿用原请求重试或刷新查看流水')
+  }
+}
+export const readLedgerAccounts = async (owner: string, signal: AbortSignal) => parse(await authorizedFetch('/api/ledger/accounts', signal, owner), ledgerAccountsSchema)
+export async function saveLedgerAccount(owner: string, input: LedgerAccountCreate | LedgerAccountUpdate, signal: AbortSignal, id?: string) {
+  try {
+    return await parse(await authorizedMutation(id ? `/api/ledger/accounts/${id}` : '/api/ledger/accounts', JSON.stringify(input), signal, owner, id ? 'PATCH' : 'POST'), ledgerAccountReceiptSchema, true)
+  } catch (error) {
+    if (error instanceof LedgerError) throw error
+    throw new LedgerError('SAVE_UNKNOWN', '保存结果未确认，请重试原请求或刷新查看账户')
+  }
+}
 export async function saveRefund(owner: string, parentId: string, input: LedgerRefund, signal: AbortSignal) {
   return saveEntry(`/api/ledger/entries/${parentId}/refunds`, owner, input, signal)
 }
