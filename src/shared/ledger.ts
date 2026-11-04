@@ -16,6 +16,13 @@ const note = z.string().trim().refine(value => [...value].length <= 500, '交易
 const amountCents = z.number().int().min(-ledgerLimits.amountCents).max(ledgerLimits.amountCents).refine(value => value !== 0, '金额不能为零。')
 const utcTime = z.iso.datetime().refine(value => /^\d{4}-/.test(value) && !value.startsWith('0000-') && Date.parse(value) % 1000 === 0, '交易时间须精确到秒。')
 const revision = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER)
+const balanceCents = z.number().int().min(-ledgerLimits.amountCents).max(ledgerLimits.amountCents)
+export const ledgerAccountCreateSchema = z.strictObject({ requestId: z.uuid(), name: accountName, balanceCents })
+export const ledgerAccountUpdateSchema = z.strictObject({ requestId: z.uuid(), name: accountName.optional(), balanceCents: balanceCents.optional(), expectedBalanceCents: balanceCents.optional() })
+  .refine(value => (value.balanceCents !== undefined) === (value.expectedBalanceCents !== undefined), '修正余额时请提供原余额。')
+export const ledgerAccountSchema = z.strictObject({ id: z.uuid(), name: accountName, balanceCents, createdAt: z.iso.datetime(), updatedAt: z.iso.datetime() })
+export const ledgerAccountsSchema = z.strictObject({ accounts: z.array(ledgerAccountSchema), version: revision })
+export const ledgerAccountReceiptSchema = z.strictObject({ accountId: z.uuid(), version: revision })
 const transactionFields = { direction: ledgerDirectionSchema, amountCents, occurredAt: utcTime, accountName, categoryCode: ledgerCategorySchema, note }
 export const ledgerCreateSchema = z.strictObject({ requestId: z.uuid(), ...transactionFields }).superRefine((value, ctx) => {
   if ((value.direction === 'expense') !== (value.amountCents < 0)) ctx.addIssue({ code: 'custom', message: '金额符号与收支类型不符。', path: ['amountCents'] })
@@ -41,11 +48,15 @@ export const ledgerQuerySchema = z.strictObject({
   version: queryRevision.optional(),
 }).refine(value => (!value.startDate && !value.endDate) || (!!value.startDate && !!value.endDate && value.startDate <= value.endDate), '日期范围无效')
 export const ledgerErrors = {
+  INVALID_ACCOUNT: [400, '账户输入无效，请检查名称与余额'],
+  ACCOUNT_NAME_TAKEN: [409, '已有同名账户，请使用其他名称'],
+  ACCOUNT_NOT_FOUND: [404, '交易账户不存在或不属于本人'],
+  BALANCE_CHANGED: [409, '余额已变化，请核对最新余额后再次保存'],
   INVALID_ENTRY: [400, '流水输入无效，请检查金额、账户、分类与交易时间'],
   INVALID_QUERY: [400, '日期或分页参数无效'],
   LIST_CHANGED: [409, '列表已更新，已返回第一页'],
   FUTURE_TIME: [400, '交易时间不能晚于当前北京时间'],
-  REQUEST_ID_REUSED: [409, '请求编号已用于不同内容，请重新创建流水'],
+  REQUEST_ID_REUSED: [409, '请求编号已用于不同内容，请重新提交'],
   NOT_FOUND: [404, '流水不存在或不属于当前账户'],
   REFUND_PARENT_INVALID: [409, '只能为本人未删除的普通支出登记退款'],
   REFUND_LIMIT: [409, '退款金额超过剩余可退额度，请查看最新流水'],
@@ -61,4 +72,7 @@ export type LedgerRefund = z.infer<typeof ledgerRefundSchema>
 export type LedgerPage = z.infer<typeof ledgerPageSchema>
 export type LedgerReceipt = z.infer<typeof ledgerReceiptSchema>
 export type LedgerDeletePreview = z.infer<typeof ledgerDeletePreviewSchema>
+export type LedgerAccount = z.infer<typeof ledgerAccountSchema>
+export type LedgerAccountCreate = z.infer<typeof ledgerAccountCreateSchema>
+export type LedgerAccountUpdate = z.infer<typeof ledgerAccountUpdateSchema>
 export function categoryLabel(code: string) { return [...ledgerCategories.expense, ...ledgerCategories.income].find(([value]) => value === code)?.[1] ?? code }

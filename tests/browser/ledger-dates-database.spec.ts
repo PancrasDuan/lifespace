@@ -119,7 +119,7 @@ test.describe('北京时间筛选 → 正式 Worker → 隔离数据库', () => 
     await expect(page.getByText('没有匹配的流水', { exact: true })).toBeVisible()
     failReads = true
     await page.getByRole('button', { name: '刷新数据', exact: true }).click()
-    await expect(page.getByRole('alert')).toContainText('读取失败')
+    await expect(page.getByRole('region', { name: '账单流水', exact: true }).getByRole('alert')).toContainText('读取失败')
     await expect(page.getByText('没有匹配的流水', { exact: true })).toBeHidden()
     failReads = false
     await page.getByRole('button', { name: '重试读取', exact: true }).click()

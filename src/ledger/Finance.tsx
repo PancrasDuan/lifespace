@@ -1,11 +1,13 @@
-import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { ArrowDownLeft, ArrowUpRight, CalendarDays, Check, ChevronLeft, ChevronRight, CreditCard, Plus, RefreshCw, Wallet, Trash2, X } from 'lucide-react'
+import { ArrowDownLeft, ArrowUpRight, CalendarDays, Check, ChevronLeft, ChevronRight, CreditCard, Plus, RefreshCw, Wallet, Trash2 } from 'lucide-react'
 import { AppLayout } from '../app/AppLayout'
 import { useVerifiedIdentity } from '../auth/identity'
 import { categoryLabel, ledgerCategories, ledgerCreateSchema, ledgerStatusLabels, type LedgerCreate, type LedgerEntry } from '../shared/ledger'
 import { LedgerError, readLedgerDetail, readDeletePreview, deleteLedger } from './api'
 import { RefundForm } from './RefundForm'
+import { LedgerModal } from './LedgerModal'
+import { Accounts } from './Accounts'
 import { formatCurrency, formatDateTime, fromDateTimeInput, toDateTimeInput, yuanToCents } from './time'
 import { TransactionDateTimeField } from './TransactionDateTimeField'
 import './finance.css'
@@ -84,7 +86,7 @@ export function Finance() {
   }
   return <AppLayout page="finance" className="finance-page lp-app lp-variant-a">
     <div className="lp-workspace">
-      <header className="lp-page-header"><h1>账单流水<span>人民币</span></h1><button className="lp-primary" onClick={newEntry}><Plus size={17} />新建流水</button></header>
+      <header className="lp-page-header"><div><h1>财务<span>人民币</span></h1><p>管理账户与每笔收支。</p></div></header>
       {submission.unconfirmed.map(item => <div role="alert" className="lp-unknown" key={item.key}><span>{item.message}</span><button className="lp-secondary" disabled={item.pending} onClick={() => void item.retry()}>{item.pending ? '正在重试…' : '重试原请求'}</button><button className="lp-secondary" onClick={() => void entries.refetch()}>查看最新流水</button></div>)}
       {unknownDeletes.filter(item => panel?.kind !== 'delete' || panel.session !== item.session).map(item => <div role="alert" className="lp-unknown" key={item.id}><span>{item.message}</span><button className="lp-secondary" disabled={item.pending} onClick={() => {
         if (item.code === 'DELETE_SCOPE_CHANGED') {
@@ -92,7 +94,9 @@ export function Finance() {
           setPanel({ kind: 'delete', id: item.id, session: crypto.randomUUID() })
         } else void submitDelete(item).catch(() => {})
       }}>{item.pending ? '正在重试…' : item.code === 'DELETE_SCOPE_CHANGED' ? '重新确认删除' : '重试删除'}</button><button className="lp-secondary" onClick={() => void entries.refetch()}>查看最新流水</button></div>)}
+      <Accounts closeKey={form?.key ?? (panel ? (panel.kind === 'delete' ? panel.session : panel.id) : null)} onOpen={() => { submission.close(); setPanel(null) }} />
       <section className="lp-table-surface" aria-label="账单流水">
+        <div className="la-ledger-heading"><h2>账单流水</h2><button className="lp-secondary" onClick={newEntry}><Plus size={15} />新建流水</button></div>
         <div className="lp-top-toolbar"><div className="lp-filter-buttons">{([['all', '全部时间'], ['today', '今天'], ['week', '近 7 天'], ['month', '近 1 个月']] as const).map(([value, label]) => <button key={value} className={filter === value ? 'active' : ''} aria-pressed={filter === value} onClick={() => selectFilter(value)}>{label}</button>)}<button ref={rangeTrigger} className={filter === 'custom' ? 'active' : ''} aria-pressed={filter === 'custom'} aria-expanded={!!dateAnchor} aria-haspopup="dialog" onClick={() => setDateAnchor(current => current ? null : rangeTrigger.current!.getBoundingClientRect())}>自定义</button></div><span className="lp-timezone"><CalendarDays size={14} />北京时间</span></div>
         {range && <p className="lp-applied-range">{range.start} — {range.end}</p>}
         {updated && <p role="status" className="lp-applied-range">列表已更新，已返回第一页</p>}
@@ -118,13 +122,6 @@ export function Finance() {
     {panel?.kind === 'delete' && <LedgerModal title="删除流水" close={() => setPanel(null)} compact><DeleteConfirmation key={panel.session} session={panel.session} id={panel.id} cancel={() => setPanel(null)} save={scope => submitDelete({ id: panel.id, scope, session: panel.session })} /></LedgerModal>}
     {!!notice && <div role="status" className="lp-toast"><Check size={15} />流水已记录</div>}
   </AppLayout>
-}
-export function LedgerModal({ title, children, close, form = false, compact = false }: { title: string; children: ReactNode; close: () => void; form?: boolean; compact?: boolean }) {
-  const ref = useRef<HTMLDialogElement>(null)
-  useEffect(() => { ref.current?.showModal() }, [])
-  return <dialog ref={ref} className={`lp-dialog ${form ? 'entry-card' : ''} ${compact ? 'compact' : ''}`} aria-label={title} onCancel={close} onClick={event => { if (event.target === event.currentTarget) close() }}>
-    <header><h2>{title}</h2><button aria-label="关闭" onClick={close}><X size={19} /></button></header>{children}
-  </dialog>
 }
 function EntryDetail({ id, open, refund, remove }: { remove: () => void; id: string; open: (id: string) => void; refund: (parent: LedgerEntry, remainingCents: number) => void }) {
   const identity = useVerifiedIdentity()

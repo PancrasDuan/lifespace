@@ -103,6 +103,7 @@ export async function authorizedMutation(
   body: string,
   signal: AbortSignal,
   expectedOwner: string,
+  method: 'POST' | 'PATCH' = 'POST',
 ): Promise<Response> {
   const { data, error } = await currentSession()
   signal.throwIfAborted()
@@ -118,7 +119,7 @@ export async function authorizedMutation(
   }
   if (data.session.user.id !== expectedOwner) return changedIdentity()
   const response = await fetch(path, {
-    method: 'POST',
+    method,
     headers: {
       Authorization: `Bearer ${data.session.access_token}`,
       'Content-Type': 'application/json',

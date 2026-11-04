@@ -3,41 +3,59 @@ import type { Context } from 'hono'
 import type { AuthEnv, Identity } from './auth'
 import { ApiError } from './upstream'
 import { readBoundedBody } from './read-body'
-import { ledgerCreateSchema, ledgerDeletePreviewSchema, ledgerDeleteSchema, ledgerDetailQuerySchema, ledgerDetailSchema, ledgerErrors, ledgerPageSchema, ledgerQuerySchema, ledgerReceiptSchema, ledgerRefundSchema } from '../src/shared/ledger'
+import { ledgerAccountCreateSchema, ledgerAccountUpdateSchema, ledgerAccountReceiptSchema, ledgerAccountsSchema, ledgerCreateSchema, ledgerDeletePreviewSchema, ledgerDeleteSchema, ledgerDetailQuerySchema, ledgerDetailSchema, ledgerErrors, ledgerPageSchema, ledgerQuerySchema, ledgerReceiptSchema, ledgerRefundSchema } from '../src/shared/ledger'
 
 type LedgerContext = Context<{ Bindings: AuthEnv; Variables: { identity: Identity } }>
 function failure(code: keyof typeof ledgerErrors, message?: string) {
   const [status, text] = ledgerErrors[code]
   return new ApiError(code, message ?? text, status)
 }
-async function readInput(c: LedgerContext, maxBytes: number): Promise<unknown> {
-  if (!/^application\/json(?:;|$)/i.test(c.req.header('Content-Type') ?? '')) throw failure('INVALID_ENTRY')
+export async function listLedgerAccounts(c: LedgerContext) {
+  if (Object.keys(c.req.query()).length) throw failure('INVALID_QUERY')
+  return c.json(await rpc(c, 'ledger_accounts_list', {}, ledgerAccountsSchema, false, '暂时无法读取账户，请稍后重试'))
+}
+export async function createLedgerAccount(c: LedgerContext) {
+  if (Object.keys(c.req.query()).length) throw failure('INVALID_QUERY')
+  const value = ledgerAccountCreateSchema.safeParse(await readInput(c, 4096, 'INVALID_ACCOUNT'))
+  if (!value.success) throw failure('INVALID_ACCOUNT', value.error.issues[0]?.message)
+  return c.json(await rpc(c, 'ledger_account_create', { p_input: value.data }, ledgerAccountReceiptSchema, true, '保存结果未确认，请沿用原请求重试或刷新查看账户'))
+}
+export async function updateLedgerAccount(c: LedgerContext) {
+  const id = z.uuid().safeParse(c.req.param('id'))
+  if (!id.success) throw failure('ACCOUNT_NOT_FOUND')
+  if (Object.keys(c.req.query()).length) throw failure('INVALID_QUERY')
+  const value = ledgerAccountUpdateSchema.safeParse(await readInput(c, 4096, 'INVALID_ACCOUNT'))
+  if (!value.success) throw failure('INVALID_ACCOUNT', value.error.issues[0]?.message)
+  return c.json(await rpc(c, 'ledger_account_update', { p_id: id.data, p_input: value.data }, ledgerAccountReceiptSchema, true, '保存结果未确认，请沿用原请求重试或刷新查看账户'))
+}
+async function readInput(c: LedgerContext, maxBytes: number, invalid: 'INVALID_ENTRY' | 'INVALID_ACCOUNT' = 'INVALID_ENTRY'): Promise<unknown> {
+  if (!/^application\/json(?:;|$)/i.test(c.req.header('Content-Type') ?? '')) throw failure(invalid)
   try {
     if (!c.req.raw.body) throw new Error()
     return JSON.parse(await readBoundedBody(c.req.raw.body, maxBytes, 5_000))
-  } catch { throw failure('INVALID_ENTRY') }
+  } catch { throw failure(invalid) }
 }
-async function rpc<T>(c: LedgerContext, name: string, params: Record<string, unknown>, schema: z.ZodType<T>, writing: boolean | 'delete' = false): Promise<T> {
+async function rpc<T>(c: LedgerContext, name: string, params: Record<string, unknown>, schema: z.ZodType<T>, writing: boolean | 'delete' = false, fallbackMessage?: string): Promise<T> {
   const fallback = writing === 'delete' ? 'DELETE_UNKNOWN' : writing ? 'SAVE_UNKNOWN' : 'LEDGER_UNAVAILABLE'
   const { SUPABASE_URL: base, SUPABASE_SECRET_KEY: key } = c.env
-  if (!base || !key) throw failure(fallback)
+  if (!base || !key) throw failure(fallback, fallbackMessage)
   try {
     const url = new URL(`/rest/v1/rpc/${name}`, base)
-    if (url.protocol !== 'https:' || url.username || url.password) throw failure(fallback)
+    if (url.protocol !== 'https:' || url.username || url.password) throw failure(fallback, fallbackMessage)
     const headers = new Headers({ apikey: key, 'Content-Type': 'application/json' })
     if (key.startsWith('eyJ')) headers.set('Authorization', `Bearer ${key}`)
     const response = await fetch(url, { method: 'POST', headers, redirect: 'manual', signal: AbortSignal.timeout(10_000), body: JSON.stringify({ ...params, p_owner: c.get('identity').id }) })
-    if (!response.body) throw failure(fallback)
+    if (!response.body) throw failure(fallback, fallbackMessage)
     const value: unknown = JSON.parse(await readBoundedBody(response.body, 1_048_576, 10_000))
     if (!response.ok) {
       const parsed = z.object({ message: z.string() }).safeParse(value)
       if (parsed.success && Object.hasOwn(ledgerErrors, parsed.data.message)) throw failure(parsed.data.message as keyof typeof ledgerErrors)
-      throw failure(fallback)
+      throw failure(fallback, fallbackMessage)
     }
     const parsed = schema.safeParse(value)
-    if (!parsed.success) throw failure(fallback)
+    if (!parsed.success) throw failure(fallback, fallbackMessage)
     return parsed.data
-  } catch (error) { if (error instanceof ApiError) throw error; throw failure(fallback) }
+  } catch (error) { if (error instanceof ApiError) throw error; throw failure(fallback, fallbackMessage) }
 }
 export async function listLedger(c: LedgerContext) {
   if (Object.values(c.req.queries()).some(values => values.length !== 1)) throw failure('INVALID_QUERY')

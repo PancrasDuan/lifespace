@@ -105,7 +105,7 @@ for (const kind of ['new', 'refund'] as const) test(`${kind} 保存成功后读�
   await expect(page.getByRole('status').filter({ hasText: '流水已记录' })).toBeVisible()
   await expect(later.getByLabel('交易金额')).toHaveValue('88.88')
   await later.getByRole('button', { name: '取消', exact: true }).click()
-  await expect(page.getByRole('alert')).toContainText('读取失败')
+  await expect(page.getByRole('region', { name: '账单流水', exact: true }).getByRole('alert')).toContainText('读取失败')
   fixture.failReads(false)
   await page.getByRole('button', { name: '重试读取', exact: true }).click()
   await expect(page.getByRole('table')).toBeVisible()
