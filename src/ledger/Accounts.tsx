@@ -11,11 +11,11 @@ import './accounts.css'
 const balanceText = (cents: number) => new Intl.NumberFormat('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(cents / 100)
 function balanceInput(value: string) {
   const input = value.trim()
-  if (!/^[+-]?\d+(\.\d{1,2})?$/.test(input)) throw new Error('请填写有效余额，最多保留两位小数。')
+  if (!/^[+-]?\d+(\.\d{0,2})?$/.test(input)) throw new Error('金额格式有问题，请填写有效余额，最多保留两位小数。')
   const negative = input.startsWith('-'), [yuan, fraction = ''] = input.replace(/^[+-]/, '').split('.')
   const cents = BigInt(yuan) * 100n + BigInt(fraction.padEnd(2, '0'))
   if (cents > 99_999_999_999n) throw new Error('余额须在 −999,999,999.99 至 999,999,999.99 元之间。')
-  return Number(negative ? -cents : cents)
+  return { cents: Number(negative ? -cents : cents), formatted: `${input.split('.')[0]}.${fraction.padEnd(2, '0')}` }
 }
 
 export function Accounts({ closeKey, onOpen, onTransfer }: { closeKey: string | null; onOpen: () => void; onTransfer: (fromAccountId?: string) => void }) {
@@ -51,10 +51,21 @@ function AccountForm({ session, submit, cancel }: { session: NonNullable<ReturnT
   const { account, pending, frozen, message, latestBalanceCents } = session
   const [name, setName] = useState(session.command?.input.name ?? account?.name ?? '')
   const [balance, setBalance] = useState(((session.command?.input.balanceCents ?? account?.balanceCents ?? 0) / 100).toFixed(2))
+  const [balanceError, setBalanceError] = useState('')
+  function formatBalance() {
+    try {
+      const value = balanceInput(balance)
+      setBalance(value.formatted); setBalanceError('')
+      return value.cents
+    } catch (error) {
+      setBalanceError(error instanceof Error ? error.message : '金额格式有问题，请检查余额。')
+    }
+  }
   function save(event: FormEvent) {
     event.preventDefault()
+    const cents = formatBalance()
+    if (cents === undefined) return
     void submit(() => {
-      const cents = balanceInput(balance)
       const value = !account ? ledgerAccountCreateSchema.safeParse({ requestId: crypto.randomUUID(), name, balanceCents: cents }) : ledgerAccountUpdateSchema.safeParse({
         requestId: crypto.randomUUID(),
         ...(name.trim() !== account.name ? { name } : {}),
@@ -66,9 +77,9 @@ function AccountForm({ session, submit, cancel }: { session: NonNullable<ReturnT
   }
   return <form className="la-form" onSubmit={save} noValidate>
     <label className="lp-field">账户名称<input aria-label="账户名称" data-initial-focus autoComplete="off" required disabled={pending || frozen} value={name} placeholder="例如：微信零钱" onChange={event => setName(event.target.value)} /><small>本人账户名称不能重复，最多 50 个字符。</small></label>
-    <label className="lp-field">{account ? '当前余额' : '初始余额'}<span className="la-field-unit">人民币 · 元</span><input aria-label={account ? '当前余额' : '初始余额'} aria-describedby="la-balance-hint" inputMode="decimal" required disabled={pending || frozen} value={balance} onChange={event => setBalance(event.target.value)} /></label>
+    <label className="lp-field">{account ? '当前余额' : '初始余额'}<span className="la-field-unit">人民币 · 元</span><input aria-label={account ? '当前余额' : '初始余额'} aria-describedby={balanceError ? 'la-balance-hint la-account-error' : 'la-balance-hint'} aria-invalid={!!balanceError} inputMode="decimal" required disabled={pending || frozen} value={balance} onChange={event => { setBalance(event.target.value); setBalanceError('') }} onBlur={() => { if (!pending && !frozen) formatBalance() }} /></label>
     <p id="la-balance-hint" className="la-field-hint">允许零和负数，最多两位小数。{account && '手工修正余额不会生成收支流水。'}</p>
-    {message && <p role="alert" className="lp-form-error">{message}</p>}
+    {(balanceError || message) && <p id="la-account-error" role="alert" className="lp-form-error">{balanceError || message}</p>}
     {latestBalanceCents !== undefined && <p role="status" className="la-conflict">最新余额为 ¥{balanceText(latestBalanceCents)}。已保留你的输入，请核对后再次保存。</p>}
     <div className="lp-form-actions"><button className="lp-secondary" type="button" onClick={cancel}>取消</button><button className="lp-primary" type="submit" disabled={pending}>{pending ? '正在保存…' : frozen ? '重试原请求' : account ? latestBalanceCents === undefined ? '保存修改' : '核对后保存修改' : '保存账户'}</button></div>
   </form>
