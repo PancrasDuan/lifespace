@@ -1,52 +1,65 @@
--- Synthetic, transaction-scoped constraint/permission probes; never load against production.
+-- Current final schema; synthetic probes always roll back. Business assertions
+-- run through Worker HTTP, while physical retention/ACL have no public read API.
 begin;
 do $$
-declare owner_a uuid := gen_random_uuid(); owner_b uuid := gen_random_uuid(); id_a uuid; revision_before bigint; rec jsonb;
+declare o uuid:=gen_random_uuid(); other uuid:=gen_random_uuid(); a uuid; b uuid;
+  p uuid; c uuid; receipt jsonb; before_parent jsonb; before_child jsonb;
+  field text; value text; role_name text; fn text;
 begin
-  if (select count(*) from pg_tables where schemaname = 'public' and tablename like 'ledger_%') <> 2 then raise exception 'LEDGER_MUST_HAVE_TWO_TABLES'; end if;
-  if exists(select from pg_tables where schemaname = 'public' and tablename like 'ledger_%' and not rowsecurity) then raise exception 'RLS_REQUIRED'; end if;
-  if has_table_privilege('anon','public.ledger_entries','SELECT') or has_table_privilege('authenticated','public.ledger_entries','SELECT')
-    or has_table_privilege('authenticated','public.ledger_owner_revision','SELECT') or has_table_privilege('service_role','public.ledger_entries','UPDATE')
-    or has_function_privilege('anon','public.ledger_list(uuid,integer,date,date,bigint)','EXECUTE') or has_function_privilege('authenticated','public.ledger_create(uuid,jsonb)','EXECUTE')
-    or has_function_privilege('authenticated','public.ledger_detail(uuid,uuid,bigint,bigint)','EXECUTE') then raise exception 'BROWSER_OR_DIRECT_WRITE_PERMISSION'; end if;
-  rec := public.ledger_create(owner_a, jsonb_build_object('requestId',gen_random_uuid(),'direction','expense','amountCents',-10000,'occurredAt','2026-01-02T03:04:05.000Z','accountName','零钱','categoryCode','dining','note','原始事实'));
-  id_a := (rec->>'entryId')::uuid;
+  if exists(select from pg_attribute where attrelid='public.ledger_entries'::regclass
+    and attname='account_name' and not attisdropped) then raise exception 'LEGACY_COLUMN_REMAINS'; end if;
+  if not exists(select from pg_attribute where attrelid='public.ledger_entries'::regclass
+    and attname='account_id' and attnotnull) then raise exception 'ACCOUNT_ID_NULLABLE'; end if;
+  if exists(select from pg_constraint where conrelid='public.ledger_entries'::regclass
+    and conname in ('ledger_entries_account_name_check','ledger_entries_account_name_snapshot')) then raise exception 'LEGACY_CHECK_REMAINS'; end if;
+  if exists(select from pg_tables where schemaname='public' and tablename like 'ledger_%' and not rowsecurity)
+    or (select count(*) from pg_tables where schemaname='public' and tablename like 'ledger_%')<>4 then raise exception 'FOUR_RLS_TABLES_REQUIRED'; end if;
+  foreach role_name in array array['anon','authenticated','service_role'] loop
+    if has_table_privilege(role_name,'public.ledger_entries','SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER')
+      or has_table_privilege(role_name,'public.ledger_owner_revision','SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER') then raise exception 'DIRECT_LEDGER_ACCESS'; end if;
+    if has_function_privilege(role_name,'public.ledger_entry_immutable()','EXECUTE') then raise exception 'IMMUTABLE_HELPER_EXPOSED'; end if;
+    foreach fn in array array['ledger_create(uuid,jsonb)','ledger_list(uuid,integer,date,date,bigint)','ledger_detail(uuid,uuid,bigint,bigint)','ledger_refund(uuid,uuid,jsonb)','ledger_delete_preview(uuid,uuid)','ledger_delete(uuid,uuid,text)'] loop
+      if has_function_privilege(role_name,'public.'||fn,'EXECUTE')<>(role_name='service_role') then raise exception 'LEDGER_RPC_ACL'; end if;
+    end loop;
+  end loop;
+  a:=(public.ledger_account_create(o,jsonb_build_object('requestId',gen_random_uuid(),'name','合成账户','balanceCents',10000))->>'accountId')::uuid;
+  b:=(public.ledger_account_create(other,jsonb_build_object('requestId',gen_random_uuid(),'name','合成另一所有者','balanceCents',0))->>'accountId')::uuid;
+  p:=(public.ledger_create(o,jsonb_build_object('requestId',gen_random_uuid(),'direction','expense','amountCents',-1000,'occurredAt','2025-01-01T00:00:00Z','accountId',a,'categoryCode','dining','note','合成原文'))->>'entryId')::uuid;
+  c:=(public.ledger_refund(o,p,jsonb_build_object('requestId',gen_random_uuid(),'amountCents',100,'occurredAt','2025-01-02T00:00:00Z','note','合成退款'))->>'entryId')::uuid;
+  -- Every original immutable field must still reject change after the drop.
+  for field,value in select * from (values
+    ('id','gen_random_uuid()'),('owner_id','gen_random_uuid()'),('request_id','gen_random_uuid()'),
+    ('direction',quote_literal('income')),('amount_cents','-2'),('occurred_at',quote_literal('2025-01-03T00:00:00Z')),
+    ('account_id',quote_literal(b)),('transfer_id','gen_random_uuid()'),('category_code',quote_literal('other_expense')),
+    ('note',quote_literal('被改写')),('parent_entry_id','gen_random_uuid()'),('created_at',quote_literal('2020-01-01T00:00:00Z'))) changes loop
+    begin
+      execute format('update public.ledger_entries set %I=%s where id=$1',field,value) using p;
+      raise exception 'IMMUTABLE_FIELD_ALLOWED:%',field;
+    exception when check_violation then if sqlerrm<>'LEDGER_IMMUTABLE' then raise; end if; end;
+  end loop;
   begin
-    update public.ledger_entries set note = '修改原始事实' where id = id_a;
-    raise exception 'IMMUTABLE_FACTS_NOT_PROTECTED';
-  exception when check_violation then null; end;
+    insert into public.ledger_entries(owner_id,request_id,direction,amount_cents,occurred_at,account_id,category_code)
+      values(o,gen_random_uuid(),'expense',-1,'2025-01-01T00:00:00Z',null,'dining');
+    raise exception 'NULL_ACCOUNT_ALLOWED'; exception when not_null_violation then null; end;
   begin
-    delete from public.ledger_entries where id = id_a;
-    raise exception 'PHYSICAL_DELETE_NOT_PROTECTED';
-  exception when check_violation then null; end;
-  insert into public.ledger_owner_revision(owner_id) values (owner_b);
+    insert into public.ledger_entries(owner_id,request_id,direction,amount_cents,occurred_at,account_id,category_code)
+      values(o,gen_random_uuid(),'expense',-1,'2025-01-01T00:00:00Z',b,'dining');
+    raise exception 'CROSS_OWNER_ACCOUNT_ALLOWED'; exception when foreign_key_violation then null; end;
   begin
-    insert into public.ledger_entries(owner_id, request_id, direction, amount_cents, occurred_at, account_name, category_code, parent_entry_id)
-      values(owner_b,gen_random_uuid(),'income',100,'2026-01-02T03:04:05Z','零钱','dining',id_a);
-    raise exception 'CROSS_OWNER_PARENT_NOT_PROTECTED';
-  exception when foreign_key_violation then null; end;
-  begin
-    insert into public.ledger_entries(owner_id, request_id, direction, amount_cents, occurred_at, account_name, category_code)
-      values(owner_a,gen_random_uuid(),'expense',-1,'2026-01-02T03:04:05Z',repeat('😀',51),'dining');
-    raise exception 'DATABASE_CODEPOINT_LIMIT_MISSING';
-  exception when check_violation then null; end;
-  begin
-    insert into public.ledger_entries(owner_id, request_id, direction, amount_cents, occurred_at, account_name, category_code)
-      values(owner_a,gen_random_uuid(),'expense',-100000000000,'2026-01-02T03:04:05Z','零钱','dining');
-    raise exception 'DATABASE_AMOUNT_LIMIT_MISSING';
-  exception when check_violation then null; end;
-  select revision into revision_before from public.ledger_owner_revision where owner_id=owner_a;
-  begin
-    perform public.ledger_create(owner_a, jsonb_build_object('requestId',gen_random_uuid(),'direction','expense','amountCents',0,'occurredAt','2026-01-02T03:04:05.000Z','accountName','零钱','categoryCode','dining','note',''));
-    raise exception 'ZERO_AMOUNT_ACCEPTED';
-  exception when raise_exception then if sqlerrm <> 'INVALID_ENTRY' then raise; end if; end;
-  if (select revision from public.ledger_owner_revision where owner_id=owner_a) <> revision_before then raise exception 'FAILED_WRITE_CHANGED_REVISION'; end if;
-  -- Unique requests include deleted records, and retries never resurrect or disclose their body.
-  update public.ledger_entries set deleted_at=now() where id=id_a;
-  rec := public.ledger_create(owner_a,(select jsonb_build_object('requestId',request_id,'direction',direction,'amountCents',amount_cents,'occurredAt','2026-01-02T03:04:05.000Z','accountName',account_name,'categoryCode',category_code,'note',note) from public.ledger_entries where id=id_a));
-  if rec <> jsonb_build_object('entryId',id_a,'version',revision_before,'deleted',true) then raise exception 'DELETED_RETRY_RESURRECTED'; end if;
-  if (public.ledger_list(owner_a)->>'total')::int <> 0 then raise exception 'DELETED_ENTRY_VISIBLE'; end if;
-  begin perform public.ledger_detail(owner_a,id_a); raise exception 'DELETED_DETAIL_VISIBLE';
-  exception when raise_exception then if sqlerrm <> 'NOT_FOUND' then raise; end if; end;
+    insert into public.ledger_entries(owner_id,request_id,direction,amount_cents,occurred_at,account_id,category_code,parent_entry_id)
+      values(other,gen_random_uuid(),'income',1,'2025-01-01T00:00:00Z',b,'dining',p);
+    raise exception 'CROSS_OWNER_PARENT_ALLOWED'; exception when foreign_key_violation then null; end;
+  select to_jsonb(e)-'deleted_at' into before_parent from public.ledger_entries e where id=p;
+  select to_jsonb(e)-'deleted_at' into before_child from public.ledger_entries e where id=c;
+  receipt:=public.ledger_delete_preview(o,p);
+  perform public.ledger_delete(o,p,receipt->>'scope');
+  if (select count(*) from public.ledger_entries where owner_id=o and deleted_at is not null)<>2
+    or (select count(distinct deleted_at) from public.ledger_entries where owner_id=o)<>1
+    or (select to_jsonb(e)-'deleted_at' from public.ledger_entries e where id=p)<>before_parent
+    or (select to_jsonb(e)-'deleted_at' from public.ledger_entries e where id=c)<>before_child then raise exception 'DELETION_CHANGED_FACTS'; end if;
+  begin update public.ledger_entries set deleted_at=null where id=p;
+    raise exception 'RESTORE_ALLOWED'; exception when check_violation then if sqlerrm<>'LEDGER_IMMUTABLE' then raise; end if; end;
+  begin delete from public.ledger_entries where id=c;
+    raise exception 'PHYSICAL_DELETE_ALLOWED'; exception when check_violation then if sqlerrm<>'LEDGER_IMMUTABLE' then raise; end if; end;
 end $$;
 rollback;

@@ -163,11 +163,9 @@ test.describe('正式页面账户流水 → Worker → 隔离数据库', () => {
     await expect(page.getByRole('region', { name: '账单流水', exact: true })).toContainText('0 条流水')
   })
 
-  test('未归属旧流水隐藏，账户为空时不能提交且刷新不清除已填金额', async ({ page }) => {
-    owner = '12100000-0000-4000-8000-000000000001'
+  test('账户为空时不能提交且刷新不清除已填金额', async ({ page }) => {
     await page.goto('/finance')
     await expect(page.getByText('暂无流水', { exact: true })).toBeVisible()
-    await expect(page.getByText('旧名称保留', { exact: true })).toHaveCount(0)
     await page.getByRole('button', { name: '新建流水' }).first().click()
     const form = page.getByRole('dialog', { name: '新建流水', exact: true })
     await expect(form.getByLabel('交易账户', { exact: true })).toBeDisabled()

@@ -99,19 +99,17 @@ describe.skipIf(!ledgerRpc)('账户流水：真实 Worker → 隔离 PostgreSQL/
     expect(await detail(owner, parent.entryId)).toMatchObject({ entry: { status: 'completed' }, refundCount: 0 })
   })
 
-  it('未归属旧流水在列表、详情、关联、写入目标及原请求重试全部隐藏', async () => {
-    const owner = '12000000-0000-4000-8000-000000000001', parent = '12000000-0000-4000-8000-000000000002', child = '12000000-0000-4000-8000-000000000003'
-    expect(await list(owner)).toMatchObject({ total: 0, items: [], version: 2 })
-    expect(await accounts(owner)).toEqual({ accounts: [], version: 2 })
+  it('没有账户时列表为空，未知流水的详情、退款及删除均拒绝', async () => {
+    const owner = crypto.randomUUID(), parent = crypto.randomUUID(), child = crypto.randomUUID()
+    expect(await list(owner)).toMatchObject({ total: 0, items: [], version: 0 })
+    expect(await accounts(owner)).toEqual({ accounts: [], version: 0 })
     for (const id of [parent, child]) {
       for (const suffix of ['', '/delete-preview']) expect((await ledgerRequest(owner, `/api/ledger/entries/${id}${suffix}`)).status).toBe(404)
       expect((await ledgerRequest(owner, `/api/ledger/entries/${id}/delete`, { scope: '0'.repeat(64) })).status).toBe(404)
       expect((await ledgerRequest(owner, `/api/ledger/entries/${id}/refunds`, { requestId: crypto.randomUUID(), amountCents: 1, occurredAt: '2025-01-03T00:00:00Z', note: '' })).status).toBe(404)
     }
-    expect((await ledgerRequest(owner, `/api/ledger/entries/${parent}/refunds`, { requestId: '12000000-0000-4000-8000-000000000005', amountCents: 3000, occurredAt: '2025-01-03T00:00:00Z', note: '旧退款' })).status).toBe(404)
-    const accountId = await createAccount(owner)
-    expect((await ledgerRequest(owner, '/api/ledger/entries', entry(accountId, { requestId: '12000000-0000-4000-8000-000000000004' }))).status).toBe(404)
-    expect(await accounts(owner)).toMatchObject({ version: 3, accounts: [{ balanceCents: 100000 }] })
+    await createAccount(owner)
+    expect(await accounts(owner)).toMatchObject({ version: 1, accounts: [{ balanceCents: 100000 }] })
   })
 
   it('手工修正直接校正当前值，1000 减 20、修正 900 后删除支出得到 920', async () => {

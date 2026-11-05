@@ -27,7 +27,8 @@
     "setup:git": "git config --local core.hooksPath .githooks",
     "test:secrets": "node --test tests/security/secrets.test.mjs",
     "setup:browser": "PLAYWRIGHT_BROWSERS_PATH=.cache/playwright playwright install chromium",
-    "test:database": "node tests/support/run-planning-database.mjs"
+    "test:database": "node tests/support/run-planning-database.mjs",
+    "test:ledger-cleanup": "node tests/support/run-ledger-account-name-cleanup.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "6.3.1",
