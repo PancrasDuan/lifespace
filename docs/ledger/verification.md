@@ -42,7 +42,7 @@ npm run test:database -- --ledger --ledger-scale --browser
 | 65 | #93／#94 | 实际页面和HTTP退款／父删除竞争、事务后段故障完整回滚；同owner锁串行、不同owner独立 |
 | 66 | #91–#94 | 沿用已确认A方案；精简字段、校验和删除影响提示；1440／390／360px渲染检查 |
 
-`tests/database/ledger-delete.sql` 仅补充核对逻辑删除的底层事实保留、同一删除时间、不可恢复和不可物理删除；主业务通过 HTTP／页面回读断言。两种十万条 owner 数据分别验证普通日期／深页和退款派生／关联／删除范围，SQL EXPLAIN 是索引补充证据，不代替真实 HTTP，也不承诺性能指标或产品条数上限。
+当时的删除 SQL 探针现保留在 `tests/database/legacy/ledger-delete.sql`，仅在历史两表阶段运行；当前最终结构的底层事实保留、同一删除时间、不可恢复和不可物理删除由 `tests/database/ledger.sql` 验证，见 [#126 旧字段清理](account-name-cleanup.md)。主业务通过 HTTP／页面回读断言。两种十万条 owner 数据分别验证普通日期／深页和退款派生／关联／删除范围，SQL EXPLAIN 是索引补充证据，不代替真实 HTTP，也不承诺性能指标或产品条数上限。
 
 最终评审修复的定向回归：`ledger-database.spec.ts` 真实原生时分秒的六个双向边界、重复方向键与数字编辑保存；`ledger-dates-database.spec.ts` 在非北京时间设备上验证 1988 年夏令时显示／补录／自然日筛选、冬季、重复小时确定解释与 gap 输入保留。`ledger-refunds-database.test.ts` 经真实 Worker 写入 500 笔各含 500 emoji 的合法退款，遍历 17 个有界关联页及全部单笔详情，校验同秒 UUID 稳定顺序、全量状态／余额、版本冲突、权限和全部删除范围／旧请求回执。HTTP 响应字节数与耗时在 `.cache/ledger-association-http.json`（可用 `LEDGER_ASSOCIATION_HTTP_REPORT` 指定）记录。`ledger-refunds-database.spec.ts` 在 390px 手机页面遍历全部 500 个独立链接，读取末页完整备注、返回父详情、核对剩余一分、其他客户端新增后的关联第一页提示，以及单删和父联动删除。
 

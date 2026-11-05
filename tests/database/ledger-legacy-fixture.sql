@@ -1,5 +1,5 @@
--- Synthetic pre-upgrade facts. Their ownership remains unresolved after upgrade.
--- API and browser suites use separate owners when run against the same database.
+-- Historical pre-#126 schema fixture only; current account_id is NOT NULL.
+-- Loaded only by historical tests, never by current API/browser initialization.
 insert into public.ledger_owner_revision(owner_id,revision) values
 ('12000000-0000-4000-8000-000000000001',2),('12100000-0000-4000-8000-000000000001',2);
 insert into public.ledger_entries(id,owner_id,request_id,direction,amount_cents,occurred_at,account_name,category_code,note,parent_entry_id) values

@@ -8,6 +8,8 @@ import { join } from 'node:path'
 import pg from 'pg'
 import { renderLedgerBackfill } from '../../scripts/render-ledger-backfill.mjs'
 
+// Historical #123/#124 schema stage only, before #126 removes account_name.
+// Never replay this backfill against the current schema.
 // Always create a new cluster; no connection URL or pre-existing database accepted.
 const work = await mkdtemp(join(tmpdir(), 'ledger124-db-'))
 const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith('PG')))
@@ -32,7 +34,14 @@ try {
   await db.query('create role anon; create role authenticated; create role service_role bypassrls; grant usage on schema public to service_role')
   for (const name of ['create-ledger', 'list-ledger', 'refunds', 'delete', 'accounts', 'account-entries', 'transfers']) {
     await db.query(await readFile(`db/ledger/${name}.sql`, 'utf8'))
+    if (name === 'delete') for (const probe of ['ledger', 'ledger-refunds', 'ledger-delete']) {
+      await db.query(await readFile(`tests/database/legacy/${probe}.sql`, 'utf8'))
+    }
   }
+  await db.query('begin')
+  await db.query(await readFile('tests/database/ledger-legacy-fixture.sql', 'utf8'))
+  await db.query(await readFile('tests/database/legacy/ledger-unassigned.sql', 'utf8'))
+  await db.query('rollback')
   const owner = '12400000-0000-4000-8000-000000000001'
   await db.query('insert into public.ledger_owner_revision(owner_id,revision) values($1,14)', [owner])
   const groups = ['合成银行卡', '合成钱包', '合成现金'].map((name, i) => ({ name, requestId: `12400000-0000-4000-8001-00000000000${i}`, entryIds: [] }))

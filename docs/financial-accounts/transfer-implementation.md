@@ -10,7 +10,7 @@
 
 ## 安装与回退边界
 
-完整空库安装顺序：`create-ledger.sql` → `list-ledger.sql` → `refunds.sql` → `delete.sql` → `accounts.sql` → `account-entries.sql` → `transfers.sql`，均位于 `db/ledger/`。已有 #120 结构的环境只追加 `transfers.sql`；脚本是一次性升级，执行前核对结构，和匹配的 Worker／前端版本协调发布。隔离测试执行器已按该顺序重放并运行权限与配对探针。
+账户／转账历史安装顺序：`create-ledger.sql` → `list-ledger.sql` → `refunds.sql` → `delete.sql` → `accounts.sql` → `account-entries.sql` → `transfers.sql`，均位于 `db/ledger/`。当前空库安装继续追加 `migrations/20261105002135_remove_legacy_ledger_account_name_v1.sql`，见 [旧字段清理](../ledger/account-name-cleanup.md)。已有 #120 结构的环境先追加 `transfers.sql`；每个脚本是一次性升级，执行前核对结构，和匹配的 Worker／前端版本协调发布。当前隔离执行器在最终结构上运行权限与配对探针及业务回归；存量库须先完成归属，不能在此安装链重放一次性回填。
 
 脚本不回填旧流水、不创建转账表、不修改旧名称内容。旧未归属流水继续隐藏。生产结构执行、合并 main、发布及旧数据回填仍需另行授权，本任务仅在临时隔离数据库执行 SQL。
 

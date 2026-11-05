@@ -9,6 +9,7 @@
 | 当前接口、字段与错误契约 | [api.md](api.md)、[共享契约](../../src/shared/ledger.ts) |
 | 正式页面与 Worker 接口 | [src/ledger](../../src/ledger/)、[worker/ledger.ts](../../worker/ledger.ts) |
 | 数据库表、事务与权限 SQL | [db/ledger](../../db/ledger/) |
+| #126 旧账户名称列清理、当前安装链与回退边界 | [旧字段清理](account-name-cleanup.md) |
 | 自动检查入口、66 条故事归属与实际验证边界 | [verification.md](verification.md) |
 | 双轴评审发现、修复与复核证据 | [review.md](review.md) |
 | 领域用语与架构决定 | [CONTEXT.md](../../CONTEXT.md#账单术语)、[独立退款流水](../adr/0003-ledger-refund-entries.md)、[撤销跨刷新提交恢复](../adr/0004-ledger-pending-operations.md) |
