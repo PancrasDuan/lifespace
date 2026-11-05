@@ -47,7 +47,15 @@ try {
     'adjustments',(select jsonb_agg(to_jsonb(t) order by id) from public.ledger_balance_adjustments t)) as data`)).rows[0].data
   const functionProperties = async () => (await db.query(`select to_jsonb(p) as properties from pg_proc p
     where oid='public.ledger_entry_immutable()'::regprocedure`)).rows[0].properties
+  const statistics = async () => (await db.query(`select to_jsonb(s) as definition,
+    (select jsonb_agg(to_jsonb(d) order by stxdinherit) from pg_statistic_ext_data d where d.stxoid=s.oid) as data
+    from pg_statistic_ext s where stxrelid='public.ledger_entries'::regclass order by s.oid`)).rows
+  const columnDependencies = async () => (await db.query(`select to_jsonb(d) as dependency from pg_depend d
+    where refclassid='pg_class'::regclass and refobjid='public.ledger_entries'::regclass
+      and refobjsubid=(select attnum from pg_attribute where attrelid=refobjid and attname='account_name' and not attisdropped)
+    order by classid,objid,objsubid,deptype`)).rows
   const snapshot = async () => ({ facts: await facts(), data: await data(), function: await functionProperties(),
+    statistics: await statistics(), dependencies: await columnDependencies(),
     views: (await db.query("select viewname,definition from pg_views where schemaname='public' order by viewname")).rows })
   const migration = await readFile(migrationPath, 'utf8')
   const migrate = async (sql = migration) => db.query(sql)
@@ -76,9 +84,43 @@ try {
   }
   const rejected = async (pattern, sql = migration) => {
     const before = await snapshot()
-    await assert.rejects(migrate(sql), pattern)
+    await assert.rejects(async () => {
+      await migrate(sql)
+      console.error(`Unexpected migration COMMIT: ${await fingerprint()}; extended statistics remaining: ${(await statistics()).length}`)
+    }, pattern)
     await db.query('rollback')
     assert.deepEqual(await snapshot(), before, 'failed migration must preserve all schema and data')
+  }
+  await fixture()
+  await db.query('create statistics public.ledger126_unreviewed_statistics on account_name,note from public.ledger_entries; analyze public.ledger_entries')
+  assert.equal((await statistics()).length, 1)
+  assert.equal(await fingerprint(), '04898ad1a371ac32cb793acbf9aeaa93631d41a1d9acebcfd0c05e0e42e21e9c')
+  console.log('Statistics column dependencies:', (await db.query(`select classid::regclass::text as class,deptype
+    from pg_depend where classid='pg_statistic_ext'::regclass and refobjid='public.ledger_entries'::regclass
+      and refobjsubid=(select attnum from pg_attribute where attrelid=refobjid and attname='account_name')`)).rows)
+  await rejected(/ACCOUNT_NAME_CLEANUP_DEPENDENCY/)
+  assert.equal((await statistics()).length, 1)
+  console.log('PASS unknown multicolumn statistics rejected with complete schema, dependency, function and business data retention')
+  for (const [label, keys] of [
+    ['three columns', 'account_name,note,category_code'],
+    ['expression only', '(lower(account_name))'],
+    ['expression and column', "(coalesce(account_name,'')),note"],
+    ['two expressions', '(lower(account_name)),(length(note))'],
+  ]) {
+    await fixture()
+    await db.query('create schema if not exists ledger126_statistics')
+    const name = 'statistics_' + crypto.randomUUID().replaceAll('-', '')
+    await db.query(`create statistics ledger126_statistics.${name} on ${keys} from public.ledger_entries; analyze public.ledger_entries`)
+    assert.equal((await statistics()).length, 1)
+    assert.ok((await statistics())[0].data?.length, 'ANALYZE must populate the statistics data snapshot')
+    const shape = (await db.query(`select stxexprs is not null as expressions,
+      (select attnum from pg_attribute where attrelid=stxrelid and attname='account_name')=any(stxkeys) as direct_key
+      from pg_statistic_ext where stxrelid='public.ledger_entries'::regclass`)).rows[0]
+    assert.deepEqual(shape, { expressions: label !== 'three columns', direct_key: label === 'three columns' })
+    assert.equal(await fingerprint(), '04898ad1a371ac32cb793acbf9aeaa93631d41a1d9acebcfd0c05e0e42e21e9c')
+    await rejected(/ACCOUNT_NAME_CLEANUP_DEPENDENCY/)
+    assert.equal((await statistics()).length, 1)
+    console.log(`PASS rejected ${label} statistics outside public with random name; definitions, ANALYZE data and all state retained`)
   }
   for (const name of ['old name', 'empty old name', 'unassigned account', 'unknown index', 'unknown check', 'unknown view', 'disabled protection', 'changed function context']) {
     const { owner } = await fixture()
@@ -93,7 +135,7 @@ try {
     else if (name === 'disabled protection') await db.query('alter table public.ledger_entries disable trigger ledger_entry_immutable')
     else await db.query('alter function public.ledger_entry_immutable() set search_path=public')
     await rejected(['old name', 'empty old name', 'unassigned account'].includes(name) ? /ACCOUNT_NAME_CLEANUP_LEGACY_DATA/
-      : name === 'unknown view' ? /other objects depend/ : /ACCOUNT_NAME_CLEANUP_CATALOG_DRIFT/)
+      : name === 'unknown view' ? /ACCOUNT_NAME_CLEANUP_DEPENDENCY/ : /ACCOUNT_NAME_CLEANUP_CATALOG_DRIFT/)
     console.log(`PASS rejected ${name}; complete schema/data unchanged`)
   }
   for (const marker of ['execute immutable_ddl;', 'drop constraint ledger_entries_account_name_check restrict;',
@@ -110,6 +152,8 @@ try {
     'a022cf8559153d2dcdbf9810a212138cd61595d29dac0054bf565f462a9fe272', '0'.repeat(64)))
   console.log('PASS injected data change and failed final catalog check roll back all data and DDL')
   const upgraded = await fixture()
+  // An unrelated planner object must survive a permitted upgrade too.
+  await db.query('create statistics public.ledger126_unrelated_statistics on note,category_code from public.ledger_entries; analyze public.ledger_entries')
   // pg_get_functiondef must preserve properties outside the historical fingerprint too.
   await db.query('alter function public.ledger_entry_immutable() cost 321')
   const before = await snapshot()
@@ -121,6 +165,7 @@ try {
   delete expected.facts['column:ledger_entries:account_name']
   delete expected.facts['constraint:ledger_entries:ledger_entries_account_name_check']
   delete expected.facts['constraint:ledger_entries:ledger_entries_account_name_snapshot']
+  expected.dependencies = []
   expected.facts['column:ledger_entries:account_id'][2] = true
   const withoutName = source => source.replace('new.account_name,', '').replace('old.account_name,', '')
   expected.facts['function:ledger_entry_immutable()'][0] = withoutName(expected.facts['function:ledger_entry_immutable()'][0])

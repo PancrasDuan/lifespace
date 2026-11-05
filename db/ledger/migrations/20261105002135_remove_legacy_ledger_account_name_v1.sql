@@ -81,6 +81,20 @@ begin
   if catalog_hash is distinct from '04898ad1a371ac32cb793acbf9aeaa93631d41a1d9acebcfd0c05e0e42e21e9c' then
     raise exception 'ACCOUNT_NAME_CLEANUP_CATALOG_DRIFT';
   end if;
+  -- RESTRICT still drops AUTO dependents, including extended statistics whose
+  -- expressions may reference the column without listing it in stxkeys.
+  -- Allow only the two reviewed CHECK objects; do not rely on the catalog hash
+  -- to enumerate every object class that PostgreSQL can remove with this column.
+  if exists(select from pg_depend d
+    where d.refclassid='pg_class'::regclass and d.refobjid='public.ledger_entries'::regclass
+      and d.refobjsubid=(select attnum from pg_attribute
+        where attrelid=d.refobjid and attname='account_name' and not attisdropped)
+      and not (d.classid='pg_constraint'::regclass and d.objsubid=0 and d.deptype in ('a','n')
+        and exists(select from pg_constraint c where c.oid=d.objid
+          and c.conrelid=d.refobjid and c.contype='c'
+          and c.conname in ('ledger_entries_account_name_check','ledger_entries_account_name_snapshot')))) then
+    raise exception 'ACCOUNT_NAME_CLEANUP_DEPENDENCY';
+  end if;
   execute data_sql into data_before;
 
   -- Reuse the complete existing definition so auxiliary properties (including
