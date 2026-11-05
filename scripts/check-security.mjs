@@ -255,5 +255,5 @@ try {
   await runtime?.dispose()
   restoreOutput()
   process.chdir(originalCwd)
-  await rm(fixture, { recursive: true, force: true })
+  await rm(fixture, { recursive: true, force: true, maxRetries: 1 })
 }

@@ -16,7 +16,7 @@
     "test:api": "vitest run",
     "test:browser": "PLAYWRIGHT_BROWSERS_PATH=.cache/playwright playwright test",
     "test:security": "WRANGLER_LOG_PATH=./.cache/wrangler-security.log CLOUDFLARE_DEV_REGISTRY_PATH=./.cache/security-registry node scripts/check-security.mjs",
-    "test:security:portable": "WRANGLER_LOG_PATH=./.cache/wrangler-security.log CLOUDFLARE_DEV_REGISTRY_PATH=./.cache/security-registry node --test tests/security/temp-directory.test.mjs",
+    "test:security:portable": "WRANGLER_LOG_PATH=./.cache/wrangler-security.log CLOUDFLARE_DEV_REGISTRY_PATH=./.cache/security-registry node --test tests/security/temp-directory.test.mjs tests/security/cleanup.test.mjs",
     "test": "npm run test:api && npm run test:browser",
     "deploy": "node scripts/strip-worker-dev-vars.mjs && WRANGLER_LOG_PATH=./.cache/wrangler.log wrangler deploy --config dist/lifespace/wrangler.json",
     "setup:supabase": "bash scripts/configure-supabase.sh",
