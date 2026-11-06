@@ -68,7 +68,7 @@ test.describe('真实成长记录的桌面与手机浏览器验收（受控身�
     const summary = page.getByRole('region', { name: '经验概览', exact: true })
     await expect(summary).toContainText('累计经验19')
     await expect(summary.locator('.level-lockup > strong')).toHaveText('01')
-    await page.getByRole('button', { name: '今天', exact: true }).click()
+    await page.getByRole('button', { name: '今日聚焦', exact: true }).click()
     const task = page.getByRole('article', { name: '任务：临界行动', exact: true })
     await expect(task).toBeVisible()
     await openRecordActions(task)
@@ -79,7 +79,7 @@ test.describe('真实成长记录的桌面与手机浏览器验收（受控身�
     await expect(summary).toContainText('累计经验20')
     await expect(summary.locator('.level-lockup > strong')).toHaveText('02')
     await expect(summary).toContainText('再获得 25 点经验进入下一级')
-    await page.getByRole('button', { name: '今天', exact: true }).click()
+    await page.getByRole('button', { name: '今日聚焦', exact: true }).click()
     await openRecordActions(task)
     await task.getByRole('button', { name: '取消完成', exact: true }).click()
     await page.getByRole('button', { name: '确认取消完成', exact: true }).click()
@@ -89,7 +89,7 @@ test.describe('真实成长记录的桌面与手机浏览器验收（受控身�
     await expect(summary.locator('.level-lockup > strong')).toHaveText('01')
     await expect(page.getByRole('article', { name: '奖励：临界行动', exact: true })).toHaveCount(0)
     expect((await growth()).growth).toMatchObject({ totalXp: 19, actions: 19, level: 1 })
-    await page.getByRole('button', { name: '今天', exact: true }).click()
+    await page.getByRole('button', { name: '今日聚焦', exact: true }).click()
     await openRecordActions(task)
     await task.getByRole('button', { name: '完成', exact: true }).click()
     await expect(task).toContainText('已完成')
@@ -139,10 +139,10 @@ test.describe('真实成长记录的桌面与手机浏览器验收（受控身�
     await complete('另一会话的新行动')
     await journal.getByRole('button', { name: '加载更多流水', exact: true }).click()
     await expect(page.getByRole('alert')).toContainText('数据已更新')
-    const oldSnapshot = page.getByRole('region', { name: '上次读取的成长快照', exact: true })
-    await expect(oldSnapshot).toContainText('36 点累计经验')
-    await expect(oldSnapshot).toContainText(/版本 \d+/)
-    await expect(page.getByRole('region', { name: '经验概览', exact: true })).toHaveCount(0)
+    const oldSnapshot = page.getByRole('region', { name: '经验概览', exact: true })
+    await expect(oldSnapshot).toContainText('累计经验36')
+    await expect(oldSnapshot).toContainText('暂未更新')
+    await expect(page.getByRole('region', { name: '经验概览', exact: true })).toHaveCount(1)
     await expect(journal.getByRole('article')).toHaveCount(10)
     await page.getByRole('button', { name: '重新读取成长记录', exact: true }).click()
     await expect(journal).toContainText('已显示 10 / 14')
@@ -180,6 +180,8 @@ test.describe('真实成长记录的桌面与手机浏览器验收（受控身�
   })
 
   test('七项成就全部点亮，合法取消使百次行动熄灭，刷新与数据库一致', async ({ page }) => {
+    // Setup performs more than 200 real HTTP transactions before opening the browser.
+    test.setTimeout(60000)
     let last: Awaited<ReturnType<typeof complete>> | undefined
     for (let i = 0; i < 100; i++) last = await complete(`百次验收 ${i}`)
     for (let i = 0; i < 10; i++) {
