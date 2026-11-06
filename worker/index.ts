@@ -1,5 +1,5 @@
 import { Hono } from 'hono'
-import { listLedger, detailLedger, createLedger, createLedgerTransfer, refundLedger, previewLedgerDelete, deleteLedger, listLedgerAccounts, createLedgerAccount, updateLedgerAccount } from './ledger'
+import { listLedger, detailLedger, createLedger, createLedgerEntry, createLedgerTransfer, refundLedger, previewLedgerDelete, deleteLedger, listLedgerAccounts, readLedgerAccounts, createLedgerAccount, updateLedgerAccount } from './ledger'
 import { readRewardSource, readGrowth, readTaskHistory, readMigrationOptions, readPlanning, previewPlanning, commandPlanning } from './adventure/planning'
 import { readHoroscope, type HoroscopeTimings } from './horoscope'
 import { readTasks } from './tasks'
@@ -11,6 +11,8 @@ import { newsSources } from '../src/shared/news-sources'
 import { readNews } from './news'
 import { readAiStatus } from './ai-status'
 import { publicConfig, registrationHook, verifyIdentity, type AuthEnv, type Identity } from './auth'
+import { verifyAgentIdentity } from './agent-auth'
+import { handleAgentMcp } from './agent-mcp'
 
 const app = new Hono<{ Bindings: AuthEnv; Variables: { identity: Identity; horoscopeTimings?: HoroscopeTimings; horoscopeCacheHit?: boolean } }>()
 app.use('/api/*', async (c, next) => { c.header('Cache-Control', 'no-store'); await next() })
@@ -45,8 +47,18 @@ app.get('/api/horoscope', async c => {
   return c.json(result)
 })
 app.use('/api/*', async (c, next) => {
+  if (c.req.path === '/api/agent/mcp') {
+    c.set('identity', await verifyAgentIdentity(c.env, c.req.header('Cf-Access-Jwt-Assertion')))
+    await next()
+    return
+  }
   c.set('identity', await verifyIdentity(c.env, c.req.header('Authorization')))
   await next()
+})
+app.all('/api/agent/mcp', async c => {
+  const response = await handleAgentMcp(c.req.raw, { listAccounts: () => readLedgerAccounts(c), createEntry: input => createLedgerEntry(c, input) })
+  response.headers.set('Cache-Control', 'no-store')
+  return response
 })
 app.get('/api/auth/me', c => c.json({ user: c.get('identity') }))
 app.get('/api/ledger/entries', listLedger)

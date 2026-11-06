@@ -12,7 +12,10 @@ function failure(code: keyof typeof ledgerErrors, message?: string) {
 }
 export async function listLedgerAccounts(c: LedgerContext) {
   if (Object.keys(c.req.query()).length) throw failure('INVALID_QUERY')
-  return c.json(await rpc(c, 'ledger_accounts_list', {}, ledgerAccountsSchema, false, '暂时无法读取账户，请稍后重试'))
+  return c.json(await readLedgerAccounts(c))
+}
+export async function readLedgerAccounts(c: LedgerContext) {
+  return rpc(c, 'ledger_accounts_list', {}, ledgerAccountsSchema, false, '暂时无法读取账户，请稍后重试')
 }
 export async function createLedgerAccount(c: LedgerContext) {
   if (Object.keys(c.req.query()).length) throw failure('INVALID_QUERY')
@@ -72,10 +75,13 @@ export async function detailLedger(c: LedgerContext) {
   return c.json(await rpc(c, 'ledger_detail', { p_id: id.data, p_refund_page: query.data.refundPage, p_version: query.data.version ?? null }, ledgerDetailSchema))
 }
 export async function createLedger(c: LedgerContext) {
-  const value = ledgerCreateSchema.safeParse(await readInput(c, 16_384))
+  return c.json(await createLedgerEntry(c, await readInput(c, 16_384)))
+}
+export async function createLedgerEntry(c: LedgerContext, input: unknown) {
+  const value = ledgerCreateSchema.safeParse(input)
   if (!value.success) throw failure('INVALID_ENTRY', value.error.issues[0]?.message)
   if (Date.parse(value.data.occurredAt) > Date.now()) throw failure('FUTURE_TIME')
-  return c.json(await rpc(c, 'ledger_create', { p_input: value.data }, ledgerReceiptSchema, true))
+  return rpc(c, 'ledger_create', { p_input: value.data }, ledgerReceiptSchema, true)
 }
 export async function createLedgerTransfer(c: LedgerContext) {
   if (Object.keys(c.req.query()).length) throw failure('INVALID_QUERY')
