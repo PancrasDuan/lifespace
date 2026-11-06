@@ -36,7 +36,7 @@ test.describe('账户筛选页面与真实数据库', () => {
     await expect(region.locator('.lp-pagination')).toContainText('1–30 / 31')
     await expect(filter).toHaveValue(a)
     expect((await ledgerRequest(owner, `/api/ledger/accounts/${a}`, { requestId: crypto.randomUUID(), name: '新银行卡' }, 'PATCH')).status).toBe(200)
-    await region.getByRole('button', { name: '刷新数据', exact: true }).click()
+    await page.getByRole('button', { name: '刷新数据', exact: true }).click()
     await expect(filter.locator('option:checked')).toHaveText('新银行卡')
     await expect(filter).toHaveValue(a)
     await expect(region.locator('.lp-pagination')).toContainText('1–30 / 31')

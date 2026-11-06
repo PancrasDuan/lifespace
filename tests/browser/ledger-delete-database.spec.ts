@@ -258,7 +258,7 @@ test.describe('删除正式财务页 → Worker → PostgreSQL（受控身份）
     const form = page.getByRole('dialog', { name: '新建流水', exact: true })
     await form.getByLabel('交易金额').fill('18.88')
     await refund(parent, 1000)
-    await page.evaluate(() => window.dispatchEvent(new Event('focus')))
+    await page.getByRole('button', { name: '刷新数据', exact: true }).evaluate((button: HTMLButtonElement) => button.click())
     await expect(page.locator('.lp-pagination')).toContainText('1–30 / 32')
     await expect(page.getByRole('status').filter({ hasText: '列表已更新' })).toBeVisible()
     await expect(form.getByLabel('交易金额')).toHaveValue('18.88')

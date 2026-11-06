@@ -206,7 +206,7 @@ test.describe('退款正式财务页 → Worker → PostgreSQL（受控身份）
     await expect(amount).toHaveValue('100.01')
     await amount.fill('30')
     expect((await ledgerRequest(owner, `/api/ledger/entries/${parent.entryId}/refunds`, { requestId: crypto.randomUUID(), amountCents: 8000, occurredAt: '2026-01-02T03:04:05.000Z', note: '' })).status).toBe(200)
-    await page.evaluate(() => window.dispatchEvent(new Event('focus')))
+    await page.getByRole('button', { name: '刷新数据', exact: true }).evaluate((button: HTMLButtonElement) => button.click())
     await expect(page.getByRole('table')).toContainText('+¥80.00')
     await expect(amount).toHaveValue('30')
     await form.getByRole('button', { name: '保存退款', exact: true }).click()

@@ -108,7 +108,7 @@ test.describe('正式转账页面 → Worker → 隔离数据库', () => {
     await expect(form.getByRole('status')).toContainText('两个不同的本人账户')
     await form.getByLabel('转账金额', { exact: true }).fill('20')
     const to = await account('饭卡')
-    await page.evaluate(() => window.dispatchEvent(new Event('focus')))
+    await page.getByRole('button', { name: '刷新数据', exact: true }).evaluate((button: HTMLButtonElement) => button.click())
     await form.getByLabel('转出账户', { exact: true }).selectOption(from)
     await form.getByLabel('转入账户', { exact: true }).selectOption(to)
     await expect(form.getByLabel('转账金额', { exact: true })).toHaveValue('20')

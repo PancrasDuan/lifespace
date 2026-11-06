@@ -85,9 +85,19 @@ export function Finance() {
   }, [notice])
   const inFlight = useRef(new Set<string>())
   useEffect(() => {
-    const refresh = () => { if (!identity.signal.aborted) void queries.invalidateQueries({ queryKey: ['ledger', identity.ownerId] }) }
-    window.addEventListener('focus', refresh)
-    return () => window.removeEventListener('focus', refresh)
+    let wasHidden = document.visibilityState === 'hidden'
+    const refresh = () => {
+      const hidden = document.visibilityState === 'hidden'
+      if (wasHidden && !hidden && !identity.signal.aborted) {
+        void queries.invalidateQueries({
+          queryKey: ['ledger', identity.ownerId], type: 'active',
+          predicate: query => query.state.status === 'error' || !query.state.dataUpdatedAt || Date.now() - query.state.dataUpdatedAt > 60_000,
+        }, { cancelRefetch: false })
+      }
+      wasHidden = hidden
+    }
+    document.addEventListener('visibilitychange', refresh)
+    return () => document.removeEventListener('visibilitychange', refresh)
   }, [identity, queries])
   const data = entries.data
   const pageCount = Math.max(1, Math.ceil((data?.total ?? 0) / 30))
@@ -105,7 +115,7 @@ export function Finance() {
   }
   return <AppLayout page="finance" className="finance-page lp-app lp-variant-a">
     <div className="lp-workspace">
-      <header className="lp-page-header"><div><h1>财务<span>人民币</span></h1><p>管理账户与每笔收支。</p></div></header>
+      <header className="lp-page-header"><div><h1>财务<span>人民币</span></h1><p>管理账户与每笔收支。</p></div><button className="lp-secondary lp-refresh" onClick={() => void queries.invalidateQueries({ queryKey: ['ledger', identity.ownerId] }, { cancelRefetch: false })}><RefreshCw size={14} />刷新数据</button></header>
       {submission.unconfirmed.map(item => <div role="alert" className="lp-unknown" key={item.key}><span>{item.message}</span><button className="lp-secondary" disabled={item.pending} onClick={() => void item.retry()}>{item.pending ? '正在重试…' : '重试原请求'}</button><button className="lp-secondary" onClick={() => void entries.refetch()}>查看最新流水</button></div>)}
       {unknownDeletes.filter(item => panel?.kind !== 'delete' || panel.session !== item.session).map(item => <div role="alert" className="lp-unknown" key={item.id}><span>{item.message}</span><button className="lp-secondary" disabled={item.pending} onClick={() => {
         if (item.code === 'DELETE_SCOPE_CHANGED') {
@@ -119,7 +129,7 @@ export function Finance() {
         <div className="lp-top-toolbar"><div className="lp-filter-buttons">{([['all', '全部时间'], ['today', '今天'], ['week', '近 7 天'], ['month', '近 1 个月']] as const).map(([value, label]) => <button key={value} className={filter === value ? 'active' : ''} aria-pressed={filter === value} onClick={() => selectFilter(value)}>{label}</button>)}<button ref={rangeTrigger} className={filter === 'custom' ? 'active' : ''} aria-pressed={filter === 'custom'} aria-expanded={!!dateAnchor} aria-haspopup="dialog" onClick={() => setDateAnchor(current => current ? null : rangeTrigger.current!.getBoundingClientRect())}>自定义</button></div><span className="lp-timezone"><CalendarDays size={14} />北京时间</span></div>
         {range && <p className="lp-applied-range">{range.start} — {range.end}</p>}
         {updated && <p role="status" className="lp-applied-range">列表已更新，已返回第一页</p>}
-        <div className="lp-list-heading"><span>流水明细 <b>{data?.total ?? '—'}</b></span><div className="lp-list-controls"><label className="lp-account-filter"><select aria-label="筛选账户" value={accountId} onChange={event => selectAccount(event.target.value)} disabled={!accounts.data}><option value="">全部账户</option>{accounts.data?.accounts.map(account => <option key={account.id} value={account.id}>{account.name}</option>)}</select></label><button className="lp-refresh" onClick={() => void queries.invalidateQueries({ queryKey: ['ledger', identity.ownerId] })}><RefreshCw size={14} />刷新数据</button></div></div>
+        <div className="lp-list-heading"><span>流水明细 <b>{data?.total ?? '—'}</b></span><div className="lp-list-controls"><label className="lp-account-filter"><select aria-label="筛选账户" value={accountId} onChange={event => selectAccount(event.target.value)} disabled={!accounts.data}><option value="">全部账户</option>{accounts.data?.accounts.map(account => <option key={account.id} value={account.id}>{account.name}</option>)}</select></label></div></div>
         {entries.isPending ? <p role="status" className="lp-feedback">正在读取流水…</p> : entries.isError ? <div role="alert" className="lp-feedback">读取失败，请重试。<button className="lp-secondary" onClick={() => void entries.refetch()}>重试读取</button></div> : data?.items.length ? <div className="lp-table-wrap"><table className="lp-table"><thead><tr>
           <th>交易时间</th><th>分类 / 备注</th><th>交易账户</th><th>收支类型</th><th>交易状态</th><th className="lp-numeric">交易金额</th><th><span className="lp-sr">查看详情</span></th>
         </tr></thead><tbody>{data.items.map(entry => <tr key={entry.id} onClick={() => openDetail(entry.id)}>
