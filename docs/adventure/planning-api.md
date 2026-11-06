@@ -20,7 +20,7 @@
 - `goals`：默认本页进行中真实目标；开启 `includeTerminal` 后在所属主线组末尾追加已达成／已结束目标。每项含名称、`standards`、归属、创建时间、状态、终态时间、`focused`、`sortOrder`、全日期目标任务 `progress` 及操作能力；不返回 inbox。
 - `page`、`pageSize`、`totalGoals`：当前页及全量目标总数；列表为空不代表总数为零。
 - `destinations`：可用普通主线 ID；归属留空即默认独立目标，不显示独立身份选项。
-- `tasks`、`totalTasks`、`taskPage`、`taskRange`：当前范围和页的任务、全量总数；每项含名称、说明、执行日、状态、真实目标或独立身份、当前具体完成事件 ID、冻结 `reward`（无有效完成为 null）、服务端逾期标记，以及编辑、完成、取消、迁移、结束、误建删除等操作能力。逻辑删除任务不返回。
+- `tasks`、`totalTasks`、`taskPage`、`taskRange`：当前范围和页的任务、全量总数；每项含名称、说明、执行日、状态、真实目标或独立身份、当前具体完成事件 ID、冻结 `reward`（无有效完成为 null）、服务端逾期标记，以及编辑、完成、取消和删除能力；保留的旧改期／迁移／结束能力字段始终不可用于新操作。逻辑删除任务不返回。
 - `taskScope`、`search`、`taskProgress`：当前视图、已提交搜索条件及完整筛选范围的任务进度；分页不截断分母。
 - `goalDetail`：指定 `goalId` 时返回该账户目标的只读详情（包含终态），其 `goal` 含 status、terminatedAt 和冻结 achievement；tasks 按全部日期分页，totalTasks 为当前归属该目标或仍有该目标有效完成事实的未删除任务去重总数；迁出项标注当前归属和冻结完成来源，目标 progress 仍只统计当前归属，taskPage 为 goalTaskPage。与页面同事务、同版本；不属于账户或为 inbox 返回 404。
 - `growth`：总经验、等级、本级进度、升级所需经验、有效行动数、达成目标数，以及七个实时成就的当前计数、差额和点亮结果。
@@ -55,11 +55,11 @@
 
 预览校验输入、当前版本、归属和配额，返回 `version`、`today`、`allowed=true`、`requiresConfirmation=false` 及说明。不初始化账户、不写业务行或回执、不推进版本。取消任务完成时 `requiresConfirmation=true`，同时返回具体 `completionId`、原事件的冻结 `reward`、`growthBefore`、`growthAfter`；两者含经验、等级、行动数和七个成就结果。确认命令使用此预览版本；409 后重读并重新预览，不静默换用新版本。失败返回与命令相同的业务错误；提交仍重新校验。
 
-目标达成预览为 `requiresConfirmation=true, operation=achieveGoal`，返回 goalId、title、standards、version、today、三档 `rewards`（每档含完整冻结奖励依据）及全量 `stoppingTasks`（id、title、plannedOn）。前端仅选择服务端返回的评价档位并展示金额，不能自行计算 N 或奖励。预览无写入；取消不变更业务状态。确认前提示需继续的任务先迁出；版本冲突后旧确认禁用，必须重新预览。
+目标达成预览为 `requiresConfirmation=true, operation=achieveGoal`，返回 goalId、title、standards、version、today、三档 `rewards`（每档含完整冻结奖励依据）及 `stoppingTasks`（新规则成功预览为空；有未完成任务时拒绝预览）。前端仅选择服务端返回的评价档位并展示金额，不能自行计算 N 或奖励。预览无写入；取消不变更业务状态。有未完成任务时先删除或通过统一编辑转移，再重新预览；版本冲突后旧确认禁用，必须重新预览。
 
-结束目标或主线预览为 `requiresConfirmation=true`，`operation` 为 `endGoal`／`endMainline`，返回稳定 entityId、title、全量 `stoppingGoals`、全量 `stoppingTasks`，以及 `preservedCompletedTasks`／`preservedAchievedGoals`。任务结束／误建删除预览也返回 `requiresConfirmation=true`，`operation` 为 `endTask`／`deleteTask`，并返回目标、执行日与历史安排计数。结束只停止当前归属下未删除的 pending 任务，不撤销完成、达成或经验；预览不写业务事实。
+结束目标或主线预览为 `requiresConfirmation=true`，`operation` 为 `endGoal`／`endMainline`，返回稳定 entityId、title、全量 `stoppingGoals`、全量 `stoppingTasks`，以及 `preservedCompletedTasks`／`preservedAchievedGoals`。任务删除预览返回 `requiresConfirmation=true, operation=deleteTask`，并返回目标、执行日与历史安排计数。目标／主线有未完成任务时拒绝预览和最终提交，处理完才能继续；不自动停止任务，不撤销完成、达成或经验。预览不写业务事实，endTask 新预览停用。
 
-改期预览为 `requiresConfirmation=true, operation=rescheduleTask`，返回 taskId、title、oldPlannedOn、newPlannedOn、sourceEventId、version、today 和说明；不写入事实。输入与终态检查复用最终命令校验。用户先输入日期、预览后确认；修改日期使旧预览失效，409 后须重新预览，不能自动换版本提交。
+独立改期与迁移任务预览停用；通过统一编辑保存四项字段，版本冲突后重读并重新确认，不自动换版本提交。
 
 ## 业务命令
 
@@ -115,9 +115,9 @@
 
 目标达成使用共享 `goalRewardSchema`，约定 `{amount,calculation:{type:"goal_actions",actionIds,count,coefficient,fallback}}`，count 为 N、coefficient 为 C，actionIds 是去重后的稳定行动／task ID；来源内容与归属保存在达成事件 snapshot。一次达成只写一条 goal_achieved，不可撤销。回执 result 返回 achievementId、冻结 reward 与 growthChange，目标和事件均保存去重后的稳定行动 ID、N、C、评价和来源快照。N 按完成时目标归属计算，排除已失效完成；N>0 奖励 N×C，N=0 固定 1。达成退出聚焦，提交前必须先处理全部未删除 pending 任务，不能自动结束，已有完成和经验保留，当前及历史归属终态均锁定取消。默认列表隐藏达成目标；`/adventure?goalId=<uuid>` 可刷新进入只读结果、评价及分页任务历史，统一终态开关由生命周期票实现。
 
-结束主线写 `mainline_ended`，结束目标写 `goal_ended`，结束任务写 `task_ended`，误建删除写 `task_deleted`；均不携带 amount／calculation，snapshot 保存 before、after、impact 和 result。结束与删除不扣减经验、不撤销达成、不追加负奖励；目标／主线／任务状态、传播、事件、revision 与回执同一事务提交。已完成任务不能删除或结束；完成后撤销及改期过的 pending 任务可以逻辑删除，不能重复扣奖。普通编辑或迁移本身不视为历史安排。
+结束主线写 `mainline_ended`，结束目标写 `goal_ended`，任务删除写 `task_deleted`；旧 `task_ended` 历史事件保留；均不携带 amount／calculation，snapshot 保存 before、after、impact 和 result。结束与删除不扣减经验、不撤销达成、不追加负奖励；目标／主线／任务状态、传播、事件、revision 与回执同一事务提交。已完成任务不能删除或结束；完成后撤销及改期过的 pending 任务可以逻辑删除，不能重复扣奖。普通编辑或迁移本身不视为历史安排。
 
-改期更新同一 tasks 行的 planned_on，追加无金额的 task_rescheduled；snapshot 冻结 before、after、oldPlannedOn、newPlannedOn、sourceEventId、内容／归属和 result。taskId 不变，不新增任务、行动或奖励，growthChange.xpDelta=0。曾改期永久阻止误建删除。过去完成不可取消或改期；当天完成须先合法取消，改期不会恢复被取消的完成。
+改期更新同一 tasks 行的 planned_on，追加无金额的 task_rescheduled；snapshot 冻结 before、after、oldPlannedOn、newPlannedOn、sourceEventId、内容／归属和 result。taskId 不变，不新增任务、行动或奖励，growthChange.xpDelta=0。曾改期不阻止未完成任务删除。过去完成不可取消或改期；当天完成须先合法取消，改期不会恢复被取消的完成。
 
 同一账户按账户行锁串行写入。数据库规范化 JSONB 并计算命令摘要；相同 requestId 和命令返回原回执，即使当前账户已有更新，也不重做操作。同 key 异命令拒绝。实体、事件、版本和成功回执同事务提交，任何中途失败全部回滚。
 
