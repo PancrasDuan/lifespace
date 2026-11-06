@@ -48,6 +48,11 @@ export async function planningFixture(context: BrowserContext, initial = emptyPl
       const task = page.tasks.find(item => item.id === query.get('id'))
       return route.fulfill({ json: { version: page.version, taskId: query.get('id'), title: task?.title ?? '任务', page: Number(query.get('page') ?? 1), pageSize: 5, total: 0, items: [] } })
     }
+    if (new URL(route.request().url()).pathname === '/api/adventure/tasks/list') {
+      const request = route.request().postDataJSON() as { date: string; scope: string; page: number }
+      return route.fulfill({ json: { version: page.version, today: page.today, date: request.date, scope: request.scope, page: request.page, pageSize: 50,
+        total: page.tasks.length, tasks: page.tasks.slice((request.page - 1) * 50, request.page * 50), progress: page.taskProgress } })
+    }
     if (route.request().method() === 'GET') {
       const delay = queryDelay
       queryDelay = 0

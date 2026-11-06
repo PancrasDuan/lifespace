@@ -1,0 +1,52 @@
+.adventure-page.prototype-page .today-tasks { min-width: 0; overflow-anchor: none; }
+.today-calendar, .today-list { background: var(--paper, #fff); border: 1px solid var(--line, #e2e9df); border-radius: 16px; padding: 20px; }
+.today-calendar-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.today-calendar-head > div:first-child { display: flex; align-items: baseline; gap: 10px; }
+.today-calendar-head strong { font-size: 15px; }
+.today-calendar-head span { font-size: 11px; color: var(--muted, #667b68); }
+.today-calendar-actions { display: flex; align-items: center; gap: 3px; }
+.today-calendar-actions button { display: grid; place-items: center; min-width: 32px; min-height: 36px; padding: 4px 7px; background: transparent; border: 0; color: var(--accent, #52764f); border-radius: 7px; white-space: nowrap; font-size: 12px; }
+.today-calendar-actions button:hover { background: #edf4e9; }
+.today-days { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 7px; margin-top: 16px; }
+.today-days button { display: grid; place-items: center; gap: 6px; min-height: 74px; padding: 10px 0; background: #f7f9f5; border: 1px solid transparent; border-radius: 10px; color: #516b54; font: inherit; }
+.today-days button span { font-size: 11px; }
+.today-days button strong { font-size: 17px; font-weight: 500; }
+.today-days button[aria-pressed="true"] { background: #e6f0e4; border-color: #aac4a6; color: #315d36; }
+.today-days button[aria-pressed="true"] strong { font-weight: 700; }
+.today-list { margin-top: 16px; }
+.today-list-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.today-list-heading h2 { margin: 0; font-size: 17px; font-weight: 600; }
+.today-list-heading p { margin: 7px 0 0; font-size: 12px; color: #627765; }
+.today-search { display: flex; align-items: center; gap: 7px; min-width: 0; width: 180px; padding: 8px 10px; background: #f7f9f5; border: 1px solid #e2e9df; border-radius: 8px; color: #627765; }
+.today-search input { min-width: 0; width: 100%; padding: 0; border: 0; border-radius: 0; background: transparent; font: inherit; font-size: 12px; color: inherit; }
+.today-search input::placeholder { color: #627765; }
+.today-search:focus-within { outline: 2px solid #52764f; outline-offset: 2px; }
+.today-search input:focus { outline: 0; }
+.today-progress { margin: 22px 0; }
+.today-progress > div:first-child { display: flex; justify-content: space-between; gap: 10px; margin-bottom: 9px; font-size: 12px; color: #516b54; font-variant-numeric: tabular-nums; }
+.today-progress small { color: #627765; }
+.today-task-group h3 { font-size: 12px; font-weight: 500; color: #627765; margin: 23px 0 8px; }
+.adventure-page.prototype-page .today-list .record-summary { align-items: center; padding-left: 0; padding-right: 0; }
+.adventure-page.prototype-page .today-list .record-copy { flex: 1; min-width: 0; }
+.today-task-dates { flex: none; display: grid; gap: 5px; text-align: right; color: #627765; font-size: 11px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.today-list .record-chevron.is-open { transform: rotate(180deg); }
+.today-tasks button:focus-visible { outline: 2px solid #52764f; outline-offset: 3px; }
+@media (max-width: 720px) {
+  .today-calendar, .today-list { padding: 16px 12px; }
+  .today-calendar-head > div:first-child { display: grid; gap: 4px; }
+  .today-days { gap: 3px; }
+  .today-days button { min-height: 65px; }
+  .today-list-heading { align-items: stretch; flex-direction: column; gap: 13px; }
+  .today-search { width: 100%; }
+  .today-task-dates { font-size: 10px; }
+  .adventure-page.prototype-page .today-list .record-summary { gap: 8px; }
+  .today-list .record-chevron { flex-shrink: 0; }
+}
+
+.today-list .record-meta { display: flex; align-items: center; gap: 9px; }
+@media (max-width: 420px) { .today-calendar-head > div:first-child > span { display: none; } }
+/* A task expansion must not make the browser anchor a following sidebar/footer. */
+.adventure-page.prototype-page { overflow-anchor: none; }
+.adventure-page.prototype-page .today-days button { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 10px 0; }
+.adventure-page.prototype-page .today-days button span { white-space: nowrap; line-height: 1.2; }
+.adventure-page.prototype-page .today-list .record-meta > .today-task-dates { display: grid; }
