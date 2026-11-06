@@ -64,7 +64,8 @@ export async function listLedger(c: LedgerContext) {
   if (Object.values(c.req.queries()).some(values => values.length !== 1)) throw failure('INVALID_QUERY')
   const query = ledgerQuerySchema.safeParse(c.req.query())
   if (!query.success) throw failure('INVALID_QUERY')
-  return c.json(await rpc(c, 'ledger_list', { p_page: query.data.page, p_start_date: query.data.startDate ?? null, p_end_date: query.data.endDate ?? null, p_version: query.data.version ?? null }, ledgerPageSchema))
+  const params = { p_page: query.data.page, p_start_date: query.data.startDate ?? null, p_end_date: query.data.endDate ?? null, p_version: query.data.version ?? null }
+  return c.json(await rpc(c, query.data.accountId ? 'ledger_list_by_account' : 'ledger_list', query.data.accountId ? { ...params, p_account_id: query.data.accountId } : params, ledgerPageSchema))
 }
 export async function detailLedger(c: LedgerContext) {
   const id = z.uuid().safeParse(c.req.param('id'))

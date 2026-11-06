@@ -49,6 +49,7 @@ export const ledgerDetailQuerySchema = z.strictObject({ refundPage: queryRevisio
 export const ledgerQuerySchema = z.strictObject({
   page: z.coerce.number().int().min(1).max(1_000_000).default(1),
   startDate: ledgerDateSchema.optional(), endDate: ledgerDateSchema.optional(),
+  accountId: z.uuid().optional(),
   version: queryRevision.optional(),
 }).refine(value => (!value.startDate && !value.endDate) || (!!value.startDate && !!value.endDate && value.startDate <= value.endDate), '日期范围无效')
 export const ledgerErrors = {

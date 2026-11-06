@@ -16,10 +16,11 @@ async function parse<T>(response: Response, schema: z.ZodType<T>, writing = fals
   if (!parsed || !parsed.success) throw new LedgerError(writing ? 'SAVE_UNKNOWN' : 'LEDGER_UNAVAILABLE', writing ? '保存结果未确认' : '暂时无法读取账单')
   return parsed.data
 }
-export const readLedger = async (owner: string, page: number, signal: AbortSignal, range: DateRange | null = null, version?: number) => {
+export const readLedger = async (owner: string, page: number, signal: AbortSignal, range: DateRange | null = null, version?: number, accountId?: string) => {
   const query = new URLSearchParams({ page: String(page) })
   if (range) { query.set('startDate', range.start); query.set('endDate', range.end) }
   if (version !== undefined) query.set('version', String(version))
+  if (accountId) query.set('accountId', accountId)
   return parse(await authorizedFetch(`/api/ledger/entries?${query}`, signal, owner), ledgerPageSchema)
 }
 export const readLedgerDetail = async (owner: string, id: string, signal: AbortSignal, refundPage = 1, version?: number) => {

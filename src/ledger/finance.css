@@ -44,6 +44,9 @@
 .lp-list-heading > span { font-size: 12px; color: #4b6150; font-weight: 500; }
 .lp-list-heading b { margin-left: 5px; color: #7a8977; font-size: 11px; font-weight: 400; }
 .lp-list-heading > small { display: flex; align-items: center; gap: 6px; font-size: 10px; color: #748171; }
+.lp-list-controls { display: flex; align-items: center; gap: 14px; min-width: 0; }
+.lp-account-filter { display: flex; align-items: center; gap: 7px; color: #4b6150; font-size: 12px; white-space: nowrap; }
+.lp-account-filter select { max-width: min(180px, 35vw); min-height: 34px; padding: 5px 8px; border: 1px solid #d8e0d2; border-radius: 6px; background: #fff; color: #365d45; font: inherit; }
 .lp-table-wrap { width: 100%; }
 .lp-table { width: 100%; border-collapse: collapse; text-align: left; table-layout: auto; }
 .lp-table th { padding: 13px 12px; background: #f8faf5; border-top: 1px solid #edf1e8; border-bottom: 1px solid #e9eee4; color: #72806d; font-size: 10px; font-weight: 400; white-space: nowrap; }
@@ -169,6 +172,9 @@
 .lp-filter-buttons > button { min-height: 32px; padding: 7px 8px; gap: 4px; font-size: 10px; }
 .lp-filter-buttons > button svg { width: 11px; height: 11px; }
 .lp-list-heading { min-height: 45px; padding: 12px 15px; }
+.lp-list-heading { flex-wrap: wrap; }
+.lp-list-controls { flex-wrap: wrap; }
+.lp-refresh { white-space: nowrap; }
 .lp-list-heading > span { font-size: 11px; }
 .lp-list-heading > small { font-size: 8px; gap: 4px; }
 .lp-table, .lp-table tbody { display: block; }

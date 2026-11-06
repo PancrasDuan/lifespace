@@ -6,7 +6,7 @@
 | --- | --- | --- |
 | `POST /api/ledger/entries` | `requestId` UUID、`direction`、有符号整数分 `amountCents`、UTC 秒精度 `occurredAt`、`accountId`、普通 `categoryCode`、`note` | `{ entryId, version, deleted }` |
 | `POST /api/ledger/transfers` | `requestId`、不同的本人 `fromAccountId`／`toAccountId`、正整数分 `amountCents`、`occurredAt`、可选 `note` | `{ transferId, outEntryId, inEntryId, version, deleted }` |
-| `GET /api/ledger/entries?page=1` | 页码默认 1，固定每页 30；可选 `startDate`／`endDate` 与 `version` | `{ items, total, page, pageSize: 30, version }` |
+| `GET /api/ledger/entries?page=1` | 页码默认 1，固定每页 30；可选 `startDate`／`endDate`、`accountId` 与 `version` | `{ items, total, page, pageSize: 30, version }` |
 | `GET /api/ledger/entries/:id` | 本人流水标识；可选 `refundPage`（默认 1）与 `version` | `{ entry, parentEntry, transferEntry, refunds, refundCount, refundedCents, refundPage, refundPageSize: 30, version }` |
 | `POST /api/ledger/entries/:id/refunds` | 父支出标识；`requestId`、正整数分 `amountCents`、UTC 秒精度 `occurredAt`、`note` | `{ entryId, version, deleted }` |
 | `GET /api/ledger/entries/:id/delete-preview` | 本人未删除流水标识 | `{ entry, transferEntry, refundCount, scope, version }` |
@@ -15,6 +15,8 @@
 流水字段为 `id`、`accountId`、可空 `transferId`、`direction`、`amountCents`、`occurredAt`、`accountName`、`categoryCode`、`note`、`parentEntryId`、`createdAt`、派生 `status`。`accountName` 读取账户当前名称；新流水只保存账户标识，未归属旧流水隐藏。`transferEntry` 为同组对侧完整流水，普通流水为 `null`；转账不可退款，任意一侧删除均同时撤销两侧余额，重复请求不重复变化。详见 [转账实施与升级](../financial-accounts/transfer-implementation.md)。普通流水的 `parentEntryId` 为 `null`；退款由收入与非空父关联识别。详情返回本人未删除父流水及独立分页的有效退款链接，每条链接只含 `id`、`occurredAt`、`amountCents`；完整备注、账户等通过单笔详情读取。关联按 `occurredAt DESC, id DESC`，每页最多 30 条，全部关联均可翻页访问，不依赖外层列表范围／页码。`refundCount`／`refundedCents` 为全部有效退款的总笔数／整数分金额，非父支出为 0；可退额使用原支出绝对值减去该全量金额。普通支出按全部有效退款派生 `completed`、`partial-refund`、`full-refund`，普通收入及退款始终 `completed`；原金额不变。列表按 `occurredAt DESC, id DESC`，总数、列表、状态和版本在同一事务锁内读取；空账户为版本 0，不创建元数据。首次写入安全建立版本行。
 
 关联 `refundPage` 是十进制正安全整数，不设普通列表的 1,000,000 页上限；超出当前尾页返回空链接及真实全量总数。严格拒绝未知、重复和非法查询参数。首次详情确定 owner 版本，后续关联翻页及刷新携带该版本；不符时返回 `LIST_CHANGED`（409），页面提示关联已更新并重读关联第一页。切换父／子详情重新开始关联浏览；只保留当前关联页，避免无限累加。详情在 owner 共享锁内同时读取目标、父、全量 sum/count、状态、限定 30 条的关联与版本；SQL 先 LIMIT 再聚合，Worker 的 1 MiB 响应上限不变。
+
+可选 `accountId` 必须为交易账户 UUID；省略表示全部账户。账户条件与日期条件取交集，并在计数、排序和分页前按流水自身账户标识匹配。退款沿用父流水账户，转账只显示所选账户对应的一侧；其他所有者或不存在的账户标识返回空列表。选择账户或日期重置第一页与列表版本；版本冲突保留两个筛选条件。账户名称变更不影响筛选身份。
 
 日期查询使用合法的 `YYYY-MM-DD`，起止同时提供且起始不晚于结束；全部时间同时省略。数据库将 `Asia/Shanghai` 开始日零点至结束日次日零点转为左闭右开区间，固定包含首尾自然日。非法日期、反向范围、重复参数及未知字段在 Worker 中拒绝，不调用查询。`version` 为可选的非负安全整数；与当前 owner 版本不符时返回 `LIST_CHANGED`（409），不附带条目。列表在共享锁内先核对版本，再读取总数和条目，同 owner 写事务持有排他锁；不同 owner 独立。
 
@@ -28,11 +30,13 @@
 
 失败统一为 `{ error: { code, message } }`。稳定业务错误包括 `INVALID_ENTRY` / `INVALID_QUERY` / `FUTURE_TIME` / `REFUND_TIME`（400）、`REQUEST_ID_REUSED` / `LIST_CHANGED` / `REFUND_PARENT_INVALID` / `REFUND_LIMIT` / `DELETE_SCOPE_CHANGED`（409）、`NOT_FOUND`（404）、`LEDGER_UNAVAILABLE` / `SAVE_UNKNOWN` / `DELETE_UNKNOWN`（503），另沿用现有 `AUTH_*`。未知数据库或传输故障不回传原始响应、输入或凭据；创建／退款在无法确认时返回 `SAVE_UNKNOWN`，删除返回 `DELETE_UNKNOWN`。页面仅在当前挂载期间保存待确认命令供显式重试，不自动重提、不写本地存储；确认成功后重读失败只重试读取。
 
-数据库安装顺序为 `db/ledger/create-ledger.sql` → `db/ledger/list-ledger.sql` → `db/ledger/refunds.sql` → `db/ledger/delete.sql`，之后追加 `accounts.sql` → `account-entries.sql` → `transfers.sql`，再追加 `migrations/20261105002135_remove_legacy_ledger_account_name_v1.sql`，最终四表结构无旧名称列、`account_id` 非空；完整安装及回退边界见 [结构升级](../financial-accounts/transfer-implementation.md#安装与回退边界)与 [旧字段清理](account-name-cleanup.md)。只在只读核对目标结构后安装；正式环境建表与部署由集成交付执行，本票只在全新隔离本机数据库执行。受控入口为 `ledger_create(p_owner, p_input)`、`ledger_list(p_owner, p_page, p_start_date, p_end_date, p_version)`（后四项有默认值）、`ledger_detail(p_owner, p_id, p_refund_page, p_version)`（后两项有默认值；旧两参数重载被移除）、`ledger_refund(p_owner, p_parent, p_input)`、`ledger_delete_preview(p_owner, p_id)`、`ledger_delete(p_owner, p_id, p_scope)`、`ledger_transfer(p_owner, p_input)`；均只授予 `service_role` 调用，内部显式限定 owner，原始交易字段由触发器保护。退款扩展替换状态序列化与详情函数，不替换列表查询，便于与日期分页合并。活跃退款索引包含 owner、父标识、倒序时间和倒序 UUID，兼顾全量聚合与有界关联排序。
+数据库安装顺序为 `db/ledger/create-ledger.sql` → `db/ledger/list-ledger.sql` → `db/ledger/refunds.sql` → `db/ledger/delete.sql`，之后追加 `accounts.sql` → `account-entries.sql` → `transfers.sql`，再追加 `migrations/20261105002135_remove_legacy_ledger_account_name_v1.sql` 和 `migrations/20261106000000_ledger_account_filter.sql`，最终四表结构无旧名称列、`account_id` 非空；完整安装及回退边界见 [结构升级](../financial-accounts/transfer-implementation.md#安装与回退边界)与 [旧字段清理](account-name-cleanup.md)。只在只读核对目标结构后安装；正式环境建表与部署由集成交付执行，本票只在全新隔离本机数据库执行。受控入口为 `ledger_create(p_owner, p_input)`、`ledger_list(p_owner, p_page, p_start_date, p_end_date, p_version)`（后四项有默认值）、`ledger_list_by_account(p_owner, p_account_id, p_page, p_start_date, p_end_date, p_version)`（后四项有默认值）、`ledger_detail(p_owner, p_id, p_refund_page, p_version)`（后两项有默认值；旧两参数重载被移除）、`ledger_refund(p_owner, p_parent, p_input)`、`ledger_delete_preview(p_owner, p_id)`、`ledger_delete(p_owner, p_id, p_scope)`、`ledger_transfer(p_owner, p_input)`；均只授予 `service_role` 调用，内部显式限定 owner，原始交易字段由触发器保护。退款扩展替换状态序列化与详情函数，不替换列表查询，便于与日期分页合并。活跃退款索引包含 owner、父标识、倒序时间和倒序 UUID，兼顾全量聚合与有界关联排序。
 
 删除预览在 owner 共享锁内只读。`scope` 为 SHA-256 十六进制摘要：绑定可信 owner、目标及按 UUID 排序的全部有效退款标识，固定 64 字符，不受无关流水或列表版本影响，也不会因退款数量相同而忽略成员替换。内部 `ledger_delete_scope` 不授予 API 角色执行权限。删除在 owner 排他锁内先查目标（已删除直接成功），再比较 scope；冲突不写入、不增版本，页面重读预览并等待再次确认，不自动继续。确认卡片显示的范围在当前会话冻结，focus 刷新不悄悄更新它。父子删除时间与版本一次事务提交；退款单删释放余额，父状态动态恢复。只写 `deleted_at`，不修改原始事实、不物理删除、不恢复。没有实际变更的重复删除不增版本。
 
 删除未知结果仅在当前页面内保留原目标和 scope，允许关闭确认后显式重试或查看列表，其他操作可继续。迟到删除成功仅关闭对应会话；成功后的读取失败只重读。重新加载页面不恢复或自动提交命令。原型及历史规格文件保留，不作为正式测试的替代。
+
+账户筛选的数据库升级使用 `db/ledger/migrations/20261106000000_ledger_account_filter.sql`，增加仅授予 `service_role` 的 `ledger_list_by_account` 和账户分页索引。发布前先在目标库核对并应用该迁移，再部署 Worker/UI；旧 `ledger_list` 保持可用。回退应用版本时保留新函数与索引即可，不涉及流水数据改写。目标库迁移需与本次发布一并获授权；执行前核对表规模和写入影响，安排迁移窗口。迁移事务限制锁等待 3 秒及单语句 30 秒；超时整事务回滚，应查明原因后再安排执行，不部署依赖新函数的版本。为兼容新旧应用并支持回退，保留旧列表函数，新函数与旧函数的版本、日期和分页语义须同步维护并回归验证。
 
 可复用测试支持为 `tests/support/ledger-database.ts`，扩展现有执行器：
 
