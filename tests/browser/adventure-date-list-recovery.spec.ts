@@ -63,6 +63,7 @@ test('详情展开与收起保留当前任务在视口的位置', async ({ page,
   await summary.scrollIntoViewIfNeeded()
   const before = (await summary.boundingBox())!.y
   await summary.click()
+  await expect(summary.locator('.record-chevron')).toHaveCSS('transform', 'matrix(-1, 0, 0, -1, 0, 0)')
   expect(Math.abs((await summary.boundingBox())!.y - before)).toBeLessThan(2)
   await summary.click()
   expect(Math.abs((await summary.boundingBox())!.y - before)).toBeLessThan(2)
