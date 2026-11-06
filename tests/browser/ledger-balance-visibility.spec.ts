@@ -3,7 +3,7 @@ import { test, expect } from './authenticated-test'
 const ids = ['00000000-0000-4000-8000-000000000004', '00000000-0000-4000-8000-000000000005']
 const date = '2026-01-02T03:04:05.000Z'
 
-for (const width of [1440, 360]) test(`${width}px 账户余额切换覆盖卡片、编辑和转账，刷新恢复默认`, async ({ page, context }) => {
+for (const width of [1440, 360]) test(`${width}px 默认隐藏并记住余额选择，覆盖卡片、编辑和转账`, async ({ page, context }) => {
   await page.setViewportSize({ width, height: 900 })
   const writes: unknown[] = []
   await context.route('**/api/ledger/**', async route => {
@@ -22,10 +22,6 @@ for (const width of [1440, 360]) test(`${width}px 账户余额切换覆盖卡片
   const accounts = page.getByRole('region', { name: '交易账户' })
   const first = accounts.getByRole('article', { name: '银行卡' })
   const second = accounts.getByRole('article', { name: '零钱' })
-  await expect(first).toContainText('1,234.56')
-  await expect(second).toContainText('-22.00')
-  await accounts.getByRole('button', { name: '隐藏账户余额' }).focus()
-  await page.keyboard.press('Enter')
   await expect(first).not.toContainText('1,234.56')
   await expect(second).not.toContainText('-22.00')
   await expect(accounts.getByLabel('余额已隐藏')).toHaveCount(2)
@@ -51,11 +47,55 @@ for (const width of [1440, 360]) test(`${width}px 账户余额切换覆盖卡片
   await expect(transfer).toContainText('1,234.56')
   await expect(transfer.getByLabel('转账后余额')).toContainText('1,224.56')
   await transfer.getByRole('button', { name: '取消' }).click()
-  await accounts.getByRole('button', { name: '隐藏账户余额' }).click()
-  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
   await page.reload()
   await expect(first).toContainText('1,234.56')
-  await expect(accounts.getByRole('button', { name: '隐藏账户余额' })).toBeVisible()
+  await expect(second).toContainText('-22.00')
+  const reopened = await context.newPage()
+  await reopened.goto('/finance')
+  await expect(reopened.getByRole('article', { name: '银行卡' })).toContainText('1,234.56')
+  await reopened.close()
+  await accounts.getByRole('button', { name: '隐藏账户余额' }).focus()
+  await page.keyboard.press('Enter')
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+  await page.reload()
+  await expect(first).not.toContainText('1,234.56')
+  await expect(accounts.getByRole('button', { name: '显示账户余额' })).toBeVisible()
+})
+
+test('浏览器本地偏好相互独立', async ({ page, context, browser }) => {
+  await context.route('**/api/ledger/**', async route => {
+    if (new URL(route.request().url()).pathname.endsWith('/accounts')) return route.fulfill({ json: { version: 0, accounts: [{ id: ids[0], name: '银行卡', balanceCents: 123456, createdAt: date, updatedAt: date }] } })
+    return route.fulfill({ json: { items: [], total: 0, page: 1, pageSize: 30, version: 0 } })
+  })
+  await page.goto('/finance')
+  await page.getByRole('button', { name: '显示账户余额' }).click()
+  const state = await context.storageState()
+  for (const origin of state.origins) origin.localStorage = origin.localStorage.filter(item => item.name !== 'lifespace.ledger.balance-visible.v1')
+  const other = await browser.newContext({ storageState: state })
+  try {
+    await other.route('**/api/auth/config', route => route.fulfill({ json: { url: 'https://auth-test.supabase.co', publishableKey: 'sb_publishable_test-only' } }))
+    await other.route('**/api/auth/me', route => route.fulfill({ json: { user: { id: '00000000-0000-4000-8000-000000000001', email: 'demo@example.com' } } }))
+    await other.route('**/api/ledger/**', route => route.fulfill({ json: new URL(route.request().url()).pathname.endsWith('/accounts') ? { version: 0, accounts: [{ id: ids[0], name: '银行卡', balanceCents: 123456, createdAt: date, updatedAt: date }] } : { items: [], total: 0, page: 1, pageSize: 30, version: 0 } }))
+    const otherPage = await other.newPage()
+    await otherPage.goto(new URL('/finance', page.url()).href)
+    await expect(otherPage.getByRole('article', { name: '银行卡' })).not.toContainText('1,234.56')
+    await expect(otherPage.getByRole('button', { name: '显示账户余额' })).toBeVisible()
+    await expect(page.getByRole('article', { name: '银行卡' })).toContainText('1,234.56')
+  } finally { await other.close() }
+})
+
+test('浏览器存储不可用时仍可切换，重新加载默认隐藏', async ({ page, context }) => {
+  await context.addInitScript(() => {
+    const get = Storage.prototype.getItem, set = Storage.prototype.setItem
+    Storage.prototype.getItem = function (key) { if (key === 'lifespace.ledger.balance-visible.v1') throw new DOMException('denied'); return get.call(this, key) }
+    Storage.prototype.setItem = function (key, value) { if (key === 'lifespace.ledger.balance-visible.v1') throw new DOMException('denied'); return set.call(this, key, value) }
+  })
+  await context.route('**/api/ledger/**', route => route.fulfill({ json: new URL(route.request().url()).pathname.endsWith('/accounts') ? { version: 0, accounts: [{ id: ids[0], name: '银行卡', balanceCents: 123456, createdAt: date, updatedAt: date }] } : { items: [], total: 0, page: 1, pageSize: 30, version: 0 } }))
+  await page.goto('/finance')
+  await page.getByRole('button', { name: '显示账户余额' }).click()
+  await expect(page.getByRole('article', { name: '银行卡' })).toContainText('1,234.56')
+  await page.reload()
+  await expect(page.getByRole('article', { name: '银行卡' })).not.toContainText('1,234.56')
 })
 
 test('隐藏状态下余额冲突不显示最新金额，可切换显示后核对', async ({ page, context }) => {
@@ -70,7 +110,6 @@ test('隐藏状态下余额冲突不显示最新金额，可切换显示后核�
     return route.fulfill({ json: { items: [], total: 0, page: 1, pageSize: 30, version: 0 } })
   })
   await page.goto('/finance')
-  await page.getByRole('button', { name: '隐藏账户余额' }).click()
   await page.getByRole('button', { name: '修改银行卡' }).click()
   const edit = page.getByRole('dialog', { name: '修改账户' })
   await edit.getByLabel('当前余额', { exact: true }).fill('900')

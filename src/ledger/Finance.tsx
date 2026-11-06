@@ -17,6 +17,11 @@ import { DateRangePopover } from './DateRangePopover'
 import { useLedgerList } from './useLedgerList'
 import { useLedgerSubmission, type FormSubmission } from './useLedgerSubmission'
 
+const balanceVisibilityKey = 'lifespace.ledger.balance-visible.v1'
+function initialBalancesHidden() {
+  try { return localStorage.getItem(balanceVisibilityKey) !== 'true' } catch { return true }
+}
+
 function Amount({ entry, large = false }: { entry: LedgerEntry; large?: boolean }) {
   return <span className={`lp-amount ${entry.direction} ${large ? 'large' : ''}`}>{formatCurrency(entry.amountCents)}</span>
 }
@@ -26,8 +31,12 @@ function Status({ entry }: { entry: LedgerEntry }) {
 export function Finance() {
   const identity = useVerifiedIdentity()
   const queries = useQueryClient()
-  const [balancesHidden, setBalancesHidden] = useState(false)
-  const toggleBalances = () => setBalancesHidden(hidden => !hidden)
+  const [balancesHidden, setBalancesHidden] = useState(initialBalancesHidden)
+  const toggleBalances = () => {
+    const hidden = !balancesHidden
+    setBalancesHidden(hidden)
+    try { localStorage.setItem(balanceVisibilityKey, String(!hidden)) } catch { /* 本地存储不可用时保留本次页面状态。 */ }
+  }
   const { entries, page, range, updated, selectRange, setPage, deleted } = useLedgerList()
   const [filter, setFilter] = useState<DateFilter>('all')
   const rangeTrigger = useRef<HTMLButtonElement>(null)
