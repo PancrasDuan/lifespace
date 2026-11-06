@@ -170,7 +170,10 @@ export function usePlanning(enabled = true) {
   const recover = async (saved: () => void) => {
     if (!pending.current) { await load(); return }
     const generation = pendingOrigin.current
-    finishConfirmation(await send(pending.current), generation, saved)
+    const envelope = pending.current
+    const success = await send(envelope)
+    finishConfirmation(success, generation, saved)
+    if (success) return envelope.command.type
   }
 
   useEffect(() => {
