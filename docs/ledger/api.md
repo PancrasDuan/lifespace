@@ -6,7 +6,7 @@
 | --- | --- | --- |
 | `POST /api/ledger/entries` | `requestId` UUID、`direction`、有符号整数分 `amountCents`、UTC 秒精度 `occurredAt`、`accountId`、普通 `categoryCode`、`note` | `{ entryId, version, deleted }` |
 | `POST /api/ledger/transfers` | `requestId`、不同的本人 `fromAccountId`／`toAccountId`、正整数分 `amountCents`、`occurredAt`、可选 `note` | `{ transferId, outEntryId, inEntryId, version, deleted }` |
-| `GET /api/ledger/entries?page=1` | 页码默认 1，固定每页 30；可选 `startDate`／`endDate` 与 `version` | `{ items, total, page, pageSize: 30, version }` |
+| `GET /api/ledger/entries?page=1` | 页码默认 1，固定每页 30；可选 `startDate`／`endDate`、`accountId` 与 `version` | `{ items, total, page, pageSize: 30, version }` |
 | `GET /api/ledger/entries/:id` | 本人流水标识；可选 `refundPage`（默认 1）与 `version` | `{ entry, parentEntry, transferEntry, refunds, refundCount, refundedCents, refundPage, refundPageSize: 30, version }` |
 | `POST /api/ledger/entries/:id/refunds` | 父支出标识；`requestId`、正整数分 `amountCents`、UTC 秒精度 `occurredAt`、`note` | `{ entryId, version, deleted }` |
 | `GET /api/ledger/entries/:id/delete-preview` | 本人未删除流水标识 | `{ entry, transferEntry, refundCount, scope, version }` |
@@ -30,13 +30,13 @@
 
 失败统一为 `{ error: { code, message } }`。稳定业务错误包括 `INVALID_ENTRY` / `INVALID_QUERY` / `FUTURE_TIME` / `REFUND_TIME`（400）、`REQUEST_ID_REUSED` / `LIST_CHANGED` / `REFUND_PARENT_INVALID` / `REFUND_LIMIT` / `DELETE_SCOPE_CHANGED`（409）、`NOT_FOUND`（404）、`LEDGER_UNAVAILABLE` / `SAVE_UNKNOWN` / `DELETE_UNKNOWN`（503），另沿用现有 `AUTH_*`。未知数据库或传输故障不回传原始响应、输入或凭据；创建／退款在无法确认时返回 `SAVE_UNKNOWN`，删除返回 `DELETE_UNKNOWN`。页面仅在当前挂载期间保存待确认命令供显式重试，不自动重提、不写本地存储；确认成功后重读失败只重试读取。
 
-数据库安装顺序为 `db/ledger/create-ledger.sql` → `db/ledger/list-ledger.sql` → `db/ledger/refunds.sql` → `db/ledger/delete.sql`，之后追加 `accounts.sql` → `account-entries.sql` → `transfers.sql`，再追加 `migrations/20261105002135_remove_legacy_ledger_account_name_v1.sql`，最终四表结构无旧名称列、`account_id` 非空；完整安装及回退边界见 [结构升级](../financial-accounts/transfer-implementation.md#安装与回退边界)与 [旧字段清理](account-name-cleanup.md)。只在只读核对目标结构后安装；正式环境建表与部署由集成交付执行，本票只在全新隔离本机数据库执行。受控入口为 `ledger_create(p_owner, p_input)`、`ledger_list(p_owner, p_page, p_start_date, p_end_date, p_version)`（后四项有默认值）、`ledger_detail(p_owner, p_id, p_refund_page, p_version)`（后两项有默认值；旧两参数重载被移除）、`ledger_refund(p_owner, p_parent, p_input)`、`ledger_delete_preview(p_owner, p_id)`、`ledger_delete(p_owner, p_id, p_scope)`、`ledger_transfer(p_owner, p_input)`；均只授予 `service_role` 调用，内部显式限定 owner，原始交易字段由触发器保护。退款扩展替换状态序列化与详情函数，不替换列表查询，便于与日期分页合并。活跃退款索引包含 owner、父标识、倒序时间和倒序 UUID，兼顾全量聚合与有界关联排序。
+数据库安装顺序为 `db/ledger/create-ledger.sql` → `db/ledger/list-ledger.sql` → `db/ledger/refunds.sql` → `db/ledger/delete.sql`，之后追加 `accounts.sql` → `account-entries.sql` → `transfers.sql`，再追加 `migrations/20261105002135_remove_legacy_ledger_account_name_v1.sql` 和 `migrations/20261106000000_ledger_account_filter.sql`，最终四表结构无旧名称列、`account_id` 非空；完整安装及回退边界见 [结构升级](../financial-accounts/transfer-implementation.md#安装与回退边界)与 [旧字段清理](account-name-cleanup.md)。只在只读核对目标结构后安装；正式环境建表与部署由集成交付执行，本票只在全新隔离本机数据库执行。受控入口为 `ledger_create(p_owner, p_input)`、`ledger_list(p_owner, p_page, p_start_date, p_end_date, p_version)`（后四项有默认值）、`ledger_list_by_account(p_owner, p_account_id, p_page, p_start_date, p_end_date, p_version)`（后四项有默认值）、`ledger_detail(p_owner, p_id, p_refund_page, p_version)`（后两项有默认值；旧两参数重载被移除）、`ledger_refund(p_owner, p_parent, p_input)`、`ledger_delete_preview(p_owner, p_id)`、`ledger_delete(p_owner, p_id, p_scope)`、`ledger_transfer(p_owner, p_input)`；均只授予 `service_role` 调用，内部显式限定 owner，原始交易字段由触发器保护。退款扩展替换状态序列化与详情函数，不替换列表查询，便于与日期分页合并。活跃退款索引包含 owner、父标识、倒序时间和倒序 UUID，兼顾全量聚合与有界关联排序。
 
 删除预览在 owner 共享锁内只读。`scope` 为 SHA-256 十六进制摘要：绑定可信 owner、目标及按 UUID 排序的全部有效退款标识，固定 64 字符，不受无关流水或列表版本影响，也不会因退款数量相同而忽略成员替换。内部 `ledger_delete_scope` 不授予 API 角色执行权限。删除在 owner 排他锁内先查目标（已删除直接成功），再比较 scope；冲突不写入、不增版本，页面重读预览并等待再次确认，不自动继续。确认卡片显示的范围在当前会话冻结，focus 刷新不悄悄更新它。父子删除时间与版本一次事务提交；退款单删释放余额，父状态动态恢复。只写 `deleted_at`，不修改原始事实、不物理删除、不恢复。没有实际变更的重复删除不增版本。
 
 删除未知结果仅在当前页面内保留原目标和 scope，允许关闭确认后显式重试或查看列表，其他操作可继续。迟到删除成功仅关闭对应会话；成功后的读取失败只重读。重新加载页面不恢复或自动提交命令。原型及历史规格文件保留，不作为正式测试的替代。
 
-账户筛选的数据库升级使用 `db/ledger/migrations/20261106000000_ledger_account_filter.sql`，增加仅授予 `service_role` 的 `ledger_list_by_account` 和账户分页索引。发布前先在目标库核对并应用该迁移，再部署 Worker/UI；旧 `ledger_list` 保持可用。回退应用版本时保留新函数与索引即可，不涉及流水数据改写。目标库迁移需与本次发布一并获授权。
+账户筛选的数据库升级使用 `db/ledger/migrations/20261106000000_ledger_account_filter.sql`，增加仅授予 `service_role` 的 `ledger_list_by_account` 和账户分页索引。发布前先在目标库核对并应用该迁移，再部署 Worker/UI；旧 `ledger_list` 保持可用。回退应用版本时保留新函数与索引即可，不涉及流水数据改写。目标库迁移需与本次发布一并获授权；执行前核对表规模和写入影响，安排迁移窗口。迁移事务限制锁等待 3 秒及单语句 30 秒；超时整事务回滚，应查明原因后再安排执行，不部署依赖新函数的版本。为兼容新旧应用并支持回退，保留旧列表函数，新函数与旧函数的版本、日期和分页语义须同步维护并回归验证。
 
 可复用测试支持为 `tests/support/ledger-database.ts`，扩展现有执行器：
 

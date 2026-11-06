@@ -1,5 +1,8 @@
 -- Install before deploying the Worker that requests account-filtered lists.
 -- The existing ledger_list remains available during rollout and rollback.
+begin;
+set local lock_timeout = '3s';
+set local statement_timeout = '30s';
 create index if not exists ledger_entries_owner_account_order_idx on public.ledger_entries (owner_id, account_id, occurred_at desc, id desc) where deleted_at is null;
 create or replace function public.ledger_list_by_account(p_owner uuid, p_account_id uuid, p_page integer default 1, p_start_date date default null, p_end_date date default null, p_version bigint default null) returns jsonb
 language plpgsql security definer set search_path = pg_catalog, public as $$
@@ -28,3 +31,4 @@ begin
 end $$;
 revoke all on function public.ledger_list_by_account(uuid,uuid,integer,date,date,bigint) from public, anon, authenticated, service_role;
 grant execute on function public.ledger_list_by_account(uuid,uuid,integer,date,date,bigint) to service_role;
+commit;
