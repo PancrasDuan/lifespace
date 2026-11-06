@@ -65,7 +65,7 @@ test('取消失败的新建请求后，稍后重新读取不会意外打开表�
   await expect(recovery).toBeVisible()
   await recovery.getByRole('button', { name: '取消', exact: true }).click()
   await expect(page.getByRole('dialog')).toHaveCount(0)
-  await page.getByRole('button', { name: '今天', exact: true }).click()
+  await page.getByRole('button', { name: '今日聚焦', exact: true }).click()
   await page.getByRole('button', { name: '重新读取', exact: true }).click()
   await expect(page.getByRole('button', { name: '新建目标', exact: true })).toBeEnabled()
   await expect(page.getByRole('dialog')).toHaveCount(0)
@@ -90,7 +90,7 @@ for (const entry of [
     const server = await planningFixture(context, state)
     await context.route('**/api/adventure/growth**', route => route.fulfill({ json: growth }))
     const initialUrl = start === 'growth' ? '/adventure?view=growth' : '/adventure'
-    const initialTab = start === 'growth' ? '成长记录' : '今天'
+    const initialTab = start === 'growth' ? '成长记录' : '今日聚焦'
     await page.goto(initialUrl)
     await page.getByRole('button', { name: entry.button, exact: true }).click()
     const dialog = page.getByRole('dialog', { name: entry.dialog, exact: true })
