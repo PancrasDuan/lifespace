@@ -14,8 +14,8 @@ test.describe('今日聚焦周历真实数据流程', () => {
     test.setTimeout(60000)
     const today = (await snapshot()).today
     const tomorrow = Temporal.PlainDate.from(today).add({ days: 1 }).toString()
-    await write({ type: 'createTask', title: '较早逾期', description: '', plannedOn: '2020-01-01', destination: '' })
-    const done = (await write({ type: 'createTask', title: '今天补做完成', description: '', plannedOn: '2020-01-02', destination: '' })).result.entityId
+    await database.createHistoricalTask({ type: 'createTask', title: '较早逾期', description: '', plannedOn: '2020-01-01', destination: '' })
+    const done = (await database.createHistoricalTask({ type: 'createTask', title: '今天补做完成', description: '', plannedOn: '2020-01-02', destination: '' })).result.entityId
     await write({ type: 'completeTask', id: done })
     for (let i = 0; i < 51; i++) await write({ type: 'createTask', title: `完整搜索 ${String(i).padStart(2, '0')}`, description: '', plannedOn: today, destination: '' })
     await write({ type: 'createTask', title: '明天的安排', description: '', plannedOn: tomorrow, destination: '' })

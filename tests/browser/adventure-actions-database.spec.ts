@@ -230,7 +230,7 @@ test.describe('真实任务事务的桌面与手机浏览器验收（受控身�
 
   for (const width of [1440, 390]) test(`${width}px 逾期统一编辑改期、取消不保存、历史链及完成刷新`, async ({ page }) => {
     await page.setViewportSize({ width, height: 950 })
-    const task = (await write({ type: 'createTask', title: '保留原行动', description: '冻结说明', plannedOn: '2020-01-01', destination: '' })).result.entityId
+    const task = (await database.createHistoricalTask({ type: 'createTask', title: '保留原行动', description: '冻结说明', plannedOn: '2020-01-01', destination: '' })).result.entityId
     const today = (await snapshot()).today, tomorrow = Temporal.PlainDate.from(today).add({ days: 1 }).toString()
     await page.goto('/adventure')
     await edit(page, '保留原行动')
@@ -259,7 +259,7 @@ test.describe('真实任务事务的桌面与手机浏览器验收（受控身�
 
   test('390px 完整安排历史按稳定任务身份分页与刷新', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 950 })
-    const task = (await write({ type: 'createTask', title: '分页原安排', description: '冻结说明', plannedOn: '2020-01-01', destination: '' })).result.entityId
+    const task = (await database.createHistoricalTask({ type: 'createTask', title: '分页原安排', description: '冻结说明', plannedOn: '2020-01-01', destination: '' })).result.entityId
     const today = (await snapshot()).today, tomorrow = Temporal.PlainDate.from(today).add({ days: 1 }).toString()
     for (let index = 0; index < 6; index++) await write({ type: 'editTask', id: task, title: '分页原安排', description: '冻结说明', plannedOn: index % 2 === 0 ? today : tomorrow, destination: '' })
     const before = await snapshot('?taskRange=future')
