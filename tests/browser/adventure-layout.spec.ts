@@ -144,14 +144,15 @@ test('规划标签刷新后保持，返回今天只展示行动与成长支持',
   await expect(page.locator('.adventure-proto-mainline-list, .adventure-proto-goal')).toHaveCount(0)
 })
 
-test('直接新建主线或目标进入规划，行动留在今天，取消后保留对应页面', async ({ page, context }) => {
+test('直接新建时保留当前页面，取消后仍留在当前页面', async ({ page, context }) => {
   await planningFixture(context, state)
+  await page.setViewportSize({ width: 390, height: 954 })
   await page.goto('/adventure')
   const navigation = page.getByRole('navigation', { name: '冒险页面', exact: true })
   await expect(page.getByRole('button', { name: '新建主线', exact: true })).toBeEnabled()
   for (const entry of [
-    { option: '新建主线', title: '创建主线', tab: '主线与目标', url: '/adventure?view=planning' },
-    { option: '新建目标', title: '创建目标', tab: '主线与目标', url: '/adventure?view=planning' },
+    { option: '新建主线', title: '创建主线', tab: '今天', url: '/adventure' },
+    { option: '新建目标', title: '创建目标', tab: '今天', url: '/adventure' },
     { option: '新建行动', title: '创建任务', tab: '今天', url: '/adventure' },
   ]) {
     await navigation.getByRole('button', { name: '今天', exact: true }).click()
