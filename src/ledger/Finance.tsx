@@ -17,6 +17,11 @@ import { DateRangePopover } from './DateRangePopover'
 import { useLedgerList } from './useLedgerList'
 import { useLedgerSubmission, type FormSubmission } from './useLedgerSubmission'
 
+const balanceVisibilityKey = 'lifespace.ledger.balance-visible.v1'
+function initialBalancesHidden() {
+  try { return localStorage.getItem(balanceVisibilityKey) !== 'true' } catch { return true }
+}
+
 function Amount({ entry, large = false }: { entry: LedgerEntry; large?: boolean }) {
   return <span className={`lp-amount ${entry.direction} ${large ? 'large' : ''}`}>{formatCurrency(entry.amountCents)}</span>
 }
@@ -26,6 +31,17 @@ function Status({ entry }: { entry: LedgerEntry }) {
 export function Finance() {
   const identity = useVerifiedIdentity()
   const queries = useQueryClient()
+  const [balancesHidden, setBalancesHidden] = useState(initialBalancesHidden)
+  const [balancePreferenceError, setBalancePreferenceError] = useState(false)
+  const toggleBalances = () => {
+    const hidden = !balancesHidden
+    setBalancesHidden(hidden)
+    try {
+      if (hidden) localStorage.removeItem(balanceVisibilityKey)
+      else localStorage.setItem(balanceVisibilityKey, 'true')
+      setBalancePreferenceError(false)
+    } catch { setBalancePreferenceError(true) }
+  }
   const { entries, page, range, updated, selectRange, setPage, deleted } = useLedgerList()
   const [filter, setFilter] = useState<DateFilter>('all')
   const rangeTrigger = useRef<HTMLButtonElement>(null)
@@ -96,7 +112,7 @@ export function Finance() {
           setPanel({ kind: 'delete', id: item.id, session: crypto.randomUUID() })
         } else void submitDelete(item).catch(() => {})
       }}>{item.pending ? '正在重试…' : item.code === 'DELETE_SCOPE_CHANGED' ? '重新确认删除' : '重试删除'}</button><button className="lp-secondary" onClick={() => void entries.refetch()}>查看最新流水</button></div>)}
-      <Accounts onTransfer={from => { setPanel(null); submission.openTransfer(from) }} closeKey={form?.key ?? (panel ? (panel.kind === 'delete' ? panel.session : panel.id) : null)} onOpen={() => { submission.close(); setPanel(null) }} />
+      <Accounts balancesHidden={balancesHidden} toggleBalances={toggleBalances} balancePreferenceError={balancePreferenceError} onTransfer={from => { setPanel(null); submission.openTransfer(from) }} closeKey={form?.key ?? (panel ? (panel.kind === 'delete' ? panel.session : panel.id) : null)} onOpen={() => { submission.close(); setPanel(null) }} />
       <section className="lp-table-surface" aria-label="账单流水">
         <div className="la-ledger-heading"><h2>账单流水</h2><button className="lp-secondary" onClick={newEntry}><Plus size={15} />新建流水</button></div>
         <div className="lp-top-toolbar"><div className="lp-filter-buttons">{([['all', '全部时间'], ['today', '今天'], ['week', '近 7 天'], ['month', '近 1 个月']] as const).map(([value, label]) => <button key={value} className={filter === value ? 'active' : ''} aria-pressed={filter === value} onClick={() => selectFilter(value)}>{label}</button>)}<button ref={rangeTrigger} className={filter === 'custom' ? 'active' : ''} aria-pressed={filter === 'custom'} aria-expanded={!!dateAnchor} aria-haspopup="dialog" onClick={() => setDateAnchor(current => current ? null : rangeTrigger.current!.getBoundingClientRect())}>自定义</button></div><span className="lp-timezone"><CalendarDays size={14} />北京时间</span></div>
@@ -119,7 +135,7 @@ export function Finance() {
     </div>
     {dateAnchor && <DateRangePopover start={range?.start ?? ''} end={range?.end ?? ''} anchor={dateAnchor} trigger={rangeTrigger.current} close={() => setDateAnchor(null)} apply={(start, end) => { setFilter('custom'); selectRange({ start, end }) }} />}
     {form?.kind === 'new' && <LedgerModal title="新建流水" close={submission.close} form><EntryForm key={form.key} submission={form.submission} cancel={submission.close} /></LedgerModal>}
-    {form?.kind === 'transfer' && <LedgerModal title="账户转账" close={submission.close} form><TransferForm key={form.key} fromAccountId={form.fromAccountId} submission={form.submission} cancel={submission.close} /></LedgerModal>}
+    {form?.kind === 'transfer' && <LedgerModal title="账户转账" close={submission.close} form><TransferForm key={form.key} fromAccountId={form.fromAccountId} submission={form.submission} cancel={submission.close} balancesHidden={balancesHidden} toggleBalances={toggleBalances} balancePreferenceError={balancePreferenceError} /></LedgerModal>}
     {form?.kind === 'refund' && <LedgerModal title="登记退款" close={submission.close} form><RefundForm key={form.key} parent={form.parent} remainingCents={form.remainingCents} submission={form.submission} cancel={submission.close} /></LedgerModal>}
     {panel?.kind === 'detail' && <LedgerModal title="流水详情" close={() => setPanel(null)}><EntryDetail key={panel.id} id={panel.id} remove={() => setPanel({ kind: 'delete', id: panel.id, session: crypto.randomUUID() })} open={openDetail} refund={(parent, remainingCents) => { setPanel(null); submission.openRefund(parent, remainingCents) }} /></LedgerModal>}
     {panel?.kind === 'delete' && <LedgerModal title="删除流水" close={() => setPanel(null)} compact><DeleteConfirmation key={panel.session} session={panel.session} id={panel.id} cancel={() => setPanel(null)} save={scope => submitDelete({ id: panel.id, scope, session: panel.session })} /></LedgerModal>}

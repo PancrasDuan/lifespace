@@ -20,6 +20,8 @@ test.describe('正式页面账户流水 → Worker → 隔离数据库', () => {
   test.setTimeout(40000)
   test.skip(!ledgerRpc, '须显式启动隔离数据库，跳过不计通过')
   test.beforeEach(async ({ context }) => {
+    // 此业务回归需要读取余额；默认隐藏及偏好持久化由独立用例覆盖。
+    await context.addInitScript(() => localStorage.setItem('lifespace.ledger.balance-visible.v1', 'true'))
     restore = installLedgerDatabase(); owner = crypto.randomUUID(); writes = []
     await context.route('**/api/ledger/**', async route => {
       const req = route.request(), url = new URL(req.url()), body = req.method() === 'GET' ? undefined : req.postDataJSON()
