@@ -4,10 +4,10 @@ import type { PlanningPage, PlanningTask, TaskRange } from '../shared/adventure-
 import { PlanningTaskHistory } from './PlanningReschedule'
 import { MoreActions, Progress, Record } from './PrototypeRecord'
 
-export function PrototypeTasks({ data, blocked, openTask, toggleTask, changeRange, changeSearch, changePage, reschedule, migrate, edit, complete, cancel, end, remove }: {
+export function PrototypeTasks({ data, blocked, openTask, toggleTask, changeRange, changeSearch, changePage, edit, complete, cancel, end, remove }: {
   data: PlanningPage; blocked: boolean; openTask?: string; toggleTask: (id: string) => void
   changeRange: (range: TaskRange) => void; changeSearch: (search: string) => void; changePage: (page: number) => void
-  reschedule: (task: PlanningTask) => void; migrate: (task: PlanningTask) => void; edit: (task: PlanningTask) => void; complete: (task: PlanningTask) => void
+  edit: (task: PlanningTask) => void; complete: (task: PlanningTask) => void
   cancel: (task: PlanningTask) => void; end: (task: PlanningTask) => void; remove: (task: PlanningTask) => void
 }) {
   const [search, setSearch] = useState(data.search)
@@ -58,13 +58,10 @@ export function PrototypeTasks({ data, blocked, openTask, toggleTask, changeRang
           {task.status === 'completed' ? <>
             {task.reward && <span className="frozen-reward">本次奖励 {task.reward.amount} 点经验</span>}
             {task.capabilities.cancel?.allowed && <button disabled={blocked} onClick={() => cancel(task)}>取消完成</button>}
-            <MoreActions><button disabled={blocked || !task.capabilities.migrate?.allowed} title={task.capabilities.migrate?.reason} onClick={() => migrate(task)}>迁移任务</button></MoreActions>
           </> : task.status === 'ended' ? <span className="terminal-note"><CircleCheck size={14} />任务已结束，只剩历史可以查看</span> : <>
             <button type="button" className="action-primary" disabled={blocked || !task.capabilities.complete?.allowed} title={task.capabilities.complete?.reason} onClick={() => complete(task)}>完成</button>
-            <button disabled={blocked || !task.capabilities.reschedule?.allowed} title={task.capabilities.reschedule?.reason} onClick={() => reschedule(task)}>改期</button>
             <MoreActions>
               <button disabled={blocked || !task.capabilities.edit?.allowed} title={task.capabilities.edit?.reason} onClick={() => edit(task)}>编辑任务</button>
-              <button disabled={blocked || !task.capabilities.migrate?.allowed} title={task.capabilities.migrate?.reason} onClick={() => migrate(task)}>迁移任务</button>
               <button disabled={blocked || !task.capabilities.end?.allowed} title={task.capabilities.end?.reason} onClick={() => end(task)}>结束任务</button>
               <button disabled={blocked || !task.capabilities.delete?.allowed} title={task.capabilities.delete?.reason} onClick={() => remove(task)}>删除误建</button>
             </MoreActions>

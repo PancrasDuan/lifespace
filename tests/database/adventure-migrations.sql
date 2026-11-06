@@ -1,7 +1,9 @@
 -- This entire fixture is rolled back in a newly created isolated database.
 begin;
 create function pg_temp.command(p_owner uuid,p_command jsonb) returns jsonb language sql as $$
-  select public.adventure_planning_command(p_owner,gen_random_uuid()::text,coalesce((select revision from public.adventure_accounts where owner_id=p_owner),0),p_command);
+  select public.adventure_planning_command(p_owner,gen_random_uuid()::text,coalesce((select revision from public.adventure_accounts where owner_id=p_owner),0),case when p_command->>'type' in ('migrateTask','rescheduleTask') then
+      (select jsonb_build_object('type','editTask','id',t.id,'title',t.title,'description',t.description,'plannedOn',coalesce(p_command->>'plannedOn',t.planned_on::text),'destination',coalesce(p_command->>'destination',case when g.kind='inbox' then '' else g.id::text end)) from public.adventure_tasks t join public.adventure_goals g on (g.owner_id,g.id)=(t.owner_id,t.goal_id) where t.owner_id=p_owner and t.id=(p_command->>'id')::uuid)
+      else p_command end);
 $$;
 do $$
 declare
@@ -38,11 +40,12 @@ begin
     or (select revision from public.adventure_accounts where owner_id=o)<>v
     or (select count(*) from public.adventure_events where owner_id=o)<>c then raise exception 'Partial goal migration survived rollback'; end if;
   update public.adventure_accounts set total_xp=0 where owner_id=o;
+  perform pg_temp.command(o,jsonb_build_object('type','migrateTask','id',t,'destination',''));
+  perform pg_temp.command(o,jsonb_build_object('type','migrateTask','id',t,'destination',g));
   r:=pg_temp.command(o,jsonb_build_object('type','completeTask','id',t)); e:=(r->'result'->>'completionId')::uuid;
   select to_jsonb(x) into frozen from public.adventure_events x where owner_id=o and id=e;
   r:=pg_temp.command(o,'{"type":"createMainline","name":"新主线"}'); n:=(r->'result'->>'entityId')::uuid;
   perform pg_temp.command(o,jsonb_build_object('type','migrateGoal','id',g,'destination',n));
-  perform pg_temp.command(o,jsonb_build_object('type','migrateTask','id',t,'destination',''));
   if (select to_jsonb(x) from public.adventure_events x where owner_id=o and id=e)<>frozen then raise exception 'Migration rewrote frozen completion'; end if;
   if not exists(select 1 from public.adventure_events where owner_id=o and kind='task_migrated' and snapshot->'origin'->>'goalId'=g::text and amount is null)
     or not exists(select 1 from public.adventure_events where owner_id=o and kind='goal_migrated' and snapshot->'origin'->>'mainlineName'='原主线' and amount is null) then raise exception 'Migration history missing'; end if;
@@ -52,7 +55,7 @@ begin
   begin
     perform pg_temp.command(o,jsonb_build_object('type','migrateTask','id',t,'destination',g));
     raise exception 'Historical mainline lock bypassed';
-  exception when others then if sqlerrm<>'READ_ONLY' then raise; end if; end;
+  exception when others then if sqlerrm<>'TASK_NOT_PENDING' then raise; end if; end;
   begin
     perform pg_temp.command(o,jsonb_build_object('type','cancelTaskCompletion','completionId',e));
     raise exception 'Historical cancel lock bypassed';

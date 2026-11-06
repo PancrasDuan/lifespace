@@ -107,7 +107,7 @@ export async function commandPlanning(c: PlanningContext) {
 }
 
 export async function readMigrationOptions(c: PlanningContext) {
-  const parsed = z.strictObject({ kind: z.enum(['goal', 'task']), id: z.uuid(), page: z.coerce.number().int().min(1).max(1_000_000).default(1) }).safeParse(c.req.query())
+  const parsed = z.strictObject({ kind: z.literal('goal'), id: z.uuid(), page: z.coerce.number().int().min(1).max(1_000_000).default(1) }).safeParse(c.req.query())
   if (!parsed.success) throw new ApiError('INVALID_QUERY', '迁移候选参数无效', 400)
   return c.json(await rpc(c, 'adventure_migration_options', { p_kind: parsed.data.kind, p_id: parsed.data.id, p_page: parsed.data.page }, migrationOptionsSchema))
 }
