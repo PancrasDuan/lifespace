@@ -156,3 +156,16 @@ export const migrationOptionsSchema = z.object({
   options: z.array(z.object({ id: z.union([z.literal(''), z.uuid()]), name: z.string(), capability: capabilitySchema })).max(20),
 })
 export type MigrationOptions = z.infer<typeof migrationOptionsSchema>
+
+
+export const taskListInputSchema = z.strictObject({
+  date: z.iso.date(), scope: taskScopeSchema.default('all'), expectedVersion: version,
+  today: z.iso.date(), page: z.number().int().min(1).max(1_000_000).default(1),
+})
+export type TaskListInput = z.infer<typeof taskListInputSchema>
+export const taskListSchema = z.object({
+  version, today: z.iso.date(), date: z.iso.date(), scope: taskScopeSchema,
+  page: z.number().int().positive(), pageSize: z.literal(50), total: version,
+  tasks: z.array(planningTaskSchema).max(50), progress: planningProgressSchema,
+})
+export type TaskList = z.infer<typeof taskListSchema>

@@ -5,7 +5,7 @@ import type { AuthEnv, Identity } from '../auth'
 import { readBoundedBody, BodyLimitError } from '../read-body'
 import { ApiError } from '../upstream'
 import {
-  taskHistorySchema, migrationOptionsSchema, planningEnvelopeSchema, planningPageSchema, planningReceiptSchema, taskRangeSchema, taskScopeSchema, planningSearchSchema,
+  taskListInputSchema, taskListSchema, taskHistorySchema, migrationOptionsSchema, planningEnvelopeSchema, planningPageSchema, planningReceiptSchema, taskRangeSchema, taskScopeSchema, planningSearchSchema,
   planningPreviewInputSchema, planningPreviewSchema,
 } from '../../src/shared/adventure-planning'
 
@@ -128,4 +128,12 @@ export async function readRewardSource(c: PlanningContext) {
   const parsed = rewardSourceQuerySchema.safeParse(c.req.query())
   if (!parsed.success) throw new ApiError('INVALID_QUERY', '奖励来源分页参数无效', 400)
   return c.json(await rpc(c, 'adventure_reward_source', { p_event: parsed.data.id, p_page: parsed.data.page, p_version: parsed.data.version ?? null }, rewardSourceSchema))
+}
+
+export async function readTaskList(c: PlanningContext) {
+  if (Object.keys(c.req.query()).length) throw new ApiError('INVALID_QUERY', '任务查询条件请放入请求体', 400)
+  const value = await input(c, taskListInputSchema)
+  return c.json(await rpc(c, 'adventure_task_list', {
+    p_date: value.date, p_scope: value.scope, p_expected_version: value.expectedVersion, p_today: value.today, p_page: value.page,
+  }, taskListSchema))
 }
