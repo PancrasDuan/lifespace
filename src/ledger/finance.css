@@ -220,7 +220,7 @@
 @media (prefers-reduced-motion: reduce) {
 .lp-app button, .lp-app input, .lp-app textarea, .lp-app select { transition: none; }
 }
-.lp-refresh { display:inline-flex; align-items:center; gap:6px; border:0; color:#52684f; background:transparent; cursor:pointer; }
+.lp-refresh { flex-shrink: 0; }
 .lp-feedback { padding:24px; display:flex; align-items:center; gap:15px; }
 .finance-page .lp-workspace { padding-top: 42px; }
 .lp-unknown { display:flex; flex-wrap:wrap; align-items:center; gap:12px; padding:16px; margin-bottom:18px; border:1px solid #e9cec3; background:#fbf1e9; border-radius:10px; font-size:12px; }

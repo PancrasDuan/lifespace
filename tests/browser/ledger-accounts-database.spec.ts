@@ -149,7 +149,7 @@ test.describe('正式财务页账户 → Worker → 隔离数据库', () => {
     const form = page.getByRole('dialog', { name: '修改账户', exact: true })
     await form.getByLabel('当前余额', { exact: true }).fill('900')
     expect((await patch(id, { balanceCents: 80000, expectedBalanceCents: 100000 })).status).toBe(200)
-    await page.evaluate(() => window.dispatchEvent(new Event('focus')))
+    await page.getByRole('button', { name: '刷新数据', exact: true }).evaluate((button: HTMLButtonElement) => button.click())
     await expect(form.getByLabel('当前余额', { exact: true })).toHaveValue('900')
     await form.getByRole('button', { name: '保存修改', exact: true }).click()
     await expect(form.getByRole('alert')).toContainText('余额已变化')
@@ -165,14 +165,14 @@ test.describe('正式财务页账户 → Worker → 隔离数据库', () => {
     await expect(page.getByRole('region', { name: '交易账户', exact: true })).toContainText('900.00')
   })
 
-  test('只改名不提交旧余额，成功写入与重新聚焦都刷新账户并保留表单', async ({ page }) => {
+  test('只改名不提交旧余额，成功写入与手动刷新都刷新账户并保留表单', async ({ page }) => {
     const id = await create()
     await page.goto('/finance')
     await page.getByRole('button', { name: '修改银行卡', exact: true }).click()
     const form = page.getByRole('dialog', { name: '修改账户', exact: true })
     await form.getByLabel('账户名称', { exact: true }).fill('工资卡')
     expect((await patch(id, { balanceCents: 90000, expectedBalanceCents: 100000 })).status).toBe(200)
-    await page.evaluate(() => window.dispatchEvent(new Event('focus')))
+    await page.getByRole('button', { name: '刷新数据', exact: true }).evaluate((button: HTMLButtonElement) => button.click())
     await expect(form.getByLabel('账户名称', { exact: true })).toHaveValue('工资卡')
     await expect(form.getByLabel('当前余额', { exact: true })).toHaveValue('1000.00')
     await form.getByRole('button', { name: '保存修改', exact: true }).click()

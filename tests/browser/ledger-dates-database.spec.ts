@@ -174,7 +174,14 @@ test.describe('北京时间筛选 → 正式 Worker → 隔离数据库', () => 
     const form = page.getByRole('dialog', { name: '新建流水', exact: true })
     await form.getByLabel('交易金额').fill('45.67')
     await ledgerRequest(owner, '/api/ledger/entries', await ordinaryEntry(owner, { note: '聚焦更新' }))
-    await page.evaluate(() => window.dispatchEvent(new Event('focus')))
+    await page.evaluate(() => {
+      const now = Date.now
+      Date.now = () => now() + 61_000
+      Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'hidden' })
+      document.dispatchEvent(new Event('visibilitychange'))
+      Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' })
+      document.dispatchEvent(new Event('visibilitychange'))
+    })
     await expect(page.locator('.lp-pagination')).toContainText('1–30 / 63')
     await expect(form.getByLabel('交易金额')).toHaveValue('45.67')
     await ledgerRequest(owner, '/api/ledger/entries', await ordinaryEntry(owner, { note: '手动更新' }))
