@@ -12,12 +12,13 @@ describe.skipIf(!rpcOrigin)('正式 Worker HTTP → 本机真实 PostgREST → �
   let owner: string
   beforeEach(() => { owner = crypto.randomUUID() })
 
-  it('结束目标前预览影响，确认后停止待办并保留完成记录与经验', async () => {
+  it('处理待办后结束目标，保留完成记录与经验', async () => {
     const goal = (await command(owner, { type: 'createGoal', destination: '', title: '阶段成果', standards: ['达到结果'] })).result.entityId
     const today = (await read(owner)).today
     const completed = (await command(owner, { type: 'createTask', title: '已经完成', description: '', plannedOn: today, destination: goal })).result.entityId
     await command(owner, { type: 'completeTask', id: completed })
     const pending = (await command(owner, { type: 'createTask', title: '将会停止', description: '', plannedOn: today, destination: goal })).result.entityId
+    await command(owner, { type: 'deleteTask', id: pending })
     const before = await read(owner)
 
     const previewResponse = await request(owner, '/api/adventure/preview', {
@@ -28,7 +29,7 @@ describe.skipIf(!rpcOrigin)('正式 Worker HTTP → 本机真实 PostgREST → �
     const preview = planningPreviewSchema.parse(await previewResponse.json())
     expect(preview).toMatchObject({
       operation: 'endGoal', entityId: goal, requiresConfirmation: true,
-      stoppingTasks: [{ id: pending, title: '将会停止', plannedOn: today }],
+      stoppingTasks: [],
       preservedCompletedTasks: 1,
     })
     expect(await read(owner)).toEqual(before)
@@ -42,7 +43,7 @@ describe.skipIf(!rpcOrigin)('正式 Worker HTTP → 本机真实 PostgREST → �
     const after = await read(owner, '?includeTerminal=true&goalId=' + goal)
     expect(after.goals.find(item => item.id === goal)).toMatchObject({ status: 'ended', focused: false, terminatedAt: expect.any(String) })
     expect(after.tasks.find(item => item.id === completed)).toMatchObject({ status: 'completed', reward: { amount: 1 } })
-    expect(after.tasks.find(item => item.id === pending)).toMatchObject({ status: 'ended' })
+    expect(after.tasks.find(item => item.id === pending)).toBeUndefined()
     expect(after.growth).toMatchObject({ totalXp: before.growth.totalXp, actions: before.growth.actions })
     expect((await read(owner)).goals.some(item => item.id === goal)).toBe(false)
   })
@@ -74,6 +75,7 @@ describe.skipIf(!rpcOrigin)('正式 Worker HTTP → 本机真实 PostgREST → �
     await command(owner, { type: 'focusGoal', id: active, focused: true })
     const today = (await read(owner)).today
     const task = (await command(owner, { type: 'createTask', title: '主线待办', description: '', plannedOn: today, destination: active })).result.entityId
+    await command(owner, { type: 'editTask', id: task, title: '主线待办', description: '', plannedOn: today, destination: '' })
     const before = await read(owner)
     const preview = planningPreviewSchema.parse(await (await request(owner, '/api/adventure/preview', {
       expectedVersion: before.version, command: { type: 'endMainline', id: main } as PlanningCommand,
@@ -81,7 +83,7 @@ describe.skipIf(!rpcOrigin)('正式 Worker HTTP → 本机真实 PostgREST → �
     expect(preview).toMatchObject({
       operation: 'endMainline', entityId: main, requiresConfirmation: true,
       stoppingGoals: [{ id: active, title: '进行中目标' }],
-      stoppingTasks: [{ id: task, title: '主线待办', plannedOn: today }],
+      stoppingTasks: [],
       preservedAchievedGoals: 1,
     })
     expect(await read(owner)).toEqual(before)
@@ -93,34 +95,23 @@ describe.skipIf(!rpcOrigin)('正式 Worker HTTP → 本机真实 PostgREST → �
     expect(after.goals.find(item => item.id === achieved)?.mainlineName).toBe('将结束主线')
     expect(after.goals.find(item => item.id === active)).toMatchObject({ status: 'ended', focused: false })
     expect(after.goals.find(item => item.id === achieved)).toMatchObject({ status: 'achieved' })
-    expect(after.tasks.find(item => item.id === task)).toMatchObject({ status: 'ended' })
+    expect(after.tasks.find(item => item.id === task)).toMatchObject({ status: 'pending', independent: true })
     expect(after.growth).toMatchObject({ totalXp: before.growth.totalXp, achievedGoals: before.growth.achievedGoals })
     expect(after.capabilities.createMainline.allowed).toBe(true)
   })
 
-  it('结束待完成任务立即只读且不回退经验；已完成任务不能改为结束', async () => {
+  it('已撤除结束任务的新命令与预览，失败不改变任务或奖励', async () => {
     const today = (await read(owner)).today
-    const pending = (await command(owner, { type: 'createTask', title: '待结束任务', description: '', plannedOn: today, destination: '' })).result.entityId
-    const done = (await command(owner, { type: 'createTask', title: '已完成任务', description: '', plannedOn: today, destination: '' })).result.entityId
-    await command(owner, { type: 'completeTask', id: done })
+    const pending = (await command(owner, { type: 'createTask', title: '待处理任务', description: '', plannedOn: today, destination: '' })).result.entityId
     const before = await read(owner)
-    const taskPreview = planningPreviewSchema.parse(await (await request(owner, '/api/adventure/preview', {
-      expectedVersion: before.version, command: { type: 'endTask', id: pending } as PlanningCommand,
-    })).json())
-    expect(taskPreview).toMatchObject({ operation: 'endTask', entityId: pending, stoppingTasks: [{ id: pending, title: '待结束任务' }] })
+    expect(before.tasks[0].capabilities.end.allowed).toBe(false)
+    const value = { type: 'endTask' as const, id: pending }
+    expect((await request(owner, '/api/adventure/preview', { expectedVersion: before.version, command: value })).status).toBe(400)
+    expect((await send(owner, envelope(before.version, value))).status).toBe(400)
     expect(await read(owner)).toEqual(before)
-    const end = envelope(before.version, { type: 'endTask', id: pending } as PlanningCommand)
-    expect((await send(owner, end)).status).toBe(200)
-    const after = await read(owner)
-    expect(after.tasks.find(item => item.id === pending)).toMatchObject({ status: 'ended', capabilities: { edit: { allowed: false }, complete: { allowed: false } } })
-    expect(after.tasks.find(item => item.id === done)).toMatchObject({ status: 'completed', reward: { amount: 1 } })
-    expect(after.growth).toMatchObject({ totalXp: before.growth.totalXp, actions: before.growth.actions })
-    expect((await send(owner, envelope(after.version, { type: 'endTask', id: done } as PlanningCommand))).status).toBe(400)
-    expect((await send(owner, envelope(after.version, { type: 'endTask', id: pending } as PlanningCommand))).status).toBe(400)
-    expect(await read(owner)).toEqual(after)
   })
 
-  it('误建任务仅限未来未开始且无完成历史，删除逻辑隐藏且同请求幂等', async () => {
+  it('未来未完成任务删除逻辑隐藏且同请求幂等', async () => {
     const today = Temporal.PlainDate.from((await read(owner)).today)
     const future = today.add({ days: 2 }).toString()
     const accidental = (await command(owner, { type: 'createTask', title: '误建任务', description: '', plannedOn: future, destination: '' })).result.entityId
@@ -188,14 +179,14 @@ describe.skipIf(!rpcOrigin)('正式 Worker HTTP → 本机真实 PostgREST → �
     const today = Temporal.PlainDate.from((await read(owner)).today)
     const first = today.add({ days: 1 }).toString()
     const task = (await command(owner, { type: 'createTask', title: '曾改期任务', description: '', plannedOn: first, destination: '' })).result.entityId
-    await command(owner, { type: 'editTask', id: task, title: '曾改期任务', description: '更新说明' })
+    await command(owner, { type: 'editTask', id: task, title: '曾改期任务', description: '更新说明', plannedOn: first, destination: '' })
     const current = await read(owner, '?taskRange=future')
     const response = await send(owner, envelope(current.version, { type: 'deleteTask', id: task } as PlanningCommand))
     expect(response.status).toBe(200)
     expect((await read(owner, '?taskRange=future')).tasks.find(item => item.id === task)).toBeUndefined()
   })
 
-  it('目标结束影响超过二百条任务仍完整返回，不按客户端条数截断', async () => {
+  it('超过二百条待办的目标同样阻断终态，不按客户端页判断', async () => {
     const goal = (await command(owner, { type: 'createGoal', destination: '', title: '全量确认', standards: ['标准'] })).result.entityId
     const today = (await read(owner)).today
     let version = (await read(owner)).version
@@ -205,29 +196,28 @@ describe.skipIf(!rpcOrigin)('正式 Worker HTTP → 本机真实 PostgREST → �
       version = planningReceiptSchema.parse(await response.json()).version
     }
     const response = await request(owner, '/api/adventure/preview', { expectedVersion: version, command: { type: 'endGoal', id: goal } })
-    expect(response.status).toBe(200)
-    const preview = planningPreviewSchema.parse(await response.json())
-    expect('stoppingTasks' in preview && preview.stoppingTasks.length).toBe(201)
+    expect(response.status).toBe(400)
+    expect(await response.json()).toMatchObject({ error: { code: 'PENDING_TASKS' } })
     expect((await read(owner)).version).toBe(version)
   }, 20000)
 
-  it('主线结束与完成竞争同版本只提交一次，迁出完成仍受历史主线锁定', async () => {
+  it('主线结束与完成竞争安全拒绝或版本冲突，结束后完成受终态锁定', async () => {
     const main = (await command(owner, { type: 'createMainline', name: '历史锁来源' })).result.entityId
     const goal = (await command(owner, { type: 'createGoal', destination: main, title: '当前归属', standards: ['标准'] })).result.entityId
     const today = (await read(owner)).today
     const moved = (await command(owner, { type: 'createTask', title: '迁出完成', description: '', plannedOn: today, destination: goal })).result.entityId
     const finish = envelope((await read(owner)).version, { type: 'completeTask', id: moved })
     const completion = planningReceiptSchema.parse(await (await send(owner, finish)).json())
-    await command(owner, { type: 'migrateTask', id: moved, destination: '' })
     const pending = (await command(owner, { type: 'createTask', title: '竞争任务', description: '', plannedOn: today, destination: goal })).result.entityId
     const before = await read(owner)
     const end = envelope(before.version, { type: 'endMainline', id: main })
     const complete = envelope(before.version, { type: 'completeTask', id: pending })
     const responses = await Promise.all([send(owner, end), send(owner, complete)])
-    expect(responses.map(item => item.status).sort()).toEqual([200, 409])
+    expect(responses[1].status).toBe(200)
+    expect([400, 409]).toContain(responses[0].status)
     if (responses[0].status !== 200) await command(owner, end.command)
     const after = await read(owner)
-    expect(after.tasks.find(item => item.id === moved)).toMatchObject({ status: 'completed', independent: true, capabilities: { cancel: { allowed: false }, migrate: { allowed: false } } })
+    expect(after.tasks.find(item => item.id === moved)).toMatchObject({ status: 'completed', independent: false, capabilities: { cancel: { allowed: false }, migrate: { allowed: false } } })
     expect((await send(owner, envelope(after.version, { type: 'cancelTaskCompletion', completionId: completion.result.completionId! }))).status).toBe(400)
     expect(await (await send(owner, finish)).json()).toEqual(completion)
     expect((await read(owner)).version).toBe(after.version)
@@ -246,7 +236,7 @@ describe.skipIf(!rpcOrigin)('正式 Worker HTTP → 本机真实 PostgREST → �
     const before = await read(owner, '?taskRange=future')
     const other = crypto.randomUUID()
     for (const input of [
-      { type: 'endMainline', id: mains[1] }, { type: 'endGoal', id: goal }, { type: 'endTask', id: task }, { type: 'deleteTask', id: task },
+      { type: 'endMainline', id: mains[1] }, { type: 'endGoal', id: goal }, { type: 'deleteTask', id: task },
     ] as PlanningCommand[]) {
       expect((await send(other, envelope(0, input))).status).toBe(404)
       expect((await request(other, '/api/adventure/preview', { expectedVersion: 0, command: input })).status).toBe(404)
@@ -255,24 +245,17 @@ describe.skipIf(!rpcOrigin)('正式 Worker HTTP → 本机真实 PostgREST → �
     expect(await read(owner, '?taskRange=future')).toEqual(before)
   })
 
-  it('今天、曾完成和已结束任务均不能删除；目标结束后未来待办仍不可删除', async () => {
-    const today = Temporal.PlainDate.from((await read(owner)).today)
-    const todayTask = (await command(owner, { type: 'createTask', title: '今天任务', description: '', plannedOn: today.toString(), destination: '' })).result.entityId
-    const future = today.add({ days: 1 }).toString()
-    const onceDone = (await command(owner, { type: 'createTask', title: '曾完成', description: '', plannedOn: today.toString(), destination: '' })).result.entityId
-    await command(owner, { type: 'completeTask', id: onceDone })
-    await command(owner, { type: 'cancelTaskCompletion', completionId: (await read(owner)).tasks.find(item => item.id === onceDone)!.completionId! })
-    const ended = (await command(owner, { type: 'createTask', title: '已结束', description: '', plannedOn: future, destination: '' })).result.entityId
-    await command(owner, { type: 'endTask', id: ended })
-    const goal = (await command(owner, { type: 'createGoal', destination: '', title: '结束目标', standards: ['标准'] })).result.entityId
-    const child = (await command(owner, { type: 'createTask', title: '目标未来待办', description: '', plannedOn: future, destination: goal })).result.entityId
-    await command(owner, { type: 'endGoal', id: goal })
-    const current = await read(owner, `?taskRange=future&includeTerminal=true&goalId=${goal}`)
-    for (const id of [todayTask, onceDone, ended, child]) {
-      const response = await send(owner, envelope(current.version, { type: 'deleteTask', id } as PlanningCommand))
-      expect(response.status, id).toBe(400)
-      expect(await response.json()).toMatchObject({ error: { code: expect.stringMatching(/READ_ONLY|TASK_NOT_PENDING|HISTORY_LOCKED|DATE_STARTED/) } })
-    }
-    expect((await read(owner, `?taskRange=future&includeTerminal=true&goalId=${goal}`)).version).toBe(current.version)
+  it('今天任务和撤销完成后的任务可删除，已完成任务仍受保护', async () => {
+    const today = (await read(owner)).today
+    const todayTask = (await command(owner, { type: 'createTask', title: '今天任务', description: '', plannedOn: today, destination: '' })).result.entityId
+    const onceDone = (await command(owner, { type: 'createTask', title: '曾完成', description: '', plannedOn: today, destination: '' })).result.entityId
+    const completion = await command(owner, { type: 'completeTask', id: onceDone })
+    const doneState = await read(owner)
+    expect((await send(owner, envelope(doneState.version, { type: 'deleteTask', id: onceDone }))).status).toBe(400)
+    await command(owner, { type: 'cancelTaskCompletion', completionId: completion.result.completionId! })
+    for (const id of [todayTask, onceDone]) await command(owner, { type: 'deleteTask', id })
+    const after = await read(owner)
+    expect(after.tasks).toHaveLength(0)
+    expect(after.growth.totalXp).toBe(0)
   })
 })

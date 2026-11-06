@@ -11,8 +11,8 @@ import { PlanningProgress } from './PlanningProgress'
 import { PlanningRecord, PlanningMore } from './PlanningRecord'
 
 type Action = (command: PlanningCommand, expectedVersion?: number) => Promise<boolean>
-export function TaskForm({ task, destination: initialDestination, data: workspace, action, busy, close, changeGoalPage }: {
-  task?: PlanningTask; destination?: string; data: PlanningPage; action: Action; busy: boolean; close: () => void; changeGoalPage: (page: number) => void
+export function TaskForm({ task, destination: initialDestination, data: workspace, action, busy, close, changeGoalPage, remove }: {
+  task?: PlanningTask; destination?: string; data: PlanningPage; action: Action; busy: boolean; close: () => void; changeGoalPage: (page: number) => void; remove?: () => void
 }) {
   const identity = useVerifiedIdentity()
   const [separateCandidates] = useState(workspace.goalScope === 'focus' || !!workspace.mainlineDetail)
@@ -61,16 +61,15 @@ export function TaskForm({ task, destination: initialDestination, data: workspac
         <button type="button" disabled={data.page * data.pageSize >= data.totalGoals} onClick={() => changeCandidates(data.page + 1)}>下一页目标</button>
       </div></div>}
     </>
-    <div className="adventure-form-footer"><button type="button" onClick={close}>取消</button>
+    <div className="adventure-form-footer">{task && remove && <button type="button" disabled={busy || !task.capabilities.delete?.allowed} title={task.capabilities.delete?.reason} onClick={remove}>删除任务</button>}<button type="button" onClick={close}>取消</button>
       <button className="adventure-primary" type="submit" disabled={busy || candidateBusy}>{busy ? '正在保存…' : task ? '保存任务' : '创建任务'}</button></div>
   </fieldset></form>
 }
 
-export function PlanningTasks({ data, blocked, changeRange, changePage, changeScope, changeSearch, edit, complete, cancel, end, remove }: {
+export function PlanningTasks({ data, blocked, changeRange, changePage, changeScope, changeSearch, edit, complete, cancel }: {
   data: PlanningPage; blocked: boolean; changeRange: (range: TaskRange) => void; changePage: (page: number) => void;
   changeScope: (scope: TaskScope) => void; changeSearch: (search: string) => void;
   edit: (task: PlanningTask) => void; complete: (task: PlanningTask) => void; cancel: (task: PlanningTask) => void;
-  end: (task: PlanningTask) => void; remove: (task: PlanningTask) => void
 }) {
   const [search, setSearch] = useState(data.search)
   const [expanded, setExpanded] = useState<string>()
@@ -102,8 +101,6 @@ export function PlanningTasks({ data, blocked, changeRange, changePage, changeSc
             : <button className="adventure-primary" disabled={blocked || !task.capabilities.complete?.allowed} title={task.capabilities.complete?.reason} onClick={() => complete(task)}>完成</button>}
           <PlanningMore>
             <button disabled={blocked || !task.capabilities.edit?.allowed} title={task.capabilities.edit?.reason} onClick={() => edit(task)}>编辑任务</button>
-            <button disabled={blocked || !task.capabilities.end?.allowed} title={task.capabilities.end?.reason} onClick={() => end(task)}>结束任务</button>
-            <button disabled={blocked || !task.capabilities.delete?.allowed} title={task.capabilities.delete?.reason} onClick={() => remove(task)}>删除误建</button>
           </PlanningMore>
         </div>
       </PlanningRecord>
