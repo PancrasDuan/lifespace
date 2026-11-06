@@ -31,7 +31,7 @@ describe.skipIf(!rpcOrigin)('正式 Worker HTTP → 本机真实 PostgREST → �
     const today = (await read(owner)).today
     const task = (await command(owner, { type: 'createTask', title: '发生时任务', description: '冻结说明', plannedOn: today, destination: goal })).result.entityId
     const done = await command(owner, { type: 'completeTask', id: task })
-    await command(owner, { type: 'migrateTask', id: task, destination: '' })
+    await command(owner, { type: 'migrateGoal', id: goal, destination: '' })
     const achieved = await command(owner, { type: 'achieveGoal', id: goal, coefficient: 3, reflection: '完成时感想' })
     await command(owner, { type: 'renameMainline', id: main, name: '现在主线' })
     await command(owner, { type: 'endMainline', id: main })
