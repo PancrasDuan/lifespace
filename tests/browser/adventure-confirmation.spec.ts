@@ -12,7 +12,7 @@ const initial: PlanningPage = {
   tasks: [{ id: taskId, title: '确认流程行动', description: '', plannedOn: withGoal.today, rescheduleMin: withGoal.today,
     arrangements: [], totalArrangements: 0, status: 'pending', completedOn: null, completionId: null, reward: null, completionOrigin: null,
     goalId: null, goalTitle: null, mainlineName: '独立区', independent: true, overdue: false,
-    progress: { completed: 0, total: 1, ratio: 0 }, capabilities: { reschedule: allowed } }],
+    progress: { completed: 0, total: 1, ratio: 0 }, capabilities: { edit: allowed, delete: allowed, complete: allowed } }],
 }
 const goalReward = (coefficient: number, count = 0) => ({ amount: count === 0 ? 1 : coefficient,
   calculation: { type: 'goal_actions' as const, actionIds: count === 0 ? [] : [taskId], count, coefficient, fallback: count === 0 } })
@@ -22,8 +22,9 @@ const lifecyclePreview: PlanningPreview = { version: 2, today: initial.today, al
 const achievementPreview: PlanningPreview = { version: 2, today: initial.today, allowed: true, requiresConfirmation: true,
   operation: 'achieveGoal', goalId, title: '五公里', standards: ['连续跑完五公里'], message: '达成后只读',
   stoppingTasks: [], rewards: [goalReward(1), goalReward(2), goalReward(3)] }
-const reschedulePreview: PlanningPreview = { version: 2, today: initial.today, allowed: true, requiresConfirmation: true,
-  operation: 'rescheduleTask', taskId, title: '确认流程行动', oldPlannedOn: initial.today, newPlannedOn: '2099-01-01', sourceEventId: taskId, message: '保留原安排' }
+const deletePreview: PlanningPreview = { version: 2, today: initial.today, allowed: true, requiresConfirmation: true,
+  operation: 'deleteTask', entityId: taskId, title: '确认流程行动', plannedOn: initial.today, historicalArrangements: 1,
+  stoppingGoals: [], stoppingTasks: [], preservedCompletedTasks: 0, preservedAchievedGoals: 0, message: '仅删除未完成任务，历史继续保留' }
 const completed: PlanningPage = { ...initial, tasks: [{ ...initial.tasks[0], status: 'completed', completedOn: initial.today, completionId, reward,
   capabilities: { reschedule: later, cancel: allowed } }], growth: { ...initial.growth, totalXp: 1, progress: 1, remaining: 19, actions: 1 } }
 const cancelPreview: PlanningPreview = { version: 2, today: initial.today, allowed: true, requiresConfirmation: true,
@@ -52,10 +53,10 @@ type Scenario = {
 }
 const scenarios: Scenario[] = [
   { name: '结束', initial, preview: lifecyclePreview,
-    changedPreview: { ...lifecyclePreview, stoppingTasks: [{ id: taskId, title: '新增待停任务', plannedOn: initial.today }] },
+    changedPreview: { ...lifecyclePreview, preservedCompletedTasks: 1 },
     saved: { ...initial, goals: [], totalGoals: 0 }, confirm: '确认结束目标', repreview: '重新预览',
     open: page => openGoal(page, '结束目标', true),
-    inspectChanged: async page => { await expect(page.getByRole('dialog')).toContainText('新增待停任务') } },
+    inspectChanged: async page => { await expect(page.getByRole('dialog')).toContainText('已有完成记录 1 项') } },
   { name: '达成', initial, preview: achievementPreview,
     changedPreview: { ...achievementPreview, rewards: [goalReward(1, 1), goalReward(2, 1), goalReward(3, 1)] },
     saved: achieved, confirm: '确认达成并入账', repreview: '重新预览达成',
@@ -69,13 +70,13 @@ const scenarios: Scenario[] = [
       await expect(page.getByLabel('达成感想（可选）', { exact: true })).toHaveValue('完成了')
       await expect(page.getByRole('dialog')).toContainText('目标奖励：2 点经验')
     } },
-  { name: '改期', initial, preview: reschedulePreview, changedPreview: reschedulePreview,
-    saved: { ...initial, tasks: [], totalTasks: 0 }, confirm: '确认改期', repreview: '预览改期',
+  { name: '删除', initial, preview: deletePreview, changedPreview: { ...deletePreview, historicalArrangements: 2 },
+    saved: { ...initial, tasks: [], totalTasks: 0 }, confirm: '确认删除任务', repreview: '重新预览',
     open: async page => {
-      await openTask(page, '改期')
-      await page.getByLabel('新的执行日期').fill('2099-01-01')
-      await page.getByRole('button', { name: '预览改期', exact: true }).click()
-    } },
+      await openTask(page, '编辑任务')
+      await page.getByRole('button', { name: '删除任务', exact: true }).click()
+    },
+    inspectChanged: async page => { await expect(page.getByRole('dialog')).toContainText('已有安排历史 2 项') } },
   { name: '取消完成', initial: completed, preview: cancelPreview, changedPreview: cancelPreview,
     saved: initial, confirm: '确认取消完成', repreview: '重新预览', open: page => openTask(page, '取消完成') },
 ]
@@ -140,15 +141,7 @@ for (const scenario of scenarios) {
   })
 }
 
-// The goal's More row has a baseline 390px layout issue recorded in #111.
-// Exercise the same lifecycle confirmation through the task-ending entry on mobile.
-const mobileScenarios = [
-  { ...scenarios[0], name: '结束任务',
-    initial: { ...initial, tasks: [{ ...initial.tasks[0], capabilities: { ...initial.tasks[0].capabilities, end: allowed } }] },
-    preview: { ...lifecyclePreview, operation: 'endTask' as const, entityId: taskId, title: '确认流程行动' },
-    saved: { ...initial, tasks: [], totalTasks: 0 }, confirm: '确认结束任务', open: (page: Page) => openTask(page, '结束任务') },
-  ...scenarios.slice(1),
-]
+const mobileScenarios = scenarios
 for (const scenario of mobileScenarios) {
   test(`${scenario.name}：手机视口正常确认保留成功去向`, async ({ page, context }) => {
     await page.setViewportSize({ width: 390, height: 844 })
@@ -195,28 +188,27 @@ test('关闭详情后迟到的首次预览不能重新打开确认弹窗', async
   } finally { release.resolve() }
 })
 
-test('关闭确认后迟到的重新预览不能复用到下一次改期', async ({ page, context }) => {
-  const scenario = scenarios[2]
+test('关闭删除确认后迟到的重新预览不能影响下一次编辑', async ({ page, context }) => {
   const server = await planningFixture(context, initial)
-  server.preview(reschedulePreview)
-  await scenario.open(page)
+  server.preview(deletePreview)
+  await scenarios[2].open(page)
   const held = deferred(), release = deferred()
   await context.route('**/api/adventure/preview', async route => {
     held.resolve()
     await release.promise
-    await route.fulfill({ json: reschedulePreview })
+    await route.fulfill({ json: deletePreview })
   })
   try {
-    await page.getByRole('button', { name: '预览改期', exact: true }).click()
+    await page.getByRole('button', { name: '重新预览', exact: true }).click()
     await held.promise
     await page.getByRole('button', { name: '关闭弹窗', exact: true }).click()
     release.resolve()
     await expect(page.getByRole('button', { name: '新建主线', exact: true })).toBeEnabled()
     await openRecordActions(page.locator('.adventure-proto-task').first())
-    await page.getByRole('button', { name: '改期', exact: true }).click()
-    await expect(page.getByLabel('新的执行日期')).toHaveValue('')
-    await expect(page.getByRole('region', { name: '改期预览', exact: true })).toBeHidden()
-    await expect(page.getByRole('button', { name: '确认改期', exact: true })).toBeDisabled()
+    await page.getByRole('button', { name: '编辑任务', exact: true }).click()
+    await expect(page.getByLabel('执行日期', { exact: true })).toHaveValue(initial.today)
+    await expect(page.getByRole('dialog', { name: '编辑任务', exact: true })).toBeVisible()
+    await expect(page.getByRole('button', { name: '确认删除任务', exact: true })).toHaveCount(0)
     expect(server.envelopes).toHaveLength(0)
   } finally { release.resolve() }
 })
@@ -246,15 +238,15 @@ test('关闭达成确认后迟到的成功回执只更新数据，不重新展�
   } finally { release.resolve() }
 })
 
-test('不同操作或日期的预览不能作为当前确认依据', async ({ page, context }) => {
+test('不同操作或任务的预览不能作为当前确认依据', async ({ page, context }) => {
   const server = await planningFixture(context, initial)
   server.preview(achievementPreview)
   await openGoal(page, '结束目标', true)
   await expect(page.getByRole('alert')).toContainText('预览内容与当前操作不符')
   await expect(page.getByRole('dialog')).toBeHidden()
-  server.preview({ ...reschedulePreview, newPlannedOn: '2099-02-01' })
+  server.preview({ ...deletePreview, entityId: completionId })
   await scenarios[2].open(page)
   await expect(page.getByRole('alert')).toContainText('预览内容与当前操作不符')
-  await expect(page.getByRole('button', { name: '确认改期', exact: true })).toBeDisabled()
+  await expect(page.getByRole('button', { name: '确认删除任务', exact: true })).toHaveCount(0)
   expect(server.envelopes).toHaveLength(0)
 })
