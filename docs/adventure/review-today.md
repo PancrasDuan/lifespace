@@ -1,0 +1,63 @@
+# 今日聚焦双轴评审（#141）
+
+交付分级：需确认的变更，涉及任务核心规则、历史与公开接口。规格 #141，任务 #142–#145，交付 PR #146；实现授权不包含正式合并发布授权。
+
+以下为固定范围初审及修复复验，不将原型确认或隔离验收视为用户正式验收。最终提交的 CI 与新增测试差异复核记录保存在 PR #146。
+
+## Standards
+
+固定范围：`0af40c9122710dc918e233b3c87a8ff73ce51fff...9a67cb4e135f661b39c5e35abbaeb0e569346641`。已阅读 AGENTS、全部 docs/agents 约定、CONTEXT、相关 ADR、前后端决策及接口契约，并核对固定 SHA 的 diff／commit 列表。
+
+文档规范：
+
+- [P3] `docs/adventure/backend-business-logic.md:112` 本次将验收项改名为“任务删除”，却仍要求“仅未来、pending、无任何完成历史可逻辑删除”。这与 `CONTEXT.md`“任务删除”定义、同文件新的删除规则及 `docs/adventure/decisions.md` D31 的“未完成任务可从编辑卡片逻辑删除；撤销后删除不得重复扣奖”冲突。它会误导后续接口验收，并把正确支持今日、逾期和撤销后删除的实现判成失败。更新该验收行；同一矩阵的统一编辑事件、结束传播描述也应一并对齐 D31。
+
+判断性 smell（不是硬违规）：
+
+- [P3，possible Duplicated Code] `src/adventure/TaskDateField.tsx:24` 的弹层定位／外点关闭／Escape，以及第 63–73 行的月历计算与网格，重新实现了 `src/ledger/TransactionDateTimeField.tsx` 的同组机制。现在两者仅共享 CSS，日历边界或弹层手势修复需要分别维护；已有外点 click 消费和月份边界处理也已分叉。建议提取共同日历与弹层基础能力，由任务与账单分别传入日期约束、标题及确认行为。仅是维护性建议，不要求为本票进行大规模重构。
+
+未发现新的事务、幂等、权限或跨版本读取硬规范违例；生成的单次部署迁移 bundle 的重复不计 smell。未执行测试／浏览器验收，本报告不替代功能验证与最终 CI。
+
+### 修复复验
+
+规范轴增量复验通过，新增发现 0。
+
+固定范围：`9a67cb4e135f661b39c5e35abbaeb0e569346641...413799e`。本次仅使用固定 SHA 的 `git diff`、`git log`、`git show` 与 `git grep`，未将当前工作树或后续合并计入结论。
+
+- 原 P3 文档矛盾已修复：`docs/adventure/backend-business-logic.md:112` 现在覆盖今日、逾期、未来及完成撤销后的 pending 删除，保留历史回执且不重复扣奖；相邻统一编辑事件与目标／主线结束验收也已同步 D31，符合领域术语和当前规则。
+- historical seed 仅在 `tests/database/adventure-history-seed.sql` 定义，由隔离数据库运行器安装；调用 helper 限制 HTTP loopback `127.0.0.1`、已安装隔离环境。生产 Worker、`src/`、空库初始化及升级 bundle 均未引用它，没有增加生产模拟日期入口。
+- 生产权限与回执链未漂移：本次 diff 没有扩大表／函数授权；账户锁、历史回执优先于版本／当前能力检查的顺序保留。新增新建日期检查仍位于数据库事务校验；历史回执重放路径未改。
+- 机械比较固定版本的 SQL：bootstrap 的 26 个函数均存在于升级 bundle，定义完全一致；独立日期列表 RPC 与 bundle 定义也完全一致。仅有有意的日期约束、10 条批量以及事务提交时 PostgREST schema reload 更新；bundle 未加入业务行改写。
+- 日期控件重复建议已明确接受为非阻断，本次保留独立 date-only 控件，不重复提出重构要求。
+
+本报告为静态规范复验；未执行完整测试或浏览器验收。后续浏览器消费者与 QA 收尾变更需按其最终固定 SHA 另作小范围复核；最终测试状态由集成验证记录确认。
+
+日历共同机制的重复为判断性维护建议，本次接受。任务控件仅选择日期并允许保留原逾期日期，账单控件还承担时间选择；已复用视觉样式，本次不扩大到财务控件重构。
+
+## Spec
+
+需求轴：未通过（3 项；未发现新增 scope creep）。范围固定：`git diff 0af40c9122710dc918e233b3c87a8ff73ce51fff...9a67cb4e135f661b39c5e35abbaeb0e569346641`；提交列表固定使用相同两 SHA 的 `git log base..HEAD --oneline`。依据为完整 #140–#145 快照，以 #141 为主。
+
+- **[P1，行为错误] 合法长说明可使整日任务永久无法加载。** #141 要求“考虑大量任务的加载”“提供可恢复的重读或失败状态”。[list-tasks.sql:33](/home/lighthouse/orca/workspaces/lifespace/140-adventure-today/db/adventure/list-tasks.sql:33) 固定每批 50 条，[第 38 行](/home/lighthouse/orca/workspaces/lifespace/140-adventure-today/db/adventure/list-tasks.sql:38) 拒绝超过 1MB 的整批；完成任务同时返回说明与完成来源的冻结说明。隔离 PostgreSQL 17、固定待审 SHA 实测：50 个各含 4000 汉字说明的合法已完成任务，其任务 JSON 为 1,281,371 bytes；旧 workspace 每页 20 条正常，新日期列表抛 `CAPACITY_REACHED`。重读无法恢复，用户无法搜索、查看或撤销当天这些任务。增量迁移内同样存在此实现。
+
+- **[P2，缺少服务端约束] 新建可以绕过禁止过去日期的规则。** #141 US33：“更改执行日期时只能选今天或未来，以便避免新建过去安排。”[create-planning.sql:321](/home/lighthouse/orca/workspaces/lifespace/140-adventure-today/db/adventure/create-planning.sql:321) 的 createTask 分支只校验日期格式，未比较 `p_today`；归属为空时立即允许。通过正式 command RPC 提交 `plannedOn=2020-01-01` 实测成功，产生版本 1 的新任务。浏览器的 `min` 无法约束直接 API 请求；新专项用这种生产能力构造逾期夹具，因而掩盖缺口。需保留已有逾期任务及旧成功回执。
+
+- **[P2，部分实现] 目标详情入口的新任务默认归属不符合规格。** #141：“新建日期默认今天，归属默认独立任务”；#142 同样未列入口例外。[PlanningTasks.tsx:39](/home/lighthouse/orca/workspaces/lifespace/140-adventure-today/src/adventure/PlanningTasks.tsx:39) 对新任务沿用 `initialDestination`，而 [PlanningWorkspace.tsx:220](/home/lighthouse/orca/workspaces/lifespace/140-adventure-today/src/adventure/PlanningWorkspace.tsx:220) 的“添加任务”传入当前目标 ID。从目标详情打开表单即默认绑定该目标，直接保存会创建目标任务。
+
+验证限度：本轴只读审查与临时合成数据库探针（`/tmp/lifespace-spec-probe.mjs`，数据库已清理），未执行生产升级。现有日期专项只验证过去日期为空，尚未验证实际过去完成记录的非空读取；未将待迁移的旧选择器或尚未授权的部署计为功能缺失。批次版本锁、部分失败隐藏、逾期撤销、删除奖励与事件保留的实现未发现其他确定缺陷。
+
+### 修复复验
+
+需求轴增量复验：**通过，原 3 项均已修复，本范围无新增阻断项或 scope creep。** 固定比较 `9a67cb4e135f661b39c5e35abbaeb0e569346641...413799ee3c32057c729414ec300c12167c91fb19`，共 1 个修复提交；源码与测试通过 `git show` 固定读取。依据仍为 #141（及 #140、#142–#145）。
+
+- **日期约束与历史回执**：#141 要求“只能选今天或未来”“保持…requestId 幂等”。`db/adventure/create-planning.sql:323` 在新建时拒绝过去日期，增量迁移同步；成功回执仍先于新资格检查返回。独立 PostgreSQL 17 从旧 SHA 建立非空库、保存旧过去日期新建回执，再重复应用新迁移两次：五表逐行快照未变；旧封套重放结果完全相同；新 requestId 的过去日期请求报 `RESCHEDULE_PAST`，版本和业务行未变。
+
+- **新建归属**：#141 要求“归属默认独立任务”。`src/adventure/PlanningTasks.tsx:39` 仅以已有任务归属初始化编辑，新建统一为空；`PlanningWorkspace.tsx:220` 已去除目标入口预设归属，所有入口共享同一表单。新增桌面／手机浏览器用例实际创建并回读独立任务，同时验证编辑仍预填原目标，覆盖此次差异。
+
+- **完整列表容量**：#141 要求“考虑大量任务的加载”“取得…全部任务…搜索…统一分页”。`db/adventure/list-tasks.sql:35` 及增量迁移改为每批 10 条，响应 schema 同步，现有读取循环按服务端 `pageSize` 判断批次完整。独立 RPC 实测 50 个各 4000 汉字说明的完成任务，5 批完整、稳定、无重复、冻结说明未截断，最大响应 254,823 bytes；10 个 4000 字符最大 JSON 转义说明最大 494,801 bytes，均低于 1MB。新增 API 用例另覆盖最大归属名称；新增真实数据库浏览器用例覆盖跨批说明搜索、统一分页及进度不变。
+
+- **补齐过去非空验证**：`tests/api/adventure-date-list-database.test.ts:83` 新增真实历史完成记录；独立实测原计划日结果为 0、实际完成日为 1，历史撤销被锁定。历史日期夹具仅由隔离测试运行器安装，生产接口没有新增模拟日期能力。
+
+证据脚本 `/tmp/lifespace-spec-followup-probe.mjs`；临时数据库已停止清理。本轴没有运行生产迁移或浏览器套件，浏览器最终执行结果由集成验收记录；结论不覆盖后续消费者迁移提交。
+
+初审规范轴：1 项文档问题及 1 项非阻断维护建议；需求轴：3 项功能问题。文档及 3 项功能问题已修复，核心增量复验两轴均无新增阻断，维护建议按上述范围取舍接受。
