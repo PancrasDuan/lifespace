@@ -17,6 +17,7 @@ export function PrototypeGoalDetail({ goal, history, pageSize, blocked, edit, ad
       <section><h3>当前进度</h3><p>{goal.progress.completed} 项完成，共 {goal.progress.total} 项行动。</p><p className="muted">任务全部完成不等于目标已经达成，由你确认实际结果。</p>
         {goal.achievement && <><p>目标奖励 {goal.achievement.reward.amount} 点经验 · 计奖行动 {goal.achievement.reward.calculation.count} 次 · 系数 {goal.achievement.reward.calculation.coefficient}</p>{goal.achievement.reward.calculation.fallback && <p className="muted">无有效计奖行动，使用 1 点保底奖励。</p>}<p>达成感想：{goal.achievement.reflection || '未填写'}</p></>}
       </section></div>
+    {active && !goal.capabilities.achieve?.allowed && <p className="adventure-hint">{goal.capabilities.achieve?.reason}</p>}
     <div className="record-actions">
       {active ? <><button type="button" className="action-primary" disabled={blocked || !goal.capabilities.achieve?.allowed} title={goal.capabilities.achieve?.reason} onClick={achieve}>确认达成</button>
         <button disabled={blocked || !goal.capabilities.focus?.allowed} title={goal.capabilities.focus?.reason} onClick={focus}>{goal.focused ? '取消聚焦' : '聚焦'}</button>

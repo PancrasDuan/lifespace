@@ -4,11 +4,11 @@ import type { PlanningPage, PlanningTask, TaskRange } from '../shared/adventure-
 import { PlanningTaskHistory } from './PlanningReschedule'
 import { MoreActions, Progress, Record } from './PrototypeRecord'
 
-export function PrototypeTasks({ data, blocked, openTask, toggleTask, changeRange, changeSearch, changePage, edit, complete, cancel, end, remove }: {
+export function PrototypeTasks({ data, blocked, openTask, toggleTask, changeRange, changeSearch, changePage, edit, complete, cancel }: {
   data: PlanningPage; blocked: boolean; openTask?: string; toggleTask: (id: string) => void
   changeRange: (range: TaskRange) => void; changeSearch: (search: string) => void; changePage: (page: number) => void
   edit: (task: PlanningTask) => void; complete: (task: PlanningTask) => void
-  cancel: (task: PlanningTask) => void; end: (task: PlanningTask) => void; remove: (task: PlanningTask) => void
+  cancel: (task: PlanningTask) => void
 }) {
   const [search, setSearch] = useState(data.search)
   const [minimumHeight, setMinimumHeight] = useState(0)
@@ -62,8 +62,6 @@ export function PrototypeTasks({ data, blocked, openTask, toggleTask, changeRang
             <button type="button" className="action-primary" disabled={blocked || !task.capabilities.complete?.allowed} title={task.capabilities.complete?.reason} onClick={() => complete(task)}>完成</button>
             <MoreActions>
               <button disabled={blocked || !task.capabilities.edit?.allowed} title={task.capabilities.edit?.reason} onClick={() => edit(task)}>编辑任务</button>
-              <button disabled={blocked || !task.capabilities.end?.allowed} title={task.capabilities.end?.reason} onClick={() => end(task)}>结束任务</button>
-              <button disabled={blocked || !task.capabilities.delete?.allowed} title={task.capabilities.delete?.reason} onClick={() => remove(task)}>删除误建</button>
             </MoreActions>
           </>}
         </div>

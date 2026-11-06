@@ -39,6 +39,8 @@ begin
   -- Migration is not exposed by #59; these current-row fixtures are rolled back.
   update public.adventure_tasks set goal_id=v_b where owner_id=v_owner and id=v_out;
   update public.adventure_tasks set goal_id=v_a where owner_id=v_owner and id=v_in;
+  -- The cancelled task must be handled before goal achievement; retain its historical events.
+  update public.adventure_tasks set deleted_at=clock_timestamp() where owner_id=v_owner and id=v_task;
   v_preview:=public.adventure_planning_preview(v_owner,9,jsonb_build_object('type','achieveGoal','id',v_a));
   if v_preview->'rewards'->2->'calculation'->>'count'<>'1'
     or v_preview->'rewards'->2->'calculation'->'actionIds'<>jsonb_build_array(v_out)
@@ -75,6 +77,8 @@ begin
   v_receipt:=public.adventure_planning_command(v_owner,'goal-deleted-pending',13,jsonb_build_object('type','createTask','title','已删除不传播','description','','destination',v_c,'plannedOn',v_today));
   v_deleted:=(v_receipt->'result'->>'entityId')::uuid;
   update public.adventure_tasks set deleted_at=clock_timestamp() where owner_id=v_owner and id=v_deleted;
+  -- Explicitly handled pending fixture: terminal operations never auto-stop it.
+  update public.adventure_tasks set deleted_at=clock_timestamp() where owner_id=v_owner and id=v_pending;
   select revision,total_xp into v_version,v_xp from public.adventure_accounts where owner_id=v_owner;
   select count(*) into v_events from public.adventure_events where owner_id=v_owner;
   update public.adventure_accounts set total_xp=total_xp+1 where owner_id=v_owner;
@@ -83,13 +87,13 @@ begin
     raise exception 'Inconsistent rewards accepted';
   exception when others then if sqlerrm<>'INCONSISTENT_REWARDS' then raise; end if; end;
   if not exists(select 1 from public.adventure_goals where owner_id=v_owner and id=v_c and status='active' and focused)
-    or not exists(select 1 from public.adventure_tasks where owner_id=v_owner and id=v_pending and status='pending')
+    or not exists(select 1 from public.adventure_tasks where owner_id=v_owner and id=v_pending and status='pending' and deleted_at is not null)
     or (select count(*) from public.adventure_events where owner_id=v_owner)<>v_events
     or (select revision from public.adventure_accounts where owner_id=v_owner)<>v_version
     or (select total_xp from public.adventure_accounts where owner_id=v_owner)<>v_xp+1 then raise exception 'Partial achievement survived rollback'; end if;
   update public.adventure_accounts set total_xp=v_xp where owner_id=v_owner;
   perform public.adventure_planning_command(v_owner,'goal-propagate-final',v_version,jsonb_build_object('type','achieveGoal','id',v_c));
-  if not exists(select 1 from public.adventure_tasks where owner_id=v_owner and id=v_pending and status='ended' and end_cause='goal_achieved')
+  if not exists(select 1 from public.adventure_tasks where owner_id=v_owner and id=v_pending and status='pending' and deleted_at is not null)
     or not exists(select 1 from public.adventure_tasks where owner_id=v_owner and id=v_deleted and status='pending') then raise exception 'Goal termination propagation mismatch'; end if;
   select id into v_task from public.adventure_goals where owner_id=v_owner and kind='inbox';
   begin

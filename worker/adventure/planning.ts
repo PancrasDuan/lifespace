@@ -12,6 +12,7 @@ import {
 type PlanningContext = Context<{ Bindings: AuthEnv; Variables: { identity: Identity } }>
 const unavailable = () => new ApiError('ADVENTURE_UNAVAILABLE', '暂时无法读取人生冒险，请稍后重试', 503)
 const errors = {
+  PENDING_TASKS: [400, '请先删除未完成任务，或在编辑任务中移到其他在用目标／独立任务'],
   VERSION_CONFLICT: [409, '数据已更新，请重新读取后确认操作'],
   REQUEST_ID_REUSED: [409, '请求编号已用于其他操作，请重新确认'],
   SAME_DESTINATION: [400, '当前归属无需迁移'],

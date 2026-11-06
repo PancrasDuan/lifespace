@@ -28,11 +28,8 @@ begin
   if exists(select 1 from public.adventure_events where kind in ('goal_ended','mainline_ended','task_ended','task_deleted') and
     (amount is not null or calculation is not null or snapshot->'before' is null or snapshot->'after' is null or snapshot->'impact' is null or snapshot->'result' is null))
     then raise exception 'HTTP audit: lifecycle history/reward invariant failed'; end if;
-  if exists(select 1 from public.adventure_tasks t where t.deleted_at is not null and (
-    t.status<>'pending' or t.planned_on<=(clock_timestamp() at time zone 'Asia/Shanghai')::date
-    or exists(select 1 from public.adventure_events e where e.owner_id=t.owner_id and e.task_id=t.id
-      and e.kind in ('task_completed','task_rescheduled'))))
-    then raise exception 'HTTP audit: ineligible task was deleted'; end if;
+  if exists(select 1 from public.adventure_tasks t where t.deleted_at is not null and t.status='completed')
+    then raise exception 'HTTP audit: completed task was deleted'; end if;
   if exists(select 1 from public.adventure_events e left join public.adventure_events source
     on source.owner_id=e.owner_id and source.id=(e.snapshot->>'sourceEventId')::uuid
     where e.kind='task_rescheduled' and (e.amount is not null or e.calculation is not null
