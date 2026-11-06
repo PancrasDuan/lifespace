@@ -127,3 +127,25 @@ for (const entry of [
   await expect(page).toHaveURL('/adventure?view=planning')
   expect(server.envelopes[0].requestId).toBe(server.envelopes[1].requestId)
 })
+
+for (const entry of [
+  { button: '新建主线', dialog: '创建主线', name: '主线名称' },
+  { button: '新建目标', dialog: '创建目标', name: '目标名称' },
+]) test(`成长页${entry.button}结果未知并关闭弹窗后仍可安全重试`, async ({ page, context }) => {
+  const server = await planningFixture(context, state)
+  await context.route('**/api/adventure/growth**', route => route.fulfill({ json: growth }))
+  await page.goto('/adventure?view=growth')
+  await page.getByRole('button', { name: entry.button, exact: true }).click()
+  const dialog = page.getByRole('dialog', { name: entry.dialog, exact: true })
+  await dialog.getByLabel(entry.name).fill('新内容')
+  if (entry.name === '目标名称') await dialog.getByRole('textbox', { name: '完成标准 1', exact: true }).fill('完成')
+  server.loseNextResponse()
+  await dialog.getByRole('button', { name: entry.dialog, exact: true }).click()
+  await expect(dialog.getByRole('button', { name: '安全重试同一次操作' })).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(dialog).toHaveCount(0)
+  await expect(page).toHaveURL('/adventure?view=growth')
+  await page.getByRole('button', { name: '安全重试同一次操作' }).click()
+  await expect(page).toHaveURL('/adventure?view=planning')
+  expect(server.envelopes[0].requestId).toBe(server.envelopes[1].requestId)
+})

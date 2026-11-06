@@ -155,7 +155,9 @@ function Workspace() {
     if (created) selectTab('planning')
   }
   const recovery = (uncertain || model.readRequired) && !busy ? <button type="button" onClick={() => {
-    void model.recover(saved)
+    void model.recover(close).then(type => {
+      if (type === 'createMainline' || type === 'createGoal') selectTab('planning')
+    })
   }}>{uncertain ? '安全重试同一次操作' : '重新读取'}</button> : null
   const cancelTask = async (task: PlanningTask) => {
     if (!task.completionId) return
@@ -256,8 +258,8 @@ function Workspace() {
       <button aria-current={tab === 'planning' ? 'page' : undefined} onClick={() => selectTab('planning')}>主线与目标</button>
       <button disabled={busy || uncertain} aria-current={tab === 'growth' ? 'page' : undefined} onClick={() => selectTab('growth')}>成长记录</button></nav>
 
-    {tab !== 'growth' && (!dialog || inlineDetail || !data) && recovery && <div className="planning-recovery">{recovery}</div>}
-    {(tab !== 'growth' || (dialog && !inlineDetail)) && (model.error ? <PlanningToast key={model.error} tone="error" withinDialog={!!dialog && !inlineDetail && !!data} message={model.error} close={model.clearError} /> : !model.readRequired && model.notice && <PlanningToast key={model.notice.id} message={model.notice.message} close={model.clearNotice} />)}
+    {(tab !== 'growth' || uncertain) && (!dialog || inlineDetail || !data) && recovery && <div className="planning-recovery">{recovery}</div>}
+    {(tab !== 'growth' || uncertain || (dialog && !inlineDetail)) && (model.error ? <PlanningToast key={model.error} tone="error" withinDialog={!!dialog && !inlineDetail && !!data} message={model.error} close={model.clearError} /> : !model.readRequired && model.notice && <PlanningToast key={model.notice.id} message={model.notice.message} close={model.clearNotice} />)}
     {dialog && !data && !busy && <div className="planning-recovery"><button onClick={() => { close(); void model.load() }}>返回冒险</button></div>}
     {tab !== 'growth' && !data && busy && <p role="status" className="adventure-empty">正在读取你的冒险…</p>}
     {tab === 'growth' && <PlanningGrowth onGrowthChange={setGrowthSnapshot} onGrowthStatusChange={setGrowthStatus} />}
