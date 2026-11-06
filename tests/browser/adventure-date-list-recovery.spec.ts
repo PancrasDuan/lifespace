@@ -19,7 +19,7 @@ test('第二批加载失败不展示部分结果，显式重读后搜索覆盖�
   await page.route('**/api/adventure/tasks/list', async route => {
     const input = route.request().postDataJSON() as { date: string; scope: string; page: number }
     if (input.page === 2 && fail) return route.fulfill({ status: 503, json: { error: { message: '第二批暂不可用' } } })
-    await route.fulfill({ json: { version: 0, today, ...input, pageSize: 50, total: 51, progress: { completed: 0, total: 51, ratio: 0 }, tasks: tasks.slice((input.page - 1) * 50, input.page * 50) } })
+    await route.fulfill({ json: { version: 0, today, ...input, pageSize: 10, total: 51, progress: { completed: 0, total: 51, ratio: 0 }, tasks: tasks.slice((input.page - 1) * 10, input.page * 10) } })
   })
   await page.goto('/adventure')
   await expect(page.getByRole('alert')).toContainText('第二批暂不可用')
@@ -40,7 +40,7 @@ test('切换日期取消旧读取，迟到结果不能覆盖新日期，搜索�
     const input = route.request().postDataJSON() as { date: string; scope: string; page: number }
     if (input.date === today) { requested = true; await pending }
     const tasks = [task(1, input.date === today ? '旧日期任务' : '新日期任务')]
-    await route.fulfill({ json: { version: 0, today, ...input, pageSize: 50, total: 1, progress: { completed: 0, total: 1, ratio: 0 }, tasks } }).catch(() => {})
+    await route.fulfill({ json: { version: 0, today, ...input, pageSize: 10, total: 1, progress: { completed: 0, total: 1, ratio: 0 }, tasks } }).catch(() => {})
   })
   await page.goto('/adventure')
   await expect.poll(() => requested).toBe(true)

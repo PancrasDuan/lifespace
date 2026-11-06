@@ -15,9 +15,9 @@
 
 独立 SQL 只新增只读函数及日期读取索引，无生产数据写入。正式用户验收、生产升级和合并发布由集成分支整体完成后按项目流程进行。
 
-## 需集成后统一更新的旧浏览器回归
+## 旧浏览器回归迁移
 
-既有 `adventure-actions-database`、`adventure-integration-database`、`adventure-range-layout` 仍含旧范围按钮与旧改期／删除交互，应按 #142／#144／#145 最终契约整体迁移。其他冒险测试中的“今天”导航应使用“今日聚焦”。共用 UI fixture 已支持独立 POST 读取；定制路由仍须明确支持新读取接口。
+已集成 `adventure-actions-database`、`adventure-integration-database`、`adventure-range-layout` 等既有回归的周历、统一编辑、编辑内删除和终态前阻断迁移。导航统一为“今日聚焦”，共用及定制 UI fixture 均使用独立 POST 与每批 10 条契约；构造逾期任务的真实数据库场景改用显式历史夹具。
 
 ## 评审修复回归（#141）
 

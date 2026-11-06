@@ -84,7 +84,7 @@
 | `focusGoal` | `id`、`focused`（boolean）；仅进行中真实目标；满额失败不推进版本 |
 | `reorderGoals` | `mainlineId`、`id`、`direction`（up／down），可选 `targetId`；同归属同聚焦组相邻移动，拖动时移至 targetId 原位置，中间目标稳定平移；不得跨组 |
 | `editGoal` | `id`、`destination`（规则同上）、`title`、`standards` |
-| `createTask` | `title`、`description`（可空）、`plannedOn`（有效 YYYY-MM-DD）、`destination`（空字符串默认独立任务，或真实目标 UUID） |
+| `createTask` | `title`、`description`（可空）、`plannedOn`（有效 YYYY-MM-DD，须为服务端北京今天或未来）、`destination`（空字符串默认独立任务，或真实目标 UUID） |
 | `migrateGoal` | `id`、`destination`（空字符串为独立身份，或在用普通主线 UUID）；保留聚焦及目标 ID，任务随行，追加目的同类组末尾 |
 | `migrateTask`（停用） | 不再接受新操作；历史成功封套只返回旧回执 |
 | `rescheduleTask`（停用） | 不再接受新操作；日期通过统一编辑修改，历史成功封套只返回旧回执 |
@@ -161,7 +161,7 @@ items 仅投影有效 task_completed／goal_achieved，含 id、kind、entityId�
 
 新 editTask 必须完整提交名称、说明、执行日期和归属，事务一次保存。更改日期只能选择服务端今天或未来；若原任务逾期且日期不变，仍允许修改其余字段。taskId 不变；日期改变写 task_rescheduled，只有归属改变写 task_migrated，否则 task_updated，一个主事件保存完整 before／after 及本次回执。
 
-Worker 保留旧输入形状仅为了历史成功封套重放；数据库先查历史回执，再拒绝旧 rescheduleTask／migrateTask 新请求或缺字段的新 editTask。旧回执不代表当前能力或当前状态。独立迁移候选接口仅支持目标；任务新建和编辑从可用真实目标列表选择归属，留空为独立任务。
+Worker 保留旧输入形状仅为了历史成功封套重放；数据库先查历史回执，再拒绝旧 rescheduleTask／migrateTask 新请求或缺字段的新 editTask。旧回执不代表当前能力或当前状态；过去日期的新建成功封套也先读取旧回执，新 requestId 不能绕过新建日期限制。独立迁移候选接口仅支持目标；任务新建和编辑从可用真实目标列表选择归属，留空为独立任务。
 
 ## 今日聚焦独立列表与升级
 

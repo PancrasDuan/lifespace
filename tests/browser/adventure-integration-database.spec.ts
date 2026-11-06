@@ -14,7 +14,7 @@ test.describe('跨功能交付与真实提交恢复验收（受控身份）', ()
   for (const width of [1440, 390]) test(`${width}px 真实提交后丢失响应、查询失败、预览过期与迁移达成来源联动`, async ({ page, context }) => {
     const main = (await write({ type: 'createMainline', name: '联动主线' })).result.entityId
     const goal = (await write({ type: 'createGoal', title: '联动成果', standards: ['结果确已达成'], destination: main })).result.entityId
-    const task = (await write({ type: 'createTask', title: '联动行动', description: '原行动说明', plannedOn: '2020-01-01', destination: goal })).result.entityId
+    const task = (await database.createHistoricalTask({ type: 'createTask', title: '联动行动', description: '原行动说明', plannedOn: '2020-01-01', destination: goal })).result.entityId
     await page.setViewportSize({ width, height: 1000 })
     await page.goto('/adventure')
     const card = page.getByRole('article', { name: '任务：联动行动', exact: true })

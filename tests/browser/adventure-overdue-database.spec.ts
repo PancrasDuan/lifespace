@@ -11,7 +11,7 @@ test.describe('逾期行动的真实数据库浏览器流程', () => {
   test.afterEach(() => database.restore())
 
   for (const width of [1440, 390]) test(`${width}px 逾期直接完成、日期回读和撤销恢复`, async ({ page }) => {
-    const task = (await write({ type: 'createTask', title: '直接补做', description: '无需改期', plannedOn: '2020-01-01', destination: '' })).result.entityId
+    const task = (await database.createHistoricalTask({ type: 'createTask', title: '直接补做', description: '无需改期', plannedOn: '2020-01-01', destination: '' })).result.entityId
     await page.setViewportSize({ width, height: 950 })
     await page.goto('/adventure')
     const card = page.getByRole('article', { name: '任务：直接补做', exact: true })
