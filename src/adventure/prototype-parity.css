@@ -1215,6 +1215,10 @@
     gap: 7px 11px;
   }
 
+  .adventure-page.prototype-page .more-actions[data-open="true"] {
+    flex-basis: 100%;
+  }
+
   .adventure-page.prototype-page .task-tools {
     justify-content: flex-start;
   }
