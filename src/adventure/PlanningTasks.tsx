@@ -11,8 +11,8 @@ import { PlanningProgress } from './PlanningProgress'
 import { PlanningRecord, PlanningMore } from './PlanningRecord'
 
 type Action = (command: PlanningCommand, expectedVersion?: number) => Promise<boolean>
-export function TaskForm({ task, destination: initialDestination, data: workspace, action, busy, close, changeGoalPage, remove }: {
-  task?: PlanningTask; destination?: string; data: PlanningPage; action: Action; busy: boolean; close: () => void; changeGoalPage: (page: number) => void; remove?: () => void
+export function TaskForm({ task, data: workspace, action, busy, close, changeGoalPage, remove }: {
+  task?: PlanningTask; data: PlanningPage; action: Action; busy: boolean; close: () => void; changeGoalPage: (page: number) => void; remove?: () => void
 }) {
   const identity = useVerifiedIdentity()
   const [separateCandidates] = useState(workspace.goalScope === 'focus' || !!workspace.mainlineDetail)
@@ -36,8 +36,8 @@ export function TaskForm({ task, destination: initialDestination, data: workspac
   const [title, setTitle] = useState(task?.title ?? '')
   const [description, setDescription] = useState(task?.description ?? '')
   const [plannedOn, setPlannedOn] = useState(task?.plannedOn ?? workspace.today)
-  const [destination, setDestination] = useState(task?.goalId ?? initialDestination ?? '')
-  const [selectedLabel, setSelectedLabel] = useState(task?.goalTitle ?? data.goals.find(goal => goal.id === initialDestination)?.title ?? '')
+  const [destination, setDestination] = useState(task?.goalId ?? '')
+  const [selectedLabel, setSelectedLabel] = useState(task?.goalTitle ?? '')
   const submit = async (event: FormEvent) => {
     event.preventDefault()
     const command: PlanningCommand = task ? { type: 'editTask', id: task.id, title, description, plannedOn, destination }

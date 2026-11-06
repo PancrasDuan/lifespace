@@ -30,8 +30,26 @@ export function planningDatabase(email = 'lifecycle@example.invalid') {
     assert.equal(response.status, 200)
     return planningReceiptSchema.parse(await response.json())
   }
+  // Explicit fixture path, available only on the runner's loopback database.
+  // It does not add a simulated date to any production Worker request.
+  const historicalCommand = async (owner: string, value: ReturnType<typeof envelope>, occurredOn: string) => {
+    const target = new URL(localPlanningRpc!)
+    if (target.hostname !== '127.0.0.1' || target.protocol !== 'http:' || target.username || target.password) throw new Error('仅允许独立本机 RPC 验收')
+    if (!previousFetch) throw new Error('隔离运行环境尚未安装')
+    const response = await previousFetch(new URL('/rpc/adventure_test_history_seed', target), {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ p_owner: owner, p_request_id: value.requestId, p_expected_version: value.expectedVersion, p_command: value.command, p_occurred_on: occurredOn }),
+    })
+    assert.equal(response.status, 200)
+    return planningReceiptSchema.parse(await response.json())
+  }
+  const createHistoricalTask = async (owner: string, value: Extract<PlanningCommand, { type: 'createTask' }>, completedOn?: string) => {
+    const receipt = await historicalCommand(owner, envelope((await read(owner)).version, value), value.plannedOn)
+    if (completedOn) await historicalCommand(owner, envelope(receipt.version, { type: 'completeTask', id: receipt.result.entityId }), completedOn)
+    return receipt
+  }
   return {
-    request, read, envelope, send, command,
+    request, read, envelope, send, command, historicalCommand, createHistoricalTask,
     install(options?: { browserOwner: string }) {
       const target = new URL(localPlanningRpc!)
       if (target.hostname !== '127.0.0.1' || target.protocol !== 'http:' || target.username || target.password) throw new Error('仅允许独立本机 RPC 验收')

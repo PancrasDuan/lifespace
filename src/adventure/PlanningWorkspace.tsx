@@ -26,7 +26,7 @@ import './prototype-parity.css'
 import './redesign.css'
 
 type PlanningDialog = { kind: 'mainline'; id?: string; name?: string } | { kind: 'goal'; goal?: PlanningGoal } | { kind: 'detail'; id: string } | { kind: 'mainlineDetail'; id: string }
-type Dialog = PlanningDialog | { kind: 'taskHistory'; id: string } | { kind: 'migrate'; entityKind: 'goal'; id: string; title: string } | { kind: 'achieve'; id: string } | { kind: 'lifecycle'; operation: LifecyclePreview['operation'] } | { kind: 'task'; task?: PlanningTask; destination?: string } | { kind: 'cancel'; task: PlanningTask }
+type Dialog = PlanningDialog | { kind: 'taskHistory'; id: string } | { kind: 'migrate'; entityKind: 'goal'; id: string; title: string } | { kind: 'achieve'; id: string } | { kind: 'lifecycle'; operation: LifecyclePreview['operation'] } | { kind: 'task'; task?: PlanningTask } | { kind: 'cancel'; task: PlanningTask }
 type Action = (command: PlanningCommand) => Promise<boolean>
 
 function PlanningForm({ dialog, data, action, busy, close, saved }: {
@@ -217,7 +217,7 @@ function Workspace() {
   }, [inlineDetail, close])
   const goalDetails = data && detailGoal && <section aria-label="目标详情">
     <PrototypeGoalDetail goal={detailGoal} history={data.goalDetail?.goal.id === detailGoal.id ? data.goalDetail : null} pageSize={data.pageSize} blocked={blocked}
-      migrate={() => openDialog({ kind: 'migrate', entityKind: 'goal', id: detailGoal.id, title: detailGoal.title })} edit={() => openDialog({ kind: 'goal', goal: detailGoal })} addTask={() => openDialog({ kind: 'task', destination: detailGoal.id })}
+      migrate={() => openDialog({ kind: 'migrate', entityKind: 'goal', id: detailGoal.id, title: detailGoal.title })} edit={() => openDialog({ kind: 'goal', goal: detailGoal })} addTask={() => openDialog({ kind: 'task' })}
       focus={() => { void model.command({ type: 'focusGoal', id: detailGoal.id, focused: !detailGoal.focused }) }} achieve={() => { void achieveGoal(detailGoal.id) }} end={() => { void openLifecycle('endGoal', detailGoal.id) }}
       changePage={page => { void model.load({ goalTaskPage: page }) }}
       reorder={<>{(['up', 'down'] as const).map(direction => <button key={direction} aria-label={`${direction === 'up' ? '上移' : '下移'}目标 ${detailGoal.title}`} disabled={blocked || !detailGoal.capabilities[direction === 'up' ? 'moveUp' : 'moveDown']?.allowed}
@@ -305,7 +305,7 @@ function Workspace() {
       : dialog.kind === 'migrate' ? <PlanningMigration kind={dialog.entityKind} id={dialog.id} title={dialog.title} version={data.version} blocked={blocked} action={model.command} close={close} />
       : dialog.kind === 'achieve' ? preview && 'goalId' in preview && preview.operation === 'achieveGoal' && <GoalAchievement preview={preview} confirmation={model.confirmation} saved={() => openDialog({ kind: 'detail', id: dialog.id })} cancel={close} />
       : dialog.kind === 'lifecycle' ? preview && 'entityId' in preview && <PlanningLifecycle preview={preview} confirmation={model.confirmation} saved={close} cancel={close} />
-      : dialog.kind === 'task' ? <TaskForm key={dialog.task?.id ?? 'new-task'} task={dialog.task} destination={dialog.destination} remove={dialog.task ? () => { void openLifecycle('deleteTask', dialog.task!.id) } : undefined} data={data} action={model.command} busy={blocked} close={close} changeGoalPage={page => { void model.load({ page }) }} />
+      : dialog.kind === 'task' ? <TaskForm key={dialog.task?.id ?? 'new-task'} task={dialog.task} remove={dialog.task ? () => { void openLifecycle('deleteTask', dialog.task!.id) } : undefined} data={data} action={model.command} busy={blocked} close={close} changeGoalPage={page => { void model.load({ page }) }} />
       : dialog.kind === 'cancel' ? preview && 'completionId' in preview && <div className="planning-cancel-preview"><h3>{dialog.task.title}</h3><p>{preview.message}</p><dl><div><dt>当前</dt><dd>{preview.growthBefore.totalXp} 点经验，Lv.{preview.growthBefore.level}，{preview.growthBefore.actions} 次行动</dd></div><div><dt>取消后</dt><dd>{preview.growthAfter.totalXp} 点经验，Lv.{preview.growthAfter.level}，{preview.growthAfter.actions} 次行动</dd></div></dl><p>当前点亮的成就：{preview.growthBefore.achievements.filter(item => item.unlocked).map(item => item.label).join('、') || '暂无'}</p><p>取消后点亮的成就：{preview.growthAfter.achievements.filter(item => item.unlocked).map(item => item.label).join('、') || '暂无'}</p>{model.confirmation.stale && <p className="adventure-hint">数据已变化，请重新预览后确认。</p>}<div className="adventure-form-footer"><button disabled={blocked} onClick={() => { void model.confirmation.refresh() }}>重新预览</button><button disabled={blocked || model.confirmation.stale} onClick={() => { void model.confirmation.confirm({ type: 'cancelTaskCompletion', completionId: preview.completionId }, close) }}>确认取消完成</button></div></div>
       : <PlanningForm key={dialog.kind === 'mainline' ? dialog.id ?? 'new-mainline' : dialog.goal?.id ?? 'new-goal'} dialog={dialog} data={data} action={model.command} busy={blocked} close={close} saved={saved} />}
       {recovery && <div className="planning-recovery">{recovery}</div>}

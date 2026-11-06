@@ -320,6 +320,7 @@ begin
       or jsonb_typeof(p_command->'destination') is distinct from 'string' then raise exception 'INVALID_COMMAND'; end if;
     v_day:=(p_command->>'plannedOn')::date;
     if v_day::text<>p_command->>'plannedOn' then raise exception 'INVALID_COMMAND'; end if;
+    if v_day<p_today then raise exception 'RESCHEDULE_PAST'; end if;
     if coalesce(p_command->>'destination','')='' then return jsonb_build_object('allowed',true); end if;
     select * into v_goal from public.adventure_goals where owner_id=p_owner and id=(p_command->>'destination')::uuid and kind='real';
     if not found then raise exception 'NOT_FOUND'; end if;

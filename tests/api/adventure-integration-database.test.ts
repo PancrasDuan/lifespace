@@ -17,7 +17,7 @@ describe.skipIf(!rpcOrigin)('正式 Worker HTTP → 本机真实 PostgREST → �
     const target = (await command(owner, { type: 'createMainline', name: '新主线' })).result.entityId
     const original = (await command(owner, { type: 'createGoal', title: '原成果', standards: ['原标准'], destination: source })).result.entityId
     const recipient = (await command(owner, { type: 'createGoal', title: '接收目标', standards: ['标准'], destination: target })).result.entityId
-    const task = (await command(owner, { type: 'createTask', title: '联动行动', description: '冻结说明', plannedOn: '2020-01-01', destination: original })).result.entityId
+    const task = (await database.createHistoricalTask(owner, { type: 'createTask', title: '联动行动', description: '冻结说明', plannedOn: '2020-01-01', destination: original })).result.entityId
     await command(owner, { type: 'editTask', id: task, title: '联动行动', description: '冻结说明', plannedOn: (await read(owner)).today, destination: original })
     const doneEnvelope = envelope((await read(owner)).version, { type: 'completeTask', id: task })
     const completed = planningReceiptSchema.parse(await (await send(owner, doneEnvelope)).json())

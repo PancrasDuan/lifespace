@@ -4,7 +4,7 @@
 
 请求字段为 `date`（所选 YYYY-MM-DD）、`scope`（all／focus，默认 all）、`expectedVersion`（页面版本）、`today`（页面权威北京日期）、`page`（从 1 开始，默认 1，上限 1,000,000）。其他字段被拒绝，不能传 owner 或 search。
 
-返回 `version`、`today`、`date`、`scope`、`page`、固定 `pageSize=50`、完整范围的 `total`、本批 `tasks` 和完整范围的 `progress={completed,total,ratio}`。零分母 ratio 为 null。每批响应受现有 1MB 预算限制，超出明确返回容量错误，不能以截断代替完整结果。
+返回 `version`、`today`、`date`、`scope`、`page`、固定 `pageSize=10`、完整范围的 `total`、本批 `tasks` 和完整范围的 `progress={completed,total,ratio}`。零分母 ratio 为 null。每批 10 条为传输批量，前端完整加载后仍按每页 20 条呈现。任务说明与完成快照各最多 4000 字符；按 JSON 转义每字符最高 6 bytes、名称与固定元数据估算，10 条保守低于 1MB。每批仍保留现有 1MB 防御预算，超出明确返回容量错误，不能以截断代替完整结果。
 
 过去按有效完成的实际完成日查询；未来按计划执行日查询 pending；今天包括计划日不晚于今天的 pending 和今天实际完成的 completed。过滤逻辑删除与已结束任务。聚焦范围继续包含聚焦目标任务与独立任务。排序先逾期待完成、今日待完成、已完成，再按计划日、创建时间和稳定 ID，创建日只作稳定排序，不决定日期归类。
 

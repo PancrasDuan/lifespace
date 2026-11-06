@@ -17,7 +17,7 @@ const editFor = async (owner: string, id: string, changes: Partial<{ title: stri
 
 const createTask = async (owner: string, title = '完整行动', plannedOn?: string, destination = '') => {
   const today = (await read(owner)).today
-  return command(owner, { type: 'createTask', title, description: '行动说明', destination, plannedOn: plannedOn ?? today })
+  return (plannedOn && plannedOn < today ? database.createHistoricalTask : command)(owner, { type: 'createTask', title, description: '行动说明', destination, plannedOn: plannedOn ?? today })
 }
 
 describe.skipIf(!rpcOrigin)('正式 Worker HTTP → 本机真实 PostgREST → 独立 PostgreSQL 任务事务', () => {
