@@ -1,5 +1,7 @@
 # 后端业务逻辑设计
 
+> 本文描述既有行为。[Issue #140](https://github.com/PancrasDuan/lifespace/issues/140) 的任务规则变更尚未实施，相关历史和终态边界仍待确认。
+
 状态：2026-10-22，#54／#55／#65／#59／#60、#66 及 #61 在本地交付工作树实现；仅用本机隔离数据库验证，真实 Supabase 等上线前再同步。依据 [规格](spec.md)、[成长与奖励](growth-rewards.md)、[前端设计](decisions-frontend.md) 与 [数据库设计](backend-database.md)。用户确认：任务表保存当前执行日期，改期历史与奖励存入事件；账户保存汇总经验，等级和成就实时计算。
 
 ## 模块职责

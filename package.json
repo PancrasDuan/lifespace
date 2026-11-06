@@ -28,7 +28,8 @@
     "test:secrets": "node --test tests/security/secrets.test.mjs",
     "setup:browser": "PLAYWRIGHT_BROWSERS_PATH=.cache/playwright playwright install chromium",
     "test:database": "node tests/support/run-planning-database.mjs",
-    "test:ledger-cleanup": "node tests/support/run-ledger-account-name-cleanup.mjs"
+    "test:ledger-cleanup": "node tests/support/run-ledger-account-name-cleanup.mjs",
+    "prototype:adventure-today": "vite --config vite.adventure-today-prototype.config.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "6.3.1",

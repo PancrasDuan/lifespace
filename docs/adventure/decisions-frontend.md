@@ -2,6 +2,8 @@
 
 状态：2026-10-20 A 行动工作台已接入 #54 主线及目标创建／编辑；其余能力按任务依赖实施，当前返回明确禁用原因。本期为主线、目标、一次性任务及成长奖励，规则见 [规格](spec.md) 和 [成长与奖励](growth-rewards.md)。
 
+> [Issue #140](https://github.com/PancrasDuan/lifespace/issues/140) 已记录周历与任务操作的待实施需求；下文保留原页面设计，不代表新原型已正式交付。
+
 原型主来源：`codex/adventure-ui-once-prototype@ce22564`，说明位于该提交的 `src/adventure/prototype-once/PROTOTYPE.md`，A 图为 `src/adventure/prototype-once/previews/A.jpg`，手机图为 `src/adventure/prototype-once/previews/mobile.jpg`。原型中的模拟业务计算、样例数据及展示假设不直接成为正式实现；正式页面不保留 B／C 切换器或原型工具。
 
 ## A 方案与页面
