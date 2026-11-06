@@ -8,17 +8,22 @@ import type { DateRange } from './dates'
 // filter or detecting a write starts a fresh session, without touching forms.
 export function useLedgerList() {
   const identity = useVerifiedIdentity()
-  const [view, setView] = useState<{ range: DateRange | null; page: number; session: number }>({ range: null, page: 1, session: 0 })
+  const [view, setView] = useState<{ range: DateRange | null; accountId: string; page: number; session: number }>({ range: null, accountId: '', page: 1, session: 0 })
   const version = useRef<number | undefined>(undefined)
   const [updated, setUpdated] = useState(false)
   function selectRange(range: DateRange | null) {
     version.current = undefined
     setUpdated(false)
-    setView(current => ({ range, page: 1, session: current.session + 1 }))
+    setView(current => ({ ...current, range, page: 1, session: current.session + 1 }))
+  }
+  function selectAccount(accountId: string) {
+    version.current = undefined
+    setUpdated(false)
+    setView(current => ({ ...current, accountId, page: 1, session: current.session + 1 }))
   }
   const entries = useQuery({
-    queryKey: ['ledger', identity.ownerId, 'entries', view.range, view.page, view.session],
-    queryFn: ({ signal }) => readLedger(identity.ownerId, view.page, AbortSignal.any([signal, identity.signal]), view.range, version.current),
+    queryKey: ['ledger', identity.ownerId, 'entries', view.range, view.accountId, view.page, view.session],
+    queryFn: ({ signal }) => readLedger(identity.ownerId, view.page, AbortSignal.any([signal, identity.signal]), view.range, version.current, view.accountId),
     retry: false, staleTime: 0, refetchOnWindowFocus: false,
   })
   useEffect(() => {
@@ -34,7 +39,7 @@ export function useLedgerList() {
     setUpdated(true)
     setView(current => ({ ...current, page: 1, session: current.session + 1 }))
   }, [entries.error])
-  return { entries, page: view.page, range: view.range, updated, selectRange, deleted: (revision: number) => {
+  return { entries, page: view.page, range: view.range, accountId: view.accountId, updated, selectRange, selectAccount, deleted: (revision: number) => {
     version.current = revision
     setUpdated(false)
     setView(current => ({ ...current, session: current.session + 1 }))

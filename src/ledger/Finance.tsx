@@ -42,7 +42,8 @@ export function Finance() {
       setBalancePreferenceError(false)
     } catch { setBalancePreferenceError(true) }
   }
-  const { entries, page, range, updated, selectRange, setPage, deleted } = useLedgerList()
+  const { entries, page, range, accountId, updated, selectRange, selectAccount, setPage, deleted } = useLedgerList()
+  const accounts = useQuery({ queryKey: ['ledger', identity.ownerId, 'accounts'], queryFn: ({ signal }) => readLedgerAccounts(identity.ownerId, AbortSignal.any([signal, identity.signal])), retry: false, refetchOnWindowFocus: false })
   const [filter, setFilter] = useState<DateFilter>('all')
   const rangeTrigger = useRef<HTMLButtonElement>(null)
   const [dateAnchor, setDateAnchor] = useState<DOMRect | null>(null)
@@ -118,7 +119,7 @@ export function Finance() {
         <div className="lp-top-toolbar"><div className="lp-filter-buttons">{([['all', '全部时间'], ['today', '今天'], ['week', '近 7 天'], ['month', '近 1 个月']] as const).map(([value, label]) => <button key={value} className={filter === value ? 'active' : ''} aria-pressed={filter === value} onClick={() => selectFilter(value)}>{label}</button>)}<button ref={rangeTrigger} className={filter === 'custom' ? 'active' : ''} aria-pressed={filter === 'custom'} aria-expanded={!!dateAnchor} aria-haspopup="dialog" onClick={() => setDateAnchor(current => current ? null : rangeTrigger.current!.getBoundingClientRect())}>自定义</button></div><span className="lp-timezone"><CalendarDays size={14} />北京时间</span></div>
         {range && <p className="lp-applied-range">{range.start} — {range.end}</p>}
         {updated && <p role="status" className="lp-applied-range">列表已更新，已返回第一页</p>}
-        <div className="lp-list-heading"><span>流水明细 <b>{data?.total ?? '—'}</b></span><button className="lp-refresh" onClick={() => void queries.invalidateQueries({ queryKey: ['ledger', identity.ownerId] })}><RefreshCw size={14} />刷新数据</button></div>
+        <div className="lp-list-heading"><span>流水明细 <b>{data?.total ?? '—'}</b></span><div className="lp-list-controls"><label className="lp-account-filter"><select aria-label="筛选账户" value={accountId} onChange={event => selectAccount(event.target.value)} disabled={!accounts.data}><option value="">全部账户</option>{accounts.data?.accounts.map(account => <option key={account.id} value={account.id}>{account.name}</option>)}</select></label><button className="lp-refresh" onClick={() => void queries.invalidateQueries({ queryKey: ['ledger', identity.ownerId] })}><RefreshCw size={14} />刷新数据</button></div></div>
         {entries.isPending ? <p role="status" className="lp-feedback">正在读取流水…</p> : entries.isError ? <div role="alert" className="lp-feedback">读取失败，请重试。<button className="lp-secondary" onClick={() => void entries.refetch()}>重试读取</button></div> : data?.items.length ? <div className="lp-table-wrap"><table className="lp-table"><thead><tr>
           <th>交易时间</th><th>分类 / 备注</th><th>交易账户</th><th>收支类型</th><th>交易状态</th><th className="lp-numeric">交易金额</th><th><span className="lp-sr">查看详情</span></th>
         </tr></thead><tbody>{data.items.map(entry => <tr key={entry.id} onClick={() => openDetail(entry.id)}>
@@ -127,7 +128,7 @@ export function Finance() {
           <td><span className="lp-account"><CreditCard size={13} />{entry.accountName}</span></td>
           <td><span className={`lp-direction ${entry.direction}`}>{entry.direction === 'income' ? <ArrowDownLeft size={13} /> : <ArrowUpRight size={13} />}{entry.direction === 'income' ? '收入' : '支出'}</span></td>
           <td><Status entry={entry} /></td><td className="lp-numeric"><Amount entry={entry} /></td><td><ChevronRight size={15} /></td>
-        </tr>)}</tbody></table></div> : <div className="lp-empty"><Wallet size={30} strokeWidth={1.3} /><h3>{range ? '没有匹配的流水' : '暂无流水'}</h3><button className="lp-secondary" onClick={newEntry}><Plus size={15} />新建流水</button></div>}
+        </tr>)}</tbody></table></div> : <div className="lp-empty"><Wallet size={30} strokeWidth={1.3} /><h3>{range || accountId ? '没有匹配的流水' : '暂无流水'}</h3><button className="lp-secondary" onClick={newEntry}><Plus size={15} />新建流水</button></div>}
         <footer className="lp-pagination"><span>{data?.total ? `${(page - 1) * 30 + 1}–${Math.min(page * 30, data.total)} / ${data.total} 条流水` : '0 条流水'}</span><div>
           <button aria-label="上一页" disabled={page === 1 || entries.isFetching} onClick={() => setPage(page - 1)}><ChevronLeft size={16} /></button><span>{page} <i>/</i> {pageCount}</span>
           <button aria-label="下一页" disabled={page === pageCount || entries.isFetching} onClick={() => setPage(page + 1)}><ChevronRight size={16} /></button></div></footer>
