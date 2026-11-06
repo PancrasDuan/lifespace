@@ -48,11 +48,11 @@ export function PrototypeTasks({ data, blocked, openTask, toggleTask, changeRang
       const open = openTask === task.id
       return <Record key={task.id} label={`任务：${task.title}`} summaryLabel={`任务详情：${task.title}`} open={open} disabled={blocked} toggle={() => toggleTask(task.id)} className={`adventure-proto-task${task.status === 'completed' ? ' is-completed' : ''}`} summary={<>
         <span className={task.status === 'completed' ? 'task-state is-complete' : 'task-state'}>{task.status === 'completed' && <CircleCheck size={15} />}</span>
-        <span className="record-copy"><span className="record-kicker">{task.independent ? '独立任务' : `${task.mainlineName} / ${task.goalTitle}`}</span><strong>{task.title}</strong><small>{task.plannedOn}{task.overdue ? ' · 逾期，仍待完成' : task.status === 'completed' ? ' · 已完成' : task.status === 'ended' ? ' · 已结束' : ' · 待完成'}</small></span>
+        <span className="record-copy"><span className="record-kicker">{task.independent ? '独立任务' : `${task.mainlineName} / ${task.goalTitle}`}</span><strong>{task.title}</strong><small>{task.plannedOn}{task.completedOn ? ` · 完成于 ${task.completedOn}` : ''}{task.overdue ? ' · 逾期，仍待完成' : task.status === 'completed' ? ' · 已完成' : task.status === 'ended' ? ' · 已结束' : ' · 待完成'}</small></span>
         <span className="record-meta"><span>{task.reward ? `+${task.reward.amount} 经验` : task.overdue ? '待处理' : task.status === 'completed' ? '已完成' : task.status === 'ended' ? '已结束' : '待完成'}</span><ChevronMarker open={open} /></span>
       </>}>
         <div className="task-detail-copy"><p>{task.description || '这次行动没有填写说明。'}</p>
-          <dl className="plain-facts"><div><dt>安排</dt><dd>{task.plannedOn}</dd></div><div><dt>归属</dt><dd>{task.independent ? '独立任务' : `${task.mainlineName} / ${task.goalTitle}`}</dd></div><div><dt>状态</dt><dd>{task.status === 'completed' ? '已完成' : task.status === 'ended' ? '已结束' : task.overdue ? '逾期待完成' : '待完成'}</dd></div></dl></div>
+          <dl className="plain-facts"><div><dt>计划执行</dt><dd>{task.plannedOn}</dd></div>{task.completedOn && <div><dt>实际完成</dt><dd>{task.completedOn}</dd></div>}<div><dt>归属</dt><dd>{task.independent ? '独立任务' : `${task.mainlineName} / ${task.goalTitle}`}</dd></div><div><dt>状态</dt><dd>{task.status === 'completed' ? '已完成' : task.status === 'ended' ? '已结束' : task.overdue ? '逾期待完成' : '待完成'}</dd></div></dl></div>
         <PlanningTaskHistory key={`${task.id}:${data.version}`} id={task.id} />
         <div className="record-actions">
           {task.status === 'completed' ? <>
