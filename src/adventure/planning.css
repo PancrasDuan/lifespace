@@ -170,3 +170,12 @@
 @media (max-width: 700px) {
   .planning-toast { bottom: max(76px, calc(env(safe-area-inset-bottom) + 76px)); }
 }
+
+/* Task dates share the ledger calendar, with date-only sizing. */
+.adventure-dialog .task-date-field>label{margin-bottom:8px}
+.adventure-dialog .task-date-field .lp-time-native{flex:0 0 auto;width:auto;min-width:0;border:0;background:transparent;box-shadow:none}
+.adventure-dialog .task-date-field .lp-time-trigger{min-width:44px;border:0;background:transparent;flex:1 0 44px;justify-content:flex-end}
+.task-date-picker.lp-time-popover[popover]{width:min(330px,calc(100vw - 24px))}
+.task-date-picker .lp-tp-body{grid-template-columns:minmax(0,1fr)}
+.adventure-dialog .task-date-field .lp-time-control{background:#fff}
+.adventure-dialog .task-date-field .lp-time-control:hover,.adventure-dialog .task-date-field .lp-time-control:focus-within{background:#f8fbf7}

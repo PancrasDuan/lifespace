@@ -72,7 +72,7 @@ begin
   v_task:=(v_receipt->'result'->>'entityId')::uuid;
   update public.adventure_accounts set total_xp=1 where owner_id=v_owner;
   begin
-    perform public.adventure_planning_command(v_owner,'rollback-task-edit',1,jsonb_build_object('type','editTask','id',v_task,'title','错误改名','description','错误说明'));
+    perform public.adventure_planning_command(v_owner,'rollback-task-edit',1,jsonb_build_object('type','editTask','id',v_task,'title','错误改名','description','错误说明','plannedOn',(select planned_on from public.adventure_tasks where id=v_task),'destination',''));
     raise exception 'Partial edit accepted';
   exception when others then if sqlerrm is distinct from 'INCONSISTENT_REWARDS' then raise; end if; end;
   begin

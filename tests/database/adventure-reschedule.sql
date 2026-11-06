@@ -2,7 +2,8 @@
 begin;
 create function pg_temp.reschedule_command(o uuid,c jsonb) returns jsonb language sql as $$
   select public.adventure_planning_command(o,gen_random_uuid()::text,
-    coalesce((select revision from public.adventure_accounts where owner_id=o),0),c);
+    coalesce((select revision from public.adventure_accounts where owner_id=o),0),case when c->>'type'='rescheduleTask' then
+      (select jsonb_build_object('type','editTask','id',t.id,'title',t.title,'description',t.description,'plannedOn',c->>'plannedOn','destination',case when g.kind='inbox' then '' else g.id::text end) from public.adventure_tasks t join public.adventure_goals g on (g.owner_id,g.id)=(t.owner_id,t.goal_id) where t.owner_id=o and t.id=(c->>'id')::uuid) else c end);
 $$;
 create function pg_temp.fail_reschedule_event() returns trigger language plpgsql as $$
 begin
