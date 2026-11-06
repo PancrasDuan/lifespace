@@ -425,7 +425,7 @@ test.describe('真实任务事务的桌面与手机浏览器验收（受控身�
     const card = page.getByRole('article', { name: '任务：保留原行动', exact: true })
     await expect(card).toContainText('逾期，仍待完成')
     await openRecordActions(card)
-    await expect(card.getByRole('button', { name: '完成', exact: true })).toBeDisabled()
+    await expect(card.getByRole('button', { name: '完成', exact: true })).toBeEnabled()
     await openRecordActions(card)
     await card.getByRole('button', { name: '改期', exact: true }).click()
     const dialog = page.getByRole('dialog', { name: '任务改期', exact: true })
