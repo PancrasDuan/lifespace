@@ -22,7 +22,7 @@ test.describe('任务编辑卡片删除与终态保护', () => {
     await page.getByRole('button', { name: '目标：待处理目标', exact: true }).click()
     await expect(page.getByRole('button', { name: '确认达成', exact: true })).toBeDisabled()
     await expect(page.getByText('请先删除未完成任务，或在编辑任务中移到其他在用目标／独立任务', { exact: true })).toBeVisible()
-    await page.getByRole('navigation', { name: '冒险页面' }).getByRole('button', { name: '今天', exact: true }).click()
+    await page.getByRole('navigation', { name: '冒险页面' }).getByRole('button', { name: '今日聚焦', exact: true }).click()
     await openRecordActions(card)
     await card.getByRole('button', { name: '编辑任务', exact: true }).click()
     await page.getByRole('button', { name: '删除任务', exact: true }).click()

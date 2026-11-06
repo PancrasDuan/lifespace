@@ -51,7 +51,7 @@ for (const fail of [false, true]) test(`三个标签共享顶部区域：成长�
     await expect(summary).not.toContainText('正在更新')
   }
   expect((await tabs.boundingBox())!.y).toBeCloseTo(top, 0)
-  await tabs.getByRole('button', { name: '今天', exact: true }).click()
+  await tabs.getByRole('button', { name: '今日聚焦', exact: true }).click()
   await expect(summary).toBeVisible()
   expect((await tabs.boundingBox())!.y).toBeCloseTo(top, 0)
 })
