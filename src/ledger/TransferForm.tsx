@@ -6,11 +6,11 @@ import { ledgerLimits, ledgerTransferSchema, type LedgerTransfer } from '../shar
 import { readLedgerAccounts } from './api'
 import { formatCurrency, fromDateTimeInput, toDateTimeInput, yuanToCents } from './time'
 import { TransactionDateTimeField } from './TransactionDateTimeField'
-import { BalanceVisibilityButton } from './Accounts'
+import { BalancePreferenceError, BalanceVisibilityButton } from './Accounts'
 import type { FormSubmission } from './useLedgerSubmission'
 import './transfers.css'
 
-export function TransferForm({ fromAccountId, submission, cancel, balancesHidden, toggleBalances }: { fromAccountId?: string; submission: FormSubmission<LedgerTransfer>; cancel: () => void; balancesHidden: boolean; toggleBalances: () => void }) {
+export function TransferForm({ fromAccountId, submission, cancel, balancesHidden, toggleBalances, balancePreferenceError }: { fromAccountId?: string; submission: FormSubmission<LedgerTransfer>; cancel: () => void; balancesHidden: boolean; toggleBalances: () => void; balancePreferenceError: boolean }) {
   const identity = useVerifiedIdentity()
   const accounts = useQuery({ queryKey: ['ledger', identity.ownerId, 'accounts'], queryFn: ({ signal }) => readLedgerAccounts(identity.ownerId, AbortSignal.any([signal, identity.signal])), retry: false, refetchOnWindowFocus: false })
   const [from, setFrom] = useState(fromAccountId ?? ''), [to, setTo] = useState('')
@@ -40,6 +40,7 @@ export function TransferForm({ fromAccountId, submission, cancel, balancesHidden
       <label className="lp-field">转入账户<select aria-label="转入账户" disabled={disabled || choices.length < 2} value={to} onChange={event => setTo(event.target.value)}><option value="" disabled>选择账户</option>{choices.filter(item => item.id !== from).map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select><small>{target ? `当前余额 ${balancesHidden ? '••••••' : formatCurrency(target.balanceCents)}` : '选择资金转入的账户'}</small></label>
     </div>
     <BalanceVisibilityButton hidden={balancesHidden} toggle={toggleBalances} />
+    {balancePreferenceError && <BalancePreferenceError />}
     {accounts.isPending && <p role="status">正在读取账户…</p>}
     {accounts.isError && <p role="alert" className="lp-form-error">账户读取失败，请重试。<button type="button" className="lp-secondary" onClick={() => void accounts.refetch()}>重试读取账户</button></p>}
     {accounts.data && choices.length < 2 && <p role="status" className="la-field-hint">转账需要两个不同的本人账户，请先新增账户。</p>}

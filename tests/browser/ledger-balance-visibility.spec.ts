@@ -98,6 +98,24 @@ test('浏览器存储不可用时仍可切换，重新加载默认隐藏', async
   await expect(page.getByRole('article', { name: '银行卡' })).not.toContainText('1,234.56')
 })
 
+for (const removalBlocked of [false, true]) test(`已有显示偏好且写入受限时，隐藏${removalBlocked ? '失败并提示旧设置' : '可清除旧设置'}`, async ({ page, context }) => {
+  await context.route('**/api/ledger/**', route => route.fulfill({ json: new URL(route.request().url()).pathname.endsWith('/accounts') ? { version: 0, accounts: [{ id: ids[0], name: '银行卡', balanceCents: 123456, createdAt: date, updatedAt: date }] } : { items: [], total: 0, page: 1, pageSize: 30, version: 0 } }))
+  await page.goto('/finance')
+  await page.getByRole('button', { name: '显示账户余额' }).click()
+  await page.evaluate(blockRemoval => {
+    const set = Storage.prototype.setItem, remove = Storage.prototype.removeItem
+    Storage.prototype.setItem = function (key, value) { if (key === 'lifespace.ledger.balance-visible.v1') throw new DOMException('denied'); return set.call(this, key, value) }
+    Storage.prototype.removeItem = function (key) { if (blockRemoval && key === 'lifespace.ledger.balance-visible.v1') throw new DOMException('denied'); return remove.call(this, key) }
+  }, removalBlocked)
+  await page.getByRole('button', { name: '隐藏账户余额' }).click()
+  await expect(page.getByRole('article', { name: '银行卡' })).not.toContainText('1,234.56')
+  if (removalBlocked) await expect(page.getByRole('alert').filter({ hasText: '重新打开后可能恢复旧设置' })).toBeVisible()
+  else await expect(page.getByRole('alert').filter({ hasText: '重新打开后可能恢复旧设置' })).toHaveCount(0)
+  await page.reload()
+  if (removalBlocked) await expect(page.getByRole('article', { name: '银行卡' })).toContainText('1,234.56')
+  else await expect(page.getByRole('article', { name: '银行卡' })).not.toContainText('1,234.56')
+})
+
 test('隐藏状态下余额冲突不显示最新金额，可切换显示后核对', async ({ page, context }) => {
   let changed = false
   await context.route('**/api/ledger/**', async route => {
