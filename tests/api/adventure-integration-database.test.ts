@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { growthPageSchema, rewardSourceSchema } from '../../src/shared/adventure-growth'
-import { planningPreviewSchema, planningReceiptSchema } from '../../src/shared/adventure-planning'
+import { planningPreviewSchema, planningReceiptSchema, taskHistorySchema } from '../../src/shared/adventure-planning'
 import { localPlanningRpc as rpcOrigin, planningDatabase } from '../support/planning-database'
 
 const database = planningDatabase('lifecycle@example.invalid')
@@ -74,21 +74,31 @@ describe.skipIf(!rpcOrigin)('正式 Worker HTTP → 本机真实 PostgREST → �
     expect(after.growth).toEqual(before.growth)
   })
 
-  it('未来任务改期再迁移仍失去误建删除资格，停止后零分母且保留完整原安排', async () => {
+  it('未来任务编辑日期归属后可删除，先转移未完成任务再结束目标且历史安排保留', async () => {
     const today = (await read(owner)).today
     const task = (await command(owner, { type: 'createTask', title: '未来行动', description: '', plannedOn: '2099-01-01', destination: '' })).result.entityId
     await command(owner, { type: 'editTask', id: task, title: '未来行动', description: '', plannedOn: '2099-01-02', destination: '' })
     const goal = (await command(owner, { type: 'createGoal', title: '接收安排', standards: ['标准'], destination: '' })).result.entityId
     await command(owner, { type: 'editTask', id: task, title: '未来行动', description: '', plannedOn: '2099-01-02', destination: goal })
     const before = await read(owner, '?taskRange=future')
-    expect(before.tasks[0]).toMatchObject({ id: task, plannedOn: '2099-01-02', capabilities: { delete: { allowed: false } } })
-    expect((await send(owner, envelope(before.version, { type: 'deleteTask', id: task }))).status).toBe(400)
+    expect(before.tasks[0]).toMatchObject({ id: task, plannedOn: '2099-01-02', capabilities: { delete: { allowed: true } }, arrangements: [{ newPlannedOn: '2099-01-01' }, { oldPlannedOn: '2099-01-01', newPlannedOn: '2099-01-02' }] })
+    const history = taskHistorySchema.parse(await (await request(owner, `/api/adventure/task-history?id=${task}`)).json())
+    const blocked = await send(owner, envelope(before.version, { type: 'endGoal', id: goal }))
+    expect(blocked.status).toBe(400)
+    expect(await blocked.json()).toMatchObject({ error: { code: 'PENDING_TASKS' } })
     expect(await read(owner, '?taskRange=future')).toEqual(before)
+    await command(owner, { type: 'editTask', id: task, title: '未来行动', description: '', plannedOn: '2099-01-02', destination: '' })
     await command(owner, { type: 'endGoal', id: goal })
     const after = await read(owner, `?taskRange=future&goalId=${goal}`)
     expect(after.goalDetail?.goal.progress).toMatchObject({ completed: 0, total: 0 })
-    expect(after.goalDetail?.tasks[0]).toMatchObject({ id: task, status: 'ended', arrangements: [{ newPlannedOn: '2099-01-01' }, { oldPlannedOn: '2099-01-01', newPlannedOn: '2099-01-02' }] })
+    expect(after.goalDetail?.tasks).toEqual([])
+    expect(after.tasks[0]).toMatchObject({ id: task, status: 'pending', independent: true })
     expect(after.growth).toMatchObject({ totalXp: 0, actions: 0 })
     expect(after.today).toBe(today)
+    const preserved = taskHistorySchema.parse(await (await request(owner, `/api/adventure/task-history?id=${task}`)).json())
+    expect(preserved.items).toEqual(history.items)
+    await command(owner, { type: 'deleteTask', id: task })
+    expect((await read(owner, '?taskRange=future')).tasks).toEqual([])
+    expect((await read(owner)).growth).toEqual(after.growth)
   })
 })

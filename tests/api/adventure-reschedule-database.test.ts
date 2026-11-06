@@ -95,7 +95,7 @@ describe.skipIf(!rpcOrigin)('正式 Worker HTTP → 本机真实 PostgREST → �
     expect((await read(owner, '?taskRange=future')).tasks[0]).toMatchObject({ title: '同日期修改名称', plannedOn: '2099-01-01', description: '同日期保存说明' })
   })
 
-  it('已完成及终态归属任务拒绝编辑，历史安排冻结；旧结束任务命令不可写入', async () => {
+  it('已完成及终态归属任务拒绝编辑，历史安排冻结；旧独立改期与迁移不可写入', async () => {
     for (const terminal of ['endGoal', 'achieveGoal', 'endMainline'] as const) {
       const m = (await command(owner, { type: 'createMainline', name: terminal })).result.entityId
       const g = (await command(owner, { type: 'createGoal', destination: m, title: terminal, standards: ['标准'] })).result.entityId
