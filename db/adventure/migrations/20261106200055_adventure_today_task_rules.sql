@@ -166,6 +166,7 @@ begin
       or jsonb_typeof(p_command->'destination') is distinct from 'string' then raise exception 'INVALID_COMMAND'; end if;
     v_day:=(p_command->>'plannedOn')::date;
     if v_day::text<>p_command->>'plannedOn' then raise exception 'INVALID_COMMAND'; end if;
+    if v_day<p_today then raise exception 'RESCHEDULE_PAST'; end if;
     if coalesce(p_command->>'destination','')='' then return jsonb_build_object('allowed',true); end if;
     select * into v_goal from public.adventure_goals where owner_id=p_owner and id=(p_command->>'destination')::uuid and kind='real';
     if not found then raise exception 'NOT_FOUND'; end if;
@@ -1240,6 +1241,8 @@ end $$;
 revoke execute on function public.adventure_reward_view(uuid,uuid),public.adventure_growth_read(uuid,bigint,uuid),public.adventure_reward_source(uuid,uuid,integer,bigint) from public,anon,authenticated;
 grant execute on function public.adventure_reward_view(uuid,uuid),public.adventure_growth_read(uuid,bigint,uuid),public.adventure_reward_source(uuid,uuid,integer,bigint) to service_role;
 
+-- Each task can repeat 4000-character descriptions in its completion snapshot.
+-- Ten records stay below 1MB even at six JSON bytes per escaped character.
 -- #145: read-only batches pinned to the workspace revision and Beijing date.
 create index if not exists adventure_tasks_planned_list on public.adventure_tasks(owner_id,status,planned_on,created_at,id) where deleted_at is null;
 create index if not exists adventure_tasks_completed_list on public.adventure_tasks(owner_id,completed_on,planned_on,created_at,id) where deleted_at is null and status='completed';
@@ -1272,9 +1275,9 @@ begin
   select (select count(*) from filtered),(select count(*) from filtered where status='completed'),
     (select coalesce(jsonb_agg(item order by rank,planned_on,created_at,id),'[]'::jsonb) from (
       select rank,planned_on,created_at,id,public.adventure_task_view(p_owner,id,v_today) item from filtered
-      order by rank,planned_on,created_at,id limit 50 offset (p_page::bigint-1)*50
+      order by rank,planned_on,created_at,id limit 10 offset (p_page::bigint-1)*10
     ) batch) into v_total,v_completed,v_tasks;
-  v_result:=jsonb_build_object('version',v_version,'today',v_today,'date',p_date,'scope',p_scope,'page',p_page,'pageSize',50,
+  v_result:=jsonb_build_object('version',v_version,'today',v_today,'date',p_date,'scope',p_scope,'page',p_page,'pageSize',10,
     'total',v_total,'tasks',v_tasks,'progress',jsonb_build_object('completed',v_completed,'total',v_total,
       'ratio',case when v_total=0 then null else v_completed::numeric/v_total end));
   if octet_length(v_result::text)>1000000 then raise exception 'CAPACITY_REACHED'; end if;
@@ -1283,4 +1286,5 @@ end $$;
 revoke execute on function public.adventure_task_list(uuid,date,text,bigint,date,integer) from public,anon,authenticated;
 grant execute on function public.adventure_task_list(uuid,date,text,bigint,date,integer) to service_role;
 
+notify pgrst, 'reload schema';
 commit;

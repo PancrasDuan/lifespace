@@ -1,9 +1,11 @@
 -- Temporary empty database only; fail after the task update to prove atomic rollback.
 begin;
 create function pg_temp.reschedule_command(o uuid,c jsonb) returns jsonb language sql as $$
-  select public.adventure_planning_command(o,gen_random_uuid()::text,
+  select case when c->>'type'='createTask' and (c->>'plannedOn')::date<(clock_timestamp() at time zone 'Asia/Shanghai')::date then
+    public.adventure_test_history_seed(o,gen_random_uuid()::text,coalesce((select revision from public.adventure_accounts where owner_id=o),0),c,(c->>'plannedOn')::date)
+  else public.adventure_planning_command(o,gen_random_uuid()::text,
     coalesce((select revision from public.adventure_accounts where owner_id=o),0),case when c->>'type'='rescheduleTask' then
-      (select jsonb_build_object('type','editTask','id',t.id,'title',t.title,'description',t.description,'plannedOn',c->>'plannedOn','destination',case when g.kind='inbox' then '' else g.id::text end) from public.adventure_tasks t join public.adventure_goals g on (g.owner_id,g.id)=(t.owner_id,t.goal_id) where t.owner_id=o and t.id=(c->>'id')::uuid) else c end);
+      (select jsonb_build_object('type','editTask','id',t.id,'title',t.title,'description',t.description,'plannedOn',c->>'plannedOn','destination',case when g.kind='inbox' then '' else g.id::text end) from public.adventure_tasks t join public.adventure_goals g on (g.owner_id,g.id)=(t.owner_id,t.goal_id) where t.owner_id=o and t.id=(c->>'id')::uuid) else c end) end;
 $$;
 create function pg_temp.fail_reschedule_event() returns trigger language plpgsql as $$
 begin

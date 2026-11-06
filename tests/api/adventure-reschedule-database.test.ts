@@ -14,7 +14,7 @@ describe.skipIf(!rpcOrigin)('正式 Worker HTTP → 本机真实 PostgREST → �
   beforeEach(() => { owner = crypto.randomUUID() })
 
   it('漏做任务改到今天，预览无写入并保留原安排和行动身份', async () => {
-    const id = (await command(owner, { type: 'createTask', title: '继续原行动', description: '原始内容', plannedOn: '2020-01-01', destination: '' })).result.entityId
+    const id = (await database.createHistoricalTask(owner, { type: 'createTask', title: '继续原行动', description: '原始内容', plannedOn: '2020-01-01', destination: '' })).result.entityId
     const before = await read(owner, '?taskRange=past')
     const change = edit(id, '继续原行动', before.today, '原始内容')
     const preview = await request(owner, '/api/adventure/preview', { expectedVersion: before.version, command: change })
@@ -38,7 +38,7 @@ describe.skipIf(!rpcOrigin)('正式 Worker HTTP → 本机真实 PostgREST → �
   })
   it('连续改期保留完整来源链，编辑和迁移不改写历史，旧 requestId 只返回旧回执', async () => {
     const g = (await command(owner, { type: 'createGoal', destination: '', title: '原目标', standards: ['标准'] })).result.entityId
-    const id = (await command(owner, { type: 'createTask', title: '原名称', description: '原说明', plannedOn: '2020-01-01', destination: g })).result.entityId
+    const id = (await database.createHistoricalTask(owner, { type: 'createTask', title: '原名称', description: '原说明', plannedOn: '2020-01-01', destination: g })).result.entityId
     const before = await read(owner)
     const first = envelope(before.version, edit(id, '原名称', before.today, '原说明', g))
     const receipt = planningReceiptSchema.parse(await (await send(owner, first)).json())
@@ -60,7 +60,7 @@ describe.skipIf(!rpcOrigin)('正式 Worker HTTP → 本机真实 PostgREST → �
   })
 
   it('改到今天后完成只计一次行动；完成须先合法取消再改期，原重试不撤回新安排', async () => {
-    const id = (await command(owner, { type: 'createTask', title: '唯一行动', description: '', plannedOn: '2020-01-01', destination: '' })).result.entityId
+    const id = (await database.createHistoricalTask(owner, { type: 'createTask', title: '唯一行动', description: '', plannedOn: '2020-01-01', destination: '' })).result.entityId
     const before = await read(owner)
     const move = envelope(before.version, edit(id, '唯一行动', before.today))
     const oldReceipt = await (await send(owner, move)).json()
@@ -119,7 +119,7 @@ describe.skipIf(!rpcOrigin)('正式 Worker HTTP → 本机真实 PostgREST → �
   })
 
   it('并发改期和同 key 重试只执行一次；与完成竞争保持版本、安排和奖励一致', async () => {
-    const id = (await command(owner, { type: 'createTask', title: '竞争安排', description: '', plannedOn: '2020-01-01', destination: '' })).result.entityId
+    const id = (await database.createHistoricalTask(owner, { type: 'createTask', title: '竞争安排', description: '', plannedOn: '2020-01-01', destination: '' })).result.entityId
     const before = await read(owner)
     const value = envelope(before.version, edit(id, '竞争安排', before.today))
     const responses = await Promise.all([send(owner, value), send(owner, value)])
@@ -161,7 +161,7 @@ describe.skipIf(!rpcOrigin)('正式 Worker HTTP → 本机真实 PostgREST → �
     }
   })
   it('正式 HTTP 在日期更新后的事件写入失败整笔回滚，未知结果原封套重试仍无半安排', async () => {
-    const id = (await command(owner, { type: 'createTask', title: 'reschedule-http-failpoint', description: '', plannedOn: '2020-01-01', destination: '' })).result.entityId
+    const id = (await database.createHistoricalTask(owner, { type: 'createTask', title: 'reschedule-http-failpoint', description: '', plannedOn: '2020-01-01', destination: '' })).result.entityId
     const before = await read(owner, '?taskRange=past')
     const value = envelope(before.version, edit(id, 'reschedule-http-failpoint', before.today))
     for (let attempt = 0; attempt < 2; attempt++) {
@@ -174,7 +174,7 @@ describe.skipIf(!rpcOrigin)('正式 Worker HTTP → 本机真实 PostgREST → �
   })
 
   it('连续大内容改期的安排链分页完整、不重复，任务列表保持可读且历史查询账户隔离', async () => {
-    const id = (await command(owner, { type: 'createTask', title: '分页历史', description: '原始说明'.repeat(1000), plannedOn: '2020-01-01', destination: '' })).result.entityId
+    const id = (await database.createHistoricalTask(owner, { type: 'createTask', title: '分页历史', description: '原始说明'.repeat(1000), plannedOn: '2020-01-01', destination: '' })).result.entityId
     const today = (await read(owner)).today
     for (let i = 0; i < 100; i++) await command(owner, edit(id, '分页历史', i % 2 === 0 ? today : '2099-01-01', '原始说明'.repeat(1000)))
     const state = await read(owner, '?taskRange=future')

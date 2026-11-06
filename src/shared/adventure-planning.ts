@@ -166,7 +166,7 @@ export const taskListInputSchema = z.strictObject({
 export type TaskListInput = z.infer<typeof taskListInputSchema>
 export const taskListSchema = z.object({
   version, today: z.iso.date(), date: z.iso.date(), scope: taskScopeSchema,
-  page: z.number().int().positive(), pageSize: z.literal(50), total: version,
-  tasks: z.array(planningTaskSchema).max(50), progress: planningProgressSchema,
+  page: z.number().int().positive(), pageSize: z.literal(10), total: version,
+  tasks: z.array(planningTaskSchema).max(10), progress: planningProgressSchema,
 })
 export type TaskList = z.infer<typeof taskListSchema>

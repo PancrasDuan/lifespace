@@ -13,7 +13,7 @@ describe.skipIf(!localPlanningRpc)('未完成任务删除与终态保护的真�
     const today = (await read(owner)).today
     const goal = (await command(owner, { type: 'createGoal', title: '目标', standards: ['标准'], destination: '' })).result.entityId
     for (const plannedOn of ['2020-01-01', today, '2099-01-01']) {
-      const id = (await command(owner, { type: 'createTask', title: '删除任务', description: '', plannedOn, destination: goal })).result.entityId
+      const id = (await (plannedOn < today ? database.createHistoricalTask : command)(owner, { type: 'createTask', title: '删除任务', description: '', plannedOn, destination: goal })).result.entityId
       if (plannedOn === today) {
         const completion = await command(owner, { type: 'completeTask', id })
         await command(owner, { type: 'cancelTaskCompletion', completionId: completion.result.completionId! })

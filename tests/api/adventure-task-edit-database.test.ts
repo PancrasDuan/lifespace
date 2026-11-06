@@ -10,6 +10,18 @@ describe.skipIf(!localPlanningRpc)('统一任务编辑的真实事务', () => {
   beforeEach(() => { owner = crypto.randomUUID(); database.install() })
   afterEach(() => database.restore())
 
+  it('新建拒绝服务端今天之前的日期，且不改变账户或任务', async () => {
+    const owner = crypto.randomUUID()
+    const before = await read(owner)
+    for (const destination of ['', (await command(owner, { type: 'createGoal', title: '归属', standards: ['标准'], destination: '' })).result.entityId]) {
+      const current = await read(owner)
+      const result = await send(owner, envelope(current.version, { type: 'createTask', title: '禁止补建', description: '', plannedOn: '2020-01-01', destination }))
+      expect(result.status).toBe(400)
+      expect(await result.json()).toMatchObject({ error: { code: 'RESCHEDULE_PAST' } })
+      expect(await read(owner)).toEqual(current)
+    }
+    expect((await read(owner)).tasks).toEqual(before.tasks)
+  })
   it('一次保存四项并保留任务身份、历史及稳定回执', async () => {
     const goal = (await command(owner, { type: 'createGoal', title: '新归属', standards: ['完成标准'], destination: '' })).result.entityId
     const today = (await read(owner)).today
@@ -43,7 +55,7 @@ describe.skipIf(!localPlanningRpc)('统一任务编辑的真实事务', () => {
   })
 
   it('逾期原日期不变可保存其他字段，更改为另一过去日期或越权归属均原子拒绝', async () => {
-    const id = (await command(owner, { type: 'createTask', title: '逾期任务', description: '', plannedOn: '2020-01-01', destination: '' })).result.entityId
+    const id = (await database.createHistoricalTask(owner, { type: 'createTask', title: '逾期任务', description: '', plannedOn: '2020-01-01', destination: '' })).result.entityId
     const before = await read(owner, '?taskRange=past')
     const value = { type: 'editTask' as const, id, title: '保留日期的新名称', description: '修改说明', plannedOn: '2020-01-01', destination: '' }
     await command(owner, value)
