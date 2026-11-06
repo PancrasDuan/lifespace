@@ -29,9 +29,9 @@ type PlanningDialog = { kind: 'mainline'; id?: string; name?: string } | { kind:
 type Dialog = PlanningDialog | { kind: 'taskHistory'; id: string } | { kind: 'reschedule'; task: PlanningTask } | { kind: 'migrate'; entityKind: 'goal' | 'task'; id: string; title: string } | { kind: 'achieve'; id: string } | { kind: 'lifecycle'; operation: LifecyclePreview['operation'] } | { kind: 'task'; task?: PlanningTask; destination?: string } | { kind: 'cancel'; task: PlanningTask }
 type Action = (command: PlanningCommand) => Promise<boolean>
 
-function PlanningForm({ dialog, data, action, busy, close }: {
+function PlanningForm({ dialog, data, action, busy, close, saved }: {
   dialog: Extract<Dialog, { kind: 'mainline' } | { kind: 'goal' }>
-  data: PlanningPage; action: Action; busy: boolean; close: () => void
+  data: PlanningPage; action: Action; busy: boolean; close: () => void; saved: () => void
 }) {
   const goal = dialog.kind === 'goal' ? dialog.goal : undefined
   const [name, setName] = useState(dialog.kind === 'mainline' ? dialog.name ?? '' : goal?.title ?? '')
@@ -57,7 +57,7 @@ function PlanningForm({ dialog, data, action, busy, close }: {
       ? dialog.id ? { type: 'renameMainline', id: dialog.id, name } : { type: 'createMainline', name }
       : goal ? { type: 'editGoal', id: goal.id, title: name, destination, standards: filled }
         : { type: 'createGoal', title: name, destination, standards: filled }
-    if (await action(command)) close()
+    if (await action(command)) saved()
   }
   return <form onSubmit={event => { void submit(event) }}>
     <fieldset disabled={busy}>
@@ -141,7 +141,6 @@ function Workspace() {
     }
     const capability = createCapability(kind)
     if (!capability?.allowed) { setCreateError(capability?.reason || '暂时无法新建，请稍后重试。'); return }
-    if (kind !== 'task') selectTab('planning')
     openDialog({ kind })
   }
   useEffect(() => {
@@ -150,8 +149,13 @@ function Workspace() {
     setPendingCreate(undefined)
     launchCreate(kind)
   }, [pendingCreate, data, blocked])
+  const saved = () => {
+    const created = dialog?.kind === 'mainline' ? !dialog.id : dialog?.kind === 'goal' && !dialog.goal
+    close()
+    if (created) selectTab('planning')
+  }
   const recovery = (uncertain || model.readRequired) && !busy ? <button type="button" onClick={() => {
-    void model.recover(close)
+    void model.recover(saved)
   }}>{uncertain ? '安全重试同一次操作' : '重新读取'}</button> : null
   const cancelTask = async (task: PlanningTask) => {
     if (!task.completionId) return
@@ -253,7 +257,7 @@ function Workspace() {
       <button disabled={busy || uncertain} aria-current={tab === 'growth' ? 'page' : undefined} onClick={() => selectTab('growth')}>成长记录</button></nav>
 
     {tab !== 'growth' && (!dialog || inlineDetail || !data) && recovery && <div className="planning-recovery">{recovery}</div>}
-    {tab !== 'growth' && (model.error ? <PlanningToast key={model.error} tone="error" withinDialog={!!dialog && !inlineDetail && !!data} message={model.error} close={model.clearError} /> : !model.readRequired && model.notice && <PlanningToast key={model.notice.id} message={model.notice.message} close={model.clearNotice} />)}
+    {(tab !== 'growth' || (dialog && !inlineDetail)) && (model.error ? <PlanningToast key={model.error} tone="error" withinDialog={!!dialog && !inlineDetail && !!data} message={model.error} close={model.clearError} /> : !model.readRequired && model.notice && <PlanningToast key={model.notice.id} message={model.notice.message} close={model.clearNotice} />)}
     {dialog && !data && !busy && <div className="planning-recovery"><button onClick={() => { close(); void model.load() }}>返回冒险</button></div>}
     {tab !== 'growth' && !data && busy && <p role="status" className="adventure-empty">正在读取你的冒险…</p>}
     {tab === 'growth' && <PlanningGrowth onGrowthChange={setGrowthSnapshot} onGrowthStatusChange={setGrowthStatus} />}
@@ -302,7 +306,7 @@ function Workspace() {
       : dialog.kind === 'lifecycle' ? preview && 'entityId' in preview && <PlanningLifecycle preview={preview} confirmation={model.confirmation} saved={close} cancel={close} />
       : dialog.kind === 'task' ? <TaskForm key={dialog.task?.id ?? 'new-task'} task={dialog.task} destination={dialog.destination} data={data} action={model.command} busy={blocked} close={close} changeGoalPage={page => { void model.load({ page }) }} />
       : dialog.kind === 'cancel' ? preview && 'completionId' in preview && <div className="planning-cancel-preview"><h3>{dialog.task.title}</h3><p>{preview.message}</p><dl><div><dt>当前</dt><dd>{preview.growthBefore.totalXp} 点经验，Lv.{preview.growthBefore.level}，{preview.growthBefore.actions} 次行动</dd></div><div><dt>取消后</dt><dd>{preview.growthAfter.totalXp} 点经验，Lv.{preview.growthAfter.level}，{preview.growthAfter.actions} 次行动</dd></div></dl><p>当前点亮的成就：{preview.growthBefore.achievements.filter(item => item.unlocked).map(item => item.label).join('、') || '暂无'}</p><p>取消后点亮的成就：{preview.growthAfter.achievements.filter(item => item.unlocked).map(item => item.label).join('、') || '暂无'}</p>{model.confirmation.stale && <p className="adventure-hint">数据已变化，请重新预览后确认。</p>}<div className="adventure-form-footer"><button disabled={blocked} onClick={() => { void model.confirmation.refresh() }}>重新预览</button><button disabled={blocked || model.confirmation.stale} onClick={() => { void model.confirmation.confirm({ type: 'cancelTaskCompletion', completionId: preview.completionId }, close) }}>确认取消完成</button></div></div>
-      : <PlanningForm key={dialog.kind === 'mainline' ? dialog.id ?? 'new-mainline' : dialog.goal?.id ?? 'new-goal'} dialog={dialog} data={data} action={model.command} busy={blocked} close={close} />}
+      : <PlanningForm key={dialog.kind === 'mainline' ? dialog.id ?? 'new-mainline' : dialog.goal?.id ?? 'new-goal'} dialog={dialog} data={data} action={model.command} busy={blocked} close={close} saved={saved} />}
       {recovery && <div className="planning-recovery">{recovery}</div>}
     </Modal>}
   </div></AppLayout>
