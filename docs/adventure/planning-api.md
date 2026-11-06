@@ -162,3 +162,9 @@ items 仅投影有效 task_completed／goal_achieved，含 id、kind、entityId�
 新 editTask 必须完整提交名称、说明、执行日期和归属，事务一次保存。更改日期只能选择服务端今天或未来；若原任务逾期且日期不变，仍允许修改其余字段。taskId 不变；日期改变写 task_rescheduled，只有归属改变写 task_migrated，否则 task_updated，一个主事件保存完整 before／after 及本次回执。
 
 Worker 保留旧输入形状仅为了历史成功封套重放；数据库先查历史回执，再拒绝旧 rescheduleTask／migrateTask 新请求或缺字段的新 editTask。旧回执不代表当前能力或当前状态。独立迁移候选接口仅支持目标；任务新建和编辑从可用真实目标列表选择归属，留空为独立任务。
+
+## 今日聚焦独立列表与升级
+
+周历读取采用 [日期任务列表契约](task-list-api.md) 的独立 POST 接口；查询条件在请求体中，完整同版本结果取得后再由前端搜索与分页。此接口不接入目标详情。
+
+已有五表数据库使用 `db/adventure/migrations/20261106200055_adventure_today_task_rules.sql`，在同一事务内更新任务规则函数、日期列表索引／RPC 与权限；不重复执行空库初始化，不修改业务行。现有已结束任务先只读核查，本次核查为零，没有执行真实数据清理。生产升级及回退需结合具体 PR 的授权与发布验收执行。
