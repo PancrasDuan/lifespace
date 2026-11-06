@@ -6,7 +6,7 @@ const date = '2026-01-02T03:04:05.000Z'
 
 async function fixture(context: BrowserContext) {
   const counts = { accounts: 0, entries: 0 }, aborted: string[] = []
-  let hold = false, failAccounts = false
+  let hold = false, failAccounts = false, revision = 0
   const releases: (() => void)[] = []
   await context.addInitScript(() => {
     const now = Date.now
@@ -20,10 +20,10 @@ async function fixture(context: BrowserContext) {
     if (hold) await new Promise<void>(resolve => releases.push(resolve))
     if (failAccounts && kind === 'accounts') return route.fulfill({ status: 503, json: { error: { code: 'LEDGER_UNAVAILABLE', message: '读取失败' } } }).catch(() => { aborted.push(kind) })
     await route.fulfill({ json: kind === 'accounts'
-      ? { version: 0, accounts: [{ id: accountId, name: '银行卡', balanceCents: 100, createdAt: date, updatedAt: date }] }
-      : { items: [], total: 0, page: 1, pageSize: 30, version: 0 } }).catch(() => { aborted.push(kind) })
+      ? { version: revision, accounts: [{ id: accountId, name: revision ? '银行卡更新' : '银行卡', balanceCents: 100, createdAt: date, updatedAt: date }] }
+      : { items: [], total: revision, page: 1, pageSize: 30, version: revision } }).catch(() => { aborted.push(kind) })
   })
-  return { counts, aborted, hold(value: boolean) { hold = value }, fail(value: boolean) { failAccounts = value }, release() { hold = false; releases.splice(0).forEach(resolve => resolve()) } }
+  return { counts, aborted, hold(value: boolean) { hold = value }, fail(value: boolean) { failAccounts = value }, update() { revision = 1 }, release() { hold = false; releases.splice(0).forEach(resolve => resolve()) } }
 }
 async function advance(page: Page, ms: number) {
   await page.evaluate(ms => (window as unknown as { advanceLedgerClock: (ms: number) => void }).advanceLedgerClock(ms), ms)
@@ -52,8 +52,11 @@ for (const width of [1440, 390]) test(`${width}px 公共刷新入口与可见性
   await visibility(page)
   await page.waitForTimeout(150)
   expect(server.counts).toEqual({ accounts: 1, entries: 1 })
+  server.update()
   await button.click()
-  await expect.poll(() => server.counts).toEqual({ accounts: 2, entries: 2 })
+  await expect(page.getByRole('article', { name: '银行卡更新' })).toBeVisible()
+  await expect(page.locator('.lp-list-heading')).toContainText('流水明细 1')
+  expect(server.counts).toEqual({ accounts: 2, entries: 2 })
   await advance(page, 61_000)
   await visibility(page)
   await expect.poll(() => server.counts).toEqual({ accounts: 3, entries: 3 })
@@ -71,6 +74,7 @@ test('首次加载及过期自动刷新与手动刷新重叠复用请求', async
   expect(server.counts).toEqual({ accounts: 1, entries: 1 })
   server.release()
   await expect(page.getByText('暂无流水')).toBeVisible()
+  await expect(page.getByRole('article', { name: '银行卡' })).toBeVisible()
   await advance(page, 61_000)
   server.hold(true)
   await visibility(page)
