@@ -73,7 +73,7 @@ test.describe('真实成长记录的桌面与手机浏览器验收（受控身�
     await expect(task).toBeVisible()
     await openRecordActions(task)
     await task.getByRole('button', { name: '完成', exact: true }).click()
-    await expect(task).toContainText('已完成')
+    await expect(task.getByRole('button', { name: '取消完成', exact: true })).toBeEnabled()
     const completed = (await snapshot()).tasks.find(item => item.title === '临界行动')!
     await page.getByRole('button', { name: '成长记录', exact: true }).click()
     await expect(summary).toContainText('累计经验20')
@@ -92,7 +92,7 @@ test.describe('真实成长记录的桌面与手机浏览器验收（受控身�
     await page.getByRole('button', { name: '今日聚焦', exact: true }).click()
     await openRecordActions(task)
     await task.getByRole('button', { name: '完成', exact: true }).click()
-    await expect(task).toContainText('已完成')
+    await expect(task.getByRole('button', { name: '取消完成', exact: true })).toBeEnabled()
     await page.getByRole('button', { name: '成长记录', exact: true }).click()
     await page.reload()
     await expect(summary).toContainText('累计经验20')

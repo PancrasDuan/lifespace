@@ -61,7 +61,7 @@ export function TaskForm({ task, data: workspace, action, busy, close, changeGoa
         <button type="button" disabled={data.page * data.pageSize >= data.totalGoals} onClick={() => changeCandidates(data.page + 1)}>下一页目标</button>
       </div></div>}
     </>
-    <div className="adventure-form-footer">{task && remove && <button type="button" disabled={busy || !task.capabilities.delete?.allowed} title={task.capabilities.delete?.reason} onClick={remove}>删除任务</button>}<button type="button" onClick={close}>取消</button>
+    <div className="adventure-form-footer task-editor-footer">{task && remove && <button type="button" className="delete-task" disabled={busy || !task.capabilities.delete?.allowed} title={task.capabilities.delete?.reason} onClick={remove}>删除任务</button>}<button type="button" onClick={close}>取消</button>
       <button className="adventure-primary" type="submit" disabled={busy || candidateBusy}>{busy ? '正在保存…' : task ? '保存任务' : '创建任务'}</button></div>
   </fieldset></form>
 }

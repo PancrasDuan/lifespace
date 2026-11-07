@@ -10,7 +10,7 @@ const card = (page: import('@playwright/test').Page, title: string) => page.getB
 const edit = async (page: import('@playwright/test').Page, title: string) => { const item = card(page, title); await openRecordActions(item); await item.getByRole('button', { name: '编辑任务', exact: true }).click() }
 const save = async (page: import('@playwright/test').Page) => { await page.getByRole('button', { name: '保存任务', exact: true }).click(); await expect(page.getByRole('dialog')).toBeHidden() }
 const remove = async (page: import('@playwright/test').Page, title: string) => { await edit(page, title); await page.getByRole('button', { name: '删除任务', exact: true }).click(); await page.getByRole('button', { name: '确认删除任务', exact: true }).click(); await expect(page.getByRole('dialog')).toBeHidden() }
-const complete = async (page: import('@playwright/test').Page, title: string) => { const item = card(page, title); await openRecordActions(item); await item.getByRole('button', { name: '完成', exact: true }).click(); await expect(item).toContainText('完成 ' + (await snapshot()).today) }
+const complete = async (page: import('@playwright/test').Page, title: string) => { const item = card(page, title); await openRecordActions(item); await item.getByRole('button', { name: '完成', exact: true }).click(); await expect(item.locator('.today-task-dates span').last()).toHaveAttribute('title', (await snapshot()).today) }
 const chooseDay = async (page: import('@playwright/test').Page, date: string) => {
   if (!await page.getByRole('button', { name: `选择日期 ${date}`, exact: true }).count()) await page.getByRole('button', { name: '下一周', exact: true }).click()
   await page.getByRole('button', { name: `选择日期 ${date}`, exact: true }).click()
@@ -55,7 +55,7 @@ test.describe('真实任务事务的桌面与手机浏览器验收（受控身�
     await complete(page, '隔离行动')
     await page.reload()
     await openRecordActions(card(page, '隔离行动'))
-    await expect(card(page, '隔离行动')).toContainText('已完成')
+    await expect(card(page, '隔离行动').getByRole('button', { name: '取消完成', exact: true })).toBeEnabled()
     const result = await snapshot()
     expect(result.tasks[0].completionId).not.toBe(frozen.completionId)
     expect(result.tasks[0]).toMatchObject({ description: '新说明，随后完成', goalId: width === 1440 ? goal : null })
@@ -133,7 +133,7 @@ test.describe('真实任务事务的桌面与手机浏览器验收（受控身�
     await expect(page.getByLabel('显示已达成／已结束', { exact: true })).toBeChecked()
     await overview(page)
     await openRecordActions(card(page, '已经做完'))
-    await expect(card(page, '已经做完').getByRole('button', { name: '取消完成', exact: true })).toHaveCount(0)
+    await expect(card(page, '已经做完').getByRole('button', { name: '取消完成', exact: true })).toBeDisabled()
     const fallback = (await write({ type: 'createGoal', title: '无任务成果', standards: ['无需任务'], destination: '' })).result.entityId
     await write({ type: 'achieveGoal', id: fallback, coefficient: 1, reflection: '' })
     const final = await snapshot(`?goalId=${goal}`)
@@ -242,7 +242,7 @@ test.describe('真实任务事务的桌面与手机浏览器验收（受控身�
     await page.getByLabel('执行日期', { exact: true }).fill(tomorrow)
     await save(page)
     await chooseDay(page, tomorrow)
-    await expect(card(page, '保留原行动')).toContainText('计划 ' + tomorrow)
+    await expect(card(page, '保留原行动').locator('.today-task-dates span').first()).toHaveAttribute('title', tomorrow)
     await edit(page, '保留原行动')
     await page.getByLabel('执行日期', { exact: true }).fill(today)
     await save(page)

@@ -73,7 +73,7 @@ test('桌面、中等宽度与手机下主线名称和任务正文不互相挤�
     await page.setViewportSize({ width, height: 954 })
     await page.goto('/adventure')
     await expect(card).toBeVisible()
-    const copy = card.locator('.record-copy')
+    const copy = card.locator('.today-task-copy')
     expect((await copy.boundingBox())!.width).toBeGreaterThan(60)
     const copyBox = (await copy.boundingBox())!, dateBox = (await card.locator('.today-task-dates').boundingBox())!
     expect(copyBox.x + copyBox.width).toBeLessThanOrEqual(dateBox.x)

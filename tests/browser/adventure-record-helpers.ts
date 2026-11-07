@@ -4,7 +4,7 @@ import { expect, type Locator } from '@playwright/test'
 export async function openRecordActions(record: Locator) {
   // Prefer the current page's direct summary. If a navigation is still completing,
   // wait for the specific record rather than clicking a stale element from another page.
-  const summary = record.locator(':scope > .record-summary, :scope > .planning-record-summary').first()
+  const summary = record.locator(':scope > .record-summary, :scope > .planning-record-summary, :scope > .today-task-row > .today-task-copy').first()
   const exists = async () => await summary.count() > 0
   if (!await exists()) {
     await record.waitFor({ state: 'attached' })

@@ -51,17 +51,14 @@ for (const width of [1440, 957, 390]) test(`${width}px 公共布局：今日任�
   } else {
     expect(asideBox.y).toBeGreaterThanOrEqual(taskBox.y + taskBox.height)
   }
-  await expect(card.getByRole('button', { name: '完成', exact: true })).toHaveCount(0)
+  await expect(card.getByRole('button', { name: '完成', exact: true })).toBeVisible()
   await card.getByRole('button', { name: '任务详情：整理本周设计反馈' }).click()
   await expect(card).toContainText('保留说明与完整原安排。')
   await expect(card.getByRole('region', { name: '完整原安排链' })).toHaveCount(0)
   await expect(card.getByRole('button', { name: '编辑任务', exact: true })).toBeVisible()
   await expect(card.getByRole('button', { name: /^更多/ })).toHaveCount(0)
   await expect(card.getByRole('button', { name: '完成', exact: true })).toBeVisible()
-  const primary = card.getByRole('button', { name: '完成', exact: true })
-  await primary.hover()
-  await expect(primary).toHaveCSS('color', 'rgb(255, 255, 255)')
-  await expect(primary).not.toHaveCSS('background-color', 'rgba(0, 0, 0, 0)')
+  await expect(card.locator('.record-actions')).toHaveCount(0)
   await expect(page.locator('.prototype-page a')).toHaveCount(0)
   await expect(page.locator('.adventure-proto-goal article, .adventure-proto-task article, .adventure-proto-mainline-list article article')).toHaveCount(0)
   await expect(page.locator('.prototype-page details')).toHaveCount(0)
@@ -343,7 +340,7 @@ test('手机成功提示正文不挡住任务操作，提示关闭按钮仍可�
     const spacer = document.createElement('div')
     spacer.style.height = '1000px'
     document.querySelector<HTMLElement>('.prototype-page')!.appendChild(spacer)
-    const more = document.querySelector<HTMLElement>('.adventure-proto-task .record-actions button:last-child')!
+    const more = document.querySelector<HTMLElement>('.adventure-proto-task .today-task-edit')!
     const toast = document.querySelector<HTMLElement>('.planning-toast-success')!
     const target = more.getBoundingClientRect(), overlay = toast.getBoundingClientRect()
     window.scrollBy(0, target.y + target.height / 2 - overlay.y - overlay.height / 2)
