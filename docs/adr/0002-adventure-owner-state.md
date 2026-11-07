@@ -1,6 +1,6 @@
 # 人生冒险使用五张关系表和事务事件
 
-状态：2026-10-21 已采纳；五表与 #54、#55 本地实施，奖励合并到完成／达成事件。
+状态：2026-10-21 已采纳；2026-11-07 按 PR #146 当前实现校准初始化与升级入口，五表及事务事件决策不变。
 
 ## 决定
 
@@ -26,4 +26,6 @@ Worker → Supabase PostgREST → PostgreSQL RPC 保持为事务调用链。Work
 
 ## 范围
 
-字段见 [数据库设计](../adventure/backend-database.md)，事务见 [业务逻辑](../adventure/backend-business-logic.md)。五表及 #54 专用 RPC 已建立；未上线阶段的空库初始化入口统一为 `db/adventure/create-planning.sql`，不保留重复升级脚本，接口和验证分别见 [接口契约](../adventure/planning-api.md) 与 [本票验收](../adventure/qa-planning.md)。其余命令按实施票交付。不重建已删除的旧单表，不导入或清理已有验收数据；首页 tasks／schedules 不变。
+字段见 [数据库设计](../adventure/backend-database.md)，事务见 [业务逻辑](../adventure/backend-business-logic.md)。空库依次执行 `db/adventure/create-planning.sql` 与 `db/adventure/list-tasks.sql`；已有五表库使用 `db/adventure/migrations/20261106200055_adventure_today_task_rules.sql`，同一事务替换任务规则函数、补充日期列表索引／RPC与权限并刷新 PostgREST schema，不删除或改写业务行，不重复初始化。
+
+该增量迁移为已存在五表和历史数据提供兼容升级，取代早期“未上线阶段不保留升级脚本”的范围说明。五表结构、账户锁、事件和历史成功回执继续保留；旧任务结束／独立改期／独立迁移不接受新请求，旧成功封套仍可重放。接口及验证见 [接口契约](../adventure/planning-api.md) 和 [今日聚焦验收](../adventure/qa-today.md)。生产升级与发布授权单独核对；本轮不重建旧单表，不导入或清理真实业务数据，首页 tasks／schedules 不变。

@@ -1,6 +1,6 @@
 # 规划与一次性任务接口
 
-> 本文随 #140／#141 更新任务规则；接口变更在集成分支实现，正式验收和生产升级状态单独记录。
+> 本文描述 PR #146 的当前接口，覆盖 #140／#141、#142–#145；最新界面已获用户确认，合并发布及生产升级状态见 [本轮验收](qa-today.md)。
 
 适用 Issue #54、#55、#65、#59、#60、#66、#61、#62；实现和本机隔离验证范围见相应验收报告，现有 Supabase 验收库不在本轮同步。页面读取、生命周期命令与任务完成／取消使用五表事务；账户、规划日期、版本、能力和成长由后端返回。浏览器不能直接调用表或 RPC。
 
@@ -8,7 +8,9 @@
 
 `GET /api/adventure?page=1&pageSize=20&taskRange=today&taskPage=1&taskScope=all&search=&includeTerminal=false`
 
-参数仅允许目标页 `page`（1–1,000,000）、共享页容量 `pageSize`（1–50，默认 20）、任务日期范围 `taskRange`（today／future／past，默认 today）、任务页 `taskPage`（1–1,000,000，默认 1）、`taskScope`（all／focus，默认 all）、`search`（去除首尾空白后最多 100 个 UTF-16 码元，默认空）及 `includeTerminal`（true／false，默认 false），可选 `goalId`（真实目标 UUID）及 `goalTaskPage`（1–1,000,000，默认 1）。首次查询安全初始化账户，不预建独立区，不导入旧单表或演示数据，不触发结算。
+参数仅允许目标页 `page`（1–1,000,000）、共享页容量 `pageSize`（1–50，默认 20）、目标范围 `goalScope`（all／focus，默认 all）、任务日期范围 `taskRange`（today／future／past，默认 today）、任务页 `taskPage`（1–1,000,000，默认 1）、`taskScope`（all／focus，默认 all）、`search`（去除首尾空白后最多 100 个 UTF-16 码元，默认空）及 `includeTerminal`（true／false，默认 false），可选 `goalId`（真实目标 UUID）及 `goalTaskPage`（1–1,000,000，默认 1）。首次查询安全初始化账户，不预建独立区，不导入旧单表或演示数据，不触发结算。
+
+本 GET 保留页面基础数据、目标详情及旧范围任务读取；今日聚焦通过独立 [POST 日期列表](task-list-api.md) 读取，不使用这里的 `taskRange`、`search` 或 `taskProgress` 作为周历列表／进度。日期列表每批10条全部读完后由前端搜索、每页20条，今日总体进度不受搜索影响；目标详情仍沿用本 GET 的读取方式。
 
 可选 `mainlineId`（普通主线 UUID）返回 `mainlineDetail`，将 `goals`、`totalGoals` 和 `page` 限定为该主线全部目标历史（包含终态，独立于显示开关）。`/adventure?mainlineId=<uuid>` 可刷新、分页并进入目标详情；非本账户或系统独立区返回 404。`mainlineDetail` 含状态、结束时间及操作能力，已结束主线只能查看。
 
@@ -24,9 +26,9 @@
 - `taskScope`、`search`、`taskProgress`：当前视图、已提交搜索条件及完整筛选范围的任务进度；分页不截断分母。
 - `goalDetail`：指定 `goalId` 时返回该账户目标的只读详情（包含终态），其 `goal` 含 status、terminatedAt 和冻结 achievement；tasks 按全部日期分页，totalTasks 为当前归属该目标或仍有该目标有效完成事实的未删除任务去重总数；迁出项标注当前归属和冻结完成来源，目标 progress 仍只统计当前归属，taskPage 为 goalTaskPage。与页面同事务、同版本；不属于账户或为 inbox 返回 404。
 - `growth`：总经验、等级、本级进度、升级所需经验、有效行动数、达成目标数，以及七个实时成就的当前计数、差额和点亮结果。
-- `capabilities`、`limits`：页面能力、禁用原因及输入限额。当前未交付操作返回 `allowed=false` 和原因。
+- `capabilities`、`limits`：页面能力、禁用原因及输入限额。停用或当前不具资格的操作返回 `allowed=false` 和原因。
 
-内部使用 `adventure_workspace_read`，持有与基础规划读取相同的账户共享锁；以锁后一次日期统一任务范围、逾期及能力，成长由单一 SQL 函数计算。任务按执行日、创建时间及 ID 排序；在用主线按创建时间及 ID 排序，已结束主线排在其后并按结束时间倒序；目标先按所属主线创建时间及 ID 分组，同归属内进行中在前（先聚焦后未聚焦，再按 `sort_order`、ID），终态目标在组末按终态时间倒序。普通主线与独立目标组各有 3 个聚焦名额；inbox 不可聚焦。`focus`、`moveUp`、`moveDown`、`end`、`delete` 能力由数据库返回，前端不自行判断名额、日期资格或相邻边界。
+内部使用 `adventure_workspace_read`，持有与基础规划读取相同的账户共享锁；以锁后一次日期统一任务范围、逾期及能力，成长由单一 SQL 函数计算。范围任务先按未完成优先，再按执行日、创建时间及 ID 排序；目标详情任务按执行日、创建时间及 ID 排序。在用主线按创建时间及 ID 排序，已结束主线排在其后并按结束时间倒序；目标先按所属主线创建时间及 ID 分组，同归属内进行中在前（先聚焦后未聚焦，再按 `sort_order`、ID），终态目标在组末按终态时间倒序。普通主线与独立目标组各有 3 个聚焦名额；inbox 不可聚焦。`focus`、`moveUp`、`moveDown`、`end`、`delete` 能力由数据库返回，前端不自行判断名额、日期资格或相邻边界。
 
 任务的 completionOrigin 从当前有效完成事件返回 goalId、mainlineId、goalTitle、mainlineName、title、description、plannedOn、occurredOn；无有效完成为 null。它与当前 goalId／goalTitle／mainlineName 分开展示，迁移不重算或改写冻结奖励。
 
@@ -38,7 +40,7 @@
 
 迁移弹窗按候选版本提交，版本不同禁止确认。409 后重读当前事实及候选，清除旧选择，必须重新选择确认；网络结果未知仅重试原封套；成功后查询失败仅重新读取。
 
-任务项含 `rescheduleMin`（服务端当天）、`totalArrangements` 和按发生版本顺序排列的前 5 项 `arrangements` 日期摘要（id、kind、sourceEventId、oldPlannedOn、newPlannedOn、occurredAt）。创建项 oldPlannedOn／sourceEventId 为 null；改期指向上一条创建／改期事件，不指向编辑或迁移。任务列表及目标任务详情可展开日期并进入完整历史；不向列表重复装载历史长说明。
+任务项含 `rescheduleMin`（服务端当天）、`totalArrangements` 和按发生版本顺序排列的前 5 项 `arrangements` 日期摘要（id、kind、sourceEventId、oldPlannedOn、newPlannedOn、occurredAt）。创建项 oldPlannedOn／sourceEventId 为 null；改期指向上一条创建／改期事件，不指向编辑或迁移。目标详情和独立历史入口可进入完整历史；今日聚焦展开只展示说明，不显示重复安排摘要，不向列表重复装载历史长说明。
 
 `GET /api/adventure/task-history?id=<task UUID>&page=1` 返回 version、taskId、title、page、pageSize=5、total 和 items。每项在日期摘要之外返回发生时 title、description、goalId、goalTitle、mainlineId、mainlineName。参数 page 为 1–1,000,000，默认 1，跨 owner／已删除任务返回404。数据库在账户共享锁内读同一版本；只对 service_role 授予函数执行权限，浏览器经 Worker 读取。`/adventure?taskId=<uuid>` 可刷新打开安排历史和分页，不受终态显示开关影响。完整历史存于事件，每页返回上限明确，原始快照不随当前名称或归属变化；单次响应仍受序列化预算约束。
 
@@ -147,7 +149,7 @@ items 仅投影有效 task_completed／goal_achieved，含 id、kind、entityId�
 
 | HTTP | code |
 |---|---|
-| 400 | `INVALID_QUERY`、`INVALID_COMMAND`、`COMMAND_TOO_LARGE`、`MAINLINE_LIMIT`、`FOCUS_LIMIT`、`SAME_DESTINATION`、`READ_ONLY`、`DATE_LOCKED`、`DATE_STARTED`、`RESCHEDULE_PAST`、`SAME_DATE`、`HISTORY_LOCKED`、`TASK_NOT_PENDING`、`CAPACITY_REACHED` |
+| 400 | `INVALID_QUERY`、`INVALID_COMMAND`、`COMMAND_TOO_LARGE`、`MAINLINE_LIMIT`、`FOCUS_LIMIT`、`SAME_DESTINATION`、`READ_ONLY`、`DATE_LOCKED`、`DATE_STARTED`、`RESCHEDULE_PAST`、`SAME_DATE`、`HISTORY_LOCKED`、`TASK_NOT_PENDING`、`PENDING_TASKS`、`CAPACITY_REACHED` |
 | 401／403 | 现有 `AUTH_*` 身份和准入错误 |
 | 404 | `NOT_FOUND`；不区分他人内容与不存在 |
 | 409 | `VERSION_CONFLICT`、`REQUEST_ID_REUSED`、`COMPLETION_CHANGED` |
@@ -155,7 +157,7 @@ items 仅投影有效 task_completed／goal_achieved，含 id、kind、entityId�
 
 命令／预览请求体最多 32 KiB，读取请求体最多等待 5 秒；内部 RPC 响应读取上限 1 MiB，数据库页面序列化预算 1,000,000 字节。超限拒绝，不裁剪历史或回执。数据库账户锁最多等待 3 秒；Worker 上游请求及响应体读取各设 10 秒上限，页面操作总等待最多 15 秒。超时后的命令按结果未知处理。
 
-本模块尚未上线，新环境只执行 `db/adventure/create-planning.sql` 建立当前结构，不串行执行开发阶段的升级脚本。该脚本仅用于空库初始化，不对已有表重复执行；本轮不更新现有验收库结构或数据。五表启用 RLS，无浏览器策略；浏览器角色没有表权限或函数执行权限。事务函数为固定 `search_path` 的 `SECURITY INVOKER`，仅后端角色可执行；后端只授予表的 SELECT／INSERT／UPDATE，不增加 DELETE。
+空库依次执行 `db/adventure/create-planning.sql` 与 `db/adventure/list-tasks.sql`，建立当前五表、事务函数及日期列表；不串行重放开发阶段升级链。已有五表库使用下文增量迁移，不对已有表重复初始化，本轮不修改生产库结构或数据。五表启用 RLS，无浏览器策略；浏览器角色没有表权限或函数执行权限。事务函数为固定 `search_path` 的 `SECURITY INVOKER`，仅后端角色可执行；后端只授予表的 SELECT／INSERT／UPDATE，不增加 DELETE。
 
 ## 统一任务编辑兼容边界（#142）
 
