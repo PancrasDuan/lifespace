@@ -5,7 +5,8 @@ import { localPlanningRpc as rpcOrigin, planningDatabase } from '../support/plan
 
 const database = planningDatabase('lifecycle@example.invalid')
 const { request, read, envelope, send, command } = database
-describe.skipIf(!rpcOrigin)('正式 Worker HTTP → 本机真实 PostgREST → 独立 PostgreSQL 改期事务', () => {
+const edit = (id: string, title: string, plannedOn: string, description = '', destination = '') => ({ type: 'editTask' as const, id, title, description, plannedOn, destination })
+describe.skipIf(!rpcOrigin)('正式 Worker HTTP → 本机真实 PostgREST → 独立 PostgreSQL 统一任务编辑事务', () => {
   beforeEach(() => database.install())
   afterEach(() => database.restore())
 
@@ -13,12 +14,12 @@ describe.skipIf(!rpcOrigin)('正式 Worker HTTP → 本机真实 PostgREST → �
   beforeEach(() => { owner = crypto.randomUUID() })
 
   it('漏做任务改到今天，预览无写入并保留原安排和行动身份', async () => {
-    const id = (await command(owner, { type: 'createTask', title: '继续原行动', description: '原始内容', plannedOn: '2020-01-01', destination: '' })).result.entityId
+    const id = (await database.createHistoricalTask(owner, { type: 'createTask', title: '继续原行动', description: '原始内容', plannedOn: '2020-01-01', destination: '' })).result.entityId
     const before = await read(owner, '?taskRange=past')
-    const change = { type: 'rescheduleTask', id, plannedOn: before.today }
+    const change = edit(id, '继续原行动', before.today, '原始内容')
     const preview = await request(owner, '/api/adventure/preview', { expectedVersion: before.version, command: change })
     expect(preview.status).toBe(200)
-    expect(planningPreviewSchema.parse(await preview.json())).toMatchObject({ operation: 'rescheduleTask', taskId: id, oldPlannedOn: '2020-01-01', newPlannedOn: before.today, requiresConfirmation: true })
+    expect(planningPreviewSchema.parse(await preview.json())).toMatchObject({ requiresConfirmation: false, allowed: true })
     expect(await read(owner, '?taskRange=past')).toEqual(before)
     const value = { requestId: crypto.randomUUID(), expectedVersion: before.version, command: change }
     const response = await request(owner, '/api/adventure/commands', value)
@@ -37,13 +38,13 @@ describe.skipIf(!rpcOrigin)('正式 Worker HTTP → 本机真实 PostgREST → �
   })
   it('连续改期保留完整来源链，编辑和迁移不改写历史，旧 requestId 只返回旧回执', async () => {
     const g = (await command(owner, { type: 'createGoal', destination: '', title: '原目标', standards: ['标准'] })).result.entityId
-    const id = (await command(owner, { type: 'createTask', title: '原名称', description: '原说明', plannedOn: '2020-01-01', destination: g })).result.entityId
+    const id = (await database.createHistoricalTask(owner, { type: 'createTask', title: '原名称', description: '原说明', plannedOn: '2020-01-01', destination: g })).result.entityId
     const before = await read(owner)
-    const first = envelope(before.version, { type: 'rescheduleTask', id, plannedOn: before.today })
+    const first = envelope(before.version, edit(id, '原名称', before.today, '原说明', g))
     const receipt = planningReceiptSchema.parse(await (await send(owner, first)).json())
-    await command(owner, { type: 'editTask', id, title: '新名称', description: '新说明' })
-    await command(owner, { type: 'migrateTask', id, destination: '' })
-    await command(owner, { type: 'rescheduleTask', id, plannedOn: '2099-01-01' })
+    await command(owner, edit(id, '新名称', before.today, '新说明', g))
+    await command(owner, edit(id, '新名称', before.today, '新说明'))
+    await command(owner, edit(id, '新名称', '2099-01-01', '新说明'))
     const after = await read(owner, '?taskRange=future')
     const chain = taskHistorySchema.parse(await (await request(owner, `/api/adventure/task-history?id=${id}`)).json()).items
     expect(chain).toHaveLength(3)
@@ -51,25 +52,25 @@ describe.skipIf(!rpcOrigin)('正式 Worker HTTP → 本机真实 PostgREST → �
     expect(chain[2]).toMatchObject({ sourceEventId: chain[1].id, oldPlannedOn: before.today, newPlannedOn: '2099-01-01', goalId: null, title: '新名称', description: '新说明' })
     expect(await (await send(owner, first)).json()).toEqual(receipt)
     expect(await read(owner, '?taskRange=future')).toEqual(after)
-    const collision = await send(owner, { ...first, command: { type: 'endTask', id } })
+    const collision = await send(owner, { ...first, command: edit(id, '同键不同修改', '2099-01-01') })
     expect(collision.status).toBe(409)
     expect(await collision.json()).toMatchObject({ error: { code: 'REQUEST_ID_REUSED' } })
-    expect((await send(owner, envelope(after.version, { type: 'deleteTask', id }))).status).toBe(400)
+    expect((await request(owner, `/api/adventure/task-history?id=${id}`)).status).toBe(200)
     expect(after.growth).toEqual(before.growth)
   })
 
   it('改到今天后完成只计一次行动；完成须先合法取消再改期，原重试不撤回新安排', async () => {
-    const id = (await command(owner, { type: 'createTask', title: '唯一行动', description: '', plannedOn: '2020-01-01', destination: '' })).result.entityId
+    const id = (await database.createHistoricalTask(owner, { type: 'createTask', title: '唯一行动', description: '', plannedOn: '2020-01-01', destination: '' })).result.entityId
     const before = await read(owner)
-    const move = envelope(before.version, { type: 'rescheduleTask', id, plannedOn: before.today })
+    const move = envelope(before.version, edit(id, '唯一行动', before.today))
     const oldReceipt = await (await send(owner, move)).json()
     const completion = await command(owner, { type: 'completeTask', id })
     let state = await read(owner)
     expect(state.growth).toMatchObject({ totalXp: 1, actions: 1 })
-    expect(state.tasks[0].capabilities.reschedule.allowed).toBe(false)
-    expect((await send(owner, envelope(state.version, { type: 'rescheduleTask', id, plannedOn: '2099-01-01' }))).status).toBe(400)
+    expect(state.tasks[0].capabilities.edit.allowed).toBe(false)
+    expect((await send(owner, envelope(state.version, edit(id, '唯一行动', '2099-01-01')))).status).toBe(400)
     await command(owner, { type: 'cancelTaskCompletion', completionId: completion.result.completionId! })
-    await command(owner, { type: 'rescheduleTask', id, plannedOn: '2099-01-01' })
+    await command(owner, edit(id, '唯一行动', '2099-01-01'))
     state = await read(owner, '?taskRange=future')
     expect(state.growth).toMatchObject({ totalXp: 0, actions: 0 })
     expect(state.tasks).toHaveLength(1)
@@ -78,38 +79,49 @@ describe.skipIf(!rpcOrigin)('正式 Worker HTTP → 本机真实 PostgREST → �
     expect(await read(owner, '?taskRange=future')).toEqual(state)
   })
 
-  it('服务端拒绝过去、同日、非法日期及越权；失败均不写入', async () => {
+  it('服务端拒绝新的过去日期、非法日期及越权，同日期编辑可保存内容', async () => {
     const id = (await command(owner, { type: 'createTask', title: '日期边界', description: '', plannedOn: '2099-01-01', destination: '' })).result.entityId
     const before = await read(owner, '?taskRange=future')
-    for (const [date, code] of [['2020-01-01', 'RESCHEDULE_PAST'], ['2099-01-01', 'SAME_DATE'], ['2026-02-30', 'INVALID_COMMAND']]) {
-      const response = await request(owner, '/api/adventure/commands', { requestId: crypto.randomUUID(), expectedVersion: before.version, command: { type: 'rescheduleTask', id, plannedOn: date } })
+    for (const [date, code] of [['2020-01-01', 'RESCHEDULE_PAST'], ['2026-02-30', 'INVALID_COMMAND']]) {
+      const response = await request(owner, '/api/adventure/commands', { requestId: crypto.randomUUID(), expectedVersion: before.version, command: edit(id, '日期边界', date) })
       expect(response.status).toBe(400)
       expect(await response.json()).toMatchObject({ error: { code } })
       expect(await read(owner, '?taskRange=future')).toEqual(before)
     }
     const other = crypto.randomUUID()
-    expect((await send(other, envelope(0, { type: 'rescheduleTask', id, plannedOn: before.today }))).status).toBe(404)
+    expect((await send(other, envelope(0, edit(id, '日期边界', before.today)))).status).toBe(404)
     expect(await read(owner, '?taskRange=future')).toEqual(before)
+    await command(owner, edit(id, '同日期修改名称', '2099-01-01', '同日期保存说明'))
+    expect((await read(owner, '?taskRange=future')).tasks[0]).toMatchObject({ title: '同日期修改名称', plannedOn: '2099-01-01', description: '同日期保存说明' })
   })
 
-  it('任务与上级终态拒绝改期，历史安排冻结在原归属', async () => {
-    for (const terminal of ['endTask', 'endGoal', 'achieveGoal', 'endMainline'] as const) {
+  it('已完成及终态归属任务拒绝编辑，历史安排冻结；旧独立改期与迁移不可写入', async () => {
+    for (const terminal of ['endGoal', 'achieveGoal', 'endMainline'] as const) {
       const m = (await command(owner, { type: 'createMainline', name: terminal })).result.entityId
       const g = (await command(owner, { type: 'createGoal', destination: m, title: terminal, standards: ['标准'] })).result.entityId
-      const id = (await command(owner, { type: 'createTask', title: terminal, description: '', plannedOn: '2099-01-01', destination: g })).result.entityId
-      await command(owner, terminal === 'achieveGoal' ? { type: terminal, id: g, coefficient: 1, reflection: '' } : { type: terminal, id: terminal === 'endMainline' ? m : terminal === 'endGoal' ? g : id })
-      const state = await read(owner, '?taskRange=future&includeTerminal=true')
-      const response = await send(owner, envelope(state.version, { type: 'rescheduleTask', id, plannedOn: state.today }))
+      const today = (await read(owner)).today
+      const id = (await command(owner, { type: 'createTask', title: terminal, description: '', plannedOn: today, destination: g })).result.entityId
+      await command(owner, { type: 'completeTask', id })
+      await command(owner, terminal === 'achieveGoal' ? { type: terminal, id: g, coefficient: 1, reflection: '' } : { type: terminal, id: terminal === 'endMainline' ? m : g })
+      const state = await read(owner, '?includeTerminal=true')
+      const response = await send(owner, envelope(state.version, edit(id, terminal, '2099-01-01', '', g)))
       expect(response.status).toBe(400)
-      expect(await response.json()).toMatchObject({ error: { code: 'READ_ONLY' } })
-      expect(await read(owner, '?taskRange=future&includeTerminal=true')).toEqual(state)
+      expect(await read(owner, '?includeTerminal=true')).toEqual(state)
+      const history = taskHistorySchema.parse(await (await request(owner, `/api/adventure/task-history?id=${id}`)).json())
+      expect(history.items[0]).toMatchObject({ goalId: g, mainlineId: m, newPlannedOn: today })
     }
+    const today = (await read(owner)).today
+    const id = (await command(owner, { type: 'createTask', title: '不再单独结束', description: '', plannedOn: today, destination: '' })).result.entityId
+    const before = await read(owner)
+    expect((await send(owner, envelope(before.version, { type: 'rescheduleTask', id, plannedOn: '2099-01-01' }))).status).toBe(400)
+    expect((await send(owner, envelope(before.version, { type: 'migrateTask', id, destination: '' }))).status).toBe(400)
+    expect(await read(owner)).toEqual(before)
   })
 
   it('并发改期和同 key 重试只执行一次；与完成竞争保持版本、安排和奖励一致', async () => {
-    const id = (await command(owner, { type: 'createTask', title: '竞争安排', description: '', plannedOn: '2020-01-01', destination: '' })).result.entityId
+    const id = (await database.createHistoricalTask(owner, { type: 'createTask', title: '竞争安排', description: '', plannedOn: '2020-01-01', destination: '' })).result.entityId
     const before = await read(owner)
-    const value = envelope(before.version, { type: 'rescheduleTask', id, plannedOn: before.today })
+    const value = envelope(before.version, edit(id, '竞争安排', before.today))
     const responses = await Promise.all([send(owner, value), send(owner, value)])
     expect(responses.map(item => item.status)).toEqual([200, 200])
     expect(await responses[0].json()).toEqual(await responses[1].json())
@@ -117,7 +129,7 @@ describe.skipIf(!rpcOrigin)('正式 Worker HTTP → 本机真实 PostgREST → �
     expect(state.version).toBe(before.version + 1)
     expect(state.tasks[0].arrangements).toHaveLength(2)
     const contenders = await Promise.all([
-      send(owner, envelope(state.version, { type: 'rescheduleTask', id, plannedOn: '2099-01-01' })),
+      send(owner, envelope(state.version, edit(id, '竞争安排', '2099-01-01'))),
       send(owner, envelope(state.version, { type: 'completeTask', id })),
     ])
     expect(contenders.map(item => item.status).sort()).toEqual([200, 409])
@@ -131,25 +143,27 @@ describe.skipIf(!rpcOrigin)('正式 Worker HTTP → 本机真实 PostgREST → �
     expect(tasks[0].arrangements).toHaveLength(completed ? 2 : 3)
   })
 
-  it('改期与结束／取消竞争只允许一个版本获胜', async () => {
-    for (const contender of ['endTask', 'cancelTaskCompletion'] as const) {
+  it('编辑与删除／取消竞争只允许一个版本获胜', async () => {
+    for (const contender of ['deleteTask', 'cancelTaskCompletion'] as const) {
       const today = (await read(owner)).today
-      const id = (await command(owner, { type: 'createTask', title: contender, description: '', plannedOn: today, destination: '' })).result.entityId
+      const plannedOn = contender === 'deleteTask' ? '2099-01-01' : today
+      const id = (await command(owner, { type: 'createTask', title: contender, description: '', plannedOn, destination: '' })).result.entityId
       const completed = contender === 'cancelTaskCompletion' ? await command(owner, { type: 'completeTask', id }) : undefined
       const state = await read(owner)
       const results = await Promise.all([
-        send(owner, envelope(state.version, { type: 'rescheduleTask', id, plannedOn: '2099-01-01' })),
-        send(owner, envelope(state.version, completed ? { type: 'cancelTaskCompletion', completionId: completed.result.completionId! } : { type: 'endTask', id })),
+        send(owner, envelope(state.version, edit(id, contender, '2099-01-02'))),
+        send(owner, envelope(state.version, completed ? { type: 'cancelTaskCompletion', completionId: completed.result.completionId! } : { type: 'deleteTask', id })),
       ])
       expect(results.filter(result => result.status === 200)).toHaveLength(1)
       expect(results.filter(result => result.status !== 200)).toHaveLength(1)
+      expect(results.every(result => [200, 400, 409].includes(result.status))).toBe(true)
       expect((await read(owner)).version).toBe(state.version + 1)
     }
   })
   it('正式 HTTP 在日期更新后的事件写入失败整笔回滚，未知结果原封套重试仍无半安排', async () => {
-    const id = (await command(owner, { type: 'createTask', title: 'reschedule-http-failpoint', description: '', plannedOn: '2020-01-01', destination: '' })).result.entityId
+    const id = (await database.createHistoricalTask(owner, { type: 'createTask', title: 'reschedule-http-failpoint', description: '', plannedOn: '2020-01-01', destination: '' })).result.entityId
     const before = await read(owner, '?taskRange=past')
-    const value = envelope(before.version, { type: 'rescheduleTask', id, plannedOn: before.today })
+    const value = envelope(before.version, edit(id, 'reschedule-http-failpoint', before.today))
     for (let attempt = 0; attempt < 2; attempt++) {
       const response = await send(owner, value)
       expect(response.status).toBe(503)
@@ -160,9 +174,9 @@ describe.skipIf(!rpcOrigin)('正式 Worker HTTP → 本机真实 PostgREST → �
   })
 
   it('连续大内容改期的安排链分页完整、不重复，任务列表保持可读且历史查询账户隔离', async () => {
-    const id = (await command(owner, { type: 'createTask', title: '分页历史', description: '原始说明'.repeat(1000), plannedOn: '2020-01-01', destination: '' })).result.entityId
+    const id = (await database.createHistoricalTask(owner, { type: 'createTask', title: '分页历史', description: '原始说明'.repeat(1000), plannedOn: '2020-01-01', destination: '' })).result.entityId
     const today = (await read(owner)).today
-    for (let i = 0; i < 100; i++) await command(owner, { type: 'rescheduleTask', id, plannedOn: i % 2 === 0 ? today : '2099-01-01' })
+    for (let i = 0; i < 100; i++) await command(owner, edit(id, '分页历史', i % 2 === 0 ? today : '2099-01-01', '原始说明'.repeat(1000)))
     const state = await read(owner, '?taskRange=future')
     expect(state.tasks[0]).toMatchObject({ id, totalArrangements: 101 })
     expect(state.tasks[0].arrangements).toHaveLength(5)

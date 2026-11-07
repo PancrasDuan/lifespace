@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import { listLedger, detailLedger, createLedger, createLedgerEntry, createLedgerTransfer, refundLedger, previewLedgerDelete, deleteLedger, listLedgerAccounts, readLedgerAccounts, createLedgerAccount, updateLedgerAccount } from './ledger'
-import { readRewardSource, readGrowth, readTaskHistory, readMigrationOptions, readPlanning, previewPlanning, commandPlanning } from './adventure/planning'
+import { readTaskList, readRewardSource, readGrowth, readTaskHistory, readMigrationOptions, readPlanning, previewPlanning, commandPlanning } from './adventure/planning'
 import { readHoroscope, type HoroscopeTimings } from './horoscope'
 import { readTasks } from './tasks'
 import { ApiError } from './upstream'
@@ -72,6 +72,7 @@ app.post('/api/ledger/entries/:id/refunds', refundLedger)
 app.get('/api/ledger/entries/:id/delete-preview', previewLedgerDelete)
 app.post('/api/ledger/entries/:id/delete', deleteLedger)
 app.get('/api/adventure', readPlanning)
+app.post('/api/adventure/tasks/list', readTaskList)
 app.get('/api/adventure/migration-options', readMigrationOptions)
 app.get('/api/adventure/task-history', readTaskHistory)
 app.get('/api/adventure/growth', readGrowth)

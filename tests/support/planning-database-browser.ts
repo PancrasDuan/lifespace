@@ -13,6 +13,7 @@ export function planningDatabaseBrowser() {
   const snapshot = (query = '') => database.read(owner, query)
   return {
     request, snapshot,
+    createHistoricalTask: (command: Parameters<typeof database.createHistoricalTask>[1], completedOn?: string) => database.createHistoricalTask(owner, command, completedOn),
     async install(context: BrowserContext) {
       owner = crypto.randomUUID()
       database.install({ browserOwner: owner })

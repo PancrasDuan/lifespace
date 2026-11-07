@@ -5,13 +5,14 @@ import type { AuthEnv, Identity } from '../auth'
 import { readBoundedBody, BodyLimitError } from '../read-body'
 import { ApiError } from '../upstream'
 import {
-  taskHistorySchema, migrationOptionsSchema, planningEnvelopeSchema, planningPageSchema, planningReceiptSchema, taskRangeSchema, taskScopeSchema, planningSearchSchema,
+  taskListInputSchema, taskListSchema, taskHistorySchema, migrationOptionsSchema, planningEnvelopeSchema, planningPageSchema, planningReceiptSchema, taskRangeSchema, taskScopeSchema, planningSearchSchema,
   planningPreviewInputSchema, planningPreviewSchema,
 } from '../../src/shared/adventure-planning'
 
 type PlanningContext = Context<{ Bindings: AuthEnv; Variables: { identity: Identity } }>
 const unavailable = () => new ApiError('ADVENTURE_UNAVAILABLE', '暂时无法读取人生冒险，请稍后重试', 503)
 const errors = {
+  PENDING_TASKS: [400, '请先删除未完成任务，或在编辑任务中移到其他在用目标／独立任务'],
   VERSION_CONFLICT: [409, '数据已更新，请重新读取后确认操作'],
   REQUEST_ID_REUSED: [409, '请求编号已用于其他操作，请重新确认'],
   SAME_DESTINATION: [400, '当前归属无需迁移'],
@@ -21,7 +22,7 @@ const errors = {
   READ_ONLY: [400, '内容已进入终态，只能查看'],
   RESCHEDULE_PAST: [400, '只能改到服务端今天或未来，不能补写过去完成'],
   SAME_DATE: [400, '新日期与当前执行日期相同，无需改期'],
-  DATE_LOCKED: [400, '仅能完成今天的安排或取消今天的完成'],
+  DATE_LOCKED: [400, '不能提前完成未来安排，且仅能取消今天的完成'],
   TASK_NOT_PENDING: [400, '仅待完成任务可以执行此操作'],
   HISTORY_LOCKED: [400, '任务已有完成或历史安排，不能按误建删除'],
   DATE_STARTED: [400, '执行日已到，不能按误建删除；不再执行可选择结束'],
@@ -107,7 +108,7 @@ export async function commandPlanning(c: PlanningContext) {
 }
 
 export async function readMigrationOptions(c: PlanningContext) {
-  const parsed = z.strictObject({ kind: z.enum(['goal', 'task']), id: z.uuid(), page: z.coerce.number().int().min(1).max(1_000_000).default(1) }).safeParse(c.req.query())
+  const parsed = z.strictObject({ kind: z.literal('goal'), id: z.uuid(), page: z.coerce.number().int().min(1).max(1_000_000).default(1) }).safeParse(c.req.query())
   if (!parsed.success) throw new ApiError('INVALID_QUERY', '迁移候选参数无效', 400)
   return c.json(await rpc(c, 'adventure_migration_options', { p_kind: parsed.data.kind, p_id: parsed.data.id, p_page: parsed.data.page }, migrationOptionsSchema))
 }
@@ -128,4 +129,12 @@ export async function readRewardSource(c: PlanningContext) {
   const parsed = rewardSourceQuerySchema.safeParse(c.req.query())
   if (!parsed.success) throw new ApiError('INVALID_QUERY', '奖励来源分页参数无效', 400)
   return c.json(await rpc(c, 'adventure_reward_source', { p_event: parsed.data.id, p_page: parsed.data.page, p_version: parsed.data.version ?? null }, rewardSourceSchema))
+}
+
+export async function readTaskList(c: PlanningContext) {
+  if (Object.keys(c.req.query()).length) throw new ApiError('INVALID_QUERY', '任务查询条件请放入请求体', 400)
+  const value = await input(c, taskListInputSchema)
+  return c.json(await rpc(c, 'adventure_task_list', {
+    p_date: value.date, p_scope: value.scope, p_expected_version: value.expectedVersion, p_today: value.today, p_page: value.page,
+  }, taskListSchema))
 }

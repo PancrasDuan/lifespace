@@ -34,6 +34,7 @@ export async function planningFixture(context: BrowserContext, initial = emptyPl
   let page = structuredClone(initial)
   let saved = page
   let queryFailures = 0
+  let taskQueryFailures = 0
   let loseResponse = false
   let conflict = false
   let stale = false
@@ -47,6 +48,12 @@ export async function planningFixture(context: BrowserContext, initial = emptyPl
       const query = new URL(route.request().url()).searchParams
       const task = page.tasks.find(item => item.id === query.get('id'))
       return route.fulfill({ json: { version: page.version, taskId: query.get('id'), title: task?.title ?? '任务', page: Number(query.get('page') ?? 1), pageSize: 5, total: 0, items: [] } })
+    }
+    if (new URL(route.request().url()).pathname === '/api/adventure/tasks/list') {
+      if (taskQueryFailures > 0) { taskQueryFailures--; return route.fulfill({ status: 503, json: { error: { message: '暂时无法读取当天任务' } } }) }
+      const request = route.request().postDataJSON() as { date: string; scope: string; page: number }
+      return route.fulfill({ json: { version: page.version, today: page.today, date: request.date, scope: request.scope, page: request.page, pageSize: 10,
+        total: page.tasks.length, tasks: page.tasks.slice((request.page - 1) * 10, request.page * 10), progress: page.taskProgress } })
     }
     if (route.request().method() === 'GET') {
       const delay = queryDelay
@@ -86,6 +93,7 @@ export async function planningFixture(context: BrowserContext, initial = emptyPl
     saved(value: PlanningPage) { saved = structuredClone(value) },
     show(value: PlanningPage) { page = structuredClone(value) },
     failNextQuery() { queryFailures++ },
+    failNextTaskQuery() { taskQueryFailures++ },
     loseNextResponse() { loseResponse = true },
     conflictNext() { conflict = true },
     staleQueries(value: boolean) { stale = value },

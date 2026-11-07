@@ -73,12 +73,12 @@ test('桌面、中等宽度与手机下主线名称和任务正文不互相挤�
     await page.setViewportSize({ width, height: 954 })
     await page.goto('/adventure')
     await expect(card).toBeVisible()
-    const copy = card.locator('.record-copy')
-    expect((await copy.boundingBox())!.width).toBeGreaterThan(130)
+    const copy = card.locator('.today-task-copy')
+    expect((await copy.boundingBox())!.width).toBeGreaterThan(60)
+    const copyBox = (await copy.boundingBox())!, dateBox = (await card.locator('.today-task-dates').boundingBox())!
+    expect(copyBox.x + copyBox.width).toBeLessThanOrEqual(dateBox.x)
     await openRecordActions(card)
-    const before = (await card.boundingBox())!.height
-    await card.getByRole('button', { name: /^更多/ }).click()
-    expect((await card.boundingBox())!.height).toBeCloseTo(before, 0)
+    await expect(card.getByRole('button', { name: /^更多/ })).toHaveCount(0)
     await expect(card).toContainText('用于成长流水分页和实时成就验收。')
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
     await page.getByRole('button', { name: '主线与目标', exact: true }).click()

@@ -41,18 +41,17 @@ test('排序版本冲突重读且等待用户再次操作，不自动重放', as
 })
 
 
-test('搜索读取失败后的恢复保留本次关键词，不返回旧筛选', async ({ page, context }) => {
+test('日期读取失败后的恢复保留本次关键词，不返回旧筛选', async ({ page, context }) => {
   const state = { ...initial, capabilities: { ...initial.capabilities, createTask: allowed } }
   const server = await planningFixture(context, state)
   await page.goto('/adventure')
   await page.getByLabel('搜索任务', { exact: true }).fill('跑步')
-  server.failNextQuery()
-  await page.getByLabel('搜索任务', { exact: true }).press('Enter')
+  server.failNextTaskQuery()
+  await page.getByRole('button', { name: '下一周', exact: true }).click()
   await expect(page.getByRole('alert')).toContainText('暂时无法读取')
-  server.show({ ...state, search: '跑步' })
-  const retried = page.waitForRequest(request => request.method() === 'GET' && new URL(request.url()).pathname === '/api/adventure')
-  await page.getByRole('button', { name: '重新读取', exact: true }).click()
-  expect(new URL((await retried).url()).searchParams.get('search')).toBe('跑步')
-  await expect(page.getByRole('button', { name: '重新读取', exact: true })).toHaveCount(0)
+  const retried = page.waitForRequest(request => request.method() === 'POST' && new URL(request.url()).pathname === '/api/adventure/tasks/list')
+  await page.getByRole('button', { name: '重新读取任务', exact: true }).click()
+  expect(new URL((await retried).url()).search).toBe('')
+  await expect(page.getByRole('button', { name: '重新读取任务', exact: true })).toHaveCount(0)
   await expect(page.getByLabel('搜索任务', { exact: true })).toHaveValue('跑步')
 })

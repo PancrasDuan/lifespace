@@ -1,0 +1,80 @@
+/* Approved Today A surface. Keep its controls independent of legacy Record styles. */
+.adventure-page.prototype-page .today-tasks { width: 100%; min-width: 0; overflow-anchor: none; color: #263a2d; line-height: normal; }
+/* Hide the page scrollbar without disabling wheel, keyboard or touch scrolling. */
+html:has(.adventure-page.prototype-page) { scrollbar-width: none; }
+html:has(.adventure-page.prototype-page)::-webkit-scrollbar { display: none; }
+.adventure-page.prototype-page .today-calendar,
+.adventure-page.prototype-page .today-list { background: #fff; border: 1px solid #e2e9df; border-radius: 16px; }
+.adventure-page.prototype-page .today-calendar { padding: 18px 20px; }
+.adventure-page.prototype-page .today-calendar-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.adventure-page.prototype-page .today-calendar-head > div:first-child { display: flex; align-items: baseline; gap: 10px; }
+.adventure-page.prototype-page .today-calendar-head strong { font-size: 15px; }
+.adventure-page.prototype-page .today-calendar-head span { font-size: 11px; color: #879587; }
+.adventure-page.prototype-page .today-calendar-actions { display: flex; align-items: center; gap: 4px; }
+.adventure-page.prototype-page .today-calendar-actions button { display: grid; place-items: center; width: 30px; height: 30px; padding: 0; border: 0; background: transparent; color: #647866; border-radius: 7px; }
+.adventure-page.prototype-page .today-calendar-actions button:hover { background: #edf4e9; }
+.adventure-page.prototype-page .today-calendar-actions .today-back { width: auto; padding: 0 8px; font-size: 11px; color: #52764f; white-space: nowrap; }
+.adventure-page.prototype-page .today-days { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 7px; margin-top: 15px; }
+.adventure-page.prototype-page .today-days button { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; min-height: 74px; padding: 9px 0; background: #f7f9f5; border: 1px solid transparent; border-radius: 10px; color: #6b7d6c; }
+.adventure-page.prototype-page .today-days button span { font-size: 11px; white-space: nowrap; }
+.adventure-page.prototype-page .today-days button strong { font-size: 16px; font-weight: 500; }
+.adventure-page.prototype-page .today-days button small { font-size: 9px; line-height: 1; color: #52764f; }
+.adventure-page.prototype-page .today-days button[aria-pressed="false"]:hover:not(:disabled) { background: #f7f9f5; }
+.adventure-page.prototype-page .today-days button[aria-pressed="true"] { background: #e6f0e4; border-color: #aac4a6; color: #315d36; }
+.adventure-page.prototype-page .today-days button[aria-pressed="true"] strong { font-weight: 700; }
+.adventure-page.prototype-page .today-list { padding: 22px; margin-top: 16px; }
+.adventure-page.prototype-page .today-list-heading { display: flex; align-items: center; justify-content: space-between; gap: 15px; }
+.adventure-page.prototype-page .today-list-heading h2 { margin: 0; font-size: 17px; font-weight: 600; }
+.adventure-page.prototype-page .today-list-heading p { margin: 6px 0 0; color: #829183; font-size: 11px; line-height: normal; }
+.adventure-page.prototype-page .today-search { display: flex; align-items: center; gap: 6px; min-width: 0; width: 155px; min-height: 39px; padding: 9px 10px; background: transparent; border: 1px solid #e0e8dd; border-radius: 9px; color: #8b9a8a; }
+.adventure-page.prototype-page .today-search input { min-width: 0; width: 100%; padding: 1px 2px; border: 0; border-radius: 0; background: transparent; font: inherit; font-size: 12px; color: inherit; }
+.adventure-page.prototype-page .today-search input::placeholder { color: #757575; }
+.adventure-page.prototype-page .today-search:focus-within { outline: 2px solid #52764f; outline-offset: 2px; }
+.adventure-page.prototype-page .today-search input:focus { outline: 0; }
+.adventure-page.prototype-page .today-progress { margin: 21px 0 4px; }
+.adventure-page.prototype-page .today-progress > div:first-child { display: flex; justify-content: space-between; font-size: 11px; color: #6e806f; font-variant-numeric: tabular-nums; }
+.adventure-page.prototype-page .today-progress strong { font-weight: 600; color: #52764f; }
+.adventure-page.prototype-page .today-progress .adventure-proto-progress { height: 5px; background: #edf2e9; border-radius: 9px; margin-top: 8px; }
+.adventure-page.prototype-page .today-progress .adventure-proto-progress span { background: #85a980; border-radius: 9px; }
+.adventure-page.prototype-page .today-task-group { margin-top: 22px; }
+.adventure-page.prototype-page .today-task-group h3 { display: flex; align-items: center; gap: 7px; margin: 0 0 9px; color: #617662; font-size: 12px; font-weight: 600; }
+.adventure-page.prototype-page .today-task-group h3 span { font-size: 10px; color: #9aa99a; font-weight: 400; }
+.adventure-page.prototype-page .today-task-list { border-top: 1px solid #edf1eb; }
+.adventure-page.prototype-page .today-task-record { border-bottom: 1px solid #edf1eb; }
+.adventure-page.prototype-page .today-task-row { display: flex; align-items: flex-start; gap: 12px; padding: 13px 3px; }
+.adventure-page.prototype-page .today-task-check { display: grid; place-items: center; flex: none; width: 24px; height: 24px; min-height: 24px; margin-top: 4px; padding: 0; border: 0; background: transparent; color: #9cad9b; }
+.adventure-page.prototype-page .today-task-check:hover:not(:disabled) { background: transparent; }
+.adventure-page.prototype-page .today-task-record.is-completed .today-task-check { background: #e2eee0; color: #52764f; border-radius: 50%; }
+.adventure-page.prototype-page .today-task-copy { display: grid; align-items: normal; justify-content: normal; gap: 4px; flex: 1; text-align: left; border: 0; background: transparent; padding: 0; min-width: 0; }
+.adventure-page.prototype-page .today-task-copy span { font-size: 10px; color: #8a9a89; overflow-wrap: anywhere; }
+.adventure-page.prototype-page .today-task-copy strong { font-size: 13px; font-weight: 500; color: #344a37; overflow-wrap: anywhere; white-space: pre-wrap; }
+.adventure-page.prototype-page .today-task-record.is-completed .today-task-copy strong { color: #7d8f7c; }
+.adventure-page.prototype-page .today-task-copy:hover:not(:disabled) { background: transparent; }
+.adventure-page.prototype-page .today-task-dates { display: grid; flex: none; gap: 5px; text-align: right; color: #788b79; font-size: 11px; line-height: 1.4; white-space: nowrap; padding-top: 3px; font-variant-numeric: tabular-nums; }
+.adventure-page.prototype-page .today-task-edit { display: inline-flex; align-items: center; justify-content: center; gap: 4px; flex: none; min-height: 30px; margin-top: -2px; padding: 5px 8px; border: 1px solid #dce7da; border-radius: 7px; background: #fff; color: #52764f; font-size: 11px; }
+.adventure-page.prototype-page .today-task-edit:hover:not(:disabled),
+.adventure-page.prototype-page .today-task-expand:hover:not(:disabled) { background: #edf4e9; }
+.adventure-page.prototype-page .today-task-expand { display: grid; place-items: center; flex: none; width: 28px; height: 28px; min-height: 28px; margin-top: -1px; padding: 0; border: 0; border-radius: 7px; background: transparent; color: #91a08f; }
+.adventure-page.prototype-page .today-task-expand svg.is-open { transform: rotate(180deg); }
+.adventure-page.prototype-page .today-task-details { padding: 0 3px 15px 39px; font-size: 12px; color: #6b7d6c; }
+.adventure-page.prototype-page .today-task-details p { margin: 0 0 12px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
+.adventure-page.prototype-page .today-empty { padding: 36px 0 16px; text-align: center; font-size: 12px; color: #819180; }
+.adventure-page.prototype-page .today-tasks button:focus-visible { outline: 2px solid #52764f; outline-offset: 3px; }
+.adventure-dialog .task-editor-footer .delete-task { margin-right: auto; color: #9a5550; }
+/* A task expansion must not make the browser anchor a following sidebar/footer. */
+.adventure-page.prototype-page { overflow-anchor: none; }
+@media (max-width: 720px) {
+  .adventure-page.prototype-page .today-calendar { padding: 14px 12px; }
+  .adventure-page.prototype-page .today-calendar-head > div:first-child { display: block; }
+  .adventure-page.prototype-page .today-calendar-head span { display: block; margin-top: 4px; }
+  .adventure-page.prototype-page .today-days { gap: 3px; }
+  .adventure-page.prototype-page .today-days button { min-height: 65px; }
+  .adventure-page.prototype-page .today-list { padding: 16px 14px; }
+  .adventure-page.prototype-page .today-list-heading { align-items: flex-start; flex-direction: column; }
+  .adventure-page.prototype-page .today-search { width: 100%; }
+  .adventure-page.prototype-page .today-task-row { gap: 8px; }
+  .adventure-page.prototype-page .today-task-dates { font-size: 10px; }
+  .adventure-page.prototype-page .today-task-edit { min-width: 32px; min-height: 32px; padding: 5px; }
+  .adventure-page.prototype-page .today-task-edit span { display: none; }
+  .adventure-page.prototype-page .today-task-edit svg { width: 15px; height: 15px; }
+}

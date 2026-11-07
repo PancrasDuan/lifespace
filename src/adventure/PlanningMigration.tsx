@@ -4,7 +4,7 @@ import type { MigrationOptions, PlanningCommand } from '../shared/adventure-plan
 import { planningApi } from './planning-api'
 
 export function PlanningMigration({ kind, id, title, version, blocked, action, close }: {
-  kind: 'goal' | 'task'; id: string; title: string; version: number; blocked: boolean;
+  kind: 'goal'; id: string; title: string; version: number; blocked: boolean;
   action: (command: PlanningCommand, expectedVersion?: number) => Promise<boolean>; close: () => void
 }) {
   const identity = useVerifiedIdentity()
@@ -29,7 +29,7 @@ export function PlanningMigration({ kind, id, title, version, blocked, action, c
   return <form onSubmit={event => {
     event.preventDefault()
     if (!blocked && !stale && options && selected?.capability.allowed && destination !== undefined) {
-      void action({ type: kind === 'goal' ? 'migrateGoal' : 'migrateTask', id, destination }, options.version).then(saved => { if (saved) close() })
+      void action({ type: 'migrateGoal', id, destination }, options.version).then(saved => { if (saved) close() })
     }
   }}>
     <h3>{title}</h3><p>保留身份、状态和执行日期；历史完成及冻结奖励保留原归属，迁移不发奖。</p>

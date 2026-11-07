@@ -1,12 +1,16 @@
 # 规划与一次性任务接口
 
+> 本文描述 PR #146 的当前接口，覆盖 #140／#141、#142–#145；最新界面已获用户确认，合并发布及生产升级状态见 [本轮验收](qa-today.md)。
+
 适用 Issue #54、#55、#65、#59、#60、#66、#61、#62；实现和本机隔离验证范围见相应验收报告，现有 Supabase 验收库不在本轮同步。页面读取、生命周期命令与任务完成／取消使用五表事务；账户、规划日期、版本、能力和成长由后端返回。浏览器不能直接调用表或 RPC。
 
 ## 页面查询
 
 `GET /api/adventure?page=1&pageSize=20&taskRange=today&taskPage=1&taskScope=all&search=&includeTerminal=false`
 
-参数仅允许目标页 `page`（1–1,000,000）、共享页容量 `pageSize`（1–50，默认 20）、任务日期范围 `taskRange`（today／future／past，默认 today）、任务页 `taskPage`（1–1,000,000，默认 1）、`taskScope`（all／focus，默认 all）、`search`（去除首尾空白后最多 100 个 UTF-16 码元，默认空）及 `includeTerminal`（true／false，默认 false），可选 `goalId`（真实目标 UUID）及 `goalTaskPage`（1–1,000,000，默认 1）。首次查询安全初始化账户，不预建独立区，不导入旧单表或演示数据，不触发结算。
+参数仅允许目标页 `page`（1–1,000,000）、共享页容量 `pageSize`（1–50，默认 20）、目标范围 `goalScope`（all／focus，默认 all）、任务日期范围 `taskRange`（today／future／past，默认 today）、任务页 `taskPage`（1–1,000,000，默认 1）、`taskScope`（all／focus，默认 all）、`search`（去除首尾空白后最多 100 个 UTF-16 码元，默认空）及 `includeTerminal`（true／false，默认 false），可选 `goalId`（真实目标 UUID）及 `goalTaskPage`（1–1,000,000，默认 1）。首次查询安全初始化账户，不预建独立区，不导入旧单表或演示数据，不触发结算。
+
+本 GET 保留页面基础数据、目标详情及旧范围任务读取；今日聚焦通过独立 [POST 日期列表](task-list-api.md) 读取，不使用这里的 `taskRange`、`search` 或 `taskProgress` 作为周历列表／进度。日期列表每批10条全部读完后由前端搜索、每页20条，今日总体进度不受搜索影响；目标详情仍沿用本 GET 的读取方式。
 
 可选 `mainlineId`（普通主线 UUID）返回 `mainlineDetail`，将 `goals`、`totalGoals` 和 `page` 限定为该主线全部目标历史（包含终态，独立于显示开关）。`/adventure?mainlineId=<uuid>` 可刷新、分页并进入目标详情；非本账户或系统独立区返回 404。`mainlineDetail` 含状态、结束时间及操作能力，已结束主线只能查看。
 
@@ -18,13 +22,13 @@
 - `goals`：默认本页进行中真实目标；开启 `includeTerminal` 后在所属主线组末尾追加已达成／已结束目标。每项含名称、`standards`、归属、创建时间、状态、终态时间、`focused`、`sortOrder`、全日期目标任务 `progress` 及操作能力；不返回 inbox。
 - `page`、`pageSize`、`totalGoals`：当前页及全量目标总数；列表为空不代表总数为零。
 - `destinations`：可用普通主线 ID；归属留空即默认独立目标，不显示独立身份选项。
-- `tasks`、`totalTasks`、`taskPage`、`taskRange`：当前范围和页的任务、全量总数；每项含名称、说明、执行日、状态、真实目标或独立身份、当前具体完成事件 ID、冻结 `reward`（无有效完成为 null）、服务端逾期标记，以及编辑、完成、取消、迁移、结束、误建删除等操作能力。逻辑删除任务不返回。
+- `tasks`、`totalTasks`、`taskPage`、`taskRange`：当前范围和页的任务、全量总数；每项含名称、说明、执行日、状态、真实目标或独立身份、当前具体完成事件 ID、冻结 `reward`（无有效完成为 null）、服务端逾期标记，以及编辑、完成、取消和删除能力；保留的旧改期／迁移／结束能力字段始终不可用于新操作。逻辑删除任务不返回。
 - `taskScope`、`search`、`taskProgress`：当前视图、已提交搜索条件及完整筛选范围的任务进度；分页不截断分母。
 - `goalDetail`：指定 `goalId` 时返回该账户目标的只读详情（包含终态），其 `goal` 含 status、terminatedAt 和冻结 achievement；tasks 按全部日期分页，totalTasks 为当前归属该目标或仍有该目标有效完成事实的未删除任务去重总数；迁出项标注当前归属和冻结完成来源，目标 progress 仍只统计当前归属，taskPage 为 goalTaskPage。与页面同事务、同版本；不属于账户或为 inbox 返回 404。
 - `growth`：总经验、等级、本级进度、升级所需经验、有效行动数、达成目标数，以及七个实时成就的当前计数、差额和点亮结果。
-- `capabilities`、`limits`：页面能力、禁用原因及输入限额。当前未交付操作返回 `allowed=false` 和原因。
+- `capabilities`、`limits`：页面能力、禁用原因及输入限额。停用或当前不具资格的操作返回 `allowed=false` 和原因。
 
-内部使用 `adventure_workspace_read`，持有与基础规划读取相同的账户共享锁；以锁后一次日期统一任务范围、逾期及能力，成长由单一 SQL 函数计算。任务按执行日、创建时间及 ID 排序；在用主线按创建时间及 ID 排序，已结束主线排在其后并按结束时间倒序；目标先按所属主线创建时间及 ID 分组，同归属内进行中在前（先聚焦后未聚焦，再按 `sort_order`、ID），终态目标在组末按终态时间倒序。普通主线与独立目标组各有 3 个聚焦名额；inbox 不可聚焦。`focus`、`moveUp`、`moveDown`、`end`、`delete` 能力由数据库返回，前端不自行判断名额、日期资格或相邻边界。
+内部使用 `adventure_workspace_read`，持有与基础规划读取相同的账户共享锁；以锁后一次日期统一任务范围、逾期及能力，成长由单一 SQL 函数计算。范围任务先按未完成优先，再按执行日、创建时间及 ID 排序；目标详情任务按执行日、创建时间及 ID 排序。在用主线按创建时间及 ID 排序，已结束主线排在其后并按结束时间倒序；目标先按所属主线创建时间及 ID 分组，同归属内进行中在前（先聚焦后未聚焦，再按 `sort_order`、ID），终态目标在组末按终态时间倒序。普通主线与独立目标组各有 3 个聚焦名额；inbox 不可聚焦。`focus`、`moveUp`、`moveDown`、`end`、`delete` 能力由数据库返回，前端不自行判断名额、日期资格或相邻边界。
 
 任务的 completionOrigin 从当前有效完成事件返回 goalId、mainlineId、goalTitle、mainlineName、title、description、plannedOn、occurredOn；无有效完成为 null。它与当前 goalId／goalTitle／mainlineName 分开展示，迁移不重算或改写冻结奖励。
 
@@ -32,11 +36,11 @@
 
 ## 迁移候选
 
-`GET /api/adventure/migration-options?kind=goal&id=<uuid>&page=1`，kind 可为 goal／task，page 范围 1–1,000,000。独立 RPC `adventure_migration_options` 在账户共享锁内读取，不创建容器或写回执。响应含 version、kind、entityId、page、固定 pageSize=20、total、options。每项为 id、name、capability（allowed、不可选时 reason）。goal 候选为普通主线与空字符串独立身份；task 候选为全部真实目标与空字符串独立身份。当前归属、终态、历史锁定或满额项保留原因但不可选；候选按名称及稳定 ID 分页，不使用页面当前 goals 页充当全部候选，不返回其他账户内容。
+`GET /api/adventure/migration-options?kind=goal&id=<uuid>&page=1`，kind 仅允许 goal，任务归属通过统一编辑表单修改，page 范围 1–1,000,000。独立 RPC `adventure_migration_options` 在账户共享锁内读取，不创建容器或写回执。响应含 version、kind、entityId、page、固定 pageSize=20、total、options。每项为 id、name、capability（allowed、不可选时 reason）。goal 候选为普通主线与空字符串独立身份；任务独立迁移候选接口已撤除；统一编辑从可用真实目标列表选择归属。当前归属、终态、历史锁定或满额项保留原因但不可选；候选按名称及稳定 ID 分页，不使用页面当前 goals 页充当全部候选，不返回其他账户内容。
 
 迁移弹窗按候选版本提交，版本不同禁止确认。409 后重读当前事实及候选，清除旧选择，必须重新选择确认；网络结果未知仅重试原封套；成功后查询失败仅重新读取。
 
-任务项含 `rescheduleMin`（服务端当天）、`totalArrangements` 和按发生版本顺序排列的前 5 项 `arrangements` 日期摘要（id、kind、sourceEventId、oldPlannedOn、newPlannedOn、occurredAt）。创建项 oldPlannedOn／sourceEventId 为 null；改期指向上一条创建／改期事件，不指向编辑或迁移。任务列表及目标任务详情可展开日期并进入完整历史；不向列表重复装载历史长说明。
+任务项含 `rescheduleMin`（服务端当天）、`totalArrangements` 和按发生版本顺序排列的前 5 项 `arrangements` 日期摘要（id、kind、sourceEventId、oldPlannedOn、newPlannedOn、occurredAt）。创建项 oldPlannedOn／sourceEventId 为 null；改期指向上一条创建／改期事件，不指向编辑或迁移。目标详情和独立历史入口可进入完整历史；今日聚焦展开只展示说明，不显示重复安排摘要，不向列表重复装载历史长说明。
 
 `GET /api/adventure/task-history?id=<task UUID>&page=1` 返回 version、taskId、title、page、pageSize=5、total 和 items。每项在日期摘要之外返回发生时 title、description、goalId、goalTitle、mainlineId、mainlineName。参数 page 为 1–1,000,000，默认 1，跨 owner／已删除任务返回404。数据库在账户共享锁内读同一版本；只对 service_role 授予函数执行权限，浏览器经 Worker 读取。`/adventure?taskId=<uuid>` 可刷新打开安排历史和分页，不受终态显示开关影响。完整历史存于事件，每页返回上限明确，原始快照不随当前名称或归属变化；单次响应仍受序列化预算约束。
 
@@ -51,13 +55,13 @@
 }
 ```
 
-预览校验输入、当前版本、归属和配额，返回 `version`、`today`、`allowed=true`、`requiresConfirmation=false` 及说明。不初始化账户、不写业务行或回执、不推进版本。取消任务完成时 `requiresConfirmation=true`，同时返回具体 `completionId`、原事件的冻结 `reward`、`growthBefore`、`growthAfter`；两者含经验、等级、行动数和七个成就结果。确认命令使用此预览版本；409 后重读并重新预览，不静默换用新版本。失败返回与命令相同的业务错误；提交仍重新校验。
+预览校验输入、当前版本、归属和配额，返回 `version`、`today`、`allowed=true`、`requiresConfirmation=false` 及说明。不初始化账户、不写业务行或回执、不推进版本。取消任务完成的旧预览仍兼容返回 `requiresConfirmation=true`、具体 `completionId`、冻结 `reward`、`growthBefore`、`growthAfter`，不作为命令前置令牌。按2026-11-07正式验收反馈，今日界面直接提交 `cancelTaskCompletion`，不调用此预览或打开确认弹窗；命令仍校验具体完成事件、账户版本、当天及终态资格并原子回退冻结奖励。409只重读并提示用户再次点击，结果未知仅用原封套安全重试。失败返回与命令相同的业务错误；提交仍重新校验。
 
-目标达成预览为 `requiresConfirmation=true, operation=achieveGoal`，返回 goalId、title、standards、version、today、三档 `rewards`（每档含完整冻结奖励依据）及全量 `stoppingTasks`（id、title、plannedOn）。前端仅选择服务端返回的评价档位并展示金额，不能自行计算 N 或奖励。预览无写入；取消不变更业务状态。确认前提示需继续的任务先迁出；版本冲突后旧确认禁用，必须重新预览。
+目标达成预览为 `requiresConfirmation=true, operation=achieveGoal`，返回 goalId、title、standards、version、today、三档 `rewards`（每档含完整冻结奖励依据）及 `stoppingTasks`（新规则成功预览为空；有未完成任务时拒绝预览）。前端仅选择服务端返回的评价档位并展示金额，不能自行计算 N 或奖励。预览无写入；取消不变更业务状态。有未完成任务时先删除或通过统一编辑转移，再重新预览；版本冲突后旧确认禁用，必须重新预览。
 
-结束目标或主线预览为 `requiresConfirmation=true`，`operation` 为 `endGoal`／`endMainline`，返回稳定 entityId、title、全量 `stoppingGoals`、全量 `stoppingTasks`，以及 `preservedCompletedTasks`／`preservedAchievedGoals`。任务结束／误建删除预览也返回 `requiresConfirmation=true`，`operation` 为 `endTask`／`deleteTask`，并返回目标、执行日与历史安排计数。结束只停止当前归属下未删除的 pending 任务，不撤销完成、达成或经验；预览不写业务事实。
+结束目标或主线预览为 `requiresConfirmation=true`，`operation` 为 `endGoal`／`endMainline`，返回稳定 entityId、title、全量 `stoppingGoals`、全量 `stoppingTasks`，以及 `preservedCompletedTasks`／`preservedAchievedGoals`。任务删除预览返回 `requiresConfirmation=true, operation=deleteTask`，并返回目标、执行日与历史安排计数。目标／主线有未完成任务时拒绝预览和最终提交，处理完才能继续；不自动停止任务，不撤销完成、达成或经验。预览不写业务事实，endTask 新预览停用。
 
-改期预览为 `requiresConfirmation=true, operation=rescheduleTask`，返回 taskId、title、oldPlannedOn、newPlannedOn、sourceEventId、version、today 和说明；不写入事实。输入与终态检查复用最终命令校验。用户先输入日期、预览后确认；修改日期使旧预览失效，409 后须重新预览，不能自动换版本提交。
+独立改期与迁移任务预览停用；通过统一编辑保存四项字段，版本冲突后重读并重新确认，不自动换版本提交。
 
 ## 业务命令
 
@@ -75,28 +79,28 @@
 |---|---|
 | `createMainline` | `name` |
 | `renameMainline` | `id`、`name` |
-| `endMainline` | `id`；仅在用普通主线；进行中目标及当前 pending 任务同事务进入未达成终态 |
+| `endMainline` | `id`；仅在用普通主线，存在当前 pending 任务时拒绝，先删除或转移后才能结束 |
 | `createGoal` | `destination`（空字符串默认独立目标，或普通主线 UUID）、`title`、`standards` |
-| `achieveGoal` | `id`、`coefficient`（1／2／3，省略默认 1）、`reflection`（最多 4,000 码元，省略默认空）；手动按完成标准达成，无任务或有 pending 任务也允许 |
-| `endGoal` | `id`；仅进行中真实目标；未达成结束、退出聚焦并停止当前 pending 任务 |
+| `achieveGoal` | `id`、`coefficient`（1／2／3，省略默认 1）、`reflection`（最多 4,000 码元，省略默认空）；手动按完成标准达成，存在 pending 任务时拒绝，先删除或转移 |
+| `endGoal` | `id`；仅进行中真实目标；存在 pending 任务时拒绝，处理后结束并退出聚焦 |
 | `focusGoal` | `id`、`focused`（boolean）；仅进行中真实目标；满额失败不推进版本 |
 | `reorderGoals` | `mainlineId`、`id`、`direction`（up／down），可选 `targetId`；同归属同聚焦组相邻移动，拖动时移至 targetId 原位置，中间目标稳定平移；不得跨组 |
 | `editGoal` | `id`、`destination`（规则同上）、`title`、`standards` |
-| `createTask` | `title`、`description`（可空）、`plannedOn`（有效 YYYY-MM-DD）、`destination`（空字符串默认独立任务，或真实目标 UUID） |
+| `createTask` | `title`、`description`（可空）、`plannedOn`（有效 YYYY-MM-DD，须为服务端北京今天或未来）、`destination`（空字符串默认独立任务，或真实目标 UUID） |
 | `migrateGoal` | `id`、`destination`（空字符串为独立身份，或在用普通主线 UUID）；保留聚焦及目标 ID，任务随行，追加目的同类组末尾 |
-| `migrateTask` | `id`、`destination`（空字符串为独立任务，或在用真实目标 UUID）；保留 ID、当前日期、状态 |
-| `rescheduleTask` | `id`、`plannedOn`；仅任务及当前上级可操作的 pending 任务，日期须在服务端今天或未来，且不同于当前日期 |
-| `editTask` | `id`、`title`、`description`（可空）；只编辑待完成任务的名称与说明 |
-| `completeTask` | `id`；只允许服务端上海当天的待完成安排 |
+| `migrateTask`（停用） | 不再接受新操作；历史成功封套只返回旧回执 |
+| `rescheduleTask`（停用） | 不再接受新操作；日期通过统一编辑修改，历史成功封套只返回旧回执 |
+| `editTask` | `id`、`title`、`description`（可空）、`plannedOn`、`destination`；仅待完成任务，四字段一次原子保存，逾期原日期不变时可保存其他修改 |
+| `completeTask` | `id`；允许计划执行日为服务端上海当天或之前的待完成任务，原计划日保留，实际完成日为当天 |
 | `cancelTaskCompletion` | `completionId`；定位具体完成事件，不接受仅凭任务 ID 取消 |
-| `endTask` | `id`；仅 pending 任务；立即结束、不可恢复、不发奖 |
-| `deleteTask` | `id`；仅执行日在未来、pending 且从未产生完成／改期事件的任务；逻辑隐藏、不物理删除 |
+| `endTask`（停用） | 不再接受新操作；历史事件和成功回执保留 |
+| `deleteTask` | `id`；未完成任务可逻辑删除，含今天、逾期、未来及撤销后任务，不物理删除或重复扣奖 |
 
 名称去除首尾空白后必填，最多 200 个 UTF-16 码元。完成标准为 1–50 项数组；空白项由前端在提交前排除；后端接收最多 50 项并同样过滤空白项，过滤后至少保留一项，每项去除首尾空白后最多 4,000 个 UTF-16 码元。`id` 必须为 UUID；`requestId` 为 8–128 位英文、数字、下划线或连字符。版本必须为非负 JavaScript 安全整数。封套和命令均拒绝额外字段，不接受客户端 owner、日期、经验、事件或整包状态。
 
 前端目标归属默认显示“默认独立目标”，提交空字符串；后端负责创建或复用唯一独立主线及 inbox，再写入真实目标。普通主线 ID 必须属于当前账户且在用。编辑目标可清空归属转为独立目标；变更归属复用与 migrateGoal 相同的校验并写 goal_migrated，未变归属仍写 goal_updated；不能把真实目标直接指向 inbox。
 
-任务归属留空即默认独立任务，页面不提供独立身份选项；提交真实目标 UUID 时归属该目标。任务说明最多 4,000 个 UTF-16 码元。`plannedOn` 是用户安排的执行日期；权威当天、完成时间、经验和状态均由后端确定。过去／未来安排可查询，但不得补写或提前完成；过去尚未完成仍是待完成。独立任务由后端复用 inbox，不展示为真实目标。
+任务归属留空即默认独立任务，页面不提供独立身份选项；提交真实目标 UUID 时归属该目标。任务说明最多 4,000 个 UTF-16 码元。`plannedOn` 是用户安排的执行日期；权威当天、完成时间、经验和状态均由后端确定。过去／未来安排可查询，不能补写过去完成或提前完成未来任务；过去待完成任务可以直接在今天完成。独立任务由后端复用 inbox，不展示为真实目标。
 
 成功仅返回稳定回执：
 
@@ -111,11 +115,11 @@
 
 `reward={amount,calculation}`；任务 calculation 为 `{type:"fixed_task",completionId,count,coefficient}`，本期新完成冻结 amount=1、count=1、coefficient=1。历史读取及取消按冻结金额和依据，不重算。`growthChange.xpDelta` 为有符号安全整数；预览与回执中的取消扣减使用原冻结 amount。
 
-目标达成使用共享 `goalRewardSchema`，约定 `{amount,calculation:{type:"goal_actions",actionIds,count,coefficient,fallback}}`，count 为 N、coefficient 为 C，actionIds 是去重后的稳定行动／task ID；来源内容与归属保存在达成事件 snapshot。一次达成只写一条 goal_achieved，不可撤销。回执 result 返回 achievementId、冻结 reward 与 growthChange，目标和事件均保存去重后的稳定行动 ID、N、C、评价和来源快照。N 按完成时目标归属计算，排除已失效完成；N>0 奖励 N×C，N=0 固定 1。达成退出聚焦，未删除 pending 任务同事务进入 ended，已有完成和经验保留，当前及历史归属终态均锁定取消。默认列表隐藏达成目标；`/adventure?goalId=<uuid>` 可刷新进入只读结果、评价及分页任务历史，统一终态开关由生命周期票实现。
+目标达成使用共享 `goalRewardSchema`，约定 `{amount,calculation:{type:"goal_actions",actionIds,count,coefficient,fallback}}`，count 为 N、coefficient 为 C，actionIds 是去重后的稳定行动／task ID；来源内容与归属保存在达成事件 snapshot。一次达成只写一条 goal_achieved，不可撤销。回执 result 返回 achievementId、冻结 reward 与 growthChange，目标和事件均保存去重后的稳定行动 ID、N、C、评价和来源快照。N 按完成时目标归属计算，排除已失效完成；N>0 奖励 N×C，N=0 固定 1。达成退出聚焦，提交前必须先处理全部未删除 pending 任务，不能自动结束，已有完成和经验保留，当前及历史归属终态均锁定取消。默认列表隐藏达成目标；`/adventure?goalId=<uuid>` 可刷新进入只读结果、评价及分页任务历史，统一终态开关由生命周期票实现。
 
-结束主线写 `mainline_ended`，结束目标写 `goal_ended`，结束任务写 `task_ended`，误建删除写 `task_deleted`；均不携带 amount／calculation，snapshot 保存 before、after、impact 和 result。结束与删除不扣减经验、不撤销达成、不追加负奖励；目标／主线／任务状态、传播、事件、revision 与回执同一事务提交。已完成任务不能改成 ended；曾完成后再取消、曾产生改期历史的任务均永久失去误建删除资格。普通编辑或迁移本身不视为历史安排。
+结束主线写 `mainline_ended`，结束目标写 `goal_ended`，任务删除写 `task_deleted`；旧 `task_ended` 历史事件保留；均不携带 amount／calculation，snapshot 保存 before、after、impact 和 result。结束与删除不扣减经验、不撤销达成、不追加负奖励；目标／主线／任务状态、传播、事件、revision 与回执同一事务提交。已完成任务不能删除或结束；完成后撤销及改期过的 pending 任务可以逻辑删除，不能重复扣奖。普通编辑或迁移本身不视为历史安排。
 
-改期更新同一 tasks 行的 planned_on，追加无金额的 task_rescheduled；snapshot 冻结 before、after、oldPlannedOn、newPlannedOn、sourceEventId、内容／归属和 result。taskId 不变，不新增任务、行动或奖励，growthChange.xpDelta=0。曾改期永久阻止误建删除。过去完成不可取消或改期；当天完成须先合法取消，改期不会恢复被取消的完成。
+改期更新同一 tasks 行的 planned_on，追加无金额的 task_rescheduled；snapshot 冻结 before、after、oldPlannedOn、newPlannedOn、sourceEventId、内容／归属和 result。taskId 不变，不新增任务、行动或奖励，growthChange.xpDelta=0。曾改期不阻止未完成任务删除。过去完成不可取消或改期；当天完成须先合法取消，改期不会恢复被取消的完成。
 
 同一账户按账户行锁串行写入。数据库规范化 JSONB 并计算命令摘要；相同 requestId 和命令返回原回执，即使当前账户已有更新，也不重做操作。同 key 异命令拒绝。实体、事件、版本和成功回执同事务提交，任何中途失败全部回滚。
 
@@ -145,7 +149,7 @@ items 仅投影有效 task_completed／goal_achieved，含 id、kind、entityId�
 
 | HTTP | code |
 |---|---|
-| 400 | `INVALID_QUERY`、`INVALID_COMMAND`、`COMMAND_TOO_LARGE`、`MAINLINE_LIMIT`、`FOCUS_LIMIT`、`SAME_DESTINATION`、`READ_ONLY`、`DATE_LOCKED`、`DATE_STARTED`、`RESCHEDULE_PAST`、`SAME_DATE`、`HISTORY_LOCKED`、`TASK_NOT_PENDING`、`CAPACITY_REACHED` |
+| 400 | `INVALID_QUERY`、`INVALID_COMMAND`、`COMMAND_TOO_LARGE`、`MAINLINE_LIMIT`、`FOCUS_LIMIT`、`SAME_DESTINATION`、`READ_ONLY`、`DATE_LOCKED`、`DATE_STARTED`、`RESCHEDULE_PAST`、`SAME_DATE`、`HISTORY_LOCKED`、`TASK_NOT_PENDING`、`PENDING_TASKS`、`CAPACITY_REACHED` |
 | 401／403 | 现有 `AUTH_*` 身份和准入错误 |
 | 404 | `NOT_FOUND`；不区分他人内容与不存在 |
 | 409 | `VERSION_CONFLICT`、`REQUEST_ID_REUSED`、`COMPLETION_CHANGED` |
@@ -153,4 +157,16 @@ items 仅投影有效 task_completed／goal_achieved，含 id、kind、entityId�
 
 命令／预览请求体最多 32 KiB，读取请求体最多等待 5 秒；内部 RPC 响应读取上限 1 MiB，数据库页面序列化预算 1,000,000 字节。超限拒绝，不裁剪历史或回执。数据库账户锁最多等待 3 秒；Worker 上游请求及响应体读取各设 10 秒上限，页面操作总等待最多 15 秒。超时后的命令按结果未知处理。
 
-本模块尚未上线，新环境只执行 `db/adventure/create-planning.sql` 建立当前结构，不串行执行开发阶段的升级脚本。该脚本仅用于空库初始化，不对已有表重复执行；本轮不更新现有验收库结构或数据。五表启用 RLS，无浏览器策略；浏览器角色没有表权限或函数执行权限。事务函数为固定 `search_path` 的 `SECURITY INVOKER`，仅后端角色可执行；后端只授予表的 SELECT／INSERT／UPDATE，不增加 DELETE。
+空库依次执行 `db/adventure/create-planning.sql` 与 `db/adventure/list-tasks.sql`，建立当前五表、事务函数及日期列表；不串行重放开发阶段升级链。已有五表库使用下文增量迁移，不对已有表重复初始化，本轮不修改生产库结构或数据。五表启用 RLS，无浏览器策略；浏览器角色没有表权限或函数执行权限。事务函数为固定 `search_path` 的 `SECURITY INVOKER`，仅后端角色可执行；后端只授予表的 SELECT／INSERT／UPDATE，不增加 DELETE。
+
+## 统一任务编辑兼容边界（#142）
+
+新 editTask 必须完整提交名称、说明、执行日期和归属，事务一次保存。更改日期只能选择服务端今天或未来；若原任务逾期且日期不变，仍允许修改其余字段。taskId 不变；日期改变写 task_rescheduled，只有归属改变写 task_migrated，否则 task_updated，一个主事件保存完整 before／after 及本次回执。
+
+Worker 保留旧输入形状仅为了历史成功封套重放；数据库先查历史回执，再拒绝旧 rescheduleTask／migrateTask 新请求或缺字段的新 editTask。旧回执不代表当前能力或当前状态；过去日期的新建成功封套也先读取旧回执，新 requestId 不能绕过新建日期限制。独立迁移候选接口仅支持目标；任务新建和编辑从可用真实目标列表选择归属，留空为独立任务。
+
+## 今日聚焦独立列表与升级
+
+周历读取采用 [日期任务列表契约](task-list-api.md) 的独立 POST 接口；查询条件在请求体中，完整同版本结果取得后再由前端搜索与分页。此接口不接入目标详情。
+
+已有五表数据库使用 `db/adventure/migrations/20261106200055_adventure_today_task_rules.sql`，在同一事务内更新任务规则函数、日期列表索引／RPC 与权限；不重复执行空库初始化，不修改业务行。现有已结束任务先只读核查，本次核查为零，没有执行真实数据清理。生产升级及回退需结合具体 PR 的授权与发布验收执行。

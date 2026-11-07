@@ -1,6 +1,8 @@
 # 后端数据库设计
 
-状态：2026-10-22 五表、#54 创建／编辑、#55 任务完成／取消、#65 聚焦排序／进度、#59 目标达成、#60 迁移及 #66 生命周期事务已在本地实现；现有验收库函数与索引同步留到上线前，其他业务命令仍按任务依赖实施。空库初始化统一使用 `db/adventure/create-planning.sql`；不保留未上线阶段的重复升级链，本轮不操作现有数据库或验收数据。当前接口见 [主线与目标接口](planning-api.md)。
+状态：2026-11-07，以下为 PR #146 的五表实现，包含 #140／#141 任务规则和日期列表变更。当前接口见 [规划与任务接口](planning-api.md) 和 [日期列表契约](task-list-api.md)，隔离验证与交付状态见 [本轮验收](qa-today.md)。本轮文档校准不操作数据库；生产升级与发布尚未执行。
+
+空库依次执行 `db/adventure/create-planning.sql`、`db/adventure/list-tasks.sql`；已有五表数据库使用 `db/adventure/migrations/20261106200055_adventure_today_task_rules.sql`。增量迁移在同一事务替换函数、补充列表索引／RPC与权限并通知 PostgREST 刷新 schema，不删除或改写业务行；不能对非空库重复初始化。隔离非空库重复升级和逐行快照验证见本轮验收，旧已结束任务先核实再按已授权范围处理。
 
 五表设计保留当前业务对象的独立身份和数据库关联，不为历史安排、完成、奖励和请求回执分别建表。等级、本级进度、七个成就和操作能力仍实时计算，不单独建表。完整业务规则见 [规格](spec.md) 和 [成长与奖励](growth-rewards.md)，事务与命令见 [后端业务逻辑](backend-business-logic.md)。
 
@@ -20,7 +22,7 @@
 erDiagram
     adventure_accounts ||--o{ adventure_mainlines : owns
     adventure_mainlines ||--o{ adventure_goals : contains
-    adventure_goals o|--o{ adventure_tasks : owns
+    adventure_goals ||--o{ adventure_tasks : owns
     adventure_accounts ||--o{ adventure_events : records
     adventure_mainlines o|--o{ adventure_events : historical_source
     adventure_goals o|--o{ adventure_events : historical_source
@@ -115,12 +117,12 @@ erDiagram
 | `title` | `varchar(200)` | 否 | 无 | 当前名称 |
 | `description` | `text` | 否 | `''` | 可选说明 |
 | `planned_on` | `date` | 否 | 无 | 当前执行日期；改期更新，原日期保存在 event |
-| `status` | `text` | 否 | `'pending'` | CHECK IN ('pending','completed','ended') |
+| `status` | `text` | 否 | `'pending'` | CHECK IN ('pending','completed','ended')；ended 仅为旧数据兼容 |
 | `completed_at` | `timestamptz` | 是 | `NULL` | completed 时非空，否则为空 |
 | `completed_on` | `date` | 是 | `NULL` | 当前有效完成日期 |
 | `ended_at` | `timestamptz` | 是 | `NULL` | ended 时非空，否则为空 |
-| `end_cause` | `text` | 是 | `NULL` | manual／goal_achieved／goal_ended／mainline_ended |
-| `deleted_at` | `timestamptz` | 是 | `NULL` | 仅误建删除；逻辑隐藏，不物理删除 |
+| `end_cause` | `text` | 是 | `NULL` | 旧任务终态原因 manual／goal_achieved／goal_ended／mainline_ended；新操作不写任务终态 |
+| `deleted_at` | `timestamptz` | 是 | `NULL` | 当前上级可操作的 pending 任务逻辑删除；不物理删除 |
 | `created_at` | `timestamptz` | 否 | `now()` | 创建时间 |
 | `updated_at` | `timestamptz` | 否 | `now()` | 最近修改时间 |
 
@@ -167,7 +169,7 @@ task_updated 记录待完成任务名称／说明编辑的前后内容和发生�
 
 ## 外键、唯一性与检查
 
-以下约束由空库初始化脚本建立；未交付命令的跨行业务校验仍须随对应任务实施。主键之外增加必要的同 owner 复合唯一键，供子表复合外键使用。
+以下约束由空库初始化脚本建立；跨行业务校验由事务函数执行。主键之外增加必要的同 owner 复合唯一键，供子表复合外键使用。
 
 | 表／约束 | 数据库保证 |
 |---|---|
@@ -421,27 +423,29 @@ task_updated 记录待完成任务名称／说明编辑的前后内容和发生�
 
 ## 实施边界与依据
 
-新页面、#54 创建／编辑、#55 任务命令和 #65 聚焦排序及 #59 达成已使用五表事务；有效 task_completed 使用同 owner／task 的部分唯一索引，奖励冻结在该完成事件内，不另设奖励事件或奖励索引。现有验收数据不导入或清理，不重建已由用户删除的旧 `adventure_states` 表。其余业务事务仍按任务逐步实现；本次仅新增五表及专用 RPC 权限，不扩大浏览器权限。
+规划、任务、迁移、生命周期、成长及日期列表均使用五表和专用 RPC；有效 task_completed 使用同 owner／task 的部分唯一索引，奖励冻结在该完成事件内，不另设奖励事件或奖励索引。本轮不导入或清理真实业务数据，不重建已删除的旧 `adventure_states` 表，不扩大浏览器权限。生产发布时协调数据库函数与 Worker／页面契约切换，旧客户端须刷新；回退代码不能撤销已产生的完成、取消或删除事实。
 
 参考 [PostgreSQL 约束](https://www.postgresql.org/docs/current/ddl-constraints.html)、[部分索引](https://www.postgresql.org/docs/current/indexes-partial.html)、[Supabase 数据库函数](https://supabase.com/docs/guides/database/functions) 与 [PostgREST 事务](https://docs.postgrest.org/en/stable/references/transactions.html)。本票真实事务及权限验证见 [验收记录](qa-planning.md)。
 
 ## 迁移事务与历史读取
 
-`adventure_migration_check` 统一当前对象、目的、同 owner、终态及聚焦校验；`adventure_migration_capability` 返回候选原因，`adventure_migration_options` 持账户共享锁分页读取。migrateGoal／editGoal 改归属写 goal_migrated；migrateTask 写 task_migrated。迁移事件 amount／calculation 为空，snapshot 保留 before、after、origin 和 result。目标／任务外键更新与事件、revision、回执同事务，使用现有账户锁、复合 owner 外键和请求唯一索引，不增加物理表或锁服务。任务详情返回有效完成的冻结来源；目标任务历史含迁出完成来源，当前进度仍只按当前归属计算。
+`adventure_migration_check` 统一当前对象、目的、同 owner、终态及聚焦校验；目标迁移候选持账户共享锁分页读取。migrateGoal／editGoal 改归属写 goal_migrated；任务归属只通过四字段 editTask 修改，独立 migrateTask 新请求停用。日期同时变化时主事件为 task_rescheduled，否则归属变化写 task_migrated，其他情况写 task_updated；完整 before／after 保留同次修改。事件 amount／calculation 为空，目标／任务外键与事件、revision、回执同事务，不增加物理表或锁服务。任务详情返回有效完成的冻结来源；目标任务历史含迁出完成来源，当前进度仍只按当前归属计算。
 
 ## 生命周期事务与终态读取
 
-`adventure_lifecycle_check` 统一 endGoal／endMainline 的 owner、状态与归属校验；`adventure_lifecycle_impact` 读取全量待停目标、待停任务和保留成果计数；`adventure_lifecycle_capability` 为页面返回稳定原因。endGoal 更新目标并停止当前 pending 任务；endMainline 更新普通主线，结束当前 active 目标并以 mainline_ended 停止其 pending 任务。两者不撤销完成／达成，不修改 amount，不改变 total_xp。
+`adventure_lifecycle_check` 校验 endGoal／endMainline 的 owner、状态、归属及未删除 pending 任务；存在待办时能力、预览和最终事务均以 PENDING_TASKS 阻断。先删除或转移后，endGoal 更新目标终态；endMainline 更新普通主线并将当前 active 真实目标以 mainline_ended 结束。不会自动停止任务，成功影响预览的 stoppingTasks 为空；已有完成／达成保留，不修改 amount 或 total_xp。
 
-endTask 与 deleteTask 复用任务最终校验；`adventure_task_impact` 返回后端确认预览。endTask 只接受 pending，写 ended_at／end_cause=manual；deleteTask 只接受执行日晚于服务端当天、pending、未删除、上级可操作且不存在任何 task_completed／task_rescheduled 事件的误建任务，写 deleted_at。取消完成不恢复删除资格；普通内容编辑或迁移本身不视为历史安排。两类命令均写无奖励事件、revision 和成功回执，失败整笔回滚；后端不授予物理 DELETE。
+endTask 新预览和新命令停用，旧 ended 状态、事件、字段及成功回执为历史兼容保留。deleteTask 接受当前上级可操作、未删除的 pending 任务，不再按计划日或曾完成／改期限制；今天、逾期、未来及完成后撤销的任务均可删除，已完成任务不可删除。`adventure_task_impact` 提供确认预览；提交写 deleted_at、无奖励 task_deleted 事件、revision 和成功回执，撤销后删除不再次扣奖。失败整笔回滚，后端无物理 DELETE 权限。
 
 页面读取新增 `p_include_terminal`。默认仅返回在用主线、进行中目标；开启后在目标所属组末尾按 terminated_at 倒序返回终态目标，已结束主线排在主线列表末尾按 ended_at 倒序。终态排序不改变稳定 ID 详情读取。该参数只控制展示内容，不控制权限，也不能绕过 owner 过滤。
 
 ## 任务改期事务
 
-`rescheduleTask` 复用 adventure_task_check／adventure_task_apply，账户锁内验证 pending、当前上级可操作、plannedOn 不早于服务端上海当天且不同于当前日期。只更新当前 planned_on／updated_at，不换任务 ID。task_rescheduled 无 amount／calculation；snapshot 含 before、after、原日期、新日期、上一条创建／改期 sourceEventId、当时内容／归属及成功回执。事件序列以 applied_revision 排序，tasks 只有一个当前安排；既有 events(owner_id,task_id) 索引支持来源追溯。操作不增加经验或行动数，事实、事件、版本与回执同事务；失败全回滚。空库脚本直接维护当前方案，不增加升级链。
+任务日期通过 editTask 与名称、说明、归属一次原子保存，独立 rescheduleTask 新请求停用。账户锁内验证 pending、当前上级可操作；原逾期日期不变时允许编辑其他字段，修改日期须为服务端上海今天或未来。taskId 不变；日期改变时 task_rescheduled 无 amount／calculation，snapshot 保存完整 before／after、原日期、新日期、上一条创建／改期 sourceEventId、当时内容／归属及成功回执。事件按 applied_revision 排序，tasks 只有一个当前安排；操作不增加经验或行动数，失败全回滚。停用的旧命令先查历史成功回执，仅原封套重放，不执行新动作。
 
 任务查询返回创建／改期安排链总数、前5条日期摘要与服务端最早合法日期；adventure_task_history 以账户共享锁保证同版本，每页5条完整冻结快照。浏览器通过 Worker 和稳定 taskId 分页读取，不改写旧快照；历史长内容不重复塞入列表，单次响应保留序列化预算。临时数据库验证见 [改期验收](qa-reschedule.md)。
+
+今日聚焦改用 adventure_task_list：共享账户锁内核对版本及权威北京日期，按所选日与视图稳定排序、每批10条，单批预算1,000,000字节；对应 planned／completed 列表索引见 `db/adventure/list-tasks.sql`。浏览器完整读取后搜索并每页20条，不展示安排摘要；目标详情及历史接口保留原读取方式。具体请求与恢复规则见 [日期列表契约](task-list-api.md)。
 
 ## 成长只读投影
 

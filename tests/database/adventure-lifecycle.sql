@@ -9,14 +9,13 @@ begin
   if new.title='lifecycle-failpoint' and new.status='ended' then raise exception 'LIFECYCLE_FAILPOINT'; end if;
   return new;
 end $$;
-create trigger lifecycle_failpoint before update on public.adventure_tasks
+create trigger lifecycle_failpoint before update on public.adventure_goals
   for each row execute function pg_temp.fail_lifecycle_propagation();
 do $$
 declare o uuid:=gen_random_uuid(); m uuid; g uuid; r jsonb; v bigint; c bigint;
 begin
   r:=pg_temp.lifecycle_command(o,'{"type":"createMainline","name":"中途失败"}'); m:=(r->'result'->>'entityId')::uuid;
-  r:=pg_temp.lifecycle_command(o,jsonb_build_object('type','createGoal','destination',m,'title','中途失败目标','standards',jsonb_build_array('标准'))); g:=(r->'result'->>'entityId')::uuid;
-  perform pg_temp.lifecycle_command(o,jsonb_build_object('type','createTask','destination',g,'title','lifecycle-failpoint','description','','plannedOn',(clock_timestamp() at time zone 'Asia/Shanghai')::date));
+  r:=pg_temp.lifecycle_command(o,jsonb_build_object('type','createGoal','destination',m,'title','lifecycle-failpoint','standards',jsonb_build_array('标准'))); g:=(r->'result'->>'entityId')::uuid;
   select revision into v from public.adventure_accounts where owner_id=o;
   select count(*) into c from public.adventure_events where owner_id=o;
   begin
@@ -36,7 +35,7 @@ begin
     or (select revision from public.adventure_accounts where owner_id=o)<>v
     or (select count(*) from public.adventure_events where owner_id=o)<>c then raise exception 'Mid-propagation goal failure leaked'; end if;
 end $$;
-drop trigger lifecycle_failpoint on public.adventure_tasks;
+drop trigger lifecycle_failpoint on public.adventure_goals;
 do $$
 declare
   v_owner uuid:=gen_random_uuid();
@@ -71,7 +70,7 @@ begin
   begin
     perform pg_temp.lifecycle_command(v_owner,jsonb_build_object('type','endMainline','id',v_main));
     raise exception 'Inconsistent lifecycle accepted';
-  exception when others then if sqlerrm<>'INCONSISTENT_REWARDS' then raise; end if; end;
+  exception when others then if sqlerrm<>'PENDING_TASKS' then raise; end if; end;
   if exists(select 1 from public.adventure_mainlines where owner_id=v_owner and id=v_main and status<>'active')
     or exists(select 1 from public.adventure_goals where owner_id=v_owner and id=v_goal and status<>'active')
     or exists(select 1 from public.adventure_tasks where owner_id=v_owner and id=v_task and status<>'pending')
@@ -79,8 +78,8 @@ begin
     or (select count(*) from public.adventure_events where owner_id=v_owner)<>v_events then raise exception 'Partial mainline end survived rollback'; end if;
   begin
     perform pg_temp.lifecycle_command(v_owner,jsonb_build_object('type','endTask','id',v_task));
-    raise exception 'Inconsistent task end accepted';
-  exception when others then if sqlerrm<>'INCONSISTENT_REWARDS' then raise; end if; end;
+    raise exception 'Retired task end accepted';
+  exception when others then if sqlerrm<>'INVALID_COMMAND' then raise; end if; end;
   begin
     perform pg_temp.lifecycle_command(v_owner,jsonb_build_object('type','deleteTask','id',v_future));
     raise exception 'Inconsistent delete accepted';
@@ -101,7 +100,7 @@ begin
   begin
     perform pg_temp.lifecycle_command(v_owner,jsonb_build_object('type','endTask','id',v_task));
     raise exception 'Completed task ended';
-  exception when others then if sqlerrm<>'TASK_NOT_PENDING' then raise; end if; end;
+  exception when others then if sqlerrm<>'INVALID_COMMAND' then raise; end if; end;
   begin
     perform pg_temp.lifecycle_command(v_owner,jsonb_build_object('type','deleteTask','id',v_task));
     raise exception 'Completed history deleted';
@@ -130,21 +129,28 @@ begin
   -- #61 is not implemented here: a rolled-back event models an earlier arrangement.
   insert into public.adventure_events(owner_id,event_group_id,kind,entity_type,entity_id,task_id,occurred_on,actor_owner_id,snapshot)
     values(o,gen_random_uuid(),'task_rescheduled','task',t,t,today,o,jsonb_build_object('oldPlannedOn',today+1,'newPlannedOn',today+2));
-  begin
-    perform public.adventure_planning_command(o,'history-delete-denied',v,jsonb_build_object('type','deleteTask','id',t));
-    raise exception 'Historical arrangement deleted';
-  exception when others then if sqlerrm<>'HISTORY_LOCKED' then raise; end if; end;
-  if exists(select 1 from public.adventure_tasks where owner_id=o and id=t and deleted_at is not null) then raise exception 'Historical deletion changed facts'; end if;
+  perform public.adventure_planning_command(o,'history-delete-allowed',v,jsonb_build_object('type','deleteTask','id',t));
+  if not exists(select 1 from public.adventure_tasks where owner_id=o and id=t and deleted_at is not null)
+    or not exists(select 1 from public.adventure_events where owner_id=o and task_id=t and kind='task_rescheduled') then raise exception 'Task deletion lost history'; end if;
   r:=pg_temp.lifecycle_command(o,jsonb_build_object('type','createGoal','destination','','title','全量停止','standards',jsonb_build_array('标准')));
   g:=(r->'result'->>'entityId')::uuid;
   for i in 1..201 loop
     perform pg_temp.lifecycle_command(o,jsonb_build_object('type','createTask','title','待停 '||i,'description','','destination',g,'plannedOn',today+1));
   end loop;
   select revision into v from public.adventure_accounts where owner_id=o;
-  r:=public.adventure_planning_preview(o,v,jsonb_build_object('type','endGoal','id',g));
-  if jsonb_array_length(r->'stoppingTasks')<>201 then raise exception 'Lifecycle preview truncated tasks'; end if;
+  begin
+    perform public.adventure_planning_preview(o,v,jsonb_build_object('type','endGoal','id',g));
+    raise exception 'Large pending goal preview accepted';
+  exception when others then if sqlerrm<>'PENDING_TASKS' then raise; end if; end;
+  begin
+    perform pg_temp.lifecycle_command(o,jsonb_build_object('type','endGoal','id',g));
+    raise exception 'Large pending goal ended';
+  exception when others then if sqlerrm<>'PENDING_TASKS' then raise; end if; end;
+  for t in select id from public.adventure_tasks where owner_id=o and goal_id=g and deleted_at is null loop
+    perform pg_temp.lifecycle_command(o,jsonb_build_object('type','deleteTask','id',t));
+  end loop;
   perform pg_temp.lifecycle_command(o,jsonb_build_object('type','endGoal','id',g));
-  if exists(select 1 from public.adventure_tasks where owner_id=o and goal_id=g and status<>'ended') then raise exception 'Large lifecycle propagation partial'; end if;
+  if exists(select 1 from public.adventure_tasks where owner_id=o and goal_id=g and (status<>'pending' or deleted_at is null)) then raise exception 'Task cleanup facts changed'; end if;
 end $$;
 
 do $$

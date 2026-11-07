@@ -1,20 +1,21 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { Check, ListTodo } from 'lucide-react'
 import type { PlanningCommand, PlanningPage, PlanningTask, TaskRange, TaskScope } from '../shared/adventure-planning'
 
 import { useVerifiedIdentity } from '../auth/identity'
 import { planningApi } from './planning-api'
+import { TaskDateField } from './TaskDateField'
 import { PlanningTaskHistory } from './PlanningReschedule'
 import { PlanningCompletionOrigin } from './PlanningCompletionOrigin'
 import { PlanningProgress } from './PlanningProgress'
 import { PlanningRecord, PlanningMore } from './PlanningRecord'
 
 type Action = (command: PlanningCommand, expectedVersion?: number) => Promise<boolean>
-export function TaskForm({ task, destination: initialDestination, data: workspace, action, busy, close, changeGoalPage }: {
-  task?: PlanningTask; destination?: string; data: PlanningPage; action: Action; busy: boolean; close: () => void; changeGoalPage: (page: number) => void
+export function TaskForm({ task, data: workspace, action, busy, close, changeGoalPage, remove, deleteConfirmation }: {
+  task?: PlanningTask; data: PlanningPage; action: Action; busy: boolean; close: () => void; changeGoalPage: (page: number) => void; remove?: () => void; deleteConfirmation?: ReactNode
 }) {
   const identity = useVerifiedIdentity()
-  const [separateCandidates] = useState(!task && (workspace.goalScope === 'focus' || !!workspace.mainlineDetail))
+  const [separateCandidates] = useState(workspace.goalScope === 'focus' || !!workspace.mainlineDetail)
   const [candidates, setCandidates] = useState<PlanningPage>()
   const [candidatePage, setCandidatePage] = useState(1)
   const [candidateError, setCandidateError] = useState(false)
@@ -34,20 +35,22 @@ export function TaskForm({ task, destination: initialDestination, data: workspac
   const changeCandidates = separateCandidates ? setCandidatePage : changeGoalPage
   const [title, setTitle] = useState(task?.title ?? '')
   const [description, setDescription] = useState(task?.description ?? '')
-  const [plannedOn, setPlannedOn] = useState(data.today)
-  const [destination, setDestination] = useState(initialDestination ?? '')
-  const [selectedLabel, setSelectedLabel] = useState(data.goals.find(goal => goal.id === initialDestination)?.title ?? '')
+  const [plannedOn, setPlannedOn] = useState(task?.plannedOn ?? workspace.today)
+  const [destination, setDestination] = useState(task?.goalId ?? '')
+  const [selectedLabel, setSelectedLabel] = useState(task?.goalTitle ?? '')
   const submit = async (event: FormEvent) => {
     event.preventDefault()
-    const command: PlanningCommand = task ? { type: 'editTask', id: task.id, title, description }
+    const command: PlanningCommand = task ? { type: 'editTask', id: task.id, title, description, plannedOn, destination }
       : { type: 'createTask', title, description, plannedOn, destination }
     if (await action(command)) close()
   }
+  // Keep this component mounted through deletion so cancelling restores its draft.
+  if (deleteConfirmation) return <>{deleteConfirmation}</>
   return <form onSubmit={event => { void submit(event) }}><fieldset disabled={busy}>
     <label>任务名称<input required maxLength={data.limits.name} autoComplete="off" value={title} onChange={event => setTitle(event.target.value)} /></label>
     <label>任务说明<textarea aria-label="任务说明" maxLength={4000} rows={3} value={description} onChange={event => setDescription(event.target.value)} /></label>
-    {!task && <>
-      <label>执行日期<input required type="date" value={plannedOn} onChange={event => setPlannedOn(event.target.value)} /></label>
+    <>
+      <TaskDateField value={plannedOn} onChange={setPlannedOn} today={workspace.today} originalDate={task?.plannedOn} />
       <label>任务归属<select aria-label="任务归属" className={destination ? undefined : 'planning-destination-placeholder'} value={destination} onChange={event => { setDestination(event.target.value); setSelectedLabel(event.target.selectedOptions[0].text) }}>
         <option value="">默认独立任务</option>
         {destination && !data.goals.some(goal => goal.id === destination) && <option value={destination}>{selectedLabel}</option>}
@@ -59,18 +62,16 @@ export function TaskForm({ task, destination: initialDestination, data: workspac
         <button type="button" disabled={data.page <= 1} onClick={() => changeCandidates(data.page - 1)}>上一页目标</button>
         <button type="button" disabled={data.page * data.pageSize >= data.totalGoals} onClick={() => changeCandidates(data.page + 1)}>下一页目标</button>
       </div></div>}
-    </>}
-    {task && <p className="adventure-hint">{task.plannedOn} · {task.independent ? '独立任务' : task.goalTitle}</p>}
-    <div className="adventure-form-footer"><button type="button" onClick={close}>取消</button>
+    </>
+    <div className="adventure-form-footer task-editor-footer">{task && remove && <button type="button" className="delete-task" disabled={busy || !task.capabilities.delete?.allowed} title={task.capabilities.delete?.reason} onClick={remove}>删除任务</button>}<button type="button" onClick={close}>取消</button>
       <button className="adventure-primary" type="submit" disabled={busy || candidateBusy}>{busy ? '正在保存…' : task ? '保存任务' : '创建任务'}</button></div>
   </fieldset></form>
 }
 
-export function PlanningTasks({ data, blocked, changeRange, changePage, changeScope, changeSearch, edit, complete, cancel, migrate, reschedule, end, remove }: {
+export function PlanningTasks({ data, blocked, changeRange, changePage, changeScope, changeSearch, edit, complete, cancel }: {
   data: PlanningPage; blocked: boolean; changeRange: (range: TaskRange) => void; changePage: (page: number) => void;
   changeScope: (scope: TaskScope) => void; changeSearch: (search: string) => void;
-  migrate: (task: PlanningTask) => void; edit: (task: PlanningTask) => void; complete: (task: PlanningTask) => void; cancel: (task: PlanningTask) => void;
-  reschedule: (task: PlanningTask) => void; end: (task: PlanningTask) => void; remove: (task: PlanningTask) => void
+  edit: (task: PlanningTask) => void; complete: (task: PlanningTask) => void; cancel: (task: PlanningTask) => void;
 }) {
   const [search, setSearch] = useState(data.search)
   const [expanded, setExpanded] = useState<string>()
@@ -101,11 +102,7 @@ export function PlanningTasks({ data, blocked, changeRange, changePage, changeSc
           {task.status === 'completed' ? <button disabled={blocked || !task.capabilities.cancel?.allowed} title={task.capabilities.cancel?.reason} onClick={() => cancel(task)}>取消完成</button>
             : <button className="adventure-primary" disabled={blocked || !task.capabilities.complete?.allowed} title={task.capabilities.complete?.reason} onClick={() => complete(task)}>完成</button>}
           <PlanningMore>
-            <button disabled={blocked || !task.capabilities.reschedule?.allowed} title={task.capabilities.reschedule?.reason} onClick={() => reschedule(task)}>改期</button>
-            <button disabled={blocked || !task.capabilities.migrate?.allowed} title={task.capabilities.migrate?.reason} onClick={() => migrate(task)}>迁移任务</button>
             <button disabled={blocked || !task.capabilities.edit?.allowed} title={task.capabilities.edit?.reason} onClick={() => edit(task)}>编辑任务</button>
-            <button disabled={blocked || !task.capabilities.end?.allowed} title={task.capabilities.end?.reason} onClick={() => end(task)}>结束任务</button>
-            <button disabled={blocked || !task.capabilities.delete?.allowed} title={task.capabilities.delete?.reason} onClick={() => remove(task)}>删除误建</button>
           </PlanningMore>
         </div>
       </PlanningRecord>

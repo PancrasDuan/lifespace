@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { growthPageSchema, rewardSourceSchema } from '../shared/adventure-growth'
 import { authorizedFetch, authorizedMutation } from '../auth/request'
-import { taskHistorySchema, migrationOptionsSchema, planningPageSchema, planningReceiptSchema, planningPreviewSchema, type PlanningEnvelope, type PlanningCommand, type PlanningQuery } from '../shared/adventure-planning'
+import { taskListSchema, type TaskListInput, taskHistorySchema, migrationOptionsSchema, planningPageSchema, planningReceiptSchema, planningPreviewSchema, type PlanningEnvelope, type PlanningCommand, type PlanningQuery } from '../shared/adventure-planning'
 
 export class PlanningError extends Error {
   constructor(message: string, readonly status: number, readonly uncertain = false) { super(message) }
@@ -17,6 +17,9 @@ async function read<T>(response: Response, schema: z.ZodType<T>, mutation = fals
   return parsed.data
 }
 export const planningApi = {
+  async taskList(owner: string, filters: TaskListInput, signal: AbortSignal) {
+    return read(await authorizedMutation('/api/adventure/tasks/list', JSON.stringify(filters), signal, owner), taskListSchema)
+  },
   async growth(owner: string, signal: AbortSignal, version?: number, cursor?: string) {
     const query = new URLSearchParams()
     if (version !== undefined) query.set('version', String(version))

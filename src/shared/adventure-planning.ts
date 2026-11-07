@@ -11,8 +11,9 @@ export const planningCommandSchema = z.discriminatedUnion('type', [
   z.strictObject({ type: z.literal('endMainline'), id: z.uuid() }),
   z.strictObject({ type: z.literal('createGoal'), destination: z.union([z.literal(''), z.literal('independent'), z.uuid()]), title: name, standards }),
   z.strictObject({ type: z.literal('createTask'), title: name, description: z.string().trim().max(4000), plannedOn: z.iso.date(), destination: z.union([z.literal(''), z.uuid()]) }),
+  // Retired command shapes remain parseable only for historical successful-request replay.
   z.strictObject({ type: z.literal('rescheduleTask'), id: z.uuid(), plannedOn: z.iso.date() }),
-  z.strictObject({ type: z.literal('editTask'), id: z.uuid(), title: name, description: z.string().trim().max(4000) }),
+  z.strictObject({ type: z.literal('editTask'), id: z.uuid(), title: name, description: z.string().trim().max(4000), plannedOn: z.iso.date().optional(), destination: z.union([z.literal(''), z.uuid()]).optional() }),
   z.strictObject({ type: z.literal('migrateTask'), id: z.uuid(), destination: z.union([z.literal(''), z.uuid()]) }),
   z.strictObject({ type: z.literal('endTask'), id: z.uuid() }),
   z.strictObject({ type: z.literal('deleteTask'), id: z.uuid() }),
@@ -156,3 +157,16 @@ export const migrationOptionsSchema = z.object({
   options: z.array(z.object({ id: z.union([z.literal(''), z.uuid()]), name: z.string(), capability: capabilitySchema })).max(20),
 })
 export type MigrationOptions = z.infer<typeof migrationOptionsSchema>
+
+
+export const taskListInputSchema = z.strictObject({
+  date: z.iso.date(), scope: taskScopeSchema.default('all'), expectedVersion: version,
+  today: z.iso.date(), page: z.number().int().min(1).max(1_000_000).default(1),
+})
+export type TaskListInput = z.infer<typeof taskListInputSchema>
+export const taskListSchema = z.object({
+  version, today: z.iso.date(), date: z.iso.date(), scope: taskScopeSchema,
+  page: z.number().int().positive(), pageSize: z.literal(10), total: version,
+  tasks: z.array(planningTaskSchema).max(10), progress: planningProgressSchema,
+})
+export type TaskList = z.infer<typeof taskListSchema>
