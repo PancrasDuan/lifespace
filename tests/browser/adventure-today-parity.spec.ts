@@ -13,8 +13,12 @@ const task: PlanningTask = {
 // Approved A prototype: these controls and type/spacing values were lost when
 // Today reused the older generic record. Exercise the real page and stylesheet.
 for (const width of [1440, 390]) test(`${width}px 今日聚焦保留 A 原型的行内操作和视觉层次`, async ({ page, context }) => {
-  await planningFixture(context, { ...withGoal, tasks: [task], totalTasks: 1, taskProgress: { completed: 0, total: 1, ratio: 0 },
+  const server = await planningFixture(context, { ...withGoal, tasks: [task], totalTasks: 1, taskProgress: { completed: 0, total: 1, ratio: 0 },
+    goals: withGoal.goals.map(goal => ({ ...goal, capabilities: { ...goal.capabilities, createTask: allowed } })),
     capabilities: { ...withGoal.capabilities, createTask: allowed } })
+  server.preview({ version: withGoal.version, today: withGoal.today, allowed: true, requiresConfirmation: true,
+    operation: 'deleteTask', entityId: task.id, title: task.title, plannedOn: task.plannedOn, historicalArrangements: 1,
+    stoppingGoals: [], stoppingTasks: [], preservedCompletedTasks: 0, preservedAchievedGoals: 0, message: '仅删除未完成任务，历史继续保留' })
   await page.setViewportSize({ width, height: 1000 })
   await page.goto('/adventure')
   const row = page.getByRole('article', { name: `任务：${task.title}`, exact: true })
@@ -72,6 +76,29 @@ for (const width of [1440, 390]) test(`${width}px 今日聚焦保留 A 原型的
   await expect(trigger).toHaveCSS('border-top-width', '0px')
   const removeBox = (await remove.boundingBox())!, cancelBox = (await dialog.getByRole('button', { name: '取消', exact: true }).boundingBox())!
   expect(cancelBox.x - removeBox.x - removeBox.width).toBeGreaterThan(12)
+  await dialog.getByLabel('任务名称', { exact: true }).fill('删除取消前的草稿')
+  await dialog.getByLabel('任务说明', { exact: true }).fill('尚未保存的说明')
+  await dialog.getByLabel('执行日期', { exact: true }).fill('2099-06-17')
+  await dialog.getByLabel('任务归属', { exact: true }).selectOption(withGoal.goals[0].id)
+  await remove.click()
+  const deletion = page.getByRole('dialog', { name: '删除任务', exact: true })
+  await expect(deletion).toBeVisible()
+  await expect(deletion.getByText(`确定删除“${task.title}”吗？删除后任务将从列表中移除。`, { exact: true })).toBeVisible()
+  await expect(deletion.getByRole('button')).toHaveCount(3)
+  await expect(deletion.getByRole('button', { name: '确认删除', exact: true })).toHaveCSS('color', 'rgb(255, 255, 255)')
+  await expect(deletion.getByRole('button', { name: '重新预览', exact: true })).toHaveCount(0)
+  await deletion.getByRole('button', { name: '取消', exact: true }).click()
+  await expect(dialog.getByLabel('任务名称', { exact: true })).toHaveValue('删除取消前的草稿')
+  await expect(dialog.getByLabel('任务说明', { exact: true })).toHaveValue('尚未保存的说明')
+  await expect(dialog.getByLabel('执行日期', { exact: true })).toHaveValue('2099-06-17')
+  await expect(dialog.getByLabel('任务归属', { exact: true })).toHaveValue(withGoal.goals[0].id)
+  await dialog.getByRole('button', { name: '删除任务', exact: true }).click()
+  await page.keyboard.press('Escape')
+  await expect(dialog.getByLabel('任务名称', { exact: true })).toHaveValue('删除取消前的草稿')
+  await dialog.getByRole('button', { name: '删除任务', exact: true }).click()
+  await deletion.getByRole('button', { name: '关闭弹窗', exact: true }).click()
+  await expect(dialog.getByLabel('任务名称', { exact: true })).toHaveValue('删除取消前的草稿')
+  expect(server.envelopes).toHaveLength(0)
   await page.keyboard.press('Escape')
   await expect(edit).toBeFocused()
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)

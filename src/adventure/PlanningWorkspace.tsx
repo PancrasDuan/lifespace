@@ -203,10 +203,12 @@ function Workspace() {
   }
   const toggleGoal = (id: string) => { const next = openRecord === `goal:${id}` ? undefined : `goal:${id}`; setOpenRecord(next); if (next) { if (dialog?.kind !== 'detail' || dialog.id !== id) { inlineOrigin.current = document.activeElement instanceof HTMLElement ? document.activeElement : undefined; openDialog({ kind: 'detail', id }); window.history.replaceState(null, '', `/adventure?goalId=${id}`); void model.load({ goalId: id, mainlineId: undefined, goalTaskPage: 1, page: 1 }) } } else close() }
   const detailGoal = dialog?.kind === 'detail' ? (data?.goalDetail?.goal.id === dialog.id ? data.goalDetail.goal : data?.goals.find(item => item.id === dialog.id)) : undefined
-  const title = !dialog ? '' : dialog.kind === 'detail' ? '目标详情' : dialog.kind === 'mainlineDetail' ? '主线历史'
+  const preview = model.confirmation.preview
+  const taskDeletion = dialog?.kind === 'task' && dialog.task && preview && 'operation' in preview && preview.operation === 'deleteTask' && preview.entityId === dialog.task.id ? preview : undefined
+  const dismissTaskDeletion = () => { if (blocked) close(); else model.confirmation.invalidate() }
+  const title = taskDeletion ? '删除任务' : !dialog ? '' : dialog.kind === 'detail' ? '目标详情' : dialog.kind === 'mainlineDetail' ? '主线历史'
     : dialog.kind === 'taskHistory' ? '任务安排历史' : dialog.kind === 'migrate' ? '迁移目标' : dialog.kind === 'achieve' ? '确认目标达成' : dialog.kind === 'lifecycle' ? lifecycleTitles[dialog.operation] : dialog.kind === 'task' ? dialog.task ? '编辑任务' : '创建任务'
     : dialog.kind === 'mainline' ? dialog.id ? '修改主线名称' : '创建主线' : dialog.goal ? '编辑目标' : '创建目标'
-  const preview = model.confirmation.preview
   const goals = data?.goals
   const inlineDetail = dialog?.kind === 'detail' || dialog?.kind === 'mainlineDetail'
   useEffect(() => {
@@ -300,12 +302,12 @@ function Workspace() {
         </>}
     </div>}
 
-    {dialog && !inlineDetail && data && <Modal title={title} close={close} restoreFocus={inlineOrigin.current} className={dialog.kind === 'task' ? 'task-editor-dialog' : undefined}>
+    {dialog && !inlineDetail && data && <Modal title={title} close={taskDeletion ? dismissTaskDeletion : close} restoreFocus={inlineOrigin.current} className={dialog.kind === 'task' ? 'task-dialog' : undefined}>
       {dialog.kind === 'taskHistory' ? <PlanningTaskHistory key={dialog.id} id={dialog.id} />
       : dialog.kind === 'migrate' ? <PlanningMigration kind={dialog.entityKind} id={dialog.id} title={dialog.title} version={data.version} blocked={blocked} action={model.command} close={close} />
       : dialog.kind === 'achieve' ? preview && 'goalId' in preview && preview.operation === 'achieveGoal' && <GoalAchievement preview={preview} confirmation={model.confirmation} saved={() => openDialog({ kind: 'detail', id: dialog.id })} cancel={close} />
       : dialog.kind === 'lifecycle' ? preview && 'entityId' in preview && <PlanningLifecycle preview={preview} confirmation={model.confirmation} saved={close} cancel={close} />
-      : dialog.kind === 'task' ? <TaskForm key={dialog.task?.id ?? 'new-task'} task={dialog.task} remove={dialog.task ? () => { void openLifecycle('deleteTask', dialog.task!.id) } : undefined} data={data} action={model.command} busy={blocked} close={close} changeGoalPage={page => { void model.load({ page }) }} />
+      : dialog.kind === 'task' ? <TaskForm key={dialog.task?.id ?? 'new-task'} task={dialog.task} remove={dialog.task ? () => { void model.confirmation.refresh({ type: 'deleteTask', id: dialog.task!.id }) } : undefined} deleteConfirmation={taskDeletion && <PlanningLifecycle preview={taskDeletion} confirmation={model.confirmation} saved={close} cancel={dismissTaskDeletion} />} data={data} action={model.command} busy={blocked} close={close} changeGoalPage={page => { void model.load({ page }) }} />
       : <PlanningForm key={dialog.kind === 'mainline' ? dialog.id ?? 'new-mainline' : dialog.goal?.id ?? 'new-goal'} dialog={dialog} data={data} action={model.command} busy={blocked} close={close} saved={saved} />}
       {recovery && <div className="planning-recovery">{recovery}</div>}
     </Modal>}

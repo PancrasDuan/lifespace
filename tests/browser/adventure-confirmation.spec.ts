@@ -66,12 +66,12 @@ const scenarios: Scenario[] = [
       await expect(page.getByRole('dialog')).toContainText('目标奖励：2 点经验')
     } },
   { name: '删除', initial, preview: deletePreview, changedPreview: { ...deletePreview, historicalArrangements: 2 },
-    saved: { ...initial, tasks: [], totalTasks: 0 }, confirm: '确认删除任务', repreview: '重新预览',
+    saved: { ...initial, tasks: [], totalTasks: 0 }, confirm: '确认删除', repreview: '重新预览',
     open: async page => {
       await openTask(page, '编辑任务')
       await page.getByRole('button', { name: '删除任务', exact: true }).click()
     },
-    inspectChanged: async page => { await expect(page.getByRole('dialog')).toContainText('已有安排历史 2 项') } },
+    inspectChanged: async page => { await expect(page.getByRole('dialog')).toContainText('删除后任务将从列表中移除。'); await expect(page.getByRole('button', { name: '重新预览', exact: true })).toHaveCount(0) } },
 
 ]
 
@@ -186,6 +186,10 @@ test('关闭删除确认后迟到的重新预览不能影响下一次编辑', as
   const server = await planningFixture(context, initial)
   server.preview(deletePreview)
   await scenarios[2].open(page)
+  server.saved({ ...initial, version: 3 })
+  server.conflictNext()
+  await page.getByRole('button', { name: '确认删除', exact: true }).click()
+  await expect(page.getByRole('button', { name: '确认删除', exact: true })).toBeDisabled()
   const held = deferred(), release = deferred()
   await context.route('**/api/adventure/preview', async route => {
     held.resolve()
@@ -202,8 +206,30 @@ test('关闭删除确认后迟到的重新预览不能影响下一次编辑', as
     await page.getByRole('button', { name: '编辑任务', exact: true }).click()
     await expect(page.getByLabel('执行日期', { exact: true })).toHaveValue(initial.today)
     await expect(page.getByRole('dialog', { name: '编辑任务', exact: true })).toBeVisible()
-    await expect(page.getByRole('button', { name: '确认删除任务', exact: true })).toHaveCount(0)
-    expect(server.envelopes).toHaveLength(0)
+    await expect(page.getByRole('button', { name: '确认删除', exact: true })).toHaveCount(0)
+    expect(server.envelopes).toHaveLength(1)
+  } finally { release.resolve() }
+})
+
+test('提交删除后关闭弹窗，迟到成功不重新打开已删除任务的编辑', async ({ page, context }) => {
+  const server = await planningFixture(context, initial)
+  server.preview(deletePreview)
+  server.saved({ ...initial, version: 3, tasks: [], totalTasks: 0 })
+  await scenarios[2].open(page)
+  const held = deferred(), release = deferred()
+  await context.route('**/api/adventure/commands', async route => {
+    held.resolve()
+    await release.promise
+    await route.fallback()
+  })
+  try {
+    await page.getByRole('button', { name: '确认删除', exact: true }).click()
+    await held.promise
+    await page.getByRole('button', { name: '关闭弹窗', exact: true }).click()
+    release.resolve()
+    await expect(page.getByRole('article', { name: '任务：确认流程行动', exact: true })).toHaveCount(0)
+    await expect(page.getByRole('dialog')).toHaveCount(0)
+    expect(server.envelopes).toHaveLength(1)
   } finally { release.resolve() }
 })
 
@@ -241,6 +267,6 @@ test('不同操作或任务的预览不能作为当前确认依据', async ({ pa
   server.preview({ ...deletePreview, entityId: otherTaskId })
   await scenarios[2].open(page)
   await expect(page.getByRole('alert')).toContainText('预览内容与当前操作不符')
-  await expect(page.getByRole('button', { name: '确认删除任务', exact: true })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: '确认删除', exact: true })).toHaveCount(0)
   expect(server.envelopes).toHaveLength(0)
 })

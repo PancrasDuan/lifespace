@@ -177,13 +177,15 @@
 .adventure-dialog .task-date-field .lp-time-control{background:#fff}
 .adventure-dialog .task-date-field .lp-time-control:hover,.adventure-dialog .task-date-field .lp-time-control:focus-within{background:#f8fbf7}
 
-/* The task editor follows the approved form, independently of planning buttons. */
-.adventure-dialog.task-editor-dialog > header button { min-height: 0; color: #49643e; }
-.adventure-dialog.task-editor-dialog .adventure-form-footer button { padding: 9px 13px; color: #49643e; }
-.adventure-dialog.task-editor-dialog .adventure-form-footer .adventure-primary { color: #fff; }
-.adventure-dialog.task-editor-dialog .adventure-form-footer .delete-task { color: #9a5550; }
-.adventure-page.prototype-page .task-editor-dialog :focus-visible { outline: 3px solid #c5a47b; outline-offset: 3px; }
-.adventure-dialog.task-editor-dialog .task-date-field .lp-time-control { overflow: hidden; }
-.adventure-dialog.task-editor-dialog .task-date-field .lp-time-native { flex: 0 1 auto; border-radius: 0; }
-.adventure-dialog.task-editor-dialog .task-date-field .lp-time-native:focus-visible { outline: none; }
-.adventure-dialog.task-editor-dialog .task-date-field .lp-time-trigger { color: #4f7049; }
+/* Task dialogs follow the approved prototype, independently of planning buttons. */
+.adventure-dialog.task-dialog > header button { min-height: 0; color: #49643e; }
+.adventure-dialog.task-dialog .adventure-form-footer button { padding: 9px 13px; color: #49643e; }
+.adventure-dialog.task-dialog .adventure-form-footer .adventure-primary { color: #fff; }
+.adventure-dialog.task-dialog .adventure-form-footer .delete-task { color: #9a5550; }
+.adventure-page.prototype-page .task-dialog :focus-visible { outline: 3px solid #c5a47b; outline-offset: 3px; }
+.adventure-dialog.task-dialog .task-date-field .lp-time-control { overflow: hidden; }
+.adventure-dialog.task-dialog .task-date-field .lp-time-native { flex: 0 1 auto; border-radius: 0; }
+.adventure-dialog.task-dialog .task-date-field .lp-time-native:focus-visible { outline: none; }
+.adventure-dialog.task-dialog .task-date-field .lp-time-trigger { color: #4f7049; }
+
+.adventure-dialog.task-dialog .task-delete-copy { font-size: 16px; color: #293b2b; line-height: normal; margin: 1em 0; }

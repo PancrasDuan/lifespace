@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { Check, ListTodo } from 'lucide-react'
 import type { PlanningCommand, PlanningPage, PlanningTask, TaskRange, TaskScope } from '../shared/adventure-planning'
 
@@ -11,8 +11,8 @@ import { PlanningProgress } from './PlanningProgress'
 import { PlanningRecord, PlanningMore } from './PlanningRecord'
 
 type Action = (command: PlanningCommand, expectedVersion?: number) => Promise<boolean>
-export function TaskForm({ task, data: workspace, action, busy, close, changeGoalPage, remove }: {
-  task?: PlanningTask; data: PlanningPage; action: Action; busy: boolean; close: () => void; changeGoalPage: (page: number) => void; remove?: () => void
+export function TaskForm({ task, data: workspace, action, busy, close, changeGoalPage, remove, deleteConfirmation }: {
+  task?: PlanningTask; data: PlanningPage; action: Action; busy: boolean; close: () => void; changeGoalPage: (page: number) => void; remove?: () => void; deleteConfirmation?: ReactNode
 }) {
   const identity = useVerifiedIdentity()
   const [separateCandidates] = useState(workspace.goalScope === 'focus' || !!workspace.mainlineDetail)
@@ -44,6 +44,8 @@ export function TaskForm({ task, data: workspace, action, busy, close, changeGoa
       : { type: 'createTask', title, description, plannedOn, destination }
     if (await action(command)) close()
   }
+  // Keep this component mounted through deletion so cancelling restores its draft.
+  if (deleteConfirmation) return <>{deleteConfirmation}</>
   return <form onSubmit={event => { void submit(event) }}><fieldset disabled={busy}>
     <label>任务名称<input required maxLength={data.limits.name} autoComplete="off" value={title} onChange={event => setTitle(event.target.value)} /></label>
     <label>任务说明<textarea aria-label="任务说明" maxLength={4000} rows={3} value={description} onChange={event => setDescription(event.target.value)} /></label>
