@@ -13,7 +13,7 @@ const task: PlanningTask = {
 // Approved A prototype: these controls and type/spacing values were lost when
 // Today reused the older generic record. Exercise the real page and stylesheet.
 for (const width of [1440, 390]) test(`${width}px 今日聚焦保留 A 原型的行内操作和视觉层次`, async ({ page, context }) => {
-  await planningFixture(context, { ...withGoal, tasks: [task], totalTasks: 1,
+  await planningFixture(context, { ...withGoal, tasks: [task], totalTasks: 1, taskProgress: { completed: 0, total: 1, ratio: 0 },
     capabilities: { ...withGoal.capabilities, createTask: allowed } })
   await page.setViewportSize({ width, height: 1000 })
   await page.goto('/adventure')
@@ -36,6 +36,7 @@ for (const width of [1440, 390]) test(`${width}px 今日聚焦保留 A 原型的
   await expect(page.locator('.today-list')).toHaveCSS('padding', width > 720 ? '22px' : '16px 14px')
   await expect(page.locator('.today-search')).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)')
   await expect(page.locator('.today-search')).toHaveCSS('height', '39px')
+  await expect(page.getByRole('progressbar', { name: '今日任务进度', exact: true })).toHaveCSS('height', '5px')
   await expect(page.locator('.today-list-heading p')).toHaveCSS('line-height', 'normal')
   await expect(page.getByRole('button', { name: '上一周', exact: true })).toHaveCSS('border-top-width', '0px')
   const otherDay = page.getByRole('button', { name: '选择日期 2026-10-19', exact: true })
