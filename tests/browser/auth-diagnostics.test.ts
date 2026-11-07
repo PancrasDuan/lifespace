@@ -30,6 +30,24 @@ for (const boundary of ['initialize', 'session'] as const) {
   })
 }
 
+test('登录页重新检查的诊断更新且保留已填写内容', async ({ page }) => {
+  await page.route('**/api/auth/config', route => route.fulfill({ json: config }))
+  await page.goto('/')
+  await expect(page.getByRole('heading', { name: '欢迎回来' })).toBeVisible()
+  await page.getByLabel('邮箱', { exact: true }).fill('private@example.com')
+  await page.getByLabel('密码', { exact: true }).fill('private-password')
+  await page.evaluate(async () => {
+    const modulePath = '/src/auth/client.ts'
+    const { authClient } = await import(/* @vite-ignore */ modulePath)
+    const client = await authClient()
+    client.auth.getSession = async () => ({ data: { session: null }, error: { __isAuthError: true, name: 'AuthApiError', status: 400, code: 'bad_jwt', message: 'private' } })
+    window.dispatchEvent(new Event('focus'))
+  })
+  await showDiagnostic(page, 'LSAUTH/1 stage=session kind=AuthApiError status=400 code=bad_jwt')
+  await expect(page.getByLabel('邮箱', { exact: true })).toHaveValue('private@example.com')
+  await expect(page.getByLabel('密码', { exact: true })).toHaveValue('private-password')
+})
+
 test('配置 HTTP 失败保留原提示与重试，并显示脱敏诊断', async ({ page }) => {
   let fail = true
   await page.route('**/api/auth/config', route => route.fulfill(fail ? { status: 503, json: { message: 'private-body' } } : { json: config }))

@@ -448,6 +448,7 @@ function LoginForm({ initialDiagnostic }: { initialDiagnostic?: AuthDiagnostic }
   const [error, setError] = useState('')
   const [diagnostic, setDiagnostic] = useState(initialDiagnostic)
   const [cooldown, setCooldown] = useState(0)
+  useEffect(() => setDiagnostic(initialDiagnostic), [initialDiagnostic])
   useEffect(() => {
     if (!cooldown) return
     const timer = window.setTimeout(
