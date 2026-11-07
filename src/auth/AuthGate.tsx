@@ -252,7 +252,6 @@ export function AuthGate({ children }: { children: ReactNode }) {
       setState({
         kind:
           status === 403 ? 'denied' : status === 401 ? 'login' : 'unavailable',
-        diagnostic: diagnoseAuthFailure('identity-response', undefined, status),
       })
     }
     window.addEventListener('lifespace-auth-rejected', rejected)

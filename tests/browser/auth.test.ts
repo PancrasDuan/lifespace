@@ -86,6 +86,7 @@ test('头像退出仅撤销当前浏览器，成功后移除首页数据', async
   await expect(page.getByRole('heading', { name: '欢迎回来' })).toBeVisible()
   expect(scope).toBe('local')
   await expect(page.getByRole('button', { name: '查看世界时间详情' })).toHaveCount(0)
+  await expect(page.locator('.auth-diagnostics')).toHaveCount(0)
 })
 
 test('忘记密码通过 SDK 发送重置邮件并显示统一提示', async ({ page }) => {
