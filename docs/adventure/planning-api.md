@@ -53,7 +53,7 @@
 }
 ```
 
-预览校验输入、当前版本、归属和配额，返回 `version`、`today`、`allowed=true`、`requiresConfirmation=false` 及说明。不初始化账户、不写业务行或回执、不推进版本。取消任务完成时 `requiresConfirmation=true`，同时返回具体 `completionId`、原事件的冻结 `reward`、`growthBefore`、`growthAfter`；两者含经验、等级、行动数和七个成就结果。确认命令使用此预览版本；409 后重读并重新预览，不静默换用新版本。失败返回与命令相同的业务错误；提交仍重新校验。
+预览校验输入、当前版本、归属和配额，返回 `version`、`today`、`allowed=true`、`requiresConfirmation=false` 及说明。不初始化账户、不写业务行或回执、不推进版本。取消任务完成的旧预览仍兼容返回 `requiresConfirmation=true`、具体 `completionId`、冻结 `reward`、`growthBefore`、`growthAfter`，不作为命令前置令牌。按2026-11-07正式验收反馈，今日界面直接提交 `cancelTaskCompletion`，不调用此预览或打开确认弹窗；命令仍校验具体完成事件、账户版本、当天及终态资格并原子回退冻结奖励。409只重读并提示用户再次点击，结果未知仅用原封套安全重试。失败返回与命令相同的业务错误；提交仍重新校验。
 
 目标达成预览为 `requiresConfirmation=true, operation=achieveGoal`，返回 goalId、title、standards、version、today、三档 `rewards`（每档含完整冻结奖励依据）及 `stoppingTasks`（新规则成功预览为空；有未完成任务时拒绝预览）。前端仅选择服务端返回的评价档位并展示金额，不能自行计算 N 或奖励。预览无写入；取消不变更业务状态。有未完成任务时先删除或通过统一编辑转移，再重新预览；版本冲突后旧确认禁用，必须重新预览。
 

@@ -6,11 +6,13 @@ export function Modal({
   close,
   children,
   restoreFocus,
+  className = '',
 }: {
   title: string
   close: () => void
   children: ReactNode
   restoreFocus?: HTMLElement
+  className?: string
 }) {
   const dialog = useRef<HTMLDivElement>(null)
   const closeRef = useRef(close)
@@ -94,7 +96,7 @@ export function Modal({
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className="adventure-dialog"
+        className={`adventure-dialog${className ? ` ${className}` : ''}`}
       >
         <header>
           <h2>{title}</h2>

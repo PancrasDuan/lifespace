@@ -36,6 +36,11 @@ for (const width of [1440, 390]) test(`${width}px 今日聚焦保留 A 原型的
   await expect(page.locator('.today-list')).toHaveCSS('padding', width > 720 ? '22px' : '16px 14px')
   await expect(page.locator('.today-search')).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)')
   await expect(page.locator('.today-search')).toHaveCSS('height', '39px')
+  // Font fallback in CI can give the native input a 14px line box. The outer
+  // control must retain the approved size across those platform metrics.
+  await page.getByRole('searchbox', { name: '搜索任务' }).evaluate(input => { if (input instanceof HTMLInputElement) input.style.lineHeight = '14px' })
+  await expect(page.locator('.today-search')).toHaveCSS('height', '39px')
+  await page.getByRole('searchbox', { name: '搜索任务' }).evaluate(input => { if (input instanceof HTMLInputElement) input.style.lineHeight = '' })
   await expect(page.getByRole('progressbar', { name: '今日任务进度', exact: true })).toHaveCSS('height', '5px')
   await expect(page.locator('.today-list-heading p')).toHaveCSS('line-height', 'normal')
   await expect(page.getByRole('button', { name: '上一周', exact: true })).toHaveCSS('border-top-width', '0px')
@@ -56,6 +61,15 @@ for (const width of [1440, 390]) test(`${width}px 今日聚焦保留 A 原型的
   await expect(dialog.getByLabel('任务名称', { exact: true })).toHaveValue(task.title)
   const remove = dialog.getByRole('button', { name: '删除任务', exact: true })
   await expect(remove).toHaveCSS('color', 'rgb(154, 85, 80)')
+  await expect(remove).toHaveCSS('padding', '9px 13px')
+  await expect(dialog.getByRole('button', { name: '保存任务', exact: true })).toHaveCSS('color', 'rgb(255, 255, 255)')
+  await expect(dialog.getByRole('button', { name: '关闭弹窗', exact: true })).toHaveCSS('min-height', '0px')
+  const date = dialog.getByLabel('执行日期', { exact: true }), trigger = dialog.getByRole('button', { name: '选择执行日期', exact: true })
+  const controlBox = (await dialog.locator('.lp-time-control').boundingBox())!, inputBox = (await date.boundingBox())!, triggerBox = (await trigger.boundingBox())!
+  expect(inputBox.x).toBeGreaterThan(controlBox.x)
+  expect(triggerBox.x + triggerBox.width).toBeLessThanOrEqual(controlBox.x + controlBox.width)
+  await expect(date).toHaveCSS('border-top-width', '0px')
+  await expect(trigger).toHaveCSS('border-top-width', '0px')
   const removeBox = (await remove.boundingBox())!, cancelBox = (await dialog.getByRole('button', { name: '取消', exact: true }).boundingBox())!
   expect(cancelBox.x - removeBox.x - removeBox.width).toBeGreaterThan(12)
   await page.keyboard.press('Escape')

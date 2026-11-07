@@ -24,7 +24,7 @@ test.describe('逾期行动的真实数据库浏览器流程', () => {
     await page.reload()
     await openRecordActions(card)
     await card.getByRole('button', { name: '取消完成', exact: true }).click()
-    await page.getByRole('button', { name: '确认取消完成', exact: true }).click()
+    await expect(card.getByRole('button', { name: '完成', exact: true })).toBeEnabled()
     await expect(page.getByRole('dialog')).toBeHidden()
     await openRecordActions(card)
     await expect(card.getByRole('button', { name: '完成', exact: true })).toBeEnabled()

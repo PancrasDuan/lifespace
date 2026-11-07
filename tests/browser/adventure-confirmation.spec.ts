@@ -4,8 +4,7 @@ import { allowed, later, planningFixture, withGoal, goalId } from './adventure-f
 import type { PlanningPage, PlanningPreview } from '../../src/shared/adventure-planning'
 
 const taskId = '00000000-0000-4000-8000-000000000061'
-const completionId = '00000000-0000-4000-8000-000000000062'
-const reward = { amount: 1, calculation: { type: 'fixed_task' as const, completionId, count: 1, coefficient: 1 } }
+const otherTaskId = '00000000-0000-4000-8000-000000000062'
 const initial: PlanningPage = {
   ...withGoal, capabilities: { ...withGoal.capabilities, createTask: allowed }, totalTasks: 1,
   goals: [{ ...withGoal.goals[0], capabilities: { ...withGoal.goals[0].capabilities, achieve: allowed, end: allowed } }],
@@ -25,10 +24,6 @@ const achievementPreview: PlanningPreview = { version: 2, today: initial.today, 
 const deletePreview: PlanningPreview = { version: 2, today: initial.today, allowed: true, requiresConfirmation: true,
   operation: 'deleteTask', entityId: taskId, title: '确认流程行动', plannedOn: initial.today, historicalArrangements: 1,
   stoppingGoals: [], stoppingTasks: [], preservedCompletedTasks: 0, preservedAchievedGoals: 0, message: '仅删除未完成任务，历史继续保留' }
-const completed: PlanningPage = { ...initial, tasks: [{ ...initial.tasks[0], status: 'completed', completedOn: initial.today, completionId, reward,
-  capabilities: { reschedule: later, cancel: allowed } }], growth: { ...initial.growth, totalXp: 1, progress: 1, remaining: 19, actions: 1 } }
-const cancelPreview: PlanningPreview = { version: 2, today: initial.today, allowed: true, requiresConfirmation: true,
-  completionId, reward, growthBefore: completed.growth, growthAfter: initial.growth, message: '移除本次完成与经验' }
 const achieved: PlanningPage = { ...initial, goals: [], totalGoals: 0,
   goalDetail: { goal: { ...initial.goals[0], status: 'achieved', focused: false, terminatedAt: '2026-10-22T00:00:00Z',
     achievement: { id: goalId, occurredOn: initial.today, reflection: '完成了', reward: goalReward(2) },
@@ -77,8 +72,7 @@ const scenarios: Scenario[] = [
       await page.getByRole('button', { name: '删除任务', exact: true }).click()
     },
     inspectChanged: async page => { await expect(page.getByRole('dialog')).toContainText('已有安排历史 2 项') } },
-  { name: '取消完成', initial: completed, preview: cancelPreview, changedPreview: cancelPreview,
-    saved: initial, confirm: '确认取消完成', repreview: '重新预览', open: page => openTask(page, '取消完成') },
+
 ]
 
 // Exercise the shared confirmation interface through its real UI callers and HTTP seam.
@@ -244,7 +238,7 @@ test('不同操作或任务的预览不能作为当前确认依据', async ({ pa
   await openGoal(page, '结束目标', true)
   await expect(page.getByRole('alert')).toContainText('预览内容与当前操作不符')
   await expect(page.getByRole('dialog')).toBeHidden()
-  server.preview({ ...deletePreview, entityId: completionId })
+  server.preview({ ...deletePreview, entityId: otherTaskId })
   await scenarios[2].open(page)
   await expect(page.getByRole('alert')).toContainText('预览内容与当前操作不符')
   await expect(page.getByRole('button', { name: '确认删除任务', exact: true })).toHaveCount(0)

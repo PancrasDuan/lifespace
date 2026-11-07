@@ -1,5 +1,8 @@
 /* Approved Today A surface. Keep its controls independent of legacy Record styles. */
-.adventure-page.prototype-page .today-tasks { min-width: 0; overflow-anchor: none; color: #263a2d; line-height: normal; }
+.adventure-page.prototype-page .today-tasks { width: 100%; min-width: 0; overflow-anchor: none; color: #263a2d; line-height: normal; }
+/* Hide the page scrollbar without disabling wheel, keyboard or touch scrolling. */
+html:has(.adventure-page.prototype-page) { scrollbar-width: none; }
+html:has(.adventure-page.prototype-page)::-webkit-scrollbar { display: none; }
 .adventure-page.prototype-page .today-calendar,
 .adventure-page.prototype-page .today-list { background: #fff; border: 1px solid #e2e9df; border-radius: 16px; }
 .adventure-page.prototype-page .today-calendar { padding: 18px 20px; }
@@ -23,7 +26,7 @@
 .adventure-page.prototype-page .today-list-heading { display: flex; align-items: center; justify-content: space-between; gap: 15px; }
 .adventure-page.prototype-page .today-list-heading h2 { margin: 0; font-size: 17px; font-weight: 600; }
 .adventure-page.prototype-page .today-list-heading p { margin: 6px 0 0; color: #829183; font-size: 11px; line-height: normal; }
-.adventure-page.prototype-page .today-search { display: flex; align-items: center; gap: 6px; min-width: 0; width: 155px; padding: 9px 10px; background: transparent; border: 1px solid #e0e8dd; border-radius: 9px; color: #8b9a8a; }
+.adventure-page.prototype-page .today-search { display: flex; align-items: center; gap: 6px; min-width: 0; width: 155px; min-height: 39px; padding: 9px 10px; background: transparent; border: 1px solid #e0e8dd; border-radius: 9px; color: #8b9a8a; }
 .adventure-page.prototype-page .today-search input { min-width: 0; width: 100%; padding: 1px 2px; border: 0; border-radius: 0; background: transparent; font: inherit; font-size: 12px; color: inherit; }
 .adventure-page.prototype-page .today-search input::placeholder { color: #757575; }
 .adventure-page.prototype-page .today-search:focus-within { outline: 2px solid #52764f; outline-offset: 2px; }

@@ -70,3 +70,23 @@ test('详情展开与收起保留当前任务在视口的位置', async ({ page,
   await row.getByRole('button', { name: '收起任务详情 任务 5', exact: true }).click()
   expect(Math.abs((await summary.boundingBox())!.y - before)).toBeLessThan(2)
 })
+
+test('验收反馈：单条过去完成记录展开收起时卡片宽度稳定', async ({ page, context }) => {
+  const past = { ...task(1, '昨天完成的散步'), status: 'completed' as const, plannedOn: '2026-10-19', completedOn: '2026-10-19',
+    description: '本机临时数据库样例，可自由创建、编辑、完成、撤销和删除；不会写入真实账户。' }
+  await planningFixture(context, { ...workspace, tasks: [past], totalTasks: 1 })
+  await page.setViewportSize({ width: 390, height: 950 })
+  await page.goto('/adventure')
+  await page.getByRole('button', { name: '选择日期 2026-10-19', exact: true }).click()
+  await expect(page.getByRole('heading', { name: /^当天已完成/ })).toBeVisible()
+  const row = page.getByRole('article', { name: '任务：昨天完成的散步', exact: true })
+  const copy = row.getByRole('button', { name: '任务详情：昨天完成的散步', exact: true })
+  await copy.scrollIntoViewIfNeeded()
+  await page.evaluate(() => document.fonts.ready)
+  const before = (await row.boundingBox())!
+  await copy.click()
+  await expect(row.getByText(past.description, { exact: true })).toBeVisible()
+  expect((await row.boundingBox())!.width).toBeCloseTo(before.width, 1)
+  await row.getByRole('button', { name: '收起任务详情 昨天完成的散步', exact: true }).click()
+  expect((await row.boundingBox())!.width).toBeCloseTo(before.width, 1)
+})

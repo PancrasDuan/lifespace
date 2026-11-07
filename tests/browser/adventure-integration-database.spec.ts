@@ -11,7 +11,7 @@ test.describe('跨功能交付与真实提交恢复验收（受控身份）', ()
   test.beforeEach(async ({ context }) => { await database.install(context) })
   test.afterEach(() => database.restore())
 
-  for (const width of [1440, 390]) test(`${width}px 真实提交后丢失响应、查询失败、预览过期与迁移达成来源联动`, async ({ page, context }) => {
+  for (const width of [1440, 390]) test(`${width}px 真实提交后丢失响应、查询失败、撤销并发冲突与迁移达成来源联动`, async ({ page, context }) => {
     const main = (await write({ type: 'createMainline', name: '联动主线' })).result.entityId
     const goal = (await write({ type: 'createGoal', title: '联动成果', standards: ['结果确已达成'], destination: main })).result.entityId
     const task = (await database.createHistoricalTask({ type: 'createTask', title: '联动行动', description: '原行动说明', plannedOn: '2020-01-01', destination: goal })).result.entityId
@@ -60,16 +60,15 @@ test.describe('跨功能交付与真实提交恢复验收（受控身份）', ()
     expect(envelopes).toHaveLength(2)
     await context.unroute('**/api/adventure/commands')
 
-    await openRecordActions(card)
-    await card.getByRole('button', { name: '取消完成', exact: true }).click()
-    expect(await snapshot()).toEqual(committed)
+    // A concurrent write makes the current row stale; direct cancellation must
+    // reject it, reload, and wait for another explicit click.
     await write({ type: 'createGoal', title: '另一会话的新目标', standards: ['标准'], destination: '' })
-    await page.getByRole('button', { name: '确认取消完成', exact: true }).click()
-    await expect(page.getByRole('button', { name: '确认取消完成', exact: true })).toBeDisabled()
+    await card.getByRole('button', { name: '取消完成', exact: true }).click()
+    await expect(page.getByRole('alert')).toContainText('数据已更新')
     expect((await snapshot()).tasks[0].completionId).toBe(completion)
-    await page.getByRole('button', { name: '重新预览', exact: true }).click()
-    await page.getByRole('button', { name: '确认取消完成', exact: true }).click()
-    await expect(page.getByRole('dialog')).toBeHidden()
+    await card.getByRole('button', { name: '取消完成', exact: true }).click()
+    await expect(page.getByRole('dialog')).toHaveCount(0)
+    await expect(card.getByRole('button', { name: '完成', exact: true })).toBeEnabled()
     expect((await snapshot()).growth).toMatchObject({ totalXp: 0, actions: 0 })
     await openRecordActions(card)
     await card.getByRole('button', { name: '完成', exact: true }).click()

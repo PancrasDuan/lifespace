@@ -82,7 +82,7 @@ test.describe('真实成长记录的桌面与手机浏览器验收（受控身�
     await page.getByRole('button', { name: '今日聚焦', exact: true }).click()
     await openRecordActions(task)
     await task.getByRole('button', { name: '取消完成', exact: true }).click()
-    await page.getByRole('button', { name: '确认取消完成', exact: true }).click()
+    await expect(task.getByRole('button', { name: '完成', exact: true })).toBeEnabled()
     await expect(page.getByRole('dialog')).toBeHidden()
     await page.getByRole('button', { name: '成长记录', exact: true }).click()
     await expect(summary).toContainText('累计经验19')
