@@ -24,6 +24,8 @@ import { AccountMenu } from './AccountMenu'
 import { VerifiedIdentityContext } from './identity'
 import { ResetPasswordForm } from './ResetPasswordForm'
 import { HomeSkeleton } from './HomeSkeleton'
+import { AuthDiagnostics } from './AuthDiagnostics'
+import { diagnoseAuthFailure, type AuthDiagnostic, type AuthFailureStage } from './diagnostics'
 
 const identitySchema = z.object({
   user: z.object({ id: z.uuid(), email: z.email() }),
@@ -37,6 +39,7 @@ type GateState =
         | 'denied'
         | 'callbackFailed'
         | 'callbackNeedsLogin'
+      diagnostic?: AuthDiagnostic
     }
   | { kind: 'allowed'; email: string; id: string; sessionId?: string }
 
@@ -90,8 +93,11 @@ export function AuthGate({ children }: { children: ReactNode }) {
     }
     const check = async () => {
       const current = ++generation
+      let stage: AuthFailureStage = 'client-create'
+      let status: number | undefined
       try {
         const client = await authClient()
+        stage = 'initialize'
         const initialized = await client.auth.initialize()
         const params = new URL(window.location.href).searchParams
         // Callback feedback is only used when no session passes the Worker gate.
@@ -103,17 +109,22 @@ export function AuthGate({ children }: { children: ReactNode }) {
                 ? { kind: 'callbackNeedsLogin' }
                 : undefined
             : undefined
+        stage = 'session'
         const { data, error } = await currentSession()
         if (disposed || current !== generation) return
         if (temporarilyUnavailable(error)) {
           queries.clear()
-          setState({ kind: 'unavailable' })
+          setState({ kind: 'unavailable', diagnostic: diagnoseAuthFailure(stage, error) })
           return
         }
         if (error || !data.session) {
           queries.clear()
           setAccountEmail(undefined)
-          setState(callbackState ?? { kind: 'login' })
+          setState({
+            ...(callbackState ?? { kind: 'login' }),
+            diagnostic: error ? diagnoseAuthFailure(stage, error)
+              : initialized.error ? diagnoseAuthFailure('initialize', initialized.error) : undefined,
+          })
           return
         }
         if (
@@ -122,13 +133,16 @@ export function AuthGate({ children }: { children: ReactNode }) {
         )
           revokePage()
         setAccountEmail(data.session.user.email)
+        stage = 'identity-request'
         const response = await verify(data.session.access_token)
         if (disposed || current !== generation) return
+        status = response.status
         if (response.ok) {
+          stage = 'identity-parse'
           const identity = identitySchema.parse(await response.json())
           if (identity.user.id !== data.session.user.id) {
             revokePage()
-            setState({ kind: 'unavailable' })
+            setState({ kind: 'unavailable', diagnostic: diagnoseAuthFailure('identity-mismatch', undefined, status) })
             return
           }
           if (!disposed && current === generation) {
@@ -170,12 +184,13 @@ export function AuthGate({ children }: { children: ReactNode }) {
                 : response.status === 401
                   ? (callbackState?.kind ?? 'login')
                   : 'unavailable',
+            diagnostic: diagnoseAuthFailure('identity-response', undefined, status),
           })
         }
-      } catch {
+      } catch (error) {
         if (!disposed && current === generation) {
           queries.clear()
-          setState({ kind: 'unavailable' })
+          setState({ kind: 'unavailable', diagnostic: diagnoseAuthFailure(stage, error, status) })
         }
       }
     }
@@ -211,8 +226,8 @@ export function AuthGate({ children }: { children: ReactNode }) {
         })
         unsubscribe = () => data.subscription.unsubscribe()
       })
-      .catch(() => {
-        if (!disposed) setState({ kind: 'unavailable' })
+      .catch((error) => {
+        if (!disposed) setState({ kind: 'unavailable', diagnostic: diagnoseAuthFailure('client-create', error) })
       })
     void check()
     const focus = () => {
@@ -237,6 +252,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
       setState({
         kind:
           status === 403 ? 'denied' : status === 401 ? 'login' : 'unavailable',
+        diagnostic: diagnoseAuthFailure('identity-response', undefined, status),
       })
     }
     window.addEventListener('lifespace-auth-rejected', rejected)
@@ -298,7 +314,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
       <AccountMenu email={accountEmail} />
       <AuthLayout>
         {state.kind === 'login' ? (
-          <LoginForm />
+          <LoginForm initialDiagnostic={state.diagnostic} />
         ) : (
           <div className="auth-center">
             <h1>
@@ -319,6 +335,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
                     ? '链接可能已过期或已使用。请返回登录页重新操作。'
                     : '认证服务暂时不可用，请稍后重试。'}
             </p>
+            <AuthDiagnostics diagnostic={state.diagnostic} />
             {
               <button
                 className="auth-primary"
@@ -422,13 +439,14 @@ export function PasswordField({
   )
 }
 
-function LoginForm() {
+function LoginForm({ initialDiagnostic }: { initialDiagnostic?: AuthDiagnostic }) {
   const [view, setView] = useState<
     'login' | 'register' | 'verify' | 'forgot' | 'sent'
   >('login')
   const [registeredEmail, setRegisteredEmail] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const [diagnostic, setDiagnostic] = useState(initialDiagnostic)
   const [cooldown, setCooldown] = useState(0)
   useEffect(() => {
     if (!cooldown) return
@@ -475,26 +493,31 @@ function LoginForm() {
     }
     setBusy(true)
     setError('')
+    setDiagnostic(undefined)
+    let stage: AuthFailureStage = 'client-create'
     try {
       const client = await authClient()
       const email = String(values.get('email')).trim().toLowerCase()
       if (view === 'forgot') {
+        stage = 'password-recovery'
         const result = await client.auth.resetPasswordForEmail(email, {
           redirectTo: `${window.location.origin}/auth/reset`,
         })
-        if (result.error)
+        if (result.error) {
+          setDiagnostic(diagnoseAuthFailure(stage, result.error))
           setError(
             result.error.status === 429
               ? '操作过于频繁，请稍后重试'
               : '邮件暂时无法发送，请稍后重试',
           )
-        else {
+        } else {
           setRegisteredEmail(email)
           setView('sent')
         }
         return
       }
       const credentials = { email, password: String(values.get('password')) }
+      stage = 'password-sign-in'
       const { error: failure } =
         view === 'register'
           ? await client.auth.signUp({
@@ -504,7 +527,8 @@ function LoginForm() {
               },
             })
           : await client.auth.signInWithPassword(credentials)
-      if (failure)
+      if (failure) {
+        if (view === 'login') setDiagnostic(diagnoseAuthFailure(stage, failure))
         setError(
           failure.code === 'invalid_credentials'
             ? '邮箱或密码不正确，请重试'
@@ -516,11 +540,12 @@ function LoginForm() {
                   ? '无法注册，请确认邮箱已获准访问后重试'
                   : '登录暂时失败，请稍后重试',
         )
-      else if (view === 'register') {
+      } else if (view === 'register') {
         setRegisteredEmail(email)
         setView('verify')
       }
-    } catch {
+    } catch (failure) {
+      if (view === 'login' || view === 'forgot') setDiagnostic(diagnoseAuthFailure(stage, failure))
       setError('连接失败，请检查网络后重试')
     } finally {
       setBusy(false)
@@ -529,6 +554,7 @@ function LoginForm() {
   const changeView = (next: 'login' | 'register' | 'forgot') => {
     setView(next)
     setError('')
+    setDiagnostic(undefined)
   }
   if (view === 'verify')
     return (
@@ -612,6 +638,7 @@ function LoginForm() {
           {error}
         </p>
       )}
+      <AuthDiagnostics diagnostic={diagnostic} />
       <form onSubmit={submit}>
         <div className="auth-field">
           <label htmlFor="auth-email">邮箱</label>

@@ -2,6 +2,7 @@ import { createClient, isAuthApiError, isAuthRefreshDiscardedError, isAuthRetrya
 import { z } from 'zod'
 import { publicAuthConfig } from './config'
 import { authStorage, AuthSessionChangedError } from './storage'
+import { rememberAuthFailure } from './diagnostics'
 
 let clientPromise: Promise<SupabaseClient> | undefined
 const confirmedRevocations = new WeakMap<SupabaseClient, { token: string; scope: 'local' | 'global' }>()
@@ -32,7 +33,10 @@ export async function currentSession() {
 const configSchema = z.object({ url: z.url(), publishableKey: z.string().startsWith('sb_publishable_') })
 export function authClient(): Promise<SupabaseClient> {
   if (!clientPromise) clientPromise = (async () => {
-    const config = configSchema.parse(await publicAuthConfig())
+    const value = await publicAuthConfig()
+    let config: z.infer<typeof configSchema>
+    try { config = configSchema.parse(value) }
+    catch (error) { rememberAuthFailure('config-parse', error); throw error }
     let cleanupToken: string | undefined
     const storageKey = `sb-${new URL(config.url).hostname.split('.')[0]}-auth-token`
     const client = createClient(config.url, config.publishableKey, {
@@ -62,7 +66,7 @@ export function authClient(): Promise<SupabaseClient> {
       finally { cleanupToken = undefined }
     })
     return client
-  })().catch(error => { clientPromise = undefined; throw error })
+  })().catch(error => { rememberAuthFailure('client-create', error); clientPromise = undefined; throw error })
   return clientPromise
 }
 
