@@ -18,11 +18,11 @@ function balanceInput(value: string) {
   return { cents: Number(negative ? -cents : cents), formatted: `${input.split('.')[0]}.${fraction.padEnd(2, '0')}` }
 }
 
-export function BalanceVisibilityButton({ hidden, toggle }: { hidden: boolean; toggle: () => void }) {
+function BalanceVisibilityButton({ hidden, toggle }: { hidden: boolean; toggle: () => void }) {
   return <button type="button" className="la-visibility" aria-label={hidden ? '显示账户余额' : '隐藏账户余额'} onClick={toggle}>{hidden ? <Eye size={16} /> : <EyeOff size={16} />}<span>{hidden ? '显示余额' : '隐藏余额'}</span></button>
 }
 
-export function BalancePreferenceError() {
+function BalancePreferenceError() {
   return <p role="alert" className="la-conflict">无法保存余额显示设置，重新打开后可能恢复旧设置。请检查浏览器的网站数据设置。</p>
 }
 
@@ -52,11 +52,11 @@ export function Accounts({ closeKey, onOpen, onTransfer, balancesHidden, toggleB
       <p className="la-balance-label">当前余额</p><p className={`la-balance ${!balancesHidden && account.balanceCents < 0 ? 'negative' : ''}`}>{balancesHidden ? <span className="la-balance-mask" aria-label="余额已隐藏">••••••</span> : <><span>¥</span>{balanceText(account.balanceCents)}</>}</p>
       <button className="la-transfer" aria-label={`从${account.name}转账`} onClick={() => onTransfer(account.id)}>转账<ArrowUpRight size={13} /></button>
     </article>)}</div> : <div className="la-empty"><Wallet size={28} strokeWidth={1.5} /><h3>还没有交易账户</h3><p>添加银行卡、零钱或饭卡，并填写当前余额。</p><button className="lp-secondary" onClick={openNew}><Plus size={15} />新增账户</button></div>}
-    {submission.form && <LedgerModal title={submission.form.account ? '修改账户' : '新增账户'} close={submission.close}><AccountForm key={submission.form.key} session={submission.form} submit={input => submission.submit(submission.form!.key, input)} cancel={submission.close} balancesHidden={balancesHidden} toggleBalances={toggleBalances} balancePreferenceError={balancePreferenceError} /></LedgerModal>}
+    {submission.form && <LedgerModal title={submission.form.account ? '修改账户' : '新增账户'} close={submission.close}><AccountForm key={submission.form.key} session={submission.form} submit={input => submission.submit(submission.form!.key, input)} cancel={submission.close} balancesHidden={balancesHidden} /></LedgerModal>}
   </section>
 }
 
-function AccountForm({ session, submit, cancel, balancesHidden, toggleBalances, balancePreferenceError }: { session: NonNullable<ReturnType<typeof useAccountSubmission>['form']>; submit: (read: () => ReturnType<typeof ledgerAccountCreateSchema.parse> | ReturnType<typeof ledgerAccountUpdateSchema.parse>) => Promise<void>; cancel: () => void; balancesHidden: boolean; toggleBalances: () => void; balancePreferenceError: boolean }) {
+function AccountForm({ session, submit, cancel, balancesHidden }: { session: NonNullable<ReturnType<typeof useAccountSubmission>['form']>; submit: (read: () => ReturnType<typeof ledgerAccountCreateSchema.parse> | ReturnType<typeof ledgerAccountUpdateSchema.parse>) => Promise<void>; cancel: () => void; balancesHidden: boolean }) {
   const { account, pending, frozen, message, latestBalanceCents } = session
   const [name, setName] = useState(session.command?.input.name ?? account?.name ?? '')
   const [balance, setBalance] = useState(((session.command?.input.balanceCents ?? account?.balanceCents ?? 0) / 100).toFixed(2))
@@ -84,11 +84,9 @@ function AccountForm({ session, submit, cancel, balancesHidden, toggleBalances, 
       return value.data
     })
   }
-  return <form className="la-form" onSubmit={save} noValidate>
-    <label className="lp-field">账户名称<input aria-label="账户名称" data-initial-focus autoComplete="off" required disabled={pending || frozen} value={name} placeholder="例如：微信零钱" onChange={event => setName(event.target.value)} /><small>本人账户名称不能重复，最多 50 个字符。</small></label>
-    <label className="lp-field">{account ? '当前余额' : '初始余额'}<span className="la-field-unit">人民币 · 元</span><input type={account && balancesHidden ? 'password' : 'text'} autoComplete="off" aria-label={account ? '当前余额' : '初始余额'} aria-describedby={balanceError ? 'la-balance-hint la-account-error' : 'la-balance-hint'} aria-invalid={!!balanceError} inputMode="decimal" required disabled={pending || frozen} value={balance} onChange={event => { setBalance(event.target.value); setBalanceError('') }} onBlur={() => { if (!pending && !frozen) formatBalance() }} /></label>
-    {account && <BalanceVisibilityButton hidden={balancesHidden} toggle={toggleBalances} />}
-    {account && balancePreferenceError && <BalancePreferenceError />}
+  return <form className="la-form" onSubmit={save} autoComplete="off" noValidate>
+    <label className="lp-field">账户名称<input type="text" name="ledger-account-name" aria-label="账户名称" data-initial-focus autoComplete="off" required disabled={pending || frozen} value={name} placeholder="例如：微信零钱" onChange={event => setName(event.target.value)} /><small>本人账户名称不能重复，最多 50 个字符。</small></label>
+    <label className="lp-field">{account ? '当前余额' : '初始余额'}<span className="la-field-unit">人民币 · 元</span><input type="text" name="ledger-account-balance" className={account && balancesHidden ? 'la-masked-balance' : undefined} autoComplete="off" aria-label={account ? '当前余额' : '初始余额'} aria-describedby={balanceError ? 'la-balance-hint la-account-error' : 'la-balance-hint'} aria-invalid={!!balanceError} inputMode="decimal" required disabled={pending || frozen} value={balance} onChange={event => { setBalance(event.target.value); setBalanceError('') }} onBlur={() => { if (!pending && !frozen) formatBalance() }} /></label>
     <p id="la-balance-hint" className="la-field-hint">允许零和负数，最多两位小数。{account && '手工修正余额不会生成收支流水。'}</p>
     {(balanceError || message) && <p id="la-account-error" role="alert" className="lp-form-error">{balanceError || message}</p>}
     {latestBalanceCents !== undefined && <p role="status" className="la-conflict">最新余额为 {balancesHidden ? '••••••' : `¥${balanceText(latestBalanceCents)}`}。已保留你的输入，请核对后再次保存。</p>}

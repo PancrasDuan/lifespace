@@ -26,6 +26,7 @@
 .la-ledger-heading > button { min-height: 34px; padding: 6px 11px; font-size: 12px; }
 .la-form { padding: 0 26px 25px; }
 .la-form .lp-field > input { font-size: 16px; }
+.la-form .lp-field > input.la-masked-balance { -webkit-text-security: disc; }
 .la-form .lp-field > input::placeholder { color: #627160; }
 .la-form .lp-field > small { color: #627160; }
 .la-field-unit { margin-left: auto; color: #627160; font-size: 11px; }
