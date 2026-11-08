@@ -4,7 +4,7 @@
 
 ## 本地执行结果
 
-环境为 Node 24.22.1、pg 8.23.1、Wrangler 4.156.1、workerd 1.20261101.1、PostgreSQL 17.11、PostgREST 13.0.7 和系统 Chromium。全部数据库测试使用运行器新建的隔离库、随机回环端口与合成用户；未读写生产业务行。测试数据库角色为 `lifespace_worker`，不是超级用户或 service_role。PostgREST 仅用于历史夹具、旧权限探针和比较，正式请求没有业务数据库 HTTP。
+环境为 Node 24.22.1、pg 8.23.1、Wrangler 4.156.1、workerd 1.20261101.1、PostgreSQL 17.11、PostgREST 13.0.7 和系统 Chromium。全部数据库测试使用运行器新建的隔离库、随机回环端口与合成用户；未读写生产业务行。正式 Worker 业务路径使用受限角色 `lifespace_worker`；建库、历史夹具和底层 SQL 探针由隔离库管理员执行。PostgREST 仅用于历史夹具、旧权限探针和比较，正式请求没有业务数据库 HTTP。
 
 | 检查 | 结果与边界 |
 |---|---|
