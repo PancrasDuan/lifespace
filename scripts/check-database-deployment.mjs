@@ -15,6 +15,7 @@ const observabilityContract = (value) => ({
   redact_query_string: value?.redact_query_string,
   logs: {
     enabled: value?.logs?.enabled,
+    head_sampling_rate: value?.logs?.head_sampling_rate,
     invocation_logs: value?.logs?.invocation_logs,
     persist: value?.logs?.persist,
   },
@@ -28,8 +29,8 @@ const productionObservability = observabilityContract(config.observability)
 if (productionObservability.enabled !== true || productionObservability.head_sampling_rate !== 1 || productionObservability.redact_query_string !== true) {
   throw new Error('生产 observability 必须开启、全量采样并脱敏查询串。')
 }
-if (productionObservability.logs.enabled !== true || productionObservability.logs.invocation_logs !== true || productionObservability.logs.persist !== true) {
-  throw new Error('生产 observability 必须启用并持久化 logs 与 invocation logs。')
+if (productionObservability.logs.enabled !== true || productionObservability.logs.head_sampling_rate !== 1 || productionObservability.logs.invocation_logs !== true || productionObservability.logs.persist !== true) {
+  throw new Error('生产 observability 必须启用、全量采样并持久化 logs 与 invocation logs。')
 }
 if (productionObservability.traces.enabled !== true || productionObservability.traces.head_sampling_rate !== 1 || productionObservability.traces.persist !== true) {
   throw new Error('生产 observability 必须启用、全量采样并持久化 traces。')
