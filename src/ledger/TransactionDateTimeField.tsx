@@ -282,13 +282,16 @@ export function TransactionDateTimeField({ value, onChange, minInstant, disabled
   const trigger = useRef<HTMLButtonElement>(null)
   const arrow = useRef<{ key: string; value: string } | null>(null)
   const [open, setOpen] = useState(false)
+  const [maximum, setMaximum] = useState(toDateTimeInput)
   const close = useCallback((restoreFocus = true) => {
     setOpen(false)
     if (restoreFocus) trigger.current?.focus({ preventScroll: true })
   }, [])
   return <div className="lp-field lp-time-field"><label htmlFor={id}>交易时间</label>
     <div className="lp-time-control" ref={control} onClick={event => { if (!disabled && event.target === event.currentTarget) setOpen(current => !current) }}>
-      <input disabled={disabled} id={id} className="lp-time-native" type="datetime-local" step="1" required value={value} max={toDateTimeInput()}
+      <input disabled={disabled} id={id} className="lp-time-native" type="datetime-local" step="1" required value={value} max={maximum}
+        // Updating max while typing resets Chromium's partially entered digits.
+        onFocus={() => setMaximum(toDateTimeInput())}
         onPointerDown={() => { arrow.current = null; if (open) close(false) }}
         onKeyDown={event => { arrow.current = ['ArrowUp', 'ArrowDown'].includes(event.key) ? { key: event.key, value: event.currentTarget.value } : null }}
         onKeyUp={() => { arrow.current = null }} onBlur={() => { arrow.current = null }}
