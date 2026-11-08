@@ -4,20 +4,24 @@
 
 ## 构建与运行
 
-本次采用 Workers Builds 的非生产分支构建及 Version URL，上传候选版本，不切换正式 Active Deployment，也不执行不可逆的 Worker Previews 模型迁移。正式分支继续是 main，正式构建及部署命令保持原配置。
+GitHub `preview` 是固定预发集成分支，`main` 是正式分支。开发仍使用各任务的功能分支和工作区；预发验收后，再按具体 PR 的发布授权将变更合入 main。创建 preview 分支或发布预发不构成 main 合并授权。
+
+采用原生 Worker Previews，固定 Preview 名称为 `preview`。Workers Builds 的预发构建必须真正部署到这个 Preview，不能只创建分支条目后向主 Worker 上传 Version URL。正式构建及部署命令保持原配置。
 
 - 预发构建命令：`npm run build:ci`。
-- 预发上传命令：`npm run preview`，只执行 `wrangler versions upload`。
+- 预发部署命令：`npm run preview`，执行 `wrangler preview --name preview --json`。
 - 预发构建变量：`LIFESPACE_PREVIEW_TEST_EMAIL`，指定已创建的测试邮箱；不向构建注入数据库密码或 Auth 服务端 key。
-- 本轮验证分支为 `codex/149-pg-hyperdrive`，稳定别名由分支名生成。具体 URL、候选版本 ID、提交 SHA 及实测结果记录在 PR #150；其他分支使用预发时也须核对目标提交与测试用途。
+- 固定预发地址为 `https://preview-lifespace.dpqkindle.workers.dev`；以原生 Preview 的部署记录为准。具体部署 ID、提交 SHA 及实测结果记录在 PR #150。
 
-上传脚本拒绝缺少／无效测试邮箱及 main 分支，先执行数据库部署配置检查，并清除构建目录的本地连接串及 `.dev.vars`。候选版本继承现有 runtime secrets 和变量，只设置候选版本的 `PREVIEW_TEST_EMAIL`。浏览器与 MCP 的准入在此变量非空时只允许该邮箱；配置格式无效则拒绝访问。
+部署脚本拒绝缺少／无效测试邮箱及任何非 preview 分支，先执行数据库部署配置检查，并清除正式及预发构建配置中的本地连接串和 `.dev.vars`。检查正式准入复位值、预发测试邮箱、Hyperdrive ID、日志与 traces 后才部署。`--dry-run` 仅执行这些本地配置检查；Wrangler 原生 preview 命令没有部署 dry-run，不把该检查当成远端验收。
 
-正式 Wrangler 配置显式将 `PREVIEW_TEST_EMAIL` 置空，恢复原 `AUTH_ALLOWED_EMAILS`。上传脚本要求构建产物包含这个复位默认值，再通过 CLI 覆盖候选版本。不能直接改写候选版本的正式白名单密钥：Cloudflare 会从最近上传、未必已部署的版本继承 secret，后续正式上传可能继承测试值。此方案保留原密钥，不创建覆盖密钥文件。
+原生 Preview 不继承生产变量、密钥或数据绑定。`wrangler.jsonc` 的 `previews` 显式登记共享资源及测试准入；Previews Base 保存服务端密钥和 Access 配置，不向构建变量注入这些密钥。Base 密钥变动只自动应用到此后创建的 Preview，已有 Preview 必须单独同步并回读，不能仅确认 Base 已填写。
 
-Worker 的 workers.dev 正式入口保持关闭，只开启预览 URL。预发保留现有 Supabase Auth SDK 直连、在线用户核验和 Agent Access 验签，不增加认证代理。
+正式 Wrangler 配置显式将 `PREVIEW_TEST_EMAIL` 置空，使用原 `AUTH_ALLOWED_EMAILS`。预发测试邮箱非空时，浏览器与 MCP 均只允许该邮箱；格式无效则拒绝访问。保留 Supabase Auth SDK 直连、在线用户核验和 Agent Access 验签，不增加认证代理。
 
-预览 URL 开关属于整个 Worker。尚未合并本配置的旧 main 若以 `preview_urls: false` 再次部署，会关闭已有候选入口；遇到 404 应先回读该开关，不能据此判断数据库迁移失败。恢复时保留 `enabled: false`，只将 `previews_enabled` 设为 `true`，不改变正式部署或流量。
+生产域名继续指向 main 的正式部署；workers.dev 正式入口保持关闭。预发单独检查完整绑定、日志、traces 和版本，不能通过“返回了 URL”判断已配置完成。
+
+本次按用户明确授权将既有 Builds 切换到原生 Worker Previews；这个平台模型切换不可逆。回退应用时保留当前正式版本和旧函数，不执行破坏性迁移。旧 Version URL 的分支别名与控制台中的未部署 Preview 曾同名，导致页面可访问而该 Preview 没有监控数据；后续不复用这种部署路径。
 
 ## 数据隔离与配置差异
 
@@ -25,7 +29,7 @@ Worker 的 workers.dev 正式入口保持关闭，只开启预览 URL。预发�
 |---|---|
 | Supabase 项目、数据库结构／参数、Auth 服务 | 同一项目，不复制业务数据或真实用户 |
 | Hyperdrive、登录角色、TLS CA、缓存、连接池与默认 placement | 复用本次已配置的资源 |
-| Worker 代码 | 正式保留原版本；预发运行当前功能分支 |
+| Worker 代码 | 正式运行已发布 main；预发运行固定 preview 分支的已登记提交 |
 | 登录白名单 | 正式原值；预发仅测试邮箱，浏览器与 MCP 均检查此白名单 |
 | 测试事实 | 只写专用测试 owner；不修改真实账号的任务、账户、流水或绑定 |
 
@@ -39,10 +43,10 @@ Worker 的 workers.dev 正式入口保持关闭，只开启预览 URL。预发�
 
 创建测试用户后验证现有 Auth 登录和测试 owner 一致；候选版本上传后继续检查登录、读写回读、幂等／版本、owner 隔离及正常前端交互。对其他 owner 的验证采用只读或回滚方式，不修改真实用户事实。完整交易竞争／故障测试仍由隔离 PostgreSQL 执行，不向正式表安装测试触发器。
 
-Version URL 与正式版本属于同一 Worker，统计时须按候选版本 ID 过滤，避免混合生产和预发 CPU。CPU 验收使用相同输入及数据规模，并记录分布、错误率和请求／SQL 数；旧版混合接口均值不能替代相同任务创建的对照。
+原生 Preview 的 Metrics、Logs 和 Traces 在该 Preview 的控制台页查看。GraphQL 查询 `workersInvocationsAdaptive` 时按 `scriptName=lifespace`、`isPreview=1` 及 `previewSlug=preview` 过滤；核对部署后发出的实际请求已进入该记录。`cpuTimeP*` 单位为微秒。
 
-Version URL 不支持 Workers Logs、Wrangler tail 或 Logpush。CPU 可通过 GraphQL `workersInvocationsAdaptive` 按 `scriptName` 和 `scriptVersion` 查询，`cpuTimeP*` 的单位为微秒；不能将 `isPreview: 1` 直接用于此类旧版 Version URL（本次实测记录为 0）。GraphQL 的运行错误数须与 HTTP 状态分别检查，业务 502 也可能记录为 invocation success。
+旧 Version URL 证据仍按主 Worker 的 `scriptVersion` 查询（此前 `isPreview=0`），且不支持 Workers Logs／tail／Logpush，不能混入新的原生 Preview 指标。GraphQL 的运行错误数须与 HTTP 状态分别检查，业务 502 也可能记录为 invocation success。CPU 验收使用相同输入与数据规模；少量手工操作不能替代持续容量验证。
 
 测试密码与会话只保存在本工作区忽略目录的 0600 文件，运行时密钥仍由 Cloudflare 管理，不写入提交、构建变量、Issue 或 PR。预发成功不构成正式发布授权；具体 PR 合并、正式切流及付费升级仍待用户确认。
 
-官方依据：[构建分支](https://developers.cloudflare.com/workers/ci-cd/builds/build-branches/)、[预览命令与 Version URL](https://developers.cloudflare.com/workers/ci-cd/builds/configuration/#preview-command)、[版本上传](https://developers.cloudflare.com/workers/wrangler/commands/workers/#versions-upload)、[Version URL 限制](https://developers.cloudflare.com/workers/versions-and-deployments/version-urls/#limitations)。
+官方依据：[构建分支与模型迁移](https://developers.cloudflare.com/workers/ci-cd/builds/build-branches/)、[Preview 配置和密钥](https://developers.cloudflare.com/workers/previews/configuration/)、[资源共享](https://developers.cloudflare.com/workers/previews/resources/)、[独立可观测性](https://developers.cloudflare.com/workers/previews/test-and-debug/)。

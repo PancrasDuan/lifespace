@@ -7,7 +7,9 @@ if (!binding || !/^[a-f0-9]{32}$/i.test(binding.id) || /^0+$/.test(binding.id)) 
 }
 // Local credentials belong only to an ignored development environment. Even a
 // configured local URL must not be written into the deployment configuration.
-for (const item of config.hyperdrive) delete item.localConnectionString
+for (const context of [config, config.previews]) {
+  for (const item of context?.hyperdrive ?? []) delete item.localConnectionString
+}
 await import('./strip-worker-dev-vars.mjs')
 const { writeFile } = await import('node:fs/promises')
 await writeFile(new URL('../dist/lifespace/wrangler.json', import.meta.url), JSON.stringify(config))

@@ -4,25 +4,29 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { z } from 'zod'
 
-// Candidate versions share production resources. Restrict both browser and MCP
-// admission to the dedicated test owner without changing the active version.
+// Only the integration branch deploys the fixed native Preview. Resources are
+// explicitly shared; browser and MCP admission remains limited to the test owner.
 const email = z.email().parse(process.env.LIFESPACE_PREVIEW_TEST_EMAIL?.trim().toLowerCase())
 const root = fileURLToPath(new URL('../', import.meta.url))
 const branch = process.env.WORKERS_CI_BRANCH ?? execFileSync('git', ['branch', '--show-current'], { cwd: root, encoding: 'utf8' }).trim()
-if (!branch || branch === 'main') throw new Error('预览上传需要明确的非 main 分支。')
+if (branch !== 'preview') throw new Error('预览部署只允许 GitHub preview 分支。')
 if (process.argv.slice(2).some(value => value !== '--dry-run')) throw new Error('预览脚本只接受 --dry-run。')
-const alias = branch.toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40).replace(/-+$/g, '')
-if (!alias) throw new Error('无法生成预览分支别名。')
 
 await import('./check-database-deployment.mjs')
 const configFile = join(root, 'dist/lifespace/wrangler.json')
 const config = JSON.parse(await readFile(configFile, 'utf8'))
 if (config.vars?.PREVIEW_TEST_EMAIL !== '') throw new Error('正式配置必须显式清空 PREVIEW_TEST_EMAIL，请重新构建。')
+const preview = config.previews
+if (preview?.vars?.PREVIEW_TEST_EMAIL !== email) throw new Error('原生 Preview 配置必须与测试邮箱一致。')
+if (preview.hyperdrive?.find(binding => binding.binding === 'HYPERDRIVE')?.id !== config.hyperdrive.find(binding => binding.binding === 'HYPERDRIVE')?.id) throw new Error('本任务的原生 Preview 必须绑定已验收的共享 Hyperdrive。')
+if (!preview.observability?.enabled || !preview.observability.logs?.enabled || !preview.observability.traces?.enabled) throw new Error('原生 Preview 必须开启日志与 traces。')
+if (process.argv.includes('--dry-run')) {
+  console.log('原生 Preview 部署配置检查通过（未上传）。')
+  process.exit(0)
+}
 const child = spawn(process.execPath, [
-  join(root, 'node_modules/wrangler/bin/wrangler.js'), 'versions', 'upload',
+  join(root, 'node_modules/wrangler/bin/wrangler.js'), 'preview', '--name', 'preview', '--json',
   '--config', configFile,
-  '--var', `PREVIEW_TEST_EMAIL:${email}`, '--keep-vars', '--preview-alias', alias,
-  ...process.argv.slice(2),
 ], { cwd: root, stdio: 'inherit', env: { ...process.env, WRANGLER_LOG_PATH: process.env.WRANGLER_LOG_PATH ?? join(root, '.cache/wrangler.log') } })
 const code = await new Promise((resolve, reject) => {
   child.once('error', reject)

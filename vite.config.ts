@@ -20,7 +20,9 @@ export default defineConfig({
         await rm(file, { force: true })
         const configFile = new URL('./dist/lifespace/wrangler.json', import.meta.url)
         const config = JSON.parse(await readFile(configFile, 'utf8'))
-        for (const binding of config.hyperdrive ?? []) delete binding.localConnectionString
+        for (const context of [config, config.previews]) {
+          for (const binding of context?.hyperdrive ?? []) delete binding.localConnectionString
+        }
         await writeFile(configFile, JSON.stringify(config))
       },
     },
