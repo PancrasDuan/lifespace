@@ -32,7 +32,7 @@ const call = (token?: string, bindings = env) => app.request('/api/agent/mcp', {
 
 afterEach(() => vi.unstubAllGlobals())
 
-test('Agent 入口验签、查找绑定并在线核对用户后，进入独立路由', async () => {
+test.each([{}, { PREVIEW_TEST_EMAIL: 'agent@example.invalid' }])('Agent 入口验签、查找绑定并在线核对用户后，进入独立路由 %j', async preview => {
   const upstream = vi.fn(async (input: string | URL | Request) => {
     const url = String(input)
     if (url === `${team}/cdn-cgi/access/certs`) return Response.json({ keys: [jwk] })
@@ -41,7 +41,7 @@ test('Agent 入口验签、查找绑定并在线核对用户后，进入独立�
     throw new Error('unexpected upstream')
   })
   vi.stubGlobal('fetch', upstream)
-  const response = await call(assertion())
+  const response = await call(assertion(), { ...env, ...preview })
   expect(response.status).toBe(200)
   expect(upstream).toHaveBeenCalledTimes(2)
   expect(transaction).toHaveBeenCalledOnce()
@@ -109,6 +109,7 @@ test.each([
   ['账户软删除', { ownerId: owner }, { ...user, deleted_at: '2026-11-01T00:00:00Z' }, 200, env, 401],
   ['删除状态格式异常', { ownerId: owner }, { ...user, deleted_at: '' }, 200, env, 401],
   ['移出白名单', { ownerId: owner }, user, 200, { ...env, AUTH_ALLOWED_EMAILS: 'another@example.invalid' }, 403],
+  ['预发拒绝真实 owner', { ownerId: owner }, user, 200, { ...env, PREVIEW_TEST_EMAIL: 'preview@example.invalid' }, 403],
   ['用户服务故障', { ownerId: owner }, user, 503, env, 503],
 ] as const)('%s 时拒绝 Agent 请求', async (_label, ownerResult, currentUser, userStatus, bindings, expected) => {
   vi.mocked(transaction).mockResolvedValue(ownerResult)

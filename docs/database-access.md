@@ -1,6 +1,6 @@
 # 业务数据库访问与 #149 切换
 
-本分支使用 Worker → `pg` → Hyperdrive → Supabase PostgreSQL。数据库访问不再依赖业务 Data API；前端 Supabase Auth SDK、在线身份校验、白名单和 Agent Access 准入继续沿用原契约。[ADR 0010](adr/0010-worker-postgres-transactions.md) 替代 ADR 0002 的事务 RPC 编排决定。本票属于需确认的变更。生产权限和 Hyperdrive 已按用户 A 授权准备，正式 Worker 尚未切流；[生产准备记录](database-production-preparation.md) 中的 Free CPU 问题仍未解决，具体 PR 合并发布尚未授权。
+本分支使用 Worker → `pg` → Hyperdrive → Supabase PostgreSQL。数据库访问不再依赖业务 Data API；前端 Supabase Auth SDK、在线身份校验、白名单和 Agent Access 准入继续沿用原契约。[ADR 0010](adr/0010-worker-postgres-transactions.md) 替代 ADR 0002 的事务 RPC 编排决定。本票属于需确认的变更。生产权限和 Hyperdrive 已按用户 A 授权准备，正式 Worker 尚未切流；[生产准备记录](database-production-preparation.md) 中的 CPU 容量风险仍需对照验证，具体 PR 合并发布尚未授权。[共享数据库预发](database-preview.md) 使用用户明确选择的独立测试账号。
 
 ## 代码与一致性边界
 
@@ -51,7 +51,7 @@ POSTGRES_BIN=<PG17-bin> POSTGREST_BIN=<PostgREST13.0.7> npm run test:database
 
 ## 切换与回退
 
-1. 对具体 PR 完成评审、CI 和用户合并发布确认；先解决 Free CPU 预算问题，并确认备份／恢复保障。已核对线上结构、迁移、角色属性和连接预算并固定旧 Worker 版本；用户未授权 B 的本地完整业务备份，因此没有导出业务行。
+1. 对具体 PR 完成评审、CI 和用户合并发布确认；对照旧版基线与相同负载的 CPU 分布、超限终止错误和连接／查询额度，完成容量验收，并确认备份／恢复保障。已核对线上结构、迁移、角色属性和连接预算并固定旧 Worker 版本；用户未授权 B 的本地完整业务备份，因此没有导出业务行。
 2. 安装增量角色／RLS 迁移，设置专用密码；原有数据、函数和 service_role RPC 权限保持。旧 Worker 可继续运行。生产当前没有 `public.tasks`，迁移对此只跳过授权，不创建表；首页旧待办继续呈现数据源不可用，不能假装为空。若以后接回该来源，应另行核对原表结构及只读授权。
 3. 创建 Hyperdrive，禁用缓存，配置直连、TLS CA 和已评估的 pool；只读核对配置，再用受控请求验证跨 owner 拒绝、回读、并发、幂等及 TLS。凭据不进入公开响应或前端资源。
 4. 功能分支已写入真实 Hyperdrive ID，须重新构建并核对最终 PR 提交。部署脚本检查 binding 格式并移除生成配置中的 `localConnectionString` 和 `.dev.vars`，不代替 CPU 预算、备份或合并发布授权检查；有效 binding 不能单独作为发布依据。

@@ -9,6 +9,13 @@ const unavailable = () => new ApiError('AUTH_UNAVAILABLE', '认证服务暂时�
 const invalid = () => new ApiError('AUTH_INVALID', '登录已失效，请重新登录', 401)
 const email = z.email()
 export function allowedEmails(env: AuthEnv): Set<string> {
+  // Candidate uploads inherit the latest uploaded version's secrets. Keep the
+  // production allowlist unchanged; deployments reset this preview-only var.
+  if (env.PREVIEW_TEST_EMAIL) {
+    const preview = email.safeParse(env.PREVIEW_TEST_EMAIL.trim().toLowerCase())
+    if (!preview.success) throw unavailable()
+    return new Set([preview.data])
+  }
   const values = env.AUTH_ALLOWED_EMAILS?.split(',').map(value => value.trim().toLowerCase())
   if (!values?.length || values.some(value => !email.safeParse(value).success)) throw unavailable()
   return new Set(values)
