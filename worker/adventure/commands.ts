@@ -89,28 +89,36 @@ export async function consistent(db: Transaction, owner: string) {
   if (!row.valid) reject('INCONSISTENT_REWARDS')
 }
 export async function goalReward(db: Transaction, owner: string, id: string, coefficient: number) {
-  const rows = await db.rows(
-    `select to_jsonb(e)-'owner_id' value from (select distinct on(task_id) * from public.adventure_events
-    where owner_id=$1 and goal_id=$2 and kind='task_completed' and invalidated_at is null order by task_id,occurred_at,id) e order by task_id`,
-    [owner, id]
+  // Strip successful receipts in SQL and enforce the historical jsonb size
+  // limit before transferring sources to the Worker. The SQL reward header
+  // exists only to measure that same envelope; TypeScript decides the reward.
+  const row = await db.one<{ count: string; facts: { actionIds: string[]; actionSources: Array<Record<string, unknown>> } | null }>(
+    `
+    with actions as materialized (
+      select distinct on(task_id) task_id,id,mainline_id,goal_id,occurred_on,snapshot-'result' source
+      from public.adventure_events where owner_id=$1 and goal_id=$2 and kind='task_completed' and invalidated_at is null
+      order by task_id,occurred_at,id
+    ), collected as (
+      select count(*) count,coalesce(jsonb_agg(task_id order by task_id),'[]') ids,
+        coalesce(jsonb_agg(jsonb_build_object('taskId',task_id,'completionId',id,'mainlineId',mainline_id,
+          'goalId',goal_id,'occurredOn',occurred_on,'source',source) order by task_id),'[]') sources from actions
+    ), measured as (
+      select *,jsonb_build_object('reward',jsonb_build_object('amount',case when count=0 then 1 else count*$3::integer end,
+        'calculation',jsonb_build_object('type','goal_actions','actionIds',ids,'count',count,'coefficient',$3::integer,'fallback',count=0)),
+        'actionSources',sources) plan from collected
+    ) select count,case when octet_length(plan::text)<=900000 then jsonb_build_object('actionIds',ids,'actionSources',sources) end facts
+      from measured`,
+    [owner, id, coefficient]
   )
-  const actions: Event[] = rows.map((row) => row.value)
-  return bounded({
+  if (!row.facts) reject('CAPACITY_REACHED')
+  const count = Number(row.count)
+  return {
     reward: {
-      amount: actions.length ? actions.length * coefficient : 1,
-      calculation: {
-        type: 'goal_actions',
-        actionIds: actions.map((e) => e.task_id),
-        count: actions.length,
-        coefficient,
-        fallback: actions.length === 0,
-      },
+      amount: count ? count * coefficient : 1,
+      calculation: { type: 'goal_actions', actionIds: row.facts.actionIds, count, coefficient, fallback: count === 0 },
     },
-    actionSources: actions.map((e) => {
-      const { result: _result, ...source } = e.snapshot
-      return { taskId: e.task_id, completionId: e.id, mainlineId: e.mainline_id, goalId: e.goal_id, occurredOn: e.occurred_on, source }
-    }),
-  })
+    actionSources: row.facts.actionSources,
+  }
 }
 export async function impact(db: Transaction, owner: string, command: PlanningCommand) {
   if (command.type === 'deleteTask') {

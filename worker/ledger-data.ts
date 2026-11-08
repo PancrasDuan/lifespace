@@ -29,7 +29,7 @@ async function revision(db: Transaction, owner: string, writing: boolean, initia
   const rows = await db.rows(`select revision from public.ledger_owner_revision where owner_id=$1 for ${writing ? 'update' : 'share'}`, [
     owner,
   ])
-  return rows.length ? Number(rows[0].revision) : 0
+  return rows.length ? Number(rows[0].revision) : null
 }
 async function advance(db: Transaction, owner: string) {
   return Number(
@@ -116,19 +116,20 @@ async function jsonEntry(db: Transaction, owner: string, id: string | null) {
     )[0]?.value ?? null
   )
 }
-async function targets(db: Transaction, owner: string, id: string) {
-  return db.rows<Entry>(
-    `select e.* from public.ledger_entries target join public.ledger_entries e on e.owner_id=target.owner_id
+// Keep potentially large refund sets inside PostgreSQL. Only a fixed-size
+// scope/count and one amount per affected account cross the driver boundary.
+const deleteTargets = `select e.id,e.account_id,e.amount_cents,e.parent_entry_id from public.ledger_entries target
+  join public.ledger_entries e on e.owner_id=target.owner_id
     and (e.id=target.id or (target.transfer_id is not null and e.transfer_id=target.transfer_id)
       or (target.transfer_id is null and e.parent_entry_id=target.id))
-    where target.owner_id=$1 and target.id=$2 and target.deleted_at is null and target.account_id is not null
-      and e.deleted_at is null and e.account_id is not null order by e.id`,
+  where target.owner_id=$1 and target.id=$2 and target.deleted_at is null and target.account_id is not null
+    and e.deleted_at is null and e.account_id is not null`
+async function deleteScope(db: Transaction, owner: string, id: string) {
+  return db.one<{ scope: string; refund_count: string }>(
+    `select encode(sha256(convert_to($1::text || ':' || string_agg(id::text,',' order by id),'UTF8')),'hex') scope,
+    count(*) filter(where parent_entry_id=$2) refund_count from (${deleteTargets}) affected`,
     [owner, id]
   )
-}
-async function scopeHash(db: Transaction, owner: string, rows: Entry[]) {
-  return (await db.one("select encode(sha256(convert_to($1,'UTF8')),'hex') hash", [owner + ':' + rows.map((row) => row.id).join(',')]))
-    .hash as string
 }
 
 // HTTP and MCP both enter this boundary after validating identity and input.
@@ -144,12 +145,22 @@ export async function queryLedger(env: DatabaseEnv, owner: string, operation: st
     'ledger_delete',
   ].includes(operation)
   return transaction(env, owner, async (db) => {
-    const version = await revision(
+    const storedVersion = await revision(
       db,
       owner,
       writing,
       ['ledger_account_create', 'ledger_create', 'ledger_refund', 'ledger_transfer'].includes(operation)
     )
+    const version = storedVersion ?? 0
+    if (storedVersion === null) {
+      if (operation === 'ledger_accounts_list') return { accounts: [], version: 0 }
+      if (operation === 'ledger_list' || operation === 'ledger_list_by_account') {
+        if (params.p_version != null && params.p_version !== 0) reject('LIST_CHANGED')
+        return { items: [], total: 0, page: params.p_page, pageSize: 30, version: 0 }
+      }
+      if (operation === 'ledger_account_update') reject('ACCOUNT_NOT_FOUND')
+      reject('NOT_FOUND')
+    }
     if (operation === 'ledger_accounts_list') {
       const rows = await db.rows(
         'select public.ledger_account_json(a) value from public.ledger_accounts a where owner_id=$1 order by created_at,id',
@@ -352,12 +363,8 @@ export async function queryLedger(env: DatabaseEnv, owner: string, operation: st
         : null
       const common = { entry: await jsonEntry(db, owner, current.id), transferEntry: await jsonEntry(db, owner, peer?.id ?? null), version }
       if (operation === 'ledger_delete_preview') {
-        const affected = await targets(db, owner, current.id)
-        return {
-          ...common,
-          scope: await scopeHash(db, owner, affected),
-          refundCount: affected.filter((row) => row.parent_entry_id === current.id).length,
-        }
+        const affected = await deleteScope(db, owner, current.id)
+        return { ...common, scope: affected.scope, refundCount: Number(affected.refund_count) }
       }
       if (params.p_version != null && params.p_version !== version) reject('LIST_CHANGED')
       const totals = await db.one(
@@ -382,15 +389,18 @@ export async function queryLedger(env: DatabaseEnv, owner: string, operation: st
     if (operation === 'ledger_delete') {
       const current = await entry(db, owner, params.p_id, true)
       if (current.deleted_at) return receipt(current, version)
-      const affected = await targets(db, owner, current.id)
-      if ((await scopeHash(db, owner, affected)) !== params.p_scope) reject('DELETE_SCOPE_CHANGED')
-      const amounts = new Map<string, bigint>()
-      for (const row of affected) amounts.set(row.account_id, (amounts.get(row.account_id) ?? 0n) + BigInt(row.amount_cents))
-      for (const [account, amount] of amounts) await applyBalance(db, owner, account, -amount)
-      await db.rows('update public.ledger_entries set deleted_at=now() where owner_id=$1 and id=any($2::uuid[])', [
-        owner,
-        affected.map((row) => row.id),
-      ])
+      const affected = await deleteScope(db, owner, current.id)
+      if (affected.scope !== params.p_scope) reject('DELETE_SCOPE_CHANGED')
+      const amounts = await db.rows<{ account_id: string; amount: string }>(
+        `select account_id,sum(amount_cents)::bigint amount
+        from (${deleteTargets}) affected group by account_id`,
+        [owner, current.id]
+      )
+      for (const row of amounts) await applyBalance(db, owner, row.account_id, -BigInt(row.amount))
+      await db.rows(
+        `update public.ledger_entries set deleted_at=now() where owner_id=$1 and id in (select id from (${deleteTargets}) affected)`,
+        [owner, current.id]
+      )
       return { entryId: current.id, version: await advance(db, owner), deleted: true }
     }
     throw new DatabaseError('DATABASE_OPERATION_INVALID')
