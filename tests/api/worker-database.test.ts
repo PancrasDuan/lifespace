@@ -3,8 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { queryLedger } from '../../worker/ledger-data'
 import { transaction } from '../../worker/database'
 import { Client } from 'pg'
-import { createServer, connect } from 'node:net'
-import { once } from 'node:events'
+import { dropCommitResponse } from '../support/commit-response-proxy'
 import { ledgerAccountReceiptSchema, ledgerReceiptSchema } from '../../src/shared/ledger'
 import { planningReceiptSchema } from '../../src/shared/adventure-planning'
 import { queryPlanning } from '../../worker/adventure/data'
@@ -191,47 +190,19 @@ describe.skipIf(!connectionString)('Worker pg 与隔离数据库', () => {
     }
   })
   it('数据库已提交但响应丢失时，原请求重试只产生一个账户', async () => {
-    const target = new URL(connectionString!),
-      owner = crypto.randomUUID()
-    let dropped = false
-    const proxy = createServer((socket) => {
-      const upstream = connect(Number(target.port), target.hostname)
-      let committing = false
-      socket.on('data', (data) => {
-        if (data[0] === 81 && data.includes(Buffer.from('commit\0'))) committing = true
-        upstream.write(data)
-      })
-      upstream.on('data', (data) => {
-        if (committing && data.includes(Buffer.from('COMMIT\0'))) {
-          dropped = true
-          socket.destroy()
-          upstream.destroy()
-          return
-        }
-        socket.write(data)
-      })
-      socket.on('error', () => upstream.destroy())
-      upstream.on('error', () => socket.destroy())
-      socket.on('close', () => upstream.destroy())
-      upstream.on('close', () => socket.destroy())
-    })
-    proxy.listen(0, '127.0.0.1')
-    await once(proxy, 'listening')
-    const address = proxy.address()
-    if (!address || typeof address === 'string') throw new Error('代理端口未就绪')
-    const proxied = new URL(target)
-    proxied.port = String(address.port)
+    const owner = crypto.randomUUID()
+    const proxy = await dropCommitResponse(connectionString!)
     const value = { requestId: crypto.randomUUID(), name: '提交回执丢失', balanceCents: 99 }
     try {
       await expect(
-        queryLedger({ HYPERDRIVE: { connectionString: proxied.href } }, owner, 'ledger_account_create', { p_input: value })
+        queryLedger({ HYPERDRIVE: { connectionString: proxy.connectionString } }, owner, 'ledger_account_create', { p_input: value })
       ).rejects.toThrow()
-      expect(dropped).toBe(true)
+      expect(proxy.droppedCommits()).toBe(1)
       const receipt = await queryLedger(env, owner, 'ledger_account_create', { p_input: value })
       expect(receipt).toMatchObject({ version: 1 })
       expect(await queryLedger(env, owner, 'ledger_accounts_list', {})).toMatchObject({ version: 1, accounts: [{ balanceCents: 99 }] })
     } finally {
-      await new Promise<void>((resolve) => proxy.close(() => resolve()))
+      await proxy.close()
     }
   })
 })

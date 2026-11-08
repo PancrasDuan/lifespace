@@ -1,9 +1,9 @@
 import { Hono } from 'hono'
-import { listLedger, detailLedger, createLedger, createLedgerEntry, createLedgerTransfer, refundLedger, previewLedgerDelete, deleteLedger, listLedgerAccounts, readLedgerAccounts, createLedgerAccount, updateLedgerAccount } from './ledger'
+import { listLedger, detailLedger, createLedger, createLedgerEntry, createLedgerRefund, createLedgerTransfer, refundLedger, previewLedgerDelete, deleteLedger, listLedgerAccounts, readLedgerAccounts, createLedgerAccount, updateLedgerAccount } from './ledger'
 import { readTaskList, readRewardSource, readGrowth, readTaskHistory, readMigrationOptions, readPlanning, previewPlanning, commandPlanning } from './adventure/planning'
 import { readHoroscope, type HoroscopeTimings } from './horoscope'
 import { readTasks } from './tasks'
-import { ApiError } from './upstream'
+import { ApiError, apiErrorBody } from './upstream'
 import { searchLocations } from './weather'
 import { readWeatherDetail, readAirQuality } from './weather-detail'
 import { readDomainCard } from './domain-card'
@@ -56,7 +56,11 @@ app.use('/api/*', async (c, next) => {
   await next()
 })
 app.all('/api/agent/mcp', async c => {
-  const response = await handleAgentMcp(c.req.raw, { listAccounts: () => readLedgerAccounts(c), createEntry: input => createLedgerEntry(c, input) })
+  const response = await handleAgentMcp(c.req.raw, {
+    listAccounts: input => readLedgerAccounts(c, input),
+    createEntry: input => createLedgerEntry(c, input),
+    refundEntry: (id, input) => createLedgerRefund(c, id, input),
+  })
   response.headers.set('Cache-Control', 'no-store')
   return response
 })
@@ -90,10 +94,10 @@ app.get('/api/weather/locations', async c => c.json(await searchLocations(c.req.
 app.onError((error, c) => {
   if (error instanceof ApiError) {
     if (error.status === 429) c.header('Retry-After', '60')
-    return c.json({ error: { code: error.code, message: error.message } }, error.status)
+    return c.json(apiErrorBody(error), error.status)
   }
   console.error(JSON.stringify({ event: 'api_error', code: 'INTERNAL_ERROR' }))
-  return c.json({ error: { code: 'INTERNAL_ERROR', message: '服务暂时不可用' } }, 500)
+  return c.json(apiErrorBody(error), 500)
 })
 app.notFound(c => c.req.path.startsWith('/api/')
   ? c.json({ error: { code: 'NOT_FOUND', message: '接口不存在' } }, 404)
