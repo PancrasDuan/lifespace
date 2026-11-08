@@ -48,9 +48,9 @@ async function refund(input: object) {
   return ledgerReceiptSchema.parse(result.result.structuredContent)
 }
 async function detail(id: string) {
-  const response = await ledgerRequest(owner, '/api/ledger/entries/' + id)
-  expect(response.status).toBe(200)
-  return ledgerDetailSchema.parse(await response.json())
+  const result = await call('get_ledger_entry', { entryId: id })
+  expect(result.result.isError).toBeUndefined()
+  return ledgerDetailSchema.parse(result.result.structuredContent)
 }
 async function accounts() {
   return ledgerAccountsSchema.parse((await call('list_ledger_accounts', {})).result.structuredContent)
@@ -102,6 +102,7 @@ describe.skipIf(!rpcUrl)('Agent 通过真实隔离账单数据库操作', () => 
       parentEntry: { id: original.entryId, amountCents: -1000, status: 'partial-refund' },
     })
     expect(await detail(original.entryId)).toMatchObject({ entry: { amountCents: -1000 }, refundedCents: 300, refundCount: 1 })
+    expect(await detail(original.entryId)).toEqual(ledgerDetailSchema.parse(await (await ledgerRequest(owner, '/api/ledger/entries/' + original.entryId)).json()))
     expect((await accounts()).accounts).toContainEqual(expect.objectContaining({ id: original.input.accountId, balanceCents: -700 }))
     expect(receipt.version).toBe(original.version + 1)
   })
@@ -117,7 +118,10 @@ describe.skipIf(!rpcUrl)('Agent 通过真实隔离账单数据库操作', () => 
     const toAccountId = await ledgerTestAccount(owner, '转入 ' + crypto.randomUUID())
     const transfer = ledgerTransferReceiptSchema.parse(await (await ledgerRequest(owner, '/api/ledger/transfers', { requestId: crypto.randomUUID(), fromAccountId: original.input.accountId, toAccountId, amountCents: 10, occurredAt: original.input.occurredAt, note: '' })).json())
     const before = await accounts()
-    for (const id of [foreign.entryId, crypto.randomUUID(), deleted.entryId]) await expectError(refundInput(id), 'NOT_FOUND')
+    for (const id of [foreign.entryId, crypto.randomUUID(), deleted.entryId]) {
+      await expectError(refundInput(id), 'NOT_FOUND')
+      expect((await call('get_ledger_entry', { entryId: id })).result).toMatchObject({ isError: true, structuredContent: { code: 'NOT_FOUND' } })
+    }
     for (const id of [income.entryId, child.entryId, transfer.outEntryId, transfer.inEntryId]) await expectError(refundInput(id), 'REFUND_PARENT_INVALID')
     expect(await accounts()).toEqual(before)
   })
@@ -212,5 +216,22 @@ describe.skipIf(!rpcUrl)('Agent 通过真实隔离账单数据库操作', () => 
     expect(receipt).toMatchObject({ entryId: committed.refunds[0].id, version: committed.version, deleted: false })
     expect(await detail(original.entryId)).toEqual(committed)
     expect((await accounts()).accounts).toContainEqual(expect.objectContaining({ id: original.input.accountId, balanceCents: -700 }))
+  })
+
+  it('单笔核对只读且使用全量退款合计，不将第一页30条误当作全部额度', async () => {
+    const original = await parent()
+    for (let index = 0; index < 31; index++) await refund(refundInput(original.entryId, { amountCents: 10 }))
+    const before = await accounts()
+    const value = await detail(original.entryId)
+    expect(value).toMatchObject({ entry: { id: original.entryId, amountCents: -1000, status: 'partial-refund', accountId: original.input.accountId, categoryCode: 'dining' }, refundCount: 31, refundedCents: 310, refundPage: 1, refundPageSize: 30, version: before.version })
+    expect(value.refunds).toHaveLength(30)
+    expect(-value.entry.amountCents - value.refundedCents).toBe(690)
+    const child = await detail(value.refunds[0].id)
+    expect(child).toMatchObject({ parentEntry: { id: original.entryId }, entry: { parentEntryId: original.entryId } })
+    expect(await detail(original.entryId)).toEqual(value)
+    expect(await accounts()).toEqual(before)
+    const updated = await ledgerRequest(owner, '/api/ledger/accounts/' + original.input.accountId, { requestId: crypto.randomUUID(), name: '核对当前账户名称' }, 'PATCH')
+    expect(updated.status).toBe(200)
+    expect(await detail(original.entryId)).toMatchObject({ entry: { accountName: '核对当前账户名称' } })
   })
 })

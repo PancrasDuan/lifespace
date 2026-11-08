@@ -73,7 +73,10 @@ export async function detailLedger(c: LedgerContext) {
   if (Object.values(c.req.queries()).some(values => values.length !== 1)) throw failure('INVALID_QUERY')
   const query = ledgerDetailQuerySchema.safeParse(c.req.query())
   if (!query.success) throw failure('INVALID_QUERY')
-  return c.json(await rpc(c, 'ledger_detail', { p_id: id.data, p_refund_page: query.data.refundPage, p_version: query.data.version ?? null }, ledgerDetailSchema))
+  return c.json(await readLedgerEntry(c, id.data, query.data))
+}
+export async function readLedgerEntry(c: LedgerContext, entryId: string, query: z.infer<typeof ledgerDetailQuerySchema> = { refundPage: 1 }) {
+  return rpc(c, 'ledger_detail', { p_id: entryId, p_refund_page: query.refundPage, p_version: query.version ?? null }, ledgerDetailSchema)
 }
 export async function createLedger(c: LedgerContext) {
   return c.json(await createLedgerEntry(c, await readInput(c, 16_384)))

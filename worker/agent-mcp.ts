@@ -6,6 +6,7 @@ import { z } from 'zod'
 const version = '2025-11-25'
 const supportedVersions = ['2025-03-26', '2025-06-18', version]
 const refundToolSchema = ledgerRefundSchema.extend({ parentEntryId: z.uuid() })
+const readEntryToolSchema = z.strictObject({ entryId: z.uuid() })
 const labels = (categories: ReadonlyArray<readonly [string, string]>) => categories.map(([code, label]) => `${code}：${label}`).join('、')
 const tools = [
   {
@@ -33,7 +34,7 @@ const tools = [
   },
   {
     name: 'create_ledger_refund',
-    description: '为当前用户的一笔普通支出登记退款，新增关联收入流水，原支出金额保持不变。提交前必须核对父支出，完整展示父流水关联（标识、原金额及时间）、退款金额、退款时间、继承的交易账户和分类（账户标识、当前名称及分类名称）及备注，等待用户明确确认；修改任何字段后再次完整展示并确认。当前无父流水读取工具，先请用户从财务页提供详情，不得猜测父流水或继承信息。每笔生成唯一 requestId；结果未知时仅用原 requestId 和完全相同参数重试，不得生成新编号重试。服务端无法独立证明外部对话已确认。',
+    description: '为当前用户的一笔普通支出登记退款，新增关联收入流水，原支出金额保持不变。首次提交前用 get_ledger_entry 核对已知父支出，完整展示父流水关联（标识、原金额及时间）、退款金额、退款时间、继承的交易账户和分类（账户标识、当前名称及分类名称）及备注，等待用户明确确认；修改任何字段后再次完整展示并确认。不得猜测父流水或继承信息，未知父标识时请用户从财务页提供。每笔生成唯一 requestId；结果未知时仅用原 requestId 和完全相同参数重试，不得生成新编号重试。服务端无法独立证明外部对话已确认。',
     inputSchema: {
       type: 'object', additionalProperties: false,
       properties: {
@@ -47,12 +48,23 @@ const tools = [
     },
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
   },
+  {
+    name: 'get_ledger_entry',
+    description: '按已知 ID 读取本人的一笔未删除流水及关联详情，用于退款前核对父支出、账户标识及当前名称、分类、金额、时间和备注。普通支出可退金额为 -entry.amountCents-refundedCents；refundedCents 和 refundCount 覆盖全部有效退款，refunds 仅含第一页最多 30 条关联。退款流水须再按 parentEntry.id 读取父支出核对额度。提交时服务端会重新校验额度与资格。未知标识请用户提供，不支持历史搜索或流水列表查询。',
+    inputSchema: {
+      type: 'object', additionalProperties: false,
+      properties: { entryId: { type: 'string', format: 'uuid', description: '已知的本人流水 UUID。' } },
+      required: ['entryId'],
+    },
+    annotations: { readOnlyHint: true },
+  },
 ]
 
 export async function handleAgentMcp(request: Request, operations: {
   listAccounts: () => Promise<object>
   createEntry: (input: unknown) => Promise<object>
   refundEntry: (parentEntryId: string, input: unknown) => Promise<object>
+  readEntry: (entryId: string) => Promise<object>
 }): Promise<Response> {
   // This endpoint is for non-browser clients; no browser origins are authorized.
   if (request.headers.has('Origin')) return new Response(null, { status: 403 })
@@ -95,6 +107,10 @@ export async function handleAgentMcp(request: Request, operations: {
         if (!value.success) throw new ApiError('INVALID_ENTRY', ledgerErrors.INVALID_ENTRY[1], 400)
         const { parentEntryId, ...input } = value.data
         data = await operations.refundEntry(parentEntryId, input)
+      } else if (message.params?.name === 'get_ledger_entry') {
+        const value = readEntryToolSchema.safeParse(args)
+        if (!value.success) throw new ApiError('INVALID_ENTRY', ledgerErrors.INVALID_ENTRY[1], 400)
+        data = await operations.readEntry(value.data.entryId)
       } else data = await operations.createEntry(args)
       return Response.json({ jsonrpc: '2.0', id: message.id, result: { content: [{ type: 'text', text: JSON.stringify(data) }], structuredContent: data } })
     } catch (error) {

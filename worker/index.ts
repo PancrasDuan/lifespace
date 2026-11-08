@@ -1,5 +1,5 @@
 import { Hono } from 'hono'
-import { listLedger, detailLedger, createLedger, createLedgerEntry, createLedgerRefund, createLedgerTransfer, refundLedger, previewLedgerDelete, deleteLedger, listLedgerAccounts, readLedgerAccounts, createLedgerAccount, updateLedgerAccount } from './ledger'
+import { listLedger, detailLedger, readLedgerEntry, createLedger, createLedgerEntry, createLedgerRefund, createLedgerTransfer, refundLedger, previewLedgerDelete, deleteLedger, listLedgerAccounts, readLedgerAccounts, createLedgerAccount, updateLedgerAccount } from './ledger'
 import { readTaskList, readRewardSource, readGrowth, readTaskHistory, readMigrationOptions, readPlanning, previewPlanning, commandPlanning } from './adventure/planning'
 import { readHoroscope, type HoroscopeTimings } from './horoscope'
 import { readTasks } from './tasks'
@@ -60,6 +60,7 @@ app.all('/api/agent/mcp', async c => {
     listAccounts: () => readLedgerAccounts(c),
     createEntry: input => createLedgerEntry(c, input),
     refundEntry: (parentEntryId, input) => createLedgerRefund(c, parentEntryId, input),
+    readEntry: entryId => readLedgerEntry(c, entryId),
   })
   response.headers.set('Cache-Control', 'no-store')
   return response

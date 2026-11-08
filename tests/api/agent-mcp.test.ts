@@ -41,12 +41,12 @@ test('Agent 通过真实入口初始化 MCP 并获得协商的协议版本', asy
   expect(await response.json()).toMatchObject({ jsonrpc: '2.0', id: 1, result: { protocolVersion: '2025-11-25', capabilities: { tools: {} }, serverInfo: { name: 'lifespace-ledger' } } })
 })
 
-test('工具发现提供本人账户、普通流水与独立退款契约', async () => {
+test('工具发现提供本人账户、普通流水、独立退款及单笔只读核对契约', async () => {
   upstream()
   const response = await request({ jsonrpc: '2.0', id: 'discovery', method: 'tools/list', params: {} }, { 'MCP-Protocol-Version': '2025-11-25' })
   expect(response.status).toBe(200)
   const result = await response.json() as { result: { tools: Array<{ name: string; description: string; inputSchema: { required?: string[]; properties?: Record<string, { description?: string }> } }> } }
-  expect(result.result.tools.map(tool => tool.name)).toEqual(['list_ledger_accounts', 'create_ledger_entry', 'create_ledger_refund'])
+  expect(result.result.tools.map(tool => tool.name)).toEqual(['list_ledger_accounts', 'create_ledger_entry', 'create_ledger_refund', 'get_ledger_entry'])
   const create = result.result.tools[1]
   expect(create.inputSchema.required).toEqual(expect.arrayContaining(['requestId', 'direction', 'amountCents', 'occurredAt', 'accountId', 'categoryCode', 'note']))
   expect(create.inputSchema.properties?.categoryCode.description).toContain('dining：餐饮')
@@ -57,6 +57,9 @@ test('工具发现提供本人账户、普通流水与独立退款契约', async
   expect(refund.inputSchema.properties?.note).not.toHaveProperty('maxLength')
   expect(Object.keys(refund.inputSchema.properties!)).toEqual(refund.inputSchema.required)
   for (const instruction of ['父流水关联', '继承的交易账户和分类', '明确确认', '再次完整展示并确认', '原 requestId', '无法独立证明']) expect(refund.description).toContain(instruction)
+  expect(refund.description).toContain('get_ledger_entry')
+  expect(result.result.tools[3]).toMatchObject({ name: 'get_ledger_entry', annotations: { readOnlyHint: true }, inputSchema: { type: 'object', additionalProperties: false, properties: { entryId: { type: 'string', format: 'uuid' } }, required: ['entryId'] } })
+  expect(Object.keys(result.result.tools[3].inputSchema.properties!)).toEqual(['entryId'])
 })
 
 test('账户查询返回本人完整账户数据，包括余额', async () => {
@@ -245,11 +248,48 @@ test.each([new Response(null, { status: 503 }), Response.json({ entryId: 'invali
   expect(writes).toBe(1)
 })
 
-test('退款仍需 Agent 鉴权与在线准入，Agent 凭据不能访问网页退款接口', async () => {
+test.each(['create_ledger_refund', 'get_ledger_entry'])('%s 仍需 Agent 鉴权与在线准入，Agent 凭据不能访问网页退款接口', async name => {
   upstream()
   const headers = { 'Cf-Access-Jwt-Assertion': assertion(), 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream' }
-  const body = JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'create_ledger_refund', arguments: refund } })
+  const body = JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name, arguments: name === 'get_ledger_entry' ? { entryId: refund.parentEntryId } : refund } })
   expect((await app.request('/api/agent/mcp', { method: 'POST', headers, body }, { ...env, AUTH_ALLOWED_EMAILS: 'removed@example.invalid' })).status).toBe(403)
   expect((await app.request('/api/agent/mcp', { method: 'POST', headers: { ...headers, 'Cf-Access-Jwt-Assertion': '' }, body }, env)).status).toBe(401)
   expect((await app.request('/api/ledger/entries/' + refund.parentEntryId + '/refunds', { method: 'POST', headers, body: JSON.stringify(refund) }, env)).status).toBe(401)
+})
+
+const getEntryCall = (args: unknown) => request({ jsonrpc: '2.0', id: 'detail', method: 'tools/call', params: { name: 'get_ledger_entry', arguments: args } })
+const entryDetail = {
+  entry: { id: refund.parentEntryId, direction: 'expense', amountCents: -3500, occurredAt: refund.occurredAt, accountId: owner, accountName: '当前账户名', categoryCode: 'dining', note: '原支出', parentEntryId: null, transferId: null, createdAt: refund.occurredAt, status: 'partial-refund' },
+  parentEntry: null, transferEntry: null, refunds: [{ id: refund.requestId, amountCents: 500, occurredAt: refund.occurredAt }],
+  refundCount: 1, refundedCents: 500, refundPage: 1, refundPageSize: 30, version: 5,
+}
+test('单笔核对复用详情服务，可信 owner 与默认第一页返回完整事实和全量退款合计', async () => {
+  upstream((url, init) => {
+    if (!url.endsWith('/rpc/ledger_detail')) return undefined
+    expect(JSON.parse(String(init?.body))).toEqual({ p_owner: owner, p_id: refund.parentEntryId, p_refund_page: 1, p_version: null })
+    return Response.json(entryDetail)
+  })
+  const response = await getEntryCall({ entryId: refund.parentEntryId })
+  expect(response.headers.get('Cache-Control')).toBe('no-store')
+  const body = await response.json() as { result: { content: Array<{ text: string }>; structuredContent: object } }
+  expect(body.result.structuredContent).toEqual(entryDetail)
+  expect(JSON.parse(body.result.content[0].text)).toEqual(entryDetail)
+})
+
+test.each([{}, { entryId: 'invalid' }, ...['ownerId', 'query', 'page', 'refundPage', 'version', 'requestId'].map(key => ({ entryId: refund.parentEntryId, [key]: owner }))])('单笔只读核对拒绝非法标识或额外查询字段 %j', async args => {
+  let reads = 0
+  upstream(url => { if (url.endsWith('/rpc/ledger_detail')) reads++; return undefined })
+  expect(await (await getEntryCall(args)).json()).toMatchObject({ result: { isError: true, structuredContent: { code: 'INVALID_ENTRY' } } })
+  expect(reads).toBe(0)
+})
+
+test.each([
+  ['NOT_FOUND', () => Response.json({ message: 'NOT_FOUND' }, { status: 404 })],
+  ['LEDGER_UNAVAILABLE', () => new Response(null, { status: 503 })],
+  ['LEDGER_UNAVAILABLE', () => Response.json({ private: 'private upstream details' })],
+] as const)('单笔读取失败沿用 %s，不返回上游原始内容', async (code, result) => {
+  upstream(url => url.endsWith('/rpc/ledger_detail') ? result() : undefined)
+  const body = await (await getEntryCall({ entryId: refund.parentEntryId })).json()
+  expect(body).toMatchObject({ result: { isError: true, structuredContent: { code } } })
+  expect(JSON.stringify(body)).not.toContain('private upstream details')
 })
