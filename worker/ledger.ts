@@ -95,10 +95,13 @@ export async function refundLedger(c: LedgerContext) {
   const parent = z.uuid().safeParse(c.req.param('id'))
   if (!parent.success) throw failure('NOT_FOUND')
   if (Object.keys(c.req.query()).length) throw failure('INVALID_QUERY')
-  const value = ledgerRefundSchema.safeParse(await readInput(c, 16_384))
+  return c.json(await createLedgerRefund(c, parent.data, await readInput(c, 16_384)))
+}
+export async function createLedgerRefund(c: LedgerContext, parentEntryId: string, input: unknown) {
+  const value = ledgerRefundSchema.safeParse(input)
   if (!value.success) throw failure('INVALID_ENTRY', value.error.issues[0]?.message)
   if (Date.parse(value.data.occurredAt) > Date.now()) throw failure('FUTURE_TIME')
-  return c.json(await rpc(c, 'ledger_refund', { p_parent: parent.data, p_input: value.data }, ledgerReceiptSchema, true))
+  return rpc(c, 'ledger_refund', { p_parent: parentEntryId, p_input: value.data }, ledgerReceiptSchema, true)
 }
 
 export async function previewLedgerDelete(c: LedgerContext) {

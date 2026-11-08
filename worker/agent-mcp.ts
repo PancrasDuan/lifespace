@@ -1,10 +1,11 @@
 import { readBoundedBody } from './read-body'
-import { ledgerCategories, ledgerErrors, ledgerLimits } from '../src/shared/ledger'
+import { ledgerCategories, ledgerErrors, ledgerLimits, ledgerRefundSchema } from '../src/shared/ledger'
 import { ApiError } from './upstream'
 import { z } from 'zod'
 
 const version = '2025-11-25'
 const supportedVersions = ['2025-03-26', '2025-06-18', version]
+const refundToolSchema = ledgerRefundSchema.extend({ parentEntryId: z.uuid() })
 const labels = (categories: ReadonlyArray<readonly [string, string]>) => categories.map(([code, label]) => `${code}：${label}`).join('、')
 const tools = [
   {
@@ -30,9 +31,29 @@ const tools = [
     },
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
   },
+  {
+    name: 'create_ledger_refund',
+    description: '为当前用户的一笔普通支出登记退款，新增关联收入流水，原支出金额保持不变。提交前必须核对父支出，完整展示父流水关联（标识、原金额及时间）、退款金额、退款时间、继承的交易账户和分类（账户标识、当前名称及分类名称）及备注，等待用户明确确认；修改任何字段后再次完整展示并确认。当前无父流水读取工具，先请用户从财务页提供详情，不得猜测父流水或继承信息。每笔生成唯一 requestId；结果未知时仅用原 requestId 和完全相同参数重试，不得生成新编号重试。服务端无法独立证明外部对话已确认。',
+    inputSchema: {
+      type: 'object', additionalProperties: false,
+      properties: {
+        parentEntryId: { type: 'string', format: 'uuid', description: '本人的未删除普通支出流水标识；交易账户及分类继承此父流水，不可覆盖。' },
+        requestId: { type: 'string', format: 'uuid', description: '本次请求唯一 UUID，未知结果重试必须保持不变。' },
+        amountCents: { type: 'integer', minimum: 1, maximum: ledgerLimits.amountCents, description: '本次退款的人民币正整数分，累计退款不得超过原支出金额。' },
+        occurredAt: { type: 'string', format: 'date-time', description: '退款实际时间，UTC ISO 8601，精确到秒，不早于父支出且不晚于当前时间。' },
+        note: { type: 'string', maxLength: ledgerLimits.note, description: '退款备注，可以为空；trim 后最多 500 个 Unicode 码点。' },
+      },
+      required: ['parentEntryId', 'requestId', 'amountCents', 'occurredAt', 'note'],
+    },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
+  },
 ]
 
-export async function handleAgentMcp(request: Request, operations: { listAccounts: () => Promise<object>; createEntry: (input: unknown) => Promise<object> }): Promise<Response> {
+export async function handleAgentMcp(request: Request, operations: {
+  listAccounts: () => Promise<object>
+  createEntry: (input: unknown) => Promise<object>
+  refundEntry: (parentEntryId: string, input: unknown) => Promise<object>
+}): Promise<Response> {
   // This endpoint is for non-browser clients; no browser origins are authorized.
   if (request.headers.has('Origin')) return new Response(null, { status: 403 })
   if (request.method !== 'POST') return new Response(null, { status: 405, headers: { Allow: 'POST' } })
@@ -61,13 +82,20 @@ export async function handleAgentMcp(request: Request, operations: { listAccount
   }
   if (message.jsonrpc === '2.0' && message.method === 'tools/list' && message.id !== undefined) return Response.json({ jsonrpc: '2.0', id: message.id, result: { tools } })
   if (message.jsonrpc === '2.0' && message.method === 'ping' && message.id !== undefined) return Response.json({ jsonrpc: '2.0', id: message.id, result: {} })
-  if (message.jsonrpc === '2.0' && message.method === 'tools/call' && message.id !== undefined && ['list_ledger_accounts', 'create_ledger_entry'].includes(message.params?.name ?? '')) {
+  if (message.jsonrpc === '2.0' && message.method === 'tools/call' && message.id !== undefined && tools.some(tool => tool.name === message.params?.name)) {
     const args = message.params?.arguments ?? {}
     if (typeof args !== 'object' || args === null || Array.isArray(args) || (message.params?.name === 'list_ledger_accounts' && Object.keys(args).length)) {
       return Response.json({ jsonrpc: '2.0', id: message.id, error: { code: -32602, message: 'Invalid tool arguments' } })
     }
     try {
-      const data = message.params?.name === 'list_ledger_accounts' ? await operations.listAccounts() : await operations.createEntry(args)
+      let data: object
+      if (message.params?.name === 'list_ledger_accounts') data = await operations.listAccounts()
+      else if (message.params?.name === 'create_ledger_refund') {
+        const value = refundToolSchema.safeParse(args)
+        if (!value.success) throw new ApiError('INVALID_ENTRY', ledgerErrors.INVALID_ENTRY[1], 400)
+        const { parentEntryId, ...input } = value.data
+        data = await operations.refundEntry(parentEntryId, input)
+      } else data = await operations.createEntry(args)
       return Response.json({ jsonrpc: '2.0', id: message.id, result: { content: [{ type: 'text', text: JSON.stringify(data) }], structuredContent: data } })
     } catch (error) {
       const code = error instanceof ApiError && Object.hasOwn(ledgerErrors, error.code) ? error.code as keyof typeof ledgerErrors : undefined
