@@ -5,8 +5,9 @@
   "main": "worker/index.ts",
   "compatibility_date": "2026-10-01",
   "compatibility_flags": ["nodejs_compat"],
-  // Replace only after the reviewed cutover provisions Hyperdrive with caching disabled.
-  "hyperdrive": [{"binding": "HYPERDRIVE", "id": "00000000000000000000000000000000", "localConnectionString": "postgres://lifespace_worker:local-development-only@127.0.0.1:5432/postgres"}],
+  // Prepared under #149 authorization A; production cutover still requires approval.
+  // Keep default placement until the measured Free CPU budget issue is resolved.
+  "hyperdrive": [{"binding": "HYPERDRIVE", "id": "a3307e803a27447f854d2e1a9253b5ae", "localConnectionString": "postgres://lifespace_worker:local-development-only@127.0.0.1:5432/postgres"}],
   "routes": [{"pattern": "lifespace.onepeace.cc.cd", "custom_domain": true}],
   "assets": {
     "directory": "dist/client",
