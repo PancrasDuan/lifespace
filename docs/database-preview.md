@@ -17,6 +17,8 @@
 
 Worker 的 workers.dev 正式入口保持关闭，只开启预览 URL。预发保留现有 Supabase Auth SDK 直连、在线用户核验和 Agent Access 验签，不增加认证代理。
 
+预览 URL 开关属于整个 Worker。尚未合并本配置的旧 main 若以 `preview_urls: false` 再次部署，会关闭已有候选入口；遇到 404 应先回读该开关，不能据此判断数据库迁移失败。恢复时保留 `enabled: false`，只将 `previews_enabled` 设为 `true`，不改变正式部署或流量。
+
 ## 数据隔离与配置差异
 
 | 项目 | 正式与预发 |
@@ -39,6 +41,8 @@ Worker 的 workers.dev 正式入口保持关闭，只开启预览 URL。预发�
 
 Version URL 与正式版本属于同一 Worker，统计时须按候选版本 ID 过滤，避免混合生产和预发 CPU。CPU 验收使用相同输入及数据规模，并记录分布、错误率和请求／SQL 数；旧版混合接口均值不能替代相同任务创建的对照。
 
+Version URL 不支持 Workers Logs、Wrangler tail 或 Logpush。CPU 可通过 GraphQL `workersInvocationsAdaptive` 按 `scriptName` 和 `scriptVersion` 查询，`cpuTimeP*` 的单位为微秒；不能将 `isPreview: 1` 直接用于此类旧版 Version URL（本次实测记录为 0）。GraphQL 的运行错误数须与 HTTP 状态分别检查，业务 502 也可能记录为 invocation success。
+
 测试密码与会话只保存在本工作区忽略目录的 0600 文件，运行时密钥仍由 Cloudflare 管理，不写入提交、构建变量、Issue 或 PR。预发成功不构成正式发布授权；具体 PR 合并、正式切流及付费升级仍待用户确认。
 
-官方依据：[构建分支](https://developers.cloudflare.com/workers/ci-cd/builds/build-branches/)、[预览命令与 Version URL](https://developers.cloudflare.com/workers/ci-cd/builds/configuration/#preview-command)、[版本上传](https://developers.cloudflare.com/workers/wrangler/commands/workers/#versions-upload)。
+官方依据：[构建分支](https://developers.cloudflare.com/workers/ci-cd/builds/build-branches/)、[预览命令与 Version URL](https://developers.cloudflare.com/workers/ci-cd/builds/configuration/#preview-command)、[版本上传](https://developers.cloudflare.com/workers/wrangler/commands/workers/#versions-upload)、[Version URL 限制](https://developers.cloudflare.com/workers/versions-and-deployments/version-urls/#limitations)。
