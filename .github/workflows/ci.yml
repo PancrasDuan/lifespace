@@ -17,7 +17,20 @@ jobs:
   validate:
     name: validate
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 40
+    services:
+      ledger-postgres:
+        image: postgres:17-bookworm@sha256:665dc7b37ac52a17e298511414c21d23ffa4e6a6ef6225b3e5d59c7afb35e994
+        env:
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports: ['127.0.0.1:5432:5432']
+        options: --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+      adventure-postgres:
+        image: postgres:17-bookworm@sha256:665dc7b37ac52a17e298511414c21d23ffa4e6a6ef6225b3e5d59c7afb35e994
+        env:
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports: ['127.0.0.1:5433:5432']
+        options: --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -32,6 +45,18 @@ jobs:
       - run: npm run test:secrets
       - run: npm ci
       - run: npm run build:ci
+      - name: Install pinned legacy comparison transport
+        run: |
+          mkdir -p .cache/postgrest
+          curl --fail --location --silent --show-error https://github.com/PostgREST/postgrest/releases/download/v13.0.7/postgrest-v13.0.7-linux-static-x86-64.tar.xz -o .cache/postgrest/archive.tar.xz
+          echo '4153f81ccc40e7b735edc89cd84b49da25ba27eb37d57c7f6a82c9005a0b762b  .cache/postgrest/archive.tar.xz' | sha256sum -c -
+          tar -xJf .cache/postgrest/archive.tar.xz -C .cache/postgrest
       - name: Install Chromium
         run: PLAYWRIGHT_BROWSERS_PATH=.cache/playwright npx playwright install --with-deps chromium
+      - name: Real PostgreSQL and production workerd entry point
+        env:
+          POSTGREST_BIN: ${{ github.workspace }}/.cache/postgrest/postgrest
+        run: |
+          CI_POSTGRES_PORT=5432 npm run test:database -- --ledger --runtime --browser
+          CI_POSTGRES_PORT=5433 npm run test:database -- --browser
       - run: npm run test:browser

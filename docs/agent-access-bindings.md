@@ -1,5 +1,7 @@
 # Agent 凭据与用户绑定
 
+> #149：Worker 通过 pg／Hyperdrive 逐次读取启用绑定；旧解析 RPC 仅保留兼容。新角色权限与切换方案见[统一数据库访问](database-access.md)。
+
 此文描述 Issue #130 的数据库部分；不包含 Cloudflare 凭据的创建、发放或 Agent 入口部署。迁移为 [20261106031343_agent_access_bindings.sql](../db/agent/migrations/20261106031343_agent_access_bindings.sql)，由 Supabase CLI 生成文件名。正式数据库执行前须只读核对目标项目、现有结构、权限与交付授权。
 
 ## 数据与权限

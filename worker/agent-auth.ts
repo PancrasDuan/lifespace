@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { allowedEmails, publicConfig, type AuthEnv, type Identity } from './auth'
 import { readBoundedBody } from './read-body'
 import { ApiError } from './upstream'
+import { transaction } from './database'
 
 export type AgentAuthEnv = AuthEnv & { CF_ACCESS_TEAM_DOMAIN?: string; CF_ACCESS_AUD?: string }
 
@@ -82,11 +83,15 @@ export async function verifyAgentIdentity(env: AgentAuthEnv, assertion?: string)
 
   const headers = new Headers({ apikey: secret, 'Content-Type': 'application/json' })
   if (secret.startsWith('eyJ')) headers.set('Authorization', `Bearer ${secret}`)
-  const result = await jsonResponse(`${base}/rest/v1/rpc/agent_resolve_owner`, {
-    method: 'POST', headers, body: JSON.stringify({ p_client_id: claims.data.common_name }),
-  })
-  const owner = binding.safeParse(result.value)
-  if (result.status !== 200 || !owner.success) throw unavailable()
+  let resolved: unknown
+  try {
+    resolved = await transaction(env, null, async db => (await db.rows(
+      'select owner_id as "ownerId" from public.agent_identity_bindings where client_id=$1 and enabled',
+      [claims.data.common_name],
+    ))[0] ?? null)
+  } catch { throw unavailable() }
+  const owner = binding.safeParse(resolved)
+  if (!owner.success) throw unavailable()
   if (!owner.data) throw invalid()
 
   const current = await jsonResponse(`${base}/auth/v1/admin/users/${owner.data.ownerId}`, { headers })
