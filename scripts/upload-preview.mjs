@@ -2,11 +2,9 @@ import { spawn, execFileSync } from 'node:child_process'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { z } from 'zod'
 
 // Only the integration branch deploys the fixed native Preview. Resources are
 // explicitly shared; browser and MCP admission remains limited to the test owner.
-const email = z.email().parse(process.env.LIFESPACE_PREVIEW_TEST_EMAIL?.trim().toLowerCase())
 const root = fileURLToPath(new URL('../', import.meta.url))
 const branch = process.env.WORKERS_CI_BRANCH ?? execFileSync('git', ['branch', '--show-current'], { cwd: root, encoding: 'utf8' }).trim()
 if (branch !== 'preview') throw new Error('预览部署只允许 GitHub preview 分支。')
@@ -15,9 +13,8 @@ if (process.argv.slice(2).some(value => value !== '--dry-run')) throw new Error(
 await import('./check-database-deployment.mjs')
 const configFile = join(root, 'dist/lifespace/wrangler.json')
 const config = JSON.parse(await readFile(configFile, 'utf8'))
-if (config.vars?.PREVIEW_TEST_EMAIL !== '') throw new Error('正式配置必须显式清空 PREVIEW_TEST_EMAIL，请重新构建。')
 const preview = config.previews
-if (preview?.vars?.PREVIEW_TEST_EMAIL !== email) throw new Error('原生 Preview 配置必须与测试邮箱一致。')
+if (!preview) throw new Error('缺少原生 Preview 配置。')
 if (preview.hyperdrive?.find(binding => binding.binding === 'HYPERDRIVE')?.id !== config.hyperdrive.find(binding => binding.binding === 'HYPERDRIVE')?.id) throw new Error('本任务的原生 Preview 必须绑定已验收的共享 Hyperdrive。')
 if (!preview.observability?.enabled || !preview.observability.logs?.enabled || !preview.observability.traces?.enabled) throw new Error('原生 Preview 必须开启日志与 traces。')
 if (process.argv.includes('--dry-run')) {

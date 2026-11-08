@@ -10,14 +10,16 @@ GitHub `preview` 是固定预发集成分支，`main` 是正式分支。开发�
 
 - 预发构建命令：`npm run build:ci`。
 - 预发部署命令：`npm run preview`，执行 `wrangler preview --name preview --json`。
-- 预发构建变量：`LIFESPACE_PREVIEW_TEST_EMAIL`，指定已创建的测试邮箱；不向构建注入数据库密码或 Auth 服务端 key。
+- 白名单通过各环境自己的 `AUTH_ALLOWED_EMAILS` Secret 配置，不向构建注入数据库密码、Auth 服务端 key 或另一套测试邮箱变量。
 - 固定预发地址为 `https://preview-lifespace.dpqkindle.workers.dev`；以原生 Preview 的部署记录为准。具体部署 ID、提交 SHA 及实测结果记录在 PR #150。
 
-部署脚本拒绝缺少／无效测试邮箱及任何非 preview 分支，先执行数据库部署配置检查，并清除正式及预发构建配置中的本地连接串和 `.dev.vars`。检查正式准入复位值、预发测试邮箱、Hyperdrive ID、日志与 traces 后才部署。`--dry-run` 仅执行这些本地配置检查；Wrangler 原生 preview 命令没有部署 dry-run，不把该检查当成远端验收。
+部署脚本拒绝任何非 preview 分支，先执行数据库部署配置检查，并清除正式及预发构建配置中的本地连接串和 `.dev.vars`。检查原生 Preview 配置、Hyperdrive ID、日志与 traces 后才部署。`--dry-run` 仅执行这些本地配置检查；Wrangler 原生 preview 命令没有部署 dry-run，不把该检查当成远端验收。
 
 原生 Preview 不继承生产变量、密钥或数据绑定。`wrangler.jsonc` 的 `previews` 显式登记共享资源及测试准入；Previews Base 保存服务端密钥和 Access 配置，不向构建变量注入这些密钥。Base 密钥变动只自动应用到此后创建的 Preview，已有 Preview 必须单独同步并回读，不能仅确认 Base 已填写。
 
-正式 Wrangler 配置显式将 `PREVIEW_TEST_EMAIL` 置空，使用原 `AUTH_ALLOWED_EMAILS`。预发测试邮箱非空时，浏览器与 MCP 均只允许该邮箱；格式无效则拒绝访问。保留 Supabase Auth SDK 直连、在线用户核验和 Agent Access 验签，不增加认证代理。
+正式环境保留原 `AUTH_ALLOWED_EMAILS`；Previews Base 的同名 Secret 仅填写专用测试账号邮箱。两者独立配置，浏览器与 MCP 共用该环境的白名单，缺失或格式错误则拒绝访问。旧 Version URL 为避免修改父 Worker 的生产白名单曾使用额外覆盖变量；原生 Preview 不再需要该变量。保留 Supabase Auth SDK 直连、在线用户核验和 Agent Access 验签，不增加认证代理。
+
+`AUTH_HOOK_SECRET` 用于验证 Supabase 的 Before User Created HTTP Hook 签名，不参与已有账号的普通登录或续期。共享 Supabase 项目的注册 Hook 仍指向正式地址；不为本次预发改写该全局地址。要验证完整 Hook 端点时应配置匹配的原签名密钥，不能用随机值冒充已有配置。
 
 生产域名继续指向 main 的正式部署；workers.dev 正式入口保持关闭。预发单独检查完整绑定、日志、traces 和版本，不能通过“返回了 URL”判断已配置完成。
 
