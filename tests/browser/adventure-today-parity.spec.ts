@@ -93,6 +93,7 @@ for (const width of [1440, 390]) test(`${width}px 今日聚焦保留 A 原型的
   await expect(dialog.getByLabel('执行日期', { exact: true })).toHaveValue('2099-06-17')
   await expect(dialog.getByLabel('任务归属', { exact: true })).toHaveValue(withGoal.goals[0].id)
   await dialog.getByRole('button', { name: '删除任务', exact: true }).click()
+  await expect(deletion).toBeVisible()
   await page.keyboard.press('Escape')
   await expect(dialog.getByLabel('任务名称', { exact: true })).toHaveValue('删除取消前的草稿')
   await dialog.getByRole('button', { name: '删除任务', exact: true }).click()
