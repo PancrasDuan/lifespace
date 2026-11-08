@@ -2,7 +2,7 @@ import { generateKeyPairSync, sign } from 'node:crypto'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import app from '../../worker/index'
 import { installLedgerDatabase, ledgerEnv, ledgerTestAccount, ledgerRequest, ordinaryEntry } from '../support/ledger-database'
-import { ledgerAccountsSchema, ledgerDeletePreviewSchema, ledgerDetailSchema, ledgerLimits, ledgerReceiptSchema, ledgerTransferReceiptSchema } from '../../src/shared/ledger'
+import { ledgerAccountsSchema, ledgerDeletePreviewSchema, ledgerDetailSchema, ledgerErrors, ledgerLimits, ledgerReceiptSchema, ledgerTransferReceiptSchema } from '../../src/shared/ledger'
 
 const rpcUrl = process.env.LEDGER_LOCAL_RPC_URL
 const owner = '00000000-0000-4000-8000-000000000007'
@@ -32,8 +32,8 @@ async function call(name: string, args: object) {
   expect(JSON.parse(body.result.content[0].text)).toEqual(body.result.structuredContent)
   return body
 }
-const refundInput = (parentEntryId: string, overrides: Record<string, unknown> = {}) => ({
-  parentEntryId, requestId: crypto.randomUUID(), amountCents: 300, occurredAt: '2026-01-02T03:04:05Z', note: '退款', ...overrides,
+const refundInput = (id: string, overrides: Record<string, unknown> = {}) => ({
+  id, requestId: crypto.randomUUID(), amountCents: 300, occurredAt: '2026-01-02T03:04:05Z', note: '退款', ...overrides,
 })
 async function parent(overrides: Record<string, unknown> = {}) {
   const accountId = await ledgerTestAccount(owner, '退款 ' + crypto.randomUUID())
@@ -48,9 +48,9 @@ async function refund(input: object) {
   return ledgerReceiptSchema.parse(result.result.structuredContent)
 }
 async function detail(id: string) {
-  const result = await call('get_ledger_entry', { entryId: id })
-  expect(result.result.isError).toBeUndefined()
-  return ledgerDetailSchema.parse(result.result.structuredContent)
+  const response = await ledgerRequest(owner, '/api/ledger/entries/' + id)
+  expect(response.status).toBe(200)
+  return ledgerDetailSchema.parse(await response.json())
 }
 async function accounts() {
   return ledgerAccountsSchema.parse((await call('list_ledger_accounts', {})).result.structuredContent)
@@ -61,7 +61,7 @@ async function remove(id: string) {
   expect(response.status).toBe(200)
 }
 async function expectError(input: object, code: string) {
-  expect((await call('create_ledger_refund', input)).result).toMatchObject({ isError: true, structuredContent: { code } })
+  expect((await call('create_ledger_refund', input)).result).toMatchObject({ isError: true, structuredContent: { error: { code } } })
 }
 
 describe.skipIf(!rpcUrl)('Agent 通过真实隔离账单数据库操作', () => {
@@ -88,7 +88,7 @@ describe.skipIf(!rpcUrl)('Agent 通过真实隔离账单数据库操作', () => 
     const retry = await call('create_ledger_entry', entry)
     expect(retry.result.structuredContent).toEqual(first.result.structuredContent)
     const foreign = await call('create_ledger_entry', { ...entry, requestId: '00000000-0000-4000-8000-000000000092', accountId: otherAccountId })
-    expect(foreign.result).toMatchObject({ isError: true, structuredContent: { code: 'ACCOUNT_NOT_FOUND' } })
+    expect(foreign.result).toMatchObject({ isError: true, structuredContent: { error: { code: 'ACCOUNT_NOT_FOUND' } } })
     const accounts = await call('list_ledger_accounts', {})
     expect(accounts.result.structuredContent).toMatchObject({ accounts: [{ id: accountId, balanceCents: -3500 }] })
   })
@@ -102,7 +102,6 @@ describe.skipIf(!rpcUrl)('Agent 通过真实隔离账单数据库操作', () => 
       parentEntry: { id: original.entryId, amountCents: -1000, status: 'partial-refund' },
     })
     expect(await detail(original.entryId)).toMatchObject({ entry: { amountCents: -1000 }, refundedCents: 300, refundCount: 1 })
-    expect(await detail(original.entryId)).toEqual(ledgerDetailSchema.parse(await (await ledgerRequest(owner, '/api/ledger/entries/' + original.entryId)).json()))
     expect((await accounts()).accounts).toContainEqual(expect.objectContaining({ id: original.input.accountId, balanceCents: -700 }))
     expect(receipt.version).toBe(original.version + 1)
   })
@@ -120,7 +119,6 @@ describe.skipIf(!rpcUrl)('Agent 通过真实隔离账单数据库操作', () => 
     const before = await accounts()
     for (const id of [foreign.entryId, crypto.randomUUID(), deleted.entryId]) {
       await expectError(refundInput(id), 'NOT_FOUND')
-      expect((await call('get_ledger_entry', { entryId: id })).result).toMatchObject({ isError: true, structuredContent: { code: 'NOT_FOUND' } })
     }
     for (const id of [income.entryId, child.entryId, transfer.outEntryId, transfer.inEntryId]) await expectError(refundInput(id), 'REFUND_PARENT_INVALID')
     expect(await accounts()).toEqual(before)
@@ -143,7 +141,7 @@ describe.skipIf(!rpcUrl)('Agent 通过真实隔离账单数据库操作', () => 
     const original = await parent()
     const results = await Promise.all(Array.from({ length: 10 }, () => call('create_ledger_refund', refundInput(original.entryId))))
     expect(results.filter(result => !result.result.isError)).toHaveLength(3)
-    for (const result of results.filter(result => result.result.isError)) expect(result.result.structuredContent.code).toBe('REFUND_LIMIT')
+    for (const result of results.filter(result => result.result.isError)) expect((result.result.structuredContent.error as { code: string }).code).toBe('REFUND_LIMIT')
     expect(await detail(original.entryId)).toMatchObject({ refundedCents: 900, refundCount: 3, version: original.version + 3 })
     const input = refundInput(original.entryId, { amountCents: 100, note: ' 😀 ' })
     const receipts = await Promise.all(Array.from({ length: 8 }, () => refund(input)))
@@ -159,9 +157,9 @@ describe.skipIf(!rpcUrl)('Agent 通过真实隔离账单数据库操作', () => 
     const input = refundInput(original.entryId)
     await refund(input)
     const before = await accounts()
-    for (const change of [{ parentEntryId: second.entryId }, { amountCents: 301 }, { occurredAt: '2026-01-02T03:04:06Z' }, { note: '修改' }]) await expectError({ ...input, ...change }, 'REQUEST_ID_REUSED')
+    for (const change of [{ id: second.entryId }, { amountCents: 301 }, { occurredAt: '2026-01-02T03:04:06Z' }, { note: '修改' }]) await expectError({ ...input, ...change }, 'REQUEST_ID_REUSED')
     await expectError({ ...input, requestId: original.input.requestId }, 'REQUEST_ID_REUSED')
-    expect((await call('create_ledger_entry', { ...original.input, requestId: input.requestId })).result).toMatchObject({ isError: true, structuredContent: { code: 'REQUEST_ID_REUSED' } })
+    expect((await call('create_ledger_entry', { ...original.input, requestId: input.requestId })).result).toMatchObject({ isError: true, structuredContent: { error: { code: 'REQUEST_ID_REUSED' } } })
     expect(await accounts()).toEqual(before)
   })
 
@@ -218,20 +216,41 @@ describe.skipIf(!rpcUrl)('Agent 通过真实隔离账单数据库操作', () => 
     expect((await accounts()).accounts).toContainEqual(expect.objectContaining({ id: original.input.accountId, balanceCents: -700 }))
   })
 
-  it('单笔核对只读且使用全量退款合计，不将第一页30条误当作全部额度', async () => {
+  it('REST 与 MCP 的实际退款回执、幂等及错误体一致', async () => {
     const original = await parent()
-    for (let index = 0; index < 31; index++) await refund(refundInput(original.entryId, { amountCents: 10 }))
+    const first = refundInput(original.entryId)
+    const { id, ...body } = first
+    const rest = await ledgerRequest(owner, '/api/ledger/entries/' + id + '/refunds', body)
+    expect(rest.status).toBe(200)
+    const receipt = ledgerReceiptSchema.parse(await rest.json())
+    expect(await refund(first)).toEqual(receipt)
+    const second = refundInput(id, { amountCents: 200 })
+    const mcpReceipt = await refund(second)
+    const { id: secondId, ...secondBody } = second
+    expect(await (await ledgerRequest(owner, '/api/ledger/entries/' + secondId + '/refunds', secondBody)).json()).toEqual(mcpReceipt)
     const before = await accounts()
-    const value = await detail(original.entryId)
-    expect(value).toMatchObject({ entry: { id: original.entryId, amountCents: -1000, status: 'partial-refund', accountId: original.input.accountId, categoryCode: 'dining' }, refundCount: 31, refundedCents: 310, refundPage: 1, refundPageSize: 30, version: before.version })
-    expect(value.refunds).toHaveLength(30)
-    expect(-value.entry.amountCents - value.refundedCents).toBe(690)
-    const child = await detail(value.refunds[0].id)
-    expect(child).toMatchObject({ parentEntry: { id: original.entryId }, entry: { parentEntryId: original.entryId } })
-    expect(await detail(original.entryId)).toEqual(value)
+    const cases = [
+      [{ id: 'invalid' }, 'NOT_FOUND'],
+      [{ amountCents: 0 }, 'INVALID_ENTRY'],
+      [{ note: '😀'.repeat(501) }, 'INVALID_ENTRY'],
+      [{ accountId: original.input.accountId }, 'INVALID_ENTRY'],
+      [{ parentEntryId: id }, 'INVALID_ENTRY'],
+      [{ occurredAt: '2999-01-01T00:00:00Z' }, 'FUTURE_TIME'],
+      [{ occurredAt: '2026-01-02T03:04:04Z' }, 'REFUND_TIME'],
+      [{ amountCents: 501 }, 'REFUND_LIMIT'],
+      [{ requestId: first.requestId, note: '不同参数' }, 'REQUEST_ID_REUSED'],
+    ] as const
+    for (const [change, code] of cases) {
+      const input = refundInput(id, change)
+      const { id: target, ...value } = input
+      const response = await ledgerRequest(owner, '/api/ledger/entries/' + target + '/refunds', value)
+      expect(response.status).toBe(ledgerErrors[code][0])
+      const result = await call('create_ledger_refund', input)
+      expect(result.result.isError).toBe(true)
+      expect(result.result.structuredContent).toEqual(await response.json())
+    }
     expect(await accounts()).toEqual(before)
-    const updated = await ledgerRequest(owner, '/api/ledger/accounts/' + original.input.accountId, { requestId: crypto.randomUUID(), name: '核对当前账户名称' }, 'PATCH')
-    expect(updated.status).toBe(200)
-    expect(await detail(original.entryId)).toMatchObject({ entry: { accountName: '核对当前账户名称' } })
+    expect(await detail(id)).toMatchObject({ refundCount: 2, refundedCents: 500, entry: { amountCents: -1000 } })
   })
+
 })

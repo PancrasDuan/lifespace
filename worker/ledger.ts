@@ -11,10 +11,10 @@ function failure(code: keyof typeof ledgerErrors, message?: string) {
   return new ApiError(code, message ?? text, status)
 }
 export async function listLedgerAccounts(c: LedgerContext) {
-  if (Object.keys(c.req.query()).length) throw failure('INVALID_QUERY')
-  return c.json(await readLedgerAccounts(c))
+  return c.json(await readLedgerAccounts(c, c.req.query()))
 }
-export async function readLedgerAccounts(c: LedgerContext) {
+export async function readLedgerAccounts(c: LedgerContext, input: unknown = {}) {
+  if (!z.strictObject({}).safeParse(input).success) throw failure('INVALID_QUERY')
   return rpc(c, 'ledger_accounts_list', {}, ledgerAccountsSchema, false, '暂时无法读取账户，请稍后重试')
 }
 export async function createLedgerAccount(c: LedgerContext) {
@@ -73,10 +73,7 @@ export async function detailLedger(c: LedgerContext) {
   if (Object.values(c.req.queries()).some(values => values.length !== 1)) throw failure('INVALID_QUERY')
   const query = ledgerDetailQuerySchema.safeParse(c.req.query())
   if (!query.success) throw failure('INVALID_QUERY')
-  return c.json(await readLedgerEntry(c, id.data, query.data))
-}
-export async function readLedgerEntry(c: LedgerContext, entryId: string, query: z.infer<typeof ledgerDetailQuerySchema> = { refundPage: 1 }) {
-  return rpc(c, 'ledger_detail', { p_id: entryId, p_refund_page: query.refundPage, p_version: query.version ?? null }, ledgerDetailSchema)
+  return c.json(await rpc(c, 'ledger_detail', { p_id: id.data, p_refund_page: query.data.refundPage, p_version: query.data.version ?? null }, ledgerDetailSchema))
 }
 export async function createLedger(c: LedgerContext) {
   return c.json(await createLedgerEntry(c, await readInput(c, 16_384)))
@@ -95,16 +92,21 @@ export async function createLedgerTransfer(c: LedgerContext) {
   return c.json(await rpc(c, 'ledger_transfer', { p_input: value.data }, ledgerTransferReceiptSchema, true))
 }
 export async function refundLedger(c: LedgerContext) {
-  const parent = z.uuid().safeParse(c.req.param('id'))
-  if (!parent.success) throw failure('NOT_FOUND')
+  const parent = refundParentId(c.req.param('id'))
   if (Object.keys(c.req.query()).length) throw failure('INVALID_QUERY')
-  return c.json(await createLedgerRefund(c, parent.data, await readInput(c, 16_384)))
+  return c.json(await createLedgerRefund(c, parent, await readInput(c, 16_384)))
 }
-export async function createLedgerRefund(c: LedgerContext, parentEntryId: string, input: unknown) {
+function refundParentId(input: unknown) {
+  const parent = z.uuid().safeParse(input)
+  if (!parent.success) throw failure('NOT_FOUND')
+  return parent.data
+}
+export async function createLedgerRefund(c: LedgerContext, id: unknown, input: unknown) {
+  const parent = refundParentId(id)
   const value = ledgerRefundSchema.safeParse(input)
   if (!value.success) throw failure('INVALID_ENTRY', value.error.issues[0]?.message)
   if (Date.parse(value.data.occurredAt) > Date.now()) throw failure('FUTURE_TIME')
-  return rpc(c, 'ledger_refund', { p_parent: parentEntryId, p_input: value.data }, ledgerReceiptSchema, true)
+  return rpc(c, 'ledger_refund', { p_parent: parent, p_input: value.data }, ledgerReceiptSchema, true)
 }
 
 export async function previewLedgerDelete(c: LedgerContext) {

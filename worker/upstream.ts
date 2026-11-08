@@ -5,6 +5,12 @@ export class ApiError extends Error {
   constructor(readonly code: string, message: string, readonly status: 400 | 401 | 403 | 404 | 409 | 429 | 502 | 503 | 504) { super(message) }
 }
 
+export function apiErrorBody(error: unknown) {
+  return { error: error instanceof ApiError
+    ? { code: error.code, message: error.message }
+    : { code: 'INTERNAL_ERROR', message: '服务暂时不可用' } }
+}
+
 // 第三方响应限制体积与读取时间；原始响应及凭据不进入用户错误信息。
 async function readUpstream<T>(url: URL, decode: (text: string) => T, init: RequestInit): Promise<T> {
   try {
