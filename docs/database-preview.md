@@ -15,6 +15,8 @@ GitHub `preview` 是固定预发集成分支，`main` 是正式分支。开发�
 
 部署脚本拒绝任何非 preview 分支，先执行数据库部署配置检查，并清除正式及预发构建配置中的本地连接串和 `.dev.vars`。检查原生 Preview 配置、Hyperdrive ID、日志与 traces 后才部署。`--dry-run` 仅执行这些本地配置检查；Wrangler 原生 preview 命令没有部署 dry-run，不把该检查当成远端验收。
 
+正式与预发使用同一份 observability 契约：`enabled`、全量 `head_sampling_rate`、查询串脱敏、持久化 logs／invocation logs 与 traces 在 `wrangler.jsonc` 顶层和 `previews` 区块保持一致。`scripts/check-database-deployment.mjs` 在每次正式部署和预发上传前校验该契约及两边一致性，避免下一次 main 发布把生产 traces 或持久化配置恢复为旧值。
+
 原生 Preview 不继承生产变量、密钥或数据绑定。`wrangler.jsonc` 的 `previews` 显式登记共享资源及测试准入；Previews Base 保存服务端密钥和 Access 配置，不向构建变量注入这些密钥。Base 密钥变动只自动应用到此后创建的 Preview，已有 Preview 必须单独同步并回读，不能仅确认 Base 已填写。
 
 正式环境保留原 `AUTH_ALLOWED_EMAILS`；Previews Base 的同名 Secret 仅填写专用测试账号邮箱。两者独立配置，浏览器与 MCP 共用该环境的白名单，缺失或格式错误则拒绝访问。旧 Version URL 为避免修改父 Worker 的生产白名单曾使用额外覆盖变量；原生 Preview 不再需要该变量。保留 Supabase Auth SDK 直连、在线用户核验和 Agent Access 验签，不增加认证代理。

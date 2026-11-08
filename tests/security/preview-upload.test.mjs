@@ -11,6 +11,16 @@ const run = (branch, args = [], cwd = root) => spawnSync(process.execPath, ['scr
   cwd, encoding: 'utf8', timeout: 10000,
   env: { ...process.env, WORKERS_CI_BRANCH: branch },
 })
+const runDeploymentCheck = (cwd) => spawnSync(process.execPath, ['scripts/check-database-deployment.mjs'], {
+  cwd, encoding: 'utf8', timeout: 10000,
+})
+const alignedObservability = () => ({
+  enabled: true,
+  head_sampling_rate: 1,
+  redact_query_string: true,
+  logs: { enabled: true, invocation_logs: true, persist: true },
+  traces: { enabled: true, head_sampling_rate: 1, persist: true },
+})
 
 test('配置 dry-run 清理两层本地连接串且不调用远端部署', t => {
   const fixture = mkdtempSync(join(tmpdir(), 'lifespace-preview-guard-'))
@@ -20,13 +30,45 @@ test('配置 dry-run 清理两层本地连接串且不调用远端部署', t => 
   for (const file of ['upload-preview.mjs', 'check-database-deployment.mjs', 'strip-worker-dev-vars.mjs']) cpSync(join(root, 'scripts', file), join(fixture, 'scripts', file))
   const binding = { binding: 'HYPERDRIVE', id: '11111111111111111111111111111111', localConnectionString: 'local-only' }
   const path = join(fixture, 'dist/lifespace/wrangler.json')
-  writeFileSync(path, JSON.stringify({ hyperdrive: [binding], previews: { hyperdrive: [binding], observability: { enabled: true, logs: { enabled: true }, traces: { enabled: true } } } }))
+  writeFileSync(path, JSON.stringify({ hyperdrive: [binding], observability: alignedObservability(), previews: { hyperdrive: [binding], observability: alignedObservability() } }))
   const result = run('preview', ['--dry-run'], fixture)
   assert.equal(result.status, 0, result.stderr)
   assert.match(result.stdout, /配置检查通过（未上传）/)
   const config = JSON.parse(readFileSync(path, 'utf8'))
   assert(!Object.hasOwn(config.hyperdrive[0], 'localConnectionString'))
   assert(!Object.hasOwn(config.previews.hyperdrive[0], 'localConnectionString'))
+})
+
+test('生产 observability 缺少 traces 或持久化时阻断部署', t => {
+  const fixture = mkdtempSync(join(tmpdir(), 'lifespace-deployment-guard-'))
+  t.after(() => rmSync(fixture, { recursive: true, force: true }))
+  mkdirSync(join(fixture, 'scripts'))
+  mkdirSync(join(fixture, 'dist/lifespace'), { recursive: true })
+  for (const file of ['check-database-deployment.mjs', 'strip-worker-dev-vars.mjs']) cpSync(join(root, 'scripts', file), join(fixture, 'scripts', file))
+  const binding = { binding: 'HYPERDRIVE', id: '11111111111111111111111111111111' }
+  const path = join(fixture, 'dist/lifespace/wrangler.json')
+  const observability = alignedObservability()
+  observability.traces.enabled = false
+  writeFileSync(path, JSON.stringify({ hyperdrive: [binding], observability, previews: { hyperdrive: [binding], observability: alignedObservability() } }))
+  const result = runDeploymentCheck(fixture)
+  assert.equal(result.status, 1)
+  assert.match(result.stderr, /生产 observability 必须启用、全量采样并持久化 traces/)
+})
+
+test('生产与原生 Preview 的 observability 不一致时阻断部署', t => {
+  const fixture = mkdtempSync(join(tmpdir(), 'lifespace-deployment-parity-'))
+  t.after(() => rmSync(fixture, { recursive: true, force: true }))
+  mkdirSync(join(fixture, 'scripts'))
+  mkdirSync(join(fixture, 'dist/lifespace'), { recursive: true })
+  for (const file of ['check-database-deployment.mjs', 'strip-worker-dev-vars.mjs']) cpSync(join(root, 'scripts', file), join(fixture, 'scripts', file))
+  const binding = { binding: 'HYPERDRIVE', id: '11111111111111111111111111111111' }
+  const path = join(fixture, 'dist/lifespace/wrangler.json')
+  const preview = alignedObservability()
+  preview.logs.persist = false
+  writeFileSync(path, JSON.stringify({ hyperdrive: [binding], observability: alignedObservability(), previews: { hyperdrive: [binding], observability: preview } }))
+  const result = runDeploymentCheck(fixture)
+  assert.equal(result.status, 1)
+  assert.match(result.stderr, /生产与原生 Preview 的 observability 配置必须一致/)
 })
 
 test('预览脚本拒绝 main 与其他功能分支，且不会走到上传阶段', () => {
