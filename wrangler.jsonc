@@ -38,5 +38,11 @@
       "traces": {"enabled": true, "head_sampling_rate": 1, "persist": true}
     }
   },
-  "observability": {"enabled": true, "head_sampling_rate": 1}
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1,
+    "redact_query_string": true,
+    "logs": {"enabled": true, "invocation_logs": true, "persist": true},
+    "traces": {"enabled": true, "head_sampling_rate": 1, "persist": true}
+  }
 }
