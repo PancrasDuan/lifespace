@@ -78,7 +78,7 @@ GitHub 已启用原生 secret scanning 与 push protection，作为已支持密�
 
 ## 发布验收
 
-main 合并后由 Cloudflare Workers Builds 自动发布；生产分支为 main，非生产分支预览关闭。GitHub CI 负责合并门禁，Cloudflare 构建负责部署。
+main 合并后由 Cloudflare Workers Builds 自动发布；生产分支为 main。非生产分支可通过受限测试账号的候选版本 URL 预览，配置与共享数据库隔离约定见 `docs/database-preview.md`；预览上传不分配正式流量，也不构成合并发布授权。GitHub CI 负责合并门禁，Cloudflare 构建负责部署。
 
 确认 Cloudflare 部署成功且提交 SHA 对应本次合并，核验生产页面、相关只读接口与密钥隔离，再关闭 Issue。部署失败时保持 Issue 开放，通过新分支和 PR 修复；紧急生产回滚需用户明确授权。
 

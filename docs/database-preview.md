@@ -9,7 +9,7 @@
 - 预发构建命令：`npm run build:ci`。
 - 预发上传命令：`npm run preview`，只执行 `wrangler versions upload`。
 - 预发构建变量：`LIFESPACE_PREVIEW_TEST_EMAIL`，指定已创建的测试邮箱；不向构建注入数据库密码或 Auth 服务端 key。
-- 初次仅启用 `codex/149-pg-hyperdrive` 分支；稳定别名由分支名生成。具体 URL、候选版本 ID、提交 SHA 及实测结果记录在 PR #150。
+- 本轮验证分支为 `codex/149-pg-hyperdrive`，稳定别名由分支名生成。具体 URL、候选版本 ID、提交 SHA 及实测结果记录在 PR #150；其他分支使用预发时也须核对目标提交与测试用途。
 
 上传脚本拒绝缺少／无效测试邮箱及 main 分支，先执行数据库部署配置检查，并清除构建目录的本地连接串及 `.dev.vars`。候选版本继承现有 runtime secrets 和变量，只设置候选版本的 `PREVIEW_TEST_EMAIL`。浏览器与 MCP 的准入在此变量非空时只允许该邮箱；配置格式无效则拒绝访问。
 
