@@ -95,7 +95,7 @@ describe.skipIf(!rpcUrl)('Agent 通过真实隔离账单数据库操作', () => 
 
   it('退款追加收入，继承父账户和分类，原支出金额不变并推进当前余额', async () => {
     const original = await parent()
-    const input = refundInput(original.entryId, { note: '  😀退货  ' })
+    const input = refundInput(original.entryId, { note: '  ' + '😀'.repeat(500) + '  ' })
     const receipt = await refund(input)
     expect(await detail(receipt.entryId)).toMatchObject({
       entry: { direction: 'income', amountCents: 300, accountId: original.input.accountId, categoryCode: 'dining', parentEntryId: original.entryId, note: input.note.trim() },

@@ -41,7 +41,7 @@ const tools = [
         requestId: { type: 'string', format: 'uuid', description: '本次请求唯一 UUID，未知结果重试必须保持不变。' },
         amountCents: { type: 'integer', minimum: 1, maximum: ledgerLimits.amountCents, description: '本次退款的人民币正整数分，累计退款不得超过原支出金额。' },
         occurredAt: { type: 'string', format: 'date-time', description: '退款实际时间，UTC ISO 8601，精确到秒，不早于父支出且不晚于当前时间。' },
-        note: { type: 'string', maxLength: ledgerLimits.note, description: '退款备注，可以为空；trim 后最多 500 个 Unicode 码点。' },
+        note: { type: 'string', description: '退款备注，可以为空；trim 后最多 500 个 Unicode 码点。' },
       },
       required: ['parentEntryId', 'requestId', 'amountCents', 'occurredAt', 'note'],
     },

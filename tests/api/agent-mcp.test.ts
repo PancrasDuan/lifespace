@@ -53,7 +53,8 @@ test('工具发现提供本人账户、普通流水与独立退款契约', async
   expect(create.description).toContain('完整展示')
   expect(create.description).toContain('明确确认')
   const refund = result.result.tools[2]
-  expect(refund.inputSchema).toMatchObject({ additionalProperties: false, required: ['parentEntryId', 'requestId', 'amountCents', 'occurredAt', 'note'], properties: { parentEntryId: { format: 'uuid' }, amountCents: { type: 'integer', minimum: 1, maximum: 99_999_999_999 }, note: { maxLength: 500 } } })
+  expect(refund.inputSchema).toMatchObject({ additionalProperties: false, required: ['parentEntryId', 'requestId', 'amountCents', 'occurredAt', 'note'], properties: { parentEntryId: { format: 'uuid' }, amountCents: { type: 'integer', minimum: 1, maximum: 99_999_999_999 }, note: { type: 'string', description: expect.stringContaining('trim 后最多 500 个 Unicode 码点') } } })
+  expect(refund.inputSchema.properties?.note).not.toHaveProperty('maxLength')
   expect(Object.keys(refund.inputSchema.properties!)).toEqual(refund.inputSchema.required)
   for (const instruction of ['父流水关联', '继承的交易账户和分类', '明确确认', '再次完整展示并确认', '原 requestId', '无法独立证明']) expect(refund.description).toContain(instruction)
 })
@@ -187,6 +188,16 @@ test('初始化缺少客户端信息时返回参数错误', async () => {
 
 const refund = { parentEntryId: '00000000-0000-4000-8000-000000000008', requestId: '00000000-0000-4000-8000-000000000009', amountCents: 500, occurredAt: '2026-01-02T03:04:05Z', note: '  退货  ' }
 const refundCall = (args: unknown = refund) => request({ jsonrpc: '2.0', id: 'refund', method: 'tools/call', params: { name: 'create_ledger_refund', arguments: args } })
+
+test('退款允许 trim 后恰好 500 个 Unicode 码点，发现契约不误限原始长度', async () => {
+  const note = '😀'.repeat(500)
+  upstream((url, init) => {
+    if (!url.endsWith('/rpc/ledger_refund')) return undefined
+    expect(JSON.parse(String(init?.body)).p_input.note).toBe(note)
+    return Response.json({ entryId: refund.requestId, version: 5, deleted: false })
+  })
+  expect(await (await refundCall({ ...refund, note: '  ' + note + '  ' })).json()).toMatchObject({ result: { structuredContent: { entryId: refund.requestId } } })
+})
 
 test('退款复用账单服务，可信 owner 和父标识单独注入，不接收继承字段', async () => {
   upstream((url, init) => {
