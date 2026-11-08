@@ -1,3 +1,6 @@
+import { testDatabaseUrl } from '../support/isolated-database'
+import { Client } from 'pg'
+import { dropCommitResponse } from '../support/commit-response-proxy'
 import { generateKeyPairSync, sign } from 'node:crypto'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import app from '../../worker/index'
@@ -18,14 +21,13 @@ const signed = () => {
   return `${value}.${sign('RSA-SHA256', Buffer.from(value), pair.privateKey).toString('base64url')}`
 }
 const env = { ...ledgerEnv, CF_ACCESS_TEAM_DOMAIN: team, CF_ACCESS_AUD: audience }
-const nativeFetch = globalThis.fetch
 let restore: () => void
 
-async function call(name: string, args: object) {
+async function call(name: string, args: object, bindings = env) {
   const response = await app.request('/api/agent/mcp', {
     method: 'POST', headers: { 'Cf-Access-Jwt-Assertion': signed(), 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream' },
     body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name, arguments: args } }),
-  }, env)
+  }, bindings)
   expect(response.status).toBe(200)
   expect(response.headers.get('Cache-Control')).toBe('no-store')
   const body = await response.json() as { result: { isError?: boolean; structuredContent: Record<string, unknown>; content: Array<{ text: string }> } }
@@ -73,7 +75,6 @@ describe.skipIf(!rpcUrl)('Agent 通过真实隔离账单数据库操作', () => 
     globalThis.fetch = async (input: string | URL | Request, init?: RequestInit) => {
       const url = new URL(input instanceof Request ? input.url : input)
       if (url.href === `${team}/cdn-cgi/access/certs`) return Response.json({ keys: [jwk] })
-      if (url.origin === env.SUPABASE_URL && url.pathname === '/rest/v1/rpc/agent_resolve_owner') return nativeFetch(new URL('/rpc/agent_resolve_owner', target), init)
       if (url.origin === env.SUPABASE_URL && url.pathname === `/auth/v1/admin/users/${owner}`) return Response.json({ id: owner, email: 'ledger@example.invalid', email_confirmed_at: '2026-01-01T00:00:00Z', is_anonymous: false })
       return ledgerFetch(input, init)
     }
@@ -195,19 +196,12 @@ describe.skipIf(!rpcUrl)('Agent 通过真实隔离账单数据库操作', () => 
   it('真实提交成功但响应丢失时返回 SAVE_UNKNOWN，原请求重试只保留一笔', async () => {
     const original = await parent()
     const input = refundInput(original.entryId)
-    const ledgerFetch = globalThis.fetch
-    let writes = 0
-    globalThis.fetch = async (url, init) => {
-      const response = await ledgerFetch(url, init)
-      if (String(url).endsWith('/rpc/ledger_refund')) {
-        writes++
-        expect(response.ok).toBe(true)
-        return new Response(null, { status: 503 })
-      }
-      return response
-    }
-    try { await expectError(input, 'SAVE_UNKNOWN') } finally { globalThis.fetch = ledgerFetch }
-    expect(writes).toBe(1)
+    const proxy = await dropCommitResponse(testDatabaseUrl('WORKER_TEST_DATABASE_URL')!)
+    try {
+      const result = await call('create_ledger_refund', input, { ...env, HYPERDRIVE: { connectionString: proxy.connectionString } })
+      expect(result.result).toMatchObject({ isError: true, structuredContent: { error: { code: 'SAVE_UNKNOWN' } } })
+      expect(proxy.droppedCommits()).toBe(1)
+    } finally { await proxy.close() }
     const committed = await detail(original.entryId)
     expect(committed).toMatchObject({ refundCount: 1, refundedCents: 300, version: original.version + 1 })
     const receipt = await refund(input)
@@ -253,4 +247,28 @@ describe.skipIf(!rpcUrl)('Agent 通过真实隔离账单数据库操作', () => 
     expect(await detail(id)).toMatchObject({ refundCount: 2, refundedCents: 500, entry: { amountCents: -1000 } })
   })
 
+  it('真实绑定停用后，下一次 MCP 请求立即失去准入', async () => {
+    const admin = new Client({ connectionString: testDatabaseUrl('WORKER_TEST_ADMIN_URL') })
+    await admin.connect()
+    try {
+      await admin.query('update public.agent_identity_bindings set enabled=false where client_id=$1', [clientId])
+      const response = await app.request(
+        '/api/agent/mcp',
+        {
+          method: 'POST',
+          headers: {
+            'Cf-Access-Jwt-Assertion': signed(),
+            'Content-Type': 'application/json',
+            Accept: 'application/json, text/event-stream',
+          },
+          body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'ping' }),
+        },
+        env
+      )
+      expect(response.status).toBe(401)
+    } finally {
+      await admin.query('update public.agent_identity_bindings set enabled=true where client_id=$1', [clientId])
+      await admin.end()
+    }
+  })
 })

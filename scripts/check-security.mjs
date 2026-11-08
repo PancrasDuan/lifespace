@@ -81,6 +81,8 @@ try {
   process.chdir(fixture)
   await (await createBuilder({ configFile: resolve(fixture, 'vite.config.ts'), customLogger: logger })).buildApp()
   const generated = JSON.parse(await readFile(resolve(fixture, 'dist/lifespace/wrangler.json'), 'utf8'))
+  assert(!generated.hyperdrive?.some(binding => Object.hasOwn(binding, 'localConnectionString')), '部署配置不能保留本地数据库连接串')
+  assert(!generated.previews?.hyperdrive?.some(binding => Object.hasOwn(binding, 'localConnectionString')), '原生 Preview 配置不能保留本地数据库连接串')
   const publicDir = resolve(fixture, 'dist/lifespace', generated.assets.directory)
   assert.equal(publicDir, resolve(fixture, 'dist/client'), '发布目录必须只包含前端资源')
   const workerOutput = resolve(fixture, 'dist/lifespace')

@@ -1,5 +1,6 @@
 import { strict as assert } from 'node:assert'
 import app from '../../worker/index'
+import { testDatabaseUrl } from './isolated-database'
 import { planningPageSchema, planningReceiptSchema, type PlanningCommand } from '../../src/shared/adventure-planning'
 
 export const localPlanningRpc = process.env.ADVENTURE_LOCAL_RPC_URL
@@ -8,6 +9,7 @@ const encode = (value: unknown) => btoa(JSON.stringify(value)).replace(/=/g, '')
 // Identity and the RPC address are controlled; business requests still use the real Worker and database.
 export function planningDatabase(email = 'lifecycle@example.invalid') {
   const env = {
+    HYPERDRIVE: { connectionString: testDatabaseUrl('WORKER_TEST_DATABASE_URL')! },
     SUPABASE_URL: 'https://planning-local-test.supabase.co', SUPABASE_SECRET_KEY: 'sb_secret_local-test-only',
     SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_local-test-only', AUTH_ALLOWED_EMAILS: email,
   }
@@ -68,8 +70,7 @@ export function planningDatabase(email = 'lifecycle@example.invalid') {
           const owner = options ? options.browserOwner : (JSON.parse(atob(token!.split('.')[1])) as { sub: string }).sub
           return Response.json({ id: owner, email, email_confirmed_at: '2026-10-21', is_anonymous: false })
         }
-        if (!url.pathname.startsWith('/rest/v1/rpc/adventure_')) throw new Error('禁止非 RPC 请求')
-        return nativeFetch(new URL(url.pathname.replace('/rest/v1', ''), target), init)
+        throw new Error('业务数据库禁止通过 HTTP 访问')
       }
     },
     restore() {

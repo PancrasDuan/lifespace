@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { growthPageSchema, rewardSourceSchema } from '../../src/shared/adventure-growth'
-import { planningPreviewSchema, planningReceiptSchema } from '../../src/shared/adventure-planning'
+import { planningPreviewSchema, planningReceiptSchema, type PlanningCommand } from '../../src/shared/adventure-planning'
 import { localPlanningRpc as rpcOrigin, planningDatabase } from '../support/planning-database'
 
 const database = planningDatabase('lifecycle@example.invalid')
@@ -120,17 +120,31 @@ describe.skipIf(!rpcOrigin)('正式 Worker HTTP → 本机真实 PostgREST → �
   })
 
   it('七个成就均按全部有效事实实时点亮，100 次行动和 10 个目标不额外发经验，取消可熄灭', async () => {
-    let last: Awaited<ReturnType<typeof complete>> | undefined
-    for (let i = 0; i < 100; i++) last = await complete(owner, `里程碑 ${i}`)
+    const initial = await read(owner)
+    let version = initial.version
+    // Every write still uses the real HTTP/pg path. Reuse its committed version
+    // instead of hundreds of redundant workspace reads during milestone setup.
+    const write = async (value: PlanningCommand) => {
+      const response = await send(owner, envelope(version, value))
+      expect(response.status).toBe(200)
+      const receipt = planningReceiptSchema.parse(await response.json())
+      version = receipt.version
+      return receipt
+    }
+    let lastCompletionId: string | undefined
+    for (let i = 0; i < 100; i++) {
+      const task = await write({ type: 'createTask', title: `里程碑 ${i}`, description: '', plannedOn: initial.today, destination: '' })
+      lastCompletionId = (await write({ type: 'completeTask', id: task.result.entityId })).result.completionId!
+    }
     for (let i = 0; i < 10; i++) {
-      const goal = (await command(owner, { type: 'createGoal', destination: '', title: `成果 ${i}`, standards: ['完成标准'] })).result.entityId
-      await command(owner, { type: 'achieveGoal', id: goal, coefficient: 3, reflection: '' })
+      const goal = (await write({ type: 'createGoal', destination: '', title: `成果 ${i}`, standards: ['完成标准'] })).result.entityId
+      await write({ type: 'achieveGoal', id: goal, coefficient: 3, reflection: '' })
     }
     const page = await growth(owner)
     expect(page).toMatchObject({ total: 110, growth: { totalXp: 110, actions: 100, achievedGoals: 10, level: 5, progress: 0, needed: 40 } })
     expect(page.growth.achievements).toHaveLength(7)
     expect(page.growth.achievements.every(item => item.unlocked && item.remaining === 0)).toBe(true)
-    await command(owner, { type: 'cancelTaskCompletion', completionId: last!.receipt.result.completionId! })
+    await write({ type: 'cancelTaskCompletion', completionId: lastCompletionId! })
     const after = await growth(owner)
     expect(after.growth).toMatchObject({ totalXp: 109, actions: 99, achievedGoals: 10, level: 4, progress: 34, remaining: 1 })
     expect(after.growth.achievements.find(item => item.id === 'actions_100')).toMatchObject({ unlocked: false, remaining: 1, count: 99 })
