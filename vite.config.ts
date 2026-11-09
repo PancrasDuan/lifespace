@@ -2,7 +2,7 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { cloudflare } from '@cloudflare/vite-plugin'
 import { fileURLToPath } from 'node:url'
-import { readFile, rm, writeFile } from 'node:fs/promises'
+import { rm } from 'node:fs/promises'
 
 const projectRoot = fileURLToPath(new URL('.', import.meta.url)).replace(/\/$/, '')
 
@@ -13,17 +13,11 @@ export default defineConfig({
     // The Vite plugin serializes local dev vars beside the Worker bundle for preview.
     // Never leave that generated secret file on disk after a production build.
     {
-      name: 'remove-development-credentials',
+      name: 'remove-generated-dev-vars',
       apply: 'build',
       async closeBundle() {
         const file = new URL('./dist/lifespace/.dev.vars', import.meta.url)
         await rm(file, { force: true })
-        const configFile = new URL('./dist/lifespace/wrangler.json', import.meta.url)
-        const config = JSON.parse(await readFile(configFile, 'utf8'))
-        for (const context of [config, config.previews]) {
-          for (const binding of context?.hyperdrive ?? []) delete binding.localConnectionString
-        }
-        await writeFile(configFile, JSON.stringify(config))
       },
     },
   ],

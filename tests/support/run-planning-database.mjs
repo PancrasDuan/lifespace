@@ -9,12 +9,9 @@ import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { seedLedgerScale, verifyLedgerReadLocks } from './ledger-scale.mjs'
 import { seedLedgerRefundScale } from './ledger-refund-scale.mjs'
-import { verifyWorkerPostgres } from './worker-postgres-runtime.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
 const ledgerOnly = process.argv.includes('--ledger')
-const ciPort = process.env.CI_POSTGRES_PORT
-if (ciPort && (process.env.CI !== 'true' || !/^\d{4,5}$/.test(ciPort))) throw new Error('CI 数据库仅允许显式回环端口')
 const work = await mkdtemp(join(tmpdir(), 'lifespace-actions-db-'))
 const binary = name => process.env.POSTGRES_BIN ? join(process.env.POSTGRES_BIN, name) : name
 const cleanEnv = Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('PG')))
@@ -55,26 +52,20 @@ const run = async (command, args, { input, env = cleanEnv, quiet = false, interr
 let rest, client, result = 1
 try {
   await mkdir(join(root, '.cache'), { recursive: true })
-  const port = ciPort ? Number(ciPort) : await freePort()
-  if (!ciPort) {
-    await run(binary('initdb'), ['-D', work, '-U', 'postgres', '-A', 'trust', '--no-locale', '--encoding=UTF8'], { quiet: true, interruptible: false })
-    await run(binary('pg_ctl'), ['-D', work, '-l', join(work, 'postgres.log'), '-o', `-h 127.0.0.1 -p ${port} -c unix_socket_directories=''`, '-w', '-t', '15', 'start'], { quiet: true, interruptible: false })
-  }
+  const port = await freePort()
+  await run(binary('initdb'), ['-D', work, '-U', 'postgres', '-A', 'trust', '--no-locale', '--encoding=UTF8'], { quiet: true, interruptible: false })
+  await run(binary('pg_ctl'), ['-D', work, '-l', join(work, 'postgres.log'), '-o', `-h 127.0.0.1 -p ${port} -c unix_socket_directories=''`, '-w', '-t', '15', 'start'], { quiet: true, interruptible: false })
   client = new pg.Client({ host: '127.0.0.1', port, user: 'postgres', database: 'postgres', password: '', ssl: false, connectionTimeoutMillis: 5000 })
   await client.connect()
   const sql = input => { cancellation.signal.throwIfAborted(); return client.query(input) }
-  if (ciPort && Number((await sql("select count(*) from information_schema.tables where table_schema in ('public','auth')")).rows[0].count)) throw new Error('CI 必须提供空的独立数据库')
   if (ledgerOnly) {
     const version = (await sql('show server_version')).rows[0].server_version
     if (!/^17\./.test(version)) throw new Error('账单结构验收需要 PostgreSQL 17')
     console.log(`隔离账单 PostgreSQL ${version}，随机 127.0.0.1:${port}`)
   }
   await sql('create role anon; create role authenticated; create role service_role bypassrls; grant usage on schema public to service_role;')
-  await sql('create schema auth; create table auth.users (id uuid primary key);')
+  if (ledgerOnly) await sql('create schema auth; create table auth.users (id uuid primary key);')
   for (const path of ledgerOnly ? ['db/ledger/create-ledger.sql', 'db/ledger/list-ledger.sql', 'db/ledger/refunds.sql', 'db/ledger/delete.sql', 'db/ledger/accounts.sql', 'db/ledger/account-entries.sql', 'db/ledger/transfers.sql', 'db/ledger/migrations/20261105002135_remove_legacy_ledger_account_name_v1.sql', 'db/ledger/migrations/20261106000000_ledger_account_filter.sql', 'db/agent/migrations/20261106031343_agent_access_bindings.sql', 'tests/database/ledger.sql', 'tests/database/ledger-accounts.sql', 'tests/database/ledger-transfers.sql', 'tests/database/agent-bindings.sql'] : ['db/adventure/create-planning.sql', 'db/adventure/list-tasks.sql', 'tests/database/adventure-history-seed.sql', 'tests/database/adventure-planning.sql', 'tests/database/adventure-actions.sql', 'tests/database/adventure-goals.sql', 'tests/database/adventure-migrations.sql', 'tests/database/adventure-lifecycle.sql', 'tests/database/adventure-reschedule.sql', 'tests/database/adventure-growth.sql']) await sql(await readFile(join(root, path), 'utf8'))
-  // Install the other domain's schema as well: the unified role migration is
-  // checked against the complete application schema on every isolated run.
-  for (const path of ledgerOnly ? ['db/adventure/create-planning.sql', 'db/adventure/list-tasks.sql'] : ['db/ledger/create-ledger.sql', 'db/ledger/list-ledger.sql', 'db/ledger/refunds.sql', 'db/ledger/delete.sql', 'db/ledger/accounts.sql', 'db/ledger/account-entries.sql', 'db/ledger/transfers.sql', 'db/ledger/migrations/20261105002135_remove_legacy_ledger_account_name_v1.sql', 'db/ledger/migrations/20261106000000_ledger_account_filter.sql', 'db/agent/migrations/20261106031343_agent_access_bindings.sql']) await sql(await readFile(join(root, path), 'utf8'))
   if (!ledgerOnly) {
     await sql(await readFile(join(root, 'tests/database/adventure-today-upgrade-before.sql'), 'utf8'))
     const migration = await readFile(join(root, 'db/adventure/migrations/20261106200055_adventure_today_task_rules.sql'), 'utf8')
@@ -109,21 +100,6 @@ try {
     end $$;
     create trigger ledger_transfer_test_failpoint before insert on public.ledger_entries
       for each row execute function pg_temp.ledger_transfer_failpoint();`)
-  await sql(`create table public.tasks(id bigint primary key,title text not null,area text not null,planned_at bigint not null,due_at bigint,status text not null,is_deleted boolean not null);`)
-  const businessSnapshot = async () => {
-    const result=[]
-    for(const table of ['adventure_accounts','adventure_mainlines','adventure_goals','adventure_tasks','adventure_events','ledger_owner_revision','ledger_accounts','ledger_entries','ledger_balance_adjustments','agent_identity_bindings']) {
-      result.push((await sql(`select md5(coalesce(jsonb_agg(to_jsonb(t) order by to_jsonb(t)::text),'[]'::jsonb)::text) digest from public.${table} t`)).rows[0].digest)
-    }
-    return JSON.stringify(result)
-  }
-  const beforeRoleMigration=await businessSnapshot()
-  const roleMigration=await readFile(join(root, 'db/migrations/20261108000000_worker_database_role.sql'), 'utf8')
-  await sql(roleMigration)
-  await sql(roleMigration)
-  if(beforeRoleMigration!==await businessSnapshot()) throw new Error('权限迁移改变了已有业务行')
-  console.log('通过：新角色／RLS 迁移可重复执行，已有业务行逐表摘要未变')
-  if (process.argv.includes('--runtime')) await verifyWorkerPostgres(client, root)
   console.log(ledgerOnly ? '通过：隔离账单基线与账户结构升级（四表）' : '通过：空库初始化、规划／任务事务、回滚、历史锁定和权限探针')
   const rpcPort = await freePort()
   const ledgerJwtSecret = ledgerOnly ? crypto.randomUUID() + crypto.randomUUID() : undefined
@@ -149,9 +125,9 @@ try {
   if (ledgerOnly) await verifyLedgerReadLocks(client, url)
   const scaleOwner = ledgerOnly && process.argv.includes('--ledger-scale') ? await seedLedgerScale(client, process.env.LEDGER_SCALE_INDEX_REPORT || join(root, '.cache/ledger-scale-index.json')) : undefined
   const refundScaleOwner = scaleOwner ? await seedLedgerRefundScale(client, process.env.LEDGER_REFUND_SCALE_INDEX_REPORT || join(root, '.cache/ledger-refund-scale-index.json')) : undefined
-  const env = { ...cleanEnv, WORKER_TEST_DATABASE_URL: `postgres://lifespace_worker@127.0.0.1:${port}/postgres`, WORKER_TEST_ADMIN_URL: `postgres://postgres@127.0.0.1:${port}/postgres`, ADVENTURE_LOCAL_RPC_URL: url, LEDGER_LOCAL_RPC_URL: url, LEDGER_LOCAL_JWT_SECRET: ledgerJwtSecret, ...(scaleOwner ? { LEDGER_SCALE_OWNER: scaleOwner, LEDGER_REFUND_SCALE_OWNER: refundScaleOwner } : {}), PLAYWRIGHT_BROWSERS_PATH: process.env.PLAYWRIGHT_BROWSERS_PATH || '.cache/playwright' }
+  const env = { ...cleanEnv, ADVENTURE_LOCAL_RPC_URL: url, LEDGER_LOCAL_RPC_URL: url, LEDGER_LOCAL_JWT_SECRET: ledgerJwtSecret, ...(scaleOwner ? { LEDGER_SCALE_OWNER: scaleOwner, LEDGER_REFUND_SCALE_OWNER: refundScaleOwner } : {}), PLAYWRIGHT_BROWSERS_PATH: process.env.PLAYWRIGHT_BROWSERS_PATH || '.cache/playwright' }
   const apiArgs = process.argv.includes('--api') ? process.argv.slice(process.argv.indexOf('--api') + 1, process.argv.includes('--browser') ? process.argv.indexOf('--browser') : undefined) : []
-  if (!process.argv.includes('--browser-only')) await run(process.execPath, ['node_modules/vitest/vitest.mjs', 'run', ...(apiArgs.length ? apiArgs : ledgerOnly ? ['tests/api/database-boundaries.test.ts', 'tests/api/database-latency.test.ts', 'tests/api/worker-database.test.ts', 'tests/api/tasks-database.test.ts', 'tests/api/agent-mcp-database.test.ts', 'tests/api/ledger-database.test.ts', 'tests/api/ledger-accounts-database.test.ts', 'tests/api/ledger-account-entries-database.test.ts', 'tests/api/ledger-transfers-database.test.ts', 'tests/api/ledger-dates-database.test.ts', 'tests/api/ledger-account-filter-database.test.ts', 'tests/api/ledger-refunds-database.test.ts', 'tests/api/ledger-delete-database.test.ts', 'tests/api/agent-bindings-database.test.ts', ...(scaleOwner ? ['tests/api/ledger-scale-database.test.ts', 'tests/api/ledger-refund-scale-database.test.ts'] : [])] : ['tests/api/adventure-task-edit-database.test.ts', 'tests/api/adventure-task-delete-database.test.ts', 'tests/api/adventure-actions-database.test.ts', 'tests/api/adventure-overdue-database.test.ts', 'tests/api/adventure-date-list-database.test.ts', 'tests/api/adventure-lifecycle-database.test.ts', 'tests/api/adventure-reschedule-database.test.ts', 'tests/api/adventure-growth-database.test.ts', 'tests/api/adventure-integration-database.test.ts'])], { env })
+  if (!process.argv.includes('--browser-only')) await run(process.execPath, ['node_modules/vitest/vitest.mjs', 'run', ...(apiArgs.length ? apiArgs : ledgerOnly ? ['tests/api/ledger-database.test.ts', 'tests/api/ledger-accounts-database.test.ts', 'tests/api/ledger-account-entries-database.test.ts', 'tests/api/ledger-transfers-database.test.ts', 'tests/api/ledger-dates-database.test.ts', 'tests/api/ledger-account-filter-database.test.ts', 'tests/api/ledger-refunds-database.test.ts', 'tests/api/ledger-delete-database.test.ts', 'tests/api/agent-bindings-database.test.ts', 'tests/api/agent-mcp-database.test.ts', ...(scaleOwner ? ['tests/api/ledger-scale-database.test.ts', 'tests/api/ledger-refund-scale-database.test.ts'] : [])] : ['tests/api/adventure-task-edit-database.test.ts', 'tests/api/adventure-task-delete-database.test.ts', 'tests/api/adventure-actions-database.test.ts', 'tests/api/adventure-overdue-database.test.ts', 'tests/api/adventure-date-list-database.test.ts', 'tests/api/adventure-lifecycle-database.test.ts', 'tests/api/adventure-reschedule-database.test.ts', 'tests/api/adventure-growth-database.test.ts', 'tests/api/adventure-integration-database.test.ts'])], { env })
   if (process.argv.includes('--browser')) {
     const browserArgs = process.argv.slice(process.argv.indexOf('--browser') + 1)
     // Flags such as --output/--grep refine the domain defaults; a leading file

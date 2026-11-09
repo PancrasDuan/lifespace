@@ -1,9 +1,6 @@
 import { generateKeyPairSync, sign } from 'node:crypto'
-import { beforeEach, afterEach, expect, test, vi } from 'vitest'
+import { afterEach, expect, test, vi } from 'vitest'
 import app from '../../worker/index'
-import { transaction } from '../../worker/database'
-vi.mock('../../worker/database', () => ({ transaction: vi.fn() }))
-beforeEach(() => vi.mocked(transaction).mockReset().mockResolvedValue({ ownerId: owner }))
 
 const owner = '00000000-0000-4000-8000-000000000001'
 const clientId = 'agent-test-client.access'
@@ -32,25 +29,28 @@ const call = (token?: string, bindings = env) => app.request('/api/agent/mcp', {
 
 afterEach(() => vi.unstubAllGlobals())
 
-test.each(['agent@example.invalid', 'agent@example.invalid,other@example.invalid'])('Agent 入口按环境白名单验签、查找绑定并在线核对用户 %s', async allowed => {
-  const upstream = vi.fn(async (input: string | URL | Request) => {
+test('Agent 入口验签、查找绑定并在线核对用户后，进入独立路由', async () => {
+  const upstream = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
     const url = String(input)
     if (url === `${team}/cdn-cgi/access/certs`) return Response.json({ keys: [jwk] })
-
+    if (url === `${env.SUPABASE_URL}/rest/v1/rpc/agent_resolve_owner`) {
+      expect(JSON.parse(String(init?.body))).toEqual({ p_client_id: clientId })
+      return Response.json({ ownerId: owner })
+    }
     if (url === `${env.SUPABASE_URL}/auth/v1/admin/users/${owner}`) return Response.json(user)
     throw new Error('unexpected upstream')
   })
   vi.stubGlobal('fetch', upstream)
-  const response = await call(assertion(), { ...env, AUTH_ALLOWED_EMAILS: allowed })
+  const response = await call(assertion())
   expect(response.status).toBe(200)
-  expect(upstream).toHaveBeenCalledTimes(2)
-  expect(transaction).toHaveBeenCalledOnce()
+  expect(upstream).toHaveBeenCalledTimes(3)
 })
 
 test('其他不相关的 Cloudflare 公钥不阻止匹配的 RSA 公钥完成验证', async () => {
   vi.stubGlobal('fetch', vi.fn(async (input: string | URL | Request) => {
     const url = String(input)
     if (url === `${team}/cdn-cgi/access/certs`) return Response.json({ keys: [{ kid: 'unrelated-key', kty: 'EC', crv: 'P-256' }, jwk] })
+    if (url === `${env.SUPABASE_URL}/rest/v1/rpc/agent_resolve_owner`) return Response.json({ ownerId: owner })
     if (url === `${env.SUPABASE_URL}/auth/v1/admin/users/${owner}`) return Response.json(user)
     throw new Error('unexpected upstream')
   }))
@@ -74,6 +74,7 @@ test('Supabase URL 末尾的斜杠不会改变绑定及用户查询地址', asyn
   vi.stubGlobal('fetch', vi.fn(async (input: string | URL | Request) => {
     const url = String(input)
     if (url === `${team}/cdn-cgi/access/certs`) return Response.json({ keys: [jwk] })
+    if (url === `${env.SUPABASE_URL}/rest/v1/rpc/agent_resolve_owner`) return Response.json({ ownerId: owner })
     if (url === `${env.SUPABASE_URL}/auth/v1/admin/users/${owner}`) return Response.json(user)
     throw new Error('unexpected upstream')
   }))
@@ -109,13 +110,12 @@ test.each([
   ['账户软删除', { ownerId: owner }, { ...user, deleted_at: '2026-11-01T00:00:00Z' }, 200, env, 401],
   ['删除状态格式异常', { ownerId: owner }, { ...user, deleted_at: '' }, 200, env, 401],
   ['移出白名单', { ownerId: owner }, user, 200, { ...env, AUTH_ALLOWED_EMAILS: 'another@example.invalid' }, 403],
-  ['预发拒绝真实 owner', { ownerId: owner }, user, 200, { ...env, AUTH_ALLOWED_EMAILS: 'preview@example.invalid' }, 403],
   ['用户服务故障', { ownerId: owner }, user, 503, env, 503],
 ] as const)('%s 时拒绝 Agent 请求', async (_label, ownerResult, currentUser, userStatus, bindings, expected) => {
-  vi.mocked(transaction).mockResolvedValue(ownerResult)
   const upstream = vi.fn(async (input: string | URL | Request) => {
     const url = String(input)
     if (url === `${team}/cdn-cgi/access/certs`) return Response.json({ keys: [jwk] })
+    if (url === `${env.SUPABASE_URL}/rest/v1/rpc/agent_resolve_owner`) return Response.json(ownerResult)
     if (url === `${env.SUPABASE_URL}/auth/v1/admin/users/${owner}`) return Response.json(currentUser, { status: userStatus })
     throw new Error('unexpected upstream')
   })
@@ -136,10 +136,10 @@ test('Agent 凭据不能访问现有业务接口或其他 Agent 路径', async (
 
 test('每次请求都重新查询绑定，停用后不能复用先前身份', async () => {
   let active = true
-  vi.mocked(transaction).mockImplementation(async () => active ? { ownerId: owner } : null)
   const upstream = vi.fn(async (input: string | URL | Request) => {
     const url = String(input)
     if (url === `${team}/cdn-cgi/access/certs`) return Response.json({ keys: [jwk] })
+    if (url === `${env.SUPABASE_URL}/rest/v1/rpc/agent_resolve_owner`) return Response.json(active ? { ownerId: owner } : null)
     if (url === `${env.SUPABASE_URL}/auth/v1/admin/users/${owner}`) return Response.json(user)
     throw new Error('unexpected upstream')
   })
@@ -147,8 +147,7 @@ test('每次请求都重新查询绑定，停用后不能复用先前身份', as
   expect((await call(assertion())).status).toBe(200)
   active = false
   expect((await call(assertion())).status).toBe(401)
-  expect(upstream).toHaveBeenCalledTimes(3)
-  expect(transaction).toHaveBeenCalledTimes(2)
+  expect(upstream).toHaveBeenCalledTimes(5)
 })
 
 test.each([
@@ -161,6 +160,7 @@ test.each([
     const headers = new Headers(init?.headers)
     expect(headers.get('apikey')).toBe(secret)
     expect(headers.get('Authorization')).toBe(bearer)
+    if (url === `${env.SUPABASE_URL}/rest/v1/rpc/agent_resolve_owner`) return Response.json({ ownerId: owner })
     if (url === `${env.SUPABASE_URL}/auth/v1/admin/users/${owner}`) return Response.json(user)
     throw new Error('unexpected upstream')
   }))

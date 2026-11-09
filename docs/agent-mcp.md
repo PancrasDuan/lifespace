@@ -53,6 +53,6 @@ CF-Access-Client-Secret = "LIFESPACE_ACCESS_CLIENT_SECRET"
 
 ## 测试与回退
 
-运行接口测试、类型检查、构建及隔离数据库测试；隔离数据库验证覆盖绑定、禁用、跨账户拒绝、REST／MCP 成功与错误契约一致、退款事实及余额、并发额度、时间和余额边界、事务回滚、请求编号去重及提交后响应丢失。完整账单隔离测试为 `npm run test:database -- --ledger`；单独 Agent 链路可加 `--api tests/api/agent-mcp-database.test.ts`，所需本机工具见 [账单测试说明](ledger/api.md)。签名使用合成密钥，Auth 与公钥服务在测试中受控；账单服务和绑定解析使用正式 pg 数据层连接真实隔离 PostgreSQL，PostgREST 只用于历史夹具及权限／性能比较。提交后回执丢失由 TCP 代理在真实写事务 COMMIT 成功后丢弃确认，允许此前的只读认证事务正常完成。真实 Cloudflare、Supabase Auth 管理接口和目标 Agent 仍需分别验收，不能用 HTTP 模拟替代。退款工具扩展沿用 #149 的统一数据库角色与配置，无需增加退款专用迁移或绑定。
+运行接口测试、类型检查、构建及隔离数据库测试；隔离数据库验证覆盖绑定、禁用、跨账户拒绝、REST／MCP 成功与错误契约一致、退款事实及余额、并发额度、时间和余额边界、事务回滚、请求编号去重及提交后响应丢失。完整账单隔离测试为 `npm run test:database -- --ledger`；单独 Agent 链路可加 `--api tests/api/agent-mcp-database.test.ts`，所需本机工具见 [账单测试说明](ledger/api.md)。签名使用合成密钥，Auth 与公钥服务在测试中受控；账单服务、绑定解析及 PostgreSQL／PostgREST 为真实隔离链路。真实 Cloudflare、Supabase Auth 管理接口和目标 Agent 仍需分别验收，不能用 HTTP 模拟替代。本次扩展无需新增迁移、绑定或生产配置。
 
 回退先停用绑定及对应 Cloudflare Service Token；保留数据库绑定表与限制性权限。必要时回退 Worker 代码，但不删除或更改已有账单。已通过鉴权的在途请求不自动回滚。
