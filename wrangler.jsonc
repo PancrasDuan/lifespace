@@ -19,5 +19,11 @@
     {"name": "NEWS_READ_LIMITER", "namespace_id": "20261007", "simple": {"limit": 30, "period": 60}}
   ],
   "secrets": {"required": ["SUPABASE_SECRET_KEY", "DNSHE_API_KEY", "DNSHE_API_SECRET", "SUPABASE_PUBLISHABLE_KEY", "AUTH_ALLOWED_EMAILS", "AUTH_HOOK_SECRET", "ALAPI_TOKEN"]},
-  "observability": {"enabled": true, "head_sampling_rate": 1}
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1,
+    "redact_query_string": true,
+    "issues": {"enabled": true},
+    "traces": {"enabled": true, "head_sampling_rate": 1}
+  }
 }
