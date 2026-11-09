@@ -73,6 +73,8 @@
 - 未做远端 PostgREST／Supabase 延迟和 CPU 比较。任何 CPU 数字只能来自真实 Worker 指标；本文件不将本机 walltime 冒充 CPU，也不预设回滚一定更快。
 - `pg` 测试夹具会由隔离库管理员直接建表／清表；这不代表生产 Worker 仍有 pg 路径，也不代表测试库权限等同生产。
 
+Cloudflare Workers Builds 会为推送的功能分支自动创建 trigger，其 deploy command 为 `npm run preview`。本分支构建 `82af1734-b3af-435f-ba62-661632c3be47` 的 build 命令成功，deploy 阶段被预览脚本的分支守卫按设计拒绝（非 `preview` 分支），因此该分支构建状态为 fail；这不影响 main 的正式构建与部署。`preview` 分支的真实部署仍需单独授权，且不通过放宽守卫或改平台配置来掩盖。
+
 ## 上线与回退
 
 合并后由 main 的 Cloudflare Workers Builds 常规发布；部署守卫会校验 REST 地址、Secret 与 observability 同配。发布后验收页面、登录、冒险、财务、Agent MCP 和首页待办错误边界。回退代码可重新 revert 本 PR 的配置提交；不要删除已有 RPC 函数、业务事实或 Hyperdrive／角色资源。若要恢复 pg 路径，按 [ADR 0010](adr/0010-worker-postgres-transactions.md) 从提交 `2a1e49d` 取回实现并重新验收；不要直接部署旧 Worker 覆盖 preview、Secret、域名和监控配置。

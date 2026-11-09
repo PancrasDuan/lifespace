@@ -32,20 +32,20 @@ afterEach(() => vi.unstubAllGlobals())
 test.each(['agent@example.invalid', 'agent@example.invalid,other@example.invalid'])(
   'Agent 入口按环境白名单验签、查找绑定并在线核对用户 %s',
   async allowed => {
-  const upstream = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
-    const url = String(input)
-    if (url === `${team}/cdn-cgi/access/certs`) return Response.json({ keys: [jwk] })
-    if (url === `${env.SUPABASE_URL}/rest/v1/rpc/agent_resolve_owner`) {
-      expect(JSON.parse(String(init?.body))).toEqual({ p_client_id: clientId })
-      return Response.json({ ownerId: owner })
-    }
-    if (url === `${env.SUPABASE_URL}/auth/v1/admin/users/${owner}`) return Response.json(user)
-    throw new Error('unexpected upstream')
-  })
-  vi.stubGlobal('fetch', upstream)
-  const response = await call(assertion(), { ...env, AUTH_ALLOWED_EMAILS: allowed })
-  expect(response.status).toBe(200)
-  expect(upstream).toHaveBeenCalledTimes(3)
+    const upstream = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input)
+      if (url === `${team}/cdn-cgi/access/certs`) return Response.json({ keys: [jwk] })
+      if (url === `${env.SUPABASE_URL}/rest/v1/rpc/agent_resolve_owner`) {
+        expect(JSON.parse(String(init?.body))).toEqual({ p_client_id: clientId })
+        return Response.json({ ownerId: owner })
+      }
+      if (url === `${env.SUPABASE_URL}/auth/v1/admin/users/${owner}`) return Response.json(user)
+      throw new Error('unexpected upstream')
+    })
+    vi.stubGlobal('fetch', upstream)
+    const response = await call(assertion(), { ...env, AUTH_ALLOWED_EMAILS: allowed })
+    expect(response.status).toBe(200)
+    expect(upstream).toHaveBeenCalledTimes(3)
   }
 )
 
