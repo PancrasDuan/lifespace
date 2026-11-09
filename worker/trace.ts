@@ -1,5 +1,4 @@
 import { AsyncLocalStorage } from 'node:async_hooks'
-import { tracing } from 'cloudflare:workers'
 import { BodyLimitError } from './read-body'
 
 type AttributeValue = string | number | boolean
@@ -8,13 +7,28 @@ type TraceSpan = {
   setAttributes?(attributes: Record<string, AttributeValue | undefined>): unknown
 }
 type UpstreamFailure = 'network' | 'timeout' | 'invalid-response'
+type WorkersTracing = { getActiveSpan(): TraceSpan | undefined }
 
 const roots = new AsyncLocalStorage<TraceSpan | undefined>()
 const remembered = new WeakMap<object, TraceSpan>()
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+const testSpanKey = Symbol.for('lifespace.trace.test-span')
+type GlobalWithSpan = typeof globalThis & { [testSpanKey]?: TraceSpan }
+
+// 真实 Worker 在运行时加载 cloudflare:workers。Vitest 和 Vite 的 Node 加载器没有这个协议，失败时保持无操作。
+const workersModule = 'cloudflare:' + 'workers'
+let workersTracing: WorkersTracing | undefined
+try {
+  const loaded = await import(/* @vite-ignore */ workersModule) as { tracing?: WorkersTracing }
+  if (typeof loaded.tracing?.getActiveSpan === 'function') workersTracing = loaded.tracing
+} catch { /* 测试环境没有该模块。 */ }
 
 function activeSpan(): TraceSpan | undefined {
-  try { return tracing.getActiveSpan() } catch { return undefined }
+  try {
+    const span = workersTracing?.getActiveSpan()
+    if (span) return span
+  } catch { /* 采样或运行时不可用时继续走测试桩。 */ }
+  return (globalThis as GlobalWithSpan)[testSpanKey]
 }
 
 // 在任何上游 fetch 之前记下本次调用的根 span。onError 发生在中间件异步上下文之外，因此同时按请求对象记住它。
