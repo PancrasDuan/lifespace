@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto'
+import { verifiedGithubAsset } from './github-release.mjs'
 import { execFileSync, spawnSync } from 'node:child_process'
 import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { existsSync, readFileSync } from 'node:fs'
@@ -18,11 +18,8 @@ const cache = resolve('.cache/tools', `gitleaks-${version}-${release[0]}`)
 const binary = join(cache, 'gitleaks')
 if (!existsSync(binary)) {
   await mkdir(cache, { recursive: true })
-  const url = `https://github.com/gitleaks/gitleaks/releases/download/v${version}/gitleaks_${version}_${release[0]}.tar.gz`
-  const response = await fetch(url, { signal: AbortSignal.timeout(60_000) })
-  if (!response.ok) throw new Error(`Gitleaks 下载失败：HTTP ${response.status}`)
-  const archive = Buffer.from(await response.arrayBuffer())
-  if (createHash('sha256').update(archive).digest('hex') !== release[1]) throw new Error('Gitleaks 官方包校验失败。')
+  const archive = await verifiedGithubAsset({ repository: 'gitleaks/gitleaks', tag: `v${version}`,
+    asset: `gitleaks_${version}_${release[0]}.tar.gz`, sha256: release[1] })
   const archivePath = join(cache, 'download.tar.gz')
   await writeFile(archivePath, archive)
   execFileSync('tar', ['-xzf', archivePath, '-C', cache, 'gitleaks'])

@@ -1,5 +1,7 @@
 # 后端业务逻辑设计
 
+当前访问和切换方案见[统一数据库访问](../database-access.md)及 [ADR 0011](../adr/0011-worker-postgrest-rollback.md)。2026-11-09 业务访问已回滚到 Worker → PostgREST → PostgreSQL RPC 并经 PR #155 上线；[ADR 0010](../adr/0010-worker-postgres-transactions.md) 仅保留为 pg 历史路径。
+
 状态：2026-11-07，以下为 PR #146 的已实现规则，包含 #140／#141 任务操作和日期列表变更。隔离数据库验证、最新界面确认及交付边界见 [本轮验收](qa-today.md)，生产升级与发布尚未执行。依据 [规格](spec.md)、[成长与奖励](growth-rewards.md)、[前端设计](decisions-frontend.md) 与 [数据库设计](backend-database.md)。任务表保存当前执行日期，改期历史与奖励存入事件；账户保存汇总经验，等级和成就实时计算。
 
 ## 模块职责

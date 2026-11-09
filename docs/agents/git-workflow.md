@@ -2,7 +2,7 @@
 
 ## 开始任务与创建分支
 
-主目录保留 `main`，作为查阅和同步入口；每个开发任务固定使用一个短期功能分支、一个 Orca worktree 和该工作区中的主 session。
+主目录保留 `main`，作为查阅和同步入口；GitHub `preview` 保存待验收的预发集成版本。每个开发任务仍固定使用一个短期功能分支、一个 Orca worktree 和该工作区中的主 session。
 
 1. 读取对应 Issue 的正文、标签、评论与依赖，查找已有分支、PR、Orca 工作区及其主 session。继续已有任务时复用原工作区和主 session；仅在归属不清时向用户确认。
 2. 新任务先成功执行 `git fetch origin`，再从更新后的 `origin/main` 创建分支。同步失败时说明阻塞，不将本地旧引用当作最新基线。AI 分支命名为 `codex/<issue>-<name>`，人工可使用 `feature/<issue>-<name>`。
@@ -78,7 +78,7 @@ GitHub 已启用原生 secret scanning 与 push protection，作为已支持密�
 
 ## 发布验收
 
-main 合并后由 Cloudflare Workers Builds 自动发布；生产分支为 main，非生产分支预览关闭。GitHub CI 负责合并门禁，Cloudflare 构建负责部署。
+main 合并后由 Cloudflare Workers Builds 自动发布；生产分支为 main。固定 preview 分支通过 `npm run preview` 部署到同名原生 Worker Preview，使用测试账号验收并单独检查日志／指标；其他功能分支不直接部署此环境。配置及共享数据库约定见 `docs/database-preview.md`。预发部署不构成 main 合并发布授权。GitHub CI 检查 preview 的推送和 PR，继续负责 main 合并门禁；Cloudflare 构建负责部署。
 
 确认 Cloudflare 部署成功且提交 SHA 对应本次合并，核验生产页面、相关只读接口与密钥隔离，再关闭 Issue。部署失败时保持 Issue 开放，通过新分支和 PR 修复；紧急生产回滚需用户明确授权。
 

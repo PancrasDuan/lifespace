@@ -5,6 +5,11 @@
   "main": "worker/index.ts",
   "compatibility_date": "2026-10-01",
   "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": false,
+  "preview_urls": true,
+  // Selective rollback on 2026-11-09 restored business access to PostgREST.
+  // No Hyperdrive binding is installed: the resource and dedicated role stay
+  // idle until a separately approved cleanup or pg re-adoption.
   "routes": [{"pattern": "lifespace.onepeace.cc.cd", "custom_domain": true}],
   "assets": {
     "directory": "dist/client",
@@ -19,5 +24,24 @@
     {"name": "NEWS_READ_LIMITER", "namespace_id": "20261007", "simple": {"limit": 30, "period": 60}}
   ],
   "secrets": {"required": ["SUPABASE_SECRET_KEY", "DNSHE_API_KEY", "DNSHE_API_SECRET", "SUPABASE_PUBLISHABLE_KEY", "AUTH_ALLOWED_EMAILS", "AUTH_HOOK_SECRET", "ALAPI_TOKEN"]},
-  "observability": {"enabled": true, "head_sampling_rate": 1}
+  "previews": {
+    "vars": {"SUPABASE_URL": "https://zvdcjzjfhkjasikchceo.supabase.co"},
+    "kv_namespaces": [{"binding": "HOROSCOPE_KV", "id": "57e73bb16a73477d9c307458e0d119ba"}],
+    "ratelimits": [
+      {"name": "DNSHE_READ_LIMITER", "namespace_id": "20261006", "simple": {"limit": 1, "period": 60}},
+      {"name": "NEWS_READ_LIMITER", "namespace_id": "20261007", "simple": {"limit": 30, "period": 60}}
+    ],
+    "observability": {
+      "enabled": true, "head_sampling_rate": 1, "redact_query_string": true,
+      "logs": {"enabled": true, "head_sampling_rate": 1, "invocation_logs": true, "persist": true},
+      "traces": {"enabled": true, "head_sampling_rate": 1, "persist": true}
+    }
+  },
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1,
+    "redact_query_string": true,
+    "logs": {"enabled": true, "head_sampling_rate": 1, "invocation_logs": true, "persist": true},
+    "traces": {"enabled": true, "head_sampling_rate": 1, "persist": true}
+  }
 }

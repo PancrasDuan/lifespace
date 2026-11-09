@@ -34,6 +34,27 @@ test('名单内已验证账户经在线会话检查后取得最小准入身份',
   expect(upstream).toHaveBeenCalledOnce()
 })
 
+test.each([['preview@example.com', 200], ['demo@example.com', 403]])('预发专用邮箱仅允许测试账号 %s', async (email, status) => {
+  vi.stubGlobal('fetch', vi.fn(async () => Response.json({ id: claims.sub, email, email_confirmed_at: '2026-10-11', is_anonymous: false })))
+  const response = await app.request('/api/auth/me', { headers: { Authorization: `Bearer ${token}` } }, { ...env, AUTH_ALLOWED_EMAILS: 'preview@example.com' })
+  expect(response.status).toBe(status)
+})
+
+test('环境白名单保留多个获准邮箱的契约', async () => {
+  vi.stubGlobal('fetch', vi.fn(async () => Response.json({ id: claims.sub, email: 'demo@example.com', email_confirmed_at: '2026-10-11', is_anonymous: false })))
+  const response = await app.request('/api/auth/me', { headers: { Authorization: `Bearer ${token}` } }, { ...env, AUTH_ALLOWED_EMAILS: 'demo@example.com,preview@example.com' })
+  expect(response.status).toBe(200)
+})
+
+test.each([' ', 'preview@example.com,not-an-email'])('环境白名单无效时拒绝访问 %#', async allowed => {
+  const upstream = vi.fn()
+  vi.stubGlobal('fetch', upstream)
+  const response = await app.request('/api/auth/me', { headers: { Authorization: `Bearer ${token}` } }, { ...env, AUTH_ALLOWED_EMAILS: allowed })
+  expect(response.status).toBe(503)
+  expect(await response.json()).toMatchObject({ error: { code: 'AUTH_UNAVAILABLE' } })
+  expect(upstream).not.toHaveBeenCalled()
+})
+
 test.each([
   ['AUTH_DENIED', 403, { ...env, AUTH_ALLOWED_EMAILS: 'other@example.com' }, 200],
   ['AUTH_UNAVAILABLE', 503, { ...env, AUTH_ALLOWED_EMAILS: '' }, 200],

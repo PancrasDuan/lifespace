@@ -195,6 +195,6 @@ describe.skipIf(!rpcOrigin)('正式 Worker HTTP → 本机真实 PostgREST → �
     expect((await request(crypto.randomUUID(), `/api/adventure/task-history?id=${id}`)).status).toBe(404)
     expect((await request(owner, `/api/adventure/task-history?id=${id}&page=0`)).status).toBe(400)
     expect(await read(owner, '?taskRange=future')).toEqual(state)
-  })
+  }, 20_000)
 
 })

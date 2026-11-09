@@ -1,5 +1,7 @@
 # Agent 账单 MCP 接口
 
+> #149：2026-11-09 起 Agent 绑定解析与 MCP 业务写入均走 Worker → PostgREST → PostgreSQL RPC，并已随 PR #155 上线；不恢复 pg 运行时。当前接入见[统一数据库访问](database-access.md)。
+
 Issue #130 的 Agent 入口为 `/api/agent/mcp`，使用 Streamable HTTP；#151 扩展登记退款。它与现有网页普通流水及退款接口共用校验、错误与数据库事务；网页现有接口继续使用 Supabase 登录鉴权。Agent 身份和绑定配置见 [ADR 0009](adr/0009-agent-service-token-access.md) 与 [绑定管理](agent-access-bindings.md)。
 
 ## 工具与 REST 契约

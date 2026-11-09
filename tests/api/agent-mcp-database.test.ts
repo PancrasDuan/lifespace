@@ -1,10 +1,12 @@
 import { generateKeyPairSync, sign } from 'node:crypto'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { Client } from 'pg'
 import app from '../../worker/index'
 import { installLedgerDatabase, ledgerEnv, ledgerTestAccount, ledgerRequest, ordinaryEntry } from '../support/ledger-database'
 import { ledgerAccountsSchema, ledgerDeletePreviewSchema, ledgerDetailSchema, ledgerErrors, ledgerLimits, ledgerReceiptSchema, ledgerTransferReceiptSchema } from '../../src/shared/ledger'
 
 const rpcUrl = process.env.LEDGER_LOCAL_RPC_URL
+const adminUrl = process.env.WORKER_TEST_ADMIN_URL
 const owner = '00000000-0000-4000-8000-000000000007'
 const other = '00000000-0000-4000-8000-000000000008'
 const team = 'https://agent-test.cloudflareaccess.com'
@@ -251,6 +253,32 @@ describe.skipIf(!rpcUrl)('Agent 通过真实隔离账单数据库操作', () => 
     }
     expect(await accounts()).toEqual(before)
     expect(await detail(id)).toMatchObject({ refundCount: 2, refundedCents: 500, entry: { amountCents: -1000 } })
+  })
+
+  it('真实绑定停用后，下一次 MCP 请求立即失去准入', async () => {
+    if (!adminUrl) throw new Error('缺少隔离数据库管理员地址')
+    const admin = new Client({ connectionString: adminUrl })
+    await admin.connect()
+    try {
+      await admin.query('update public.agent_identity_bindings set enabled=false where client_id=$1', [clientId])
+      const response = await app.request(
+        '/api/agent/mcp',
+        {
+          method: 'POST',
+          headers: {
+            'Cf-Access-Jwt-Assertion': signed(),
+            'Content-Type': 'application/json',
+            Accept: 'application/json, text/event-stream',
+          },
+          body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'ping' }),
+        },
+        env
+      )
+      expect(response.status).toBe(401)
+    } finally {
+      await admin.query('update public.agent_identity_bindings set enabled=true where client_id=$1', [clientId])
+      await admin.end()
+    }
   })
 
 })
