@@ -1,4 +1,4 @@
-import { readFile } from 'node:fs/promises'
+import { readFile, writeFile } from 'node:fs/promises'
 
 const config = JSON.parse(await readFile(new URL('../dist/lifespace/wrangler.json', import.meta.url), 'utf8'))
 
@@ -57,5 +57,4 @@ if (JSON.stringify(productionObservability) !== JSON.stringify(observabilityCont
   throw new Error('生产与原生 Preview 的 observability 配置必须一致。')
 }
 await import('./strip-worker-dev-vars.mjs')
-const { writeFile } = await import('node:fs/promises')
 await writeFile(new URL('../dist/lifespace/wrangler.json', import.meta.url), JSON.stringify(config))
