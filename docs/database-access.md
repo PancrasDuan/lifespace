@@ -16,7 +16,7 @@
 
 Worker 只做认证、准入、严格输入校验、可信 owner 注入、有界响应和稳定错误映射。PostgreSQL RPC 在单次函数调用中持有账户／owner 锁，核对版本、历史请求回执和业务资格，在同一提交中写当前实体、事件、余额／经验与版本，失败整次回滚。不要用多次独立 REST 请求拼接业务事务，也不要增加 KV 锁或双栈开关。
 
-`SUPABASE_URL` 与 `SUPABASE_SECRET_KEY` 仅在 Worker 服务端配置。请求使用 `/rest/v1/rpc/<name>`，`apikey` 携带服务端密钥；旧 JWT 格式密钥才额外放入 `Authorization: Bearer`。owner 参数由 Worker 用在线身份覆盖。所有数据库请求设置 10 秒超时、`redirect: 'manual'`、响应体上限，并将数据库固定业务错误映射为既有 API／MCP 错误体；未知驱动、SQL、连接串和上游详情不进入响应或日志。
+`SUPABASE_URL` 与 `SUPABASE_SECRET_KEY` 仅在 Worker 服务端配置。请求使用 `/rest/v1/rpc/<name>`，`apikey` 携带服务端密钥；旧 JWT 格式密钥才额外放入 `Authorization: Bearer`。owner 参数由 Worker 用在线身份覆盖。冒险、账本和首页待办的数据库请求设置 10 秒超时，Agent 绑定解析及 Agent 在线核对沿用 5 秒超时；均使用 `redirect: 'manual'` 和响应体上限，并将数据库固定业务错误映射为既有 API／MCP 错误体；未知驱动、SQL、连接串和上游详情不进入响应或日志。
 
 ## 重提的原 PR #150 运维配置
 
