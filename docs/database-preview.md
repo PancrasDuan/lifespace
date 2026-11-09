@@ -1,5 +1,7 @@
 # #149 共享数据库预发
 
+> 2026-11-09：业务访问选择性回滚到 Worker → PostgREST → PostgreSQL。本文的固定 `preview` 分支、原生 Preview、共享库测试 owner、Secret 与 observability 配置继续有效；Hyperdrive 和专用登录角色保留闲置。当前已部署的预发仍是 pg 版本，本分支合并后才切换为 REST 实现；不把旧预发验收当作 REST 链路证据。
+
 用户最终选择：保留正式 Supabase 项目和数据库配置，创建专用测试登录账号，预发只允许该账号访问。真实账号的数据按 owner 隔离。预发写入是真实提交的测试事实，保留既有幂等、版本、奖励、余额和历史语义。
 
 ## 构建与运行
@@ -13,7 +15,7 @@ GitHub `preview` 是固定预发集成分支，`main` 是正式分支。开发�
 - 白名单通过各环境自己的 `AUTH_ALLOWED_EMAILS` Secret 配置，不向构建注入数据库密码、Auth 服务端 key 或另一套测试邮箱变量。
 - 固定预发地址为 `https://preview-lifespace.dpqkindle.workers.dev`；以原生 Preview 的部署记录为准。具体部署 ID、提交 SHA 及实测结果记录在 PR #150。
 
-部署脚本拒绝任何非 preview 分支，先执行数据库部署配置检查，并清除正式及预发构建配置中的本地连接串和 `.dev.vars`。检查原生 Preview 配置、Hyperdrive ID、日志与 traces 后才部署。`--dry-run` 仅执行这些本地配置检查；Wrangler 原生 preview 命令没有部署 dry-run，不把该检查当成远端验收。
+部署脚本拒绝任何非 preview 分支，先执行数据库部署配置检查，并清除正式及预发构建配置中的本地连接串和 `.dev.vars`。检查原生 Preview 配置、Supabase Data API 地址与 Secret 声明、日志与 traces 后才部署；保留的 Hyperdrive binding 只校验真实 ID，不作为业务访问前置条件。`--dry-run` 仅执行这些本地配置检查；Wrangler 原生 preview 命令没有部署 dry-run，不把该检查当成远端验收。
 
 正式与预发使用同一份 observability 契约：`enabled`、全量 `head_sampling_rate`（含 logs 与 traces）、查询串脱敏、持久化 logs／invocation logs 与 traces 在 `wrangler.jsonc` 顶层和 `previews` 区块保持一致。`scripts/check-database-deployment.mjs` 在每次正式部署和预发上传前校验该契约及两边一致性，避免下一次 main 发布把生产 traces 或持久化配置恢复为旧值。
 
@@ -32,12 +34,12 @@ GitHub `preview` 是固定预发集成分支，`main` 是正式分支。开发�
 | 项目 | 正式与预发 |
 |---|---|
 | Supabase 项目、数据库结构／参数、Auth 服务 | 同一项目，不复制业务数据或真实用户 |
-| Hyperdrive、登录角色、TLS CA、缓存、连接池与默认 placement | 复用本次已配置的资源 |
+| Hyperdrive、专用登录角色、TLS CA、缓存、连接池与默认 placement | 先保留闲置；业务访问走 PostgREST，不读取这些资源 |
 | Worker 代码 | 正式运行已发布 main；预发运行固定 preview 分支的已登记提交 |
 | 登录白名单 | 正式原值；预发仅测试邮箱，浏览器与 MCP 均检查此白名单 |
 | 测试事实 | 只写专用测试 owner；不修改真实账号的任务、账户、流水或绑定 |
 
-测试 owner 的身份来自在线核验后的 Auth 用户；请求不能自行指定 owner。RLS、查询条件及账户级锁沿用正式业务实现。Auth app_metadata 中的测试用途标记只作运维记录，不参与授权判断。
+测试 owner 的身份来自在线核验后的 Auth 用户；请求不能自行指定 owner。RPC 内的 owner 条件、账户级锁、版本和事务沿用正式业务实现；闲置的 RLS 不参与当前 REST 路径。Auth app_metadata 中的测试用途标记只作运维记录，不参与授权判断。
 
 只向财务和人生冒险的个人业务路径写合成数据。不向共享的旧 `public.tasks` 来源写测试行，也不为了页面测试创建该表。共享数据库的全库统计、备份和资源额度会包含测试账号，故并发及规模验证须控制负载；测试事实不通过绕过历史约束的 SQL 删除。
 

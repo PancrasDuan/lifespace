@@ -1,60 +1,55 @@
-# 业务数据库访问与 #149 切换
+# 业务数据库访问与 #149 选择性回滚
 
-本分支使用 Worker → `pg` → Hyperdrive → Supabase PostgreSQL。数据库访问不再依赖业务 Data API；前端 Supabase Auth SDK、在线身份校验、白名单和 Agent Access 准入继续沿用原契约。[ADR 0010](adr/0010-worker-postgres-transactions.md) 替代 ADR 0002 的事务 RPC 编排决定。本票属于需确认的变更。生产权限和 Hyperdrive 已按用户 A 授权准备，正式 Worker 尚未切流；[生产准备记录](database-production-preparation.md) 中的 CPU 容量风险仍需对照验证，具体 PR 合并发布尚未授权。[共享数据库预发](database-preview.md) 使用用户明确选择的独立测试账号。
+2026-11-09，按 Issue #149 的最新决定，业务数据库访问选择性回滚为 Worker → Supabase Data API／PostgREST → PostgreSQL。原 PR #150 的 pg／Hyperdrive 实现已归档为历史路径，[ADR 0011](adr/0011-worker-postgrest-rollback.md) 替代 [ADR 0010](adr/0010-worker-postgres-transactions.md) 的相关实现决定；五表／四表、账户锁、版本、幂等和历史事实规则继续有效。前端 Supabase Auth SDK、Worker 在线身份核验、白名单和 Agent Access 准入不变。
+
+本票仍属需确认的变更：本地实现、测试和可评审 PR 已完成授权；合并、生产发布、数据库 DDL／DML、删除 Hyperdrive／角色／旧函数和套餐变更均需另行确认。当前生产 Active 仍是已上线的 pg 版本，本文不把本地 REST 回滚描述成线上已切流。
 
 ## 代码与一致性边界
 
-| 入口 | 实现 |
+| 入口 | 当前实现 |
 |---|---|
-| 人生冒险命令、预览、奖励、终态、快照 | `worker/adventure/commands.ts`、`model.ts`、`preview.ts` |
-| 人生冒险分页、历史、成长、日期列表 | `worker/adventure/data.ts`，保留原有有界 SQL 投影及能力查询 |
-| 财务账户、普通／退款／转账、余额、删除及分页 | `worker/ledger-data.ts` |
-| 共享首页旧待办 | `worker/tasks.ts`，单次 SQL 快照读取 |
-| Agent 凭据绑定 | `worker/agent-auth.ts`，逐次查询启用绑定后在线核对 Auth 用户 |
-| 同连接事务与释放 | `worker/database.ts` |
+| 人生冒险页面读取、任务列表、历史、成长、奖励来源、迁移候选 | `worker/adventure/planning.ts` 调用既有 `adventure_*` RPC |
+| 人生冒险命令、预览、奖励、终态和快照 | 同一 HTTP 适配器调用 `adventure_planning_command`／`adventure_planning_preview` |
+| 财务账户、普通／退款／转账、余额、删除及分页 | `worker/ledger.ts` 调用既有 `ledger_*` RPC |
+| 共享首页旧待办 | `worker/tasks.ts` 读取 `/rest/v1/tasks`；生产该表已由用户删除，失败按数据源错误呈现 |
+| Agent owner 绑定 | `worker/agent-auth.ts` 调用 `agent_resolve_owner`，随后在线核对 Auth 用户 |
 
-每次数据库操作创建一个 client；BEGIN、事务内 owner 上下文、锁、全部语句与 COMMIT 固定在该 client，失败时 ROLLBACK，最后关闭连接。连接不跨请求保存，不另建 `pg.Pool`，不使用 KV 锁。锁超时 3 秒、语句和闲置事务超时 10 秒。连接或提交失败仍返回原有结果未知／暂不可用错误，调用方沿用原请求重试；不自动重试写事务。
+Worker 只做认证、准入、严格输入校验、可信 owner 注入、有界响应和稳定错误映射。PostgreSQL RPC 在单次函数调用中持有账户／owner 锁，核对版本、历史请求回执和业务资格，在同一提交中写当前实体、事件、余额／经验与版本，失败整次回滚。不要用多次独立 REST 请求拼接业务事务，也不要增加 KV 锁或双栈开关。
 
-冒险持账户行排他锁，先查历史成功回执，再检查版本与当前资格。事件、当前实体、经验、版本同事务提交。账单持 owner 版本行排他锁，退款额度、余额范围和转账两侧在锁内统一检查；读取持共享锁覆盖条目、总数与分页版本。旧函数与迁移历史保留；新角色不能执行旧写函数。SQL 投影继续维护读取能力和集合统计，写资格与预览由 TypeScript 校验；变更领域规则时须同步核对投影能力与最终写入校验。
+`SUPABASE_URL` 与 `SUPABASE_SECRET_KEY` 仅在 Worker 服务端配置。请求使用 `/rest/v1/rpc/<name>`，`apikey` 携带服务端密钥；旧 JWT 格式密钥才额外放入 `Authorization: Bearer`。owner 参数由 Worker 用在线身份覆盖。所有数据库请求设置 10 秒超时、`redirect: 'manual'`、响应体上限，并将数据库固定业务错误映射为既有 API／MCP 错误体；未知驱动、SQL、连接串和上游详情不进入响应或日志。
 
-## 权限迁移与凭据
+## 保留的原 PR #150 配置
 
-按既有顺序安装领域迁移后，应用 `db/migrations/20261108000000_worker_database_role.sql`。迁移创建 `lifespace_worker` 登录角色，不内嵌密码；拒绝已有超级用户、BYPASSRLS 或角色成员关系。该角色只有指定业务表的 SELECT／INSERT、所需列 UPDATE、纯投影与约束辅助函数权限，没有 DDL、DELETE、Auth 表、绑定管理及历史身份列修改权限。
+以下内容不是业务数据库访问路径，回滚时保留：
 
-owner 上下文仅由通过在线认证的 Worker 在事务内设置，RLS 对读写都检查该上下文。无上下文看不到个人业务行；Agent 绑定仅允许 SELECT 已启用项。RLS 防止遗漏 owner 条件，不把数据库凭据持有者视为不可信终端：服务端凭据仍能选择事务 owner，必须保存在服务端，不能交给浏览器或 Agent。
+- 固定 GitHub `preview` 分支、原生 Worker Preview、`main` 生产分支、自定义域名和 workers.dev 设置。
+- `wrangler.jsonc` 的 `previews` 区块、共享 KV／ratelimit、Secret 清单、Auth 前端公开配置和在线准入。
+- observability、Logs、Traces、全量 `head_sampling_rate`、持久化、invocation logs、查询串脱敏，以及生产／Preview 同配检查。
+- Hyperdrive 资源与 binding、`lifespace_worker` 专用登录角色和 `db/migrations/20261108000000_worker_database_role.sql`。它们先闲置保留，不删除、不扩权；当前业务代码不读取 `HYPERDRIVE`。
+- 既有 RPC 函数、历史迁移、业务事实、事件、回执、余额和版本，不执行删除或反写。
 
-在已确认的切换阶段，通过受保护的管理通道为该角色设置随机密码，并只将其存入 Hyperdrive；不把密码作为 SQL 文件、命令行参数、日志、Issue 或 PR 内容。Supabase 服务端 Auth 密钥仍用于 Agent 的在线用户检查，不作为业务数据库登录密码。轮换数据库密码按 Hyperdrive 官方流程协调，旧凭据撤销后检查既有池的生命周期。
-
-## Hyperdrive、TLS 与免费额度
-
-2026-11-08 核查：Supabase 为 Free plan，区域 `ap-southeast-1`，PostgreSQL 17，`max_connections=60`；准备前连接采样为 14。Cloudflare API 已确认 Free plan，已创建 `lifespace-postgres` Hyperdrive，正式 Worker 未设置 placement。采样不是峰值容量证据。
-
-使用 Supabase **Direct connection** 端点的 5432 端口，不叠加 Supavisor。Hyperdrive 支持该接入方式，无需为了 Hyperdrive 购买 Supabase IPv4 附加项；本地网络不支持 IPv6 时，优先用隔离本机数据库开发。生产 TLS 使用 `verify-full` 和与该 Supabase 项目匹配的 CA，校验域名与证书。Worker 到 binding 使用平台提供的连接串；不要对平台的本地代理强加远端 TLS 参数，也不要设置 `rejectUnauthorized:false`。
-
-实际配置为 `caching: { disabled: true }`、`verify-full` 和最小起始 `origin_connection_limit=5`；5 并发只读验收成功，本轮观察角色连接数最大为 5。Hyperdrive 的连接上限是软限制，不能把 5 当作数据库硬隔离；总数 60 中仍须为 Auth、运维和其他客户端留余量。新加坡 placement 实测降低数据库往返耗时，但 CPU 验收仍未满足 Free 预算，当前保持正式 Worker 的默认 placement。
-
-Hyperdrive Free 当前允许每日 100,000 条数据库语句；一次业务操作会消耗多条，不能把它换算成 100,000 次业务写入。超额会失败，不自动升级套餐。正式远端验收须检查实际账户计划、语句消耗、峰值连接和 Worker CPU 使用情况。
-
-官方依据：[Supabase 接入](https://developers.cloudflare.com/hyperdrive/examples/connect-to-postgres/postgres-database-providers/supabase/)、[TLS](https://developers.cloudflare.com/hyperdrive/configuration/tls-ssl-certificates-for-hyperdrive/)、[定价](https://developers.cloudflare.com/hyperdrive/platform/pricing/)、[连接限制](https://developers.cloudflare.com/hyperdrive/platform/limits/)、[本地开发](https://developers.cloudflare.com/hyperdrive/configuration/local-development/)、[pg 事务](https://node-postgres.com/features/transactions)。
+部署守卫已从“必须存在有效 Hyperdrive binding”改为“必须存在有效 Supabase Data API 地址与 Secret 声明”；如果保留的 Hyperdrive binding 存在，仍校验真实 ID 并清除本地连接串。生产／Preview 的 observability 同配检查、preview 分支限制和上传参数限制保持不变。
 
 ## 本地与 CI
 
-Node 使用项目指定版本。安装 `npm ci` 后运行 `npm run build`。本地使用隔离 PostgreSQL 17 和固定版本 PostgREST 13.0.7；后者只供历史夹具、兼容权限探针和延迟比较，正式 Worker 数据路径没有业务 HTTP。开发时可通过忽略的本地环境向 Wrangler 设置 `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE`，不要把真实连接串写入仓库。默认配置的回环地址和密码仅为本地占位，不能用于生产。
+Node 使用项目指定版本。安装 `npm ci` 后运行 `npm run build`。真实数据库测试需要 PostgreSQL 17 与 PostgREST 13.0.7：
 
 ```bash
-POSTGRES_BIN=<PG17-bin> POSTGREST_BIN=<PostgREST13.0.7> npm run test:database -- --ledger --runtime
-POSTGRES_BIN=<PG17-bin> POSTGREST_BIN=<PostgREST13.0.7> npm run test:database
-# 安装 Chromium 后，可追加 --browser；PLAYWRIGHT_PORT 选择工作区空闲端口。
+POSTGRES_BIN=<PG17-bin> POSTGRES_LIB=<PG17-lib> POSTGREST_BIN=<PostgREST13.0.7> \
+  npm run test:database -- --ledger --runtime --browser
+POSTGRES_BIN=<PG17-bin> POSTGRES_LIB=<PG17-lib> POSTGREST_BIN=<PostgREST13.0.7> \
+  npm run test:database -- --browser
 ```
 
-运行器创建随机目录和回环端口，安装既有迁移、历史夹具和新权限迁移，生产 pg 路径使用真实受限角色。`--runtime` 直接运行生产构建的 workerd 与本地 Hyperdrive binding；这不能替代远端 Hyperdrive/TLS 验收。CI 使用两个独立空 PostgreSQL 17 容器，拒绝非空 CI 测试库，下载 PostgREST 固定版本并校验 SHA-256，不注入生产密钥、不上传轨迹或业务产物。
+运行器在随机回环端口创建独立 PostgreSQL 17，安装两份领域结构、历史夹具、测试触发器和仅测试用的 `public.tasks` 夹具，再启动真实 PostgREST。Vitest 适配器只替换 Auth 身份并转发真实 RPC；`--runtime` 直接运行 `dist/lifespace/index.js` 的 workerd 构建，且不安装 Hyperdrive binding，业务请求只能走 Auth 与 `/rest/v1/rpc/*`。浏览器测试复用同一真实链路。隔离测试库中的 `public.tasks` 不代表恢复生产表。
+
+CI 使用两个独立空 PostgreSQL 17 容器，固定下载并校验 PostgREST SHA-256，不注入生产密钥，不上传轨迹或业务产物。测试仍覆盖事务回滚、并发退款／转账、版本与分页、跨 owner、历史回执、成长奖励、Agent 绑定停用和首页待办。测试夹具可用 `pg` 直接读取隔离库核对事实，但生产 Worker 不导入 `pg`；`pg` 仅为开发依赖。
 
 ## 切换与回退
 
-1. 对具体 PR 完成评审、CI 和用户合并发布确认；对照旧版基线与相同负载的 CPU 分布、超限终止错误和连接／查询额度，完成容量验收，并确认备份／恢复保障。已核对线上结构、迁移、角色属性和连接预算并固定旧 Worker 版本；用户未授权 B 的本地完整业务备份，因此没有导出业务行。
-2. 安装增量角色／RLS 迁移，设置专用密码；原有数据、函数和 service_role RPC 权限保持。旧 Worker 可继续运行。生产当前没有 `public.tasks`，迁移对此只跳过授权，不创建表；首页旧待办继续呈现数据源不可用，不能假装为空。若以后接回该来源，应另行核对原表结构及只读授权。
-3. 创建 Hyperdrive，禁用缓存，配置直连、TLS CA 和已评估的 pool；只读核对配置，再用受控请求验证跨 owner 拒绝、回读、并发、幂等及 TLS。凭据不进入公开响应或前端资源。
-4. 功能分支已写入真实 Hyperdrive ID，须重新构建并核对最终 PR 提交。部署脚本检查 binding 格式并移除生成配置中的 `localConnectionString` 和 `.dev.vars`，不代替 CPU 预算、备份或合并发布授权检查；有效 binding 不能单独作为发布依据。
-5. 发布并验收后保留兼容观察窗口。若需要回退，在用户明确授权后恢复原有 Worker 版本及所需 RPC 权限；保留新表权限迁移、历史事件、回执、余额和版本事实，不删库、不删除旧函数或反写余额。停用新登录与回收 Hyperdrive 要在旧路径恢复并验证后协调进行。
+1. 恢复 REST 不需要生产 DDL／DML；旧函数和 `service_role` EXECUTE 权限已保留。发布前只读核对 20 个 RPC 入口、函数定义和权限，并用真实隔离 PostgreSQL + PostgREST + 正式构建 workerd 复验。
+2. 对具体 PR 完成密钥扫描、类型、构建、真实 REST 数据库、浏览器、必需 CI 和双轴评审。合并发布由用户按项目流程确认；本轮不部署 preview、不推生产、不修改 Cloudflare 配置。
+3. 发布后先验收页面、登录、冒险、财务、Agent MCP 和首页待办错误边界；保留旧 pg 版本为可回退版本，观察错误率与延迟。首页 `public.tasks` 仍保持删除状态；数据源不可用不得伪装成空列表。
+4. 若要恢复 pg 路径，使用 ADR 0010 的实现与独立验收，重新确认 Hyperdrive／TLS／专用角色／RLS、连接预算、部署守卫和回退版本；不要直接部署旧 Worker 覆盖当前 preview、域名、Secret 或 observability 配置。反过来，若以后要清理闲置 Hyperdrive／角色，必须先确认 REST 已稳定且获得单独授权。
 
-目前已安装生产权限迁移、设置专用凭据并创建 Hyperdrive；远端 TLS、RLS、事务回滚、正式读取和命令、连接并发及延迟抽样已执行。正式 Worker、主域名流量和套餐均未改变。Free CPU 风险、备份／恢复保障、最终用户身份下的完整 HTTP／MCP 验收及具体合并发布确认仍待完成。
+官方依据：[PostgREST 函数](https://docs.postgrest.org/en/v13/references/api/functions.html)、[Supabase Data API](https://supabase.com/docs/guides/api)、[Cloudflare Workers 可观测性](https://developers.cloudflare.com/workers/observability/)、[Wrangler 配置](https://developers.cloudflare.com/workers/wrangler/configuration/)。

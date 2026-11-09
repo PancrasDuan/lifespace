@@ -1,6 +1,6 @@
 # 关联转账实施与结构升级
 
-> #149：业务数据库访问改为 pg／Hyperdrive，TypeScript 编排写事务；旧 RPC 保留作兼容与历史参考。当前接入、权限、验证和切换方式见[统一数据库访问](../database-access.md)。
+> #149：2026-11-09 业务数据库访问选择性回滚为 Worker → PostgREST → PostgreSQL RPC；原 pg／Hyperdrive 实现保留为历史与恢复路径。当前接入、权限、验证和切换方式见[统一数据库访问](../database-access.md)。
 
 #121 基于已集成 #120 的 `1eb2d9c2e8f5f8d011f4a6e304bc19e9f9badb9b`，保持四表结构。正式页面提供账户区与单账户转账入口、转账后余额预览、对侧详情跳转和整笔转账删除。
 

@@ -1,5 +1,7 @@
 # #149 数据库迁移验证记录
 
+> 2026-11-09 历史记录：本文记录已合并的 PR #150 pg／Hyperdrive 实现验证。用户随后选择业务访问选择性回滚至 PostgREST；下面所有“正式 Worker → pg”结果只覆盖当时的 pg 实现，不能作为当前 REST 链路的通过证据。当前验证见[回滚验证](database-rollback-verification.md)。
+
 工作区：`149-pg-hyperdrive`；分支：`codex/149-pg-hyperdrive`；PR：[#150](https://github.com/PancrasDuan/lifespace/pull/150)。起始／目标 main／merge-base 均为 `93d9e57718fd71889d10b1c0c6f056e18df9dc92`。业务实现与修复固定到 `075eabea5c87313d1daab4ef5945a7fd5d698fe1`；CI 下载修复为 `7333c6c2ad3e3af22f32d3b5cf0ffbef92fb6674`。文档后续提交不改变该实现范围；最终必需 CI 结果以 PR 最新 HEAD 的 `validate` 为准。
 
 ## 本地执行结果

@@ -1,6 +1,6 @@
 # 账单、账户、退款与转账接口
 
-> #149：业务数据库访问改为 pg／Hyperdrive，TypeScript 编排写事务；旧 RPC 保留作兼容与历史参考。当前接入、权限、验证和切换方式见[统一数据库访问](../database-access.md)。
+> #149：2026-11-09 业务数据库访问选择性回滚为 Worker → PostgREST → PostgreSQL RPC；原 pg／Hyperdrive 实现保留为历史与恢复路径。当前接入、权限、验证和切换方式见[统一数据库访问](../database-access.md)。
 
 #90–#94 与 #118–#121 的正式契约位于 `src/shared/ledger.ts`。所有接口均逐次核验现有登录身份与准入白名单，由 Worker 注入可信 owner，响应为 `Cache-Control: no-store`。浏览器角色没有四表及账单 RPC 权限，交易事实不提供修改接口。
 

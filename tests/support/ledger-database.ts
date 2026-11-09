@@ -1,11 +1,9 @@
 import { ledgerAccountReceiptSchema } from '../../src/shared/ledger'
 import app from '../../worker/index'
-import { testDatabaseUrl } from './isolated-database'
 
 export const ledgerRpc = process.env.LEDGER_LOCAL_RPC_URL
 const nativeFetch = globalThis.fetch
 export const ledgerEnv = {
-  HYPERDRIVE: { connectionString: testDatabaseUrl('WORKER_TEST_DATABASE_URL')! },
   SUPABASE_URL: 'https://ledger-local-test.supabase.co', SUPABASE_SECRET_KEY: 'sb_secret_local-test-only',
   SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_local-test-only', AUTH_ALLOWED_EMAILS: 'ledger@example.invalid',
 }
@@ -17,7 +15,7 @@ export function ledgerRequest(owner: string, path = '/api/ledger/entries', body?
     body: body === undefined ? undefined : JSON.stringify(body),
   }, ledgerEnv)
 }
-// Control only Auth identity and the database address; business SQL uses the production pg path.
+// Control only identity and the database address; all business code and RPCs are real.
 export function installLedgerDatabase() {
   const target = new URL(ledgerRpc!)
   if (target.hostname !== '127.0.0.1' || target.protocol !== 'http:' || target.username || target.password) throw new Error('仅允许本机隔离数据库')
@@ -29,7 +27,8 @@ export function installLedgerDatabase() {
       const { sub } = JSON.parse(atob(token)) as { sub: string }
       return Response.json({ id: sub, email: 'ledger@example.invalid', email_confirmed_at: '2026-10-01', is_anonymous: false })
     }
-    throw new Error('业务数据库禁止通过 HTTP 访问')
+    if (!url.pathname.startsWith('/rest/v1/rpc/ledger_')) throw new Error('禁止非账单 RPC 请求')
+    return nativeFetch(new URL(url.pathname.replace('/rest/v1', ''), target), init)
   }
   return () => { globalThis.fetch = nativeFetch }
 }

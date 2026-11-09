@@ -1,4 +1,4 @@
-# 仅用于 Worker 服务端的 Supabase Auth 在线用户检查；业务数据库使用 Hyperdrive。
+# 仅用于 Worker 服务端；Supabase Auth 在线检查与业务 Data API/RPC 共用服务端密钥。
 SUPABASE_SECRET_KEY=""
 # DNSHE 官方控制台 → 免费域名管理 → API 管理；仅在服务端使用。
 DNSHE_API_KEY=""

@@ -1,9 +1,36 @@
 import { readFile } from 'node:fs/promises'
 
 const config = JSON.parse(await readFile(new URL('../dist/lifespace/wrangler.json', import.meta.url), 'utf8'))
-const binding = config.hyperdrive?.find((value) => value.binding === 'HYPERDRIVE')
-if (!binding || !/^[a-f0-9]{32}$/i.test(binding.id) || /^0+$/.test(binding.id)) {
-  throw new Error('发布前须完成 #149 数据库权限与 Hyperdrive 配置验收，并写入真实 binding ID。')
+
+// Business traffic uses Worker -> Supabase Data API/PostgREST. Hyperdrive is
+// retained as an idle resource after the selective rollback, but it is no
+// longer a deployment prerequisite. If a binding is present, it must still be
+// a real resource and never carry a local connection string into deployment.
+const checkRestConnection = (context, label) => {
+  const raw = context?.vars?.SUPABASE_URL
+  if (typeof raw !== 'string') throw new Error(`${label}缺少 Supabase Data API 地址。`)
+  let url
+  try {
+    url = new URL(raw)
+  } catch {
+    throw new Error(`${label}的 Supabase Data API 地址无效。`)
+  }
+  if (url.protocol !== 'https:' || url.username || url.password || url.search || url.hash || url.pathname !== '/' || url.port) {
+    throw new Error(`${label}的 Supabase Data API 地址必须是项目根地址。`)
+  }
+}
+checkRestConnection(config, '生产')
+checkRestConnection(config.previews, '原生 Preview')
+const required = config.secrets?.required
+for (const name of ['SUPABASE_SECRET_KEY', 'SUPABASE_PUBLISHABLE_KEY']) {
+  if (!Array.isArray(required) || !required.includes(name)) throw new Error(`发布前必须声明 ${name} Secret。`)
+}
+for (const context of [config, config.previews]) {
+  for (const binding of context?.hyperdrive ?? []) {
+    if (binding.binding === 'HYPERDRIVE' && (!/^[a-f0-9]{32}$/i.test(binding.id ?? '') || /^0+$/.test(binding.id))) {
+      throw new Error('保留的 Hyperdrive binding 必须使用真实资源 ID。')
+    }
+  }
 }
 
 // Production and the native Preview must ship the same observability contract.
@@ -39,7 +66,7 @@ if (JSON.stringify(productionObservability) !== JSON.stringify(observabilityCont
   throw new Error('生产与原生 Preview 的 observability 配置必须一致。')
 }
 // Local credentials belong only to an ignored development environment. Even a
-// configured local URL must not be written into the deployment configuration.
+// retained idle binding must not carry its local URL into deployment.
 for (const context of [config, config.previews]) {
   for (const item of context?.hyperdrive ?? []) delete item.localConnectionString
 }

@@ -122,7 +122,7 @@ describe.skipIf(!rpcOrigin)('正式 Worker HTTP → 本机真实 PostgREST → �
   it('七个成就均按全部有效事实实时点亮，100 次行动和 10 个目标不额外发经验，取消可熄灭', async () => {
     const initial = await read(owner)
     let version = initial.version
-    // Every write still uses the real HTTP/pg path. Reuse its committed version
+    // Every write still uses the real HTTP/PostgREST path. Reuse its committed version
     // instead of hundreds of redundant workspace reads during milestone setup.
     const write = async (value: PlanningCommand) => {
       const response = await send(owner, envelope(version, value))

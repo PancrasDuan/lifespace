@@ -2,6 +2,8 @@
 
 状态：2026-11-08，按 Issue #149 的已授权方向实施；具体 PR 合并和生产切换待确认。
 
+> 2026-11-09 已被 [ADR 0011](0011-worker-postgrest-rollback.md) 替代：业务访问选择性回滚到 Worker → Supabase Data API／PostgREST → PostgreSQL RPC。本文保留为 2026-11-08 至 2026-11-09 的生产实现与恢复 pg 路径的历史依据；Hyperdrive、专用角色和 RLS 迁移先保留闲置，不随回滚删除。
+
 Worker 使用请求内的 `pg.Client`，通过 Hyperdrive 连接 Supabase PostgreSQL，业务读取和写入不再经过 Data API。适合应用层维护的命令校验、幂等判断、奖励和余额规则及多语句事务编排移到 TypeScript；约束、索引、行锁和集合查询继续由 PostgreSQL 执行。此决定替代 ADR 0002 中“所有业务写入通过事务 RPC”“Worker 不增加应用层事务管理器”的限制，以及 ADR 0008 中由数据库事务函数承载编排的实现选择；五表／四表、账户锁、历史事实、版本和请求回执决定保持。
 
 每次操作新建 client，BEGIN、全部查询及 COMMIT／ROLLBACK 固定同一连接，最终关闭 client；跨请求连接复用由 Hyperdrive 管理。不得用 KV 锁替代账户级数据库锁。专用登录角色不具有超级用户、BYPASSRLS、DDL、删除历史或 Auth 表权限；业务表使用事务内 owner 上下文和 RLS。Agent 绑定仅授予读取启用绑定的权限。Worker 仍在建立业务事务前完成在线身份和准入检查。

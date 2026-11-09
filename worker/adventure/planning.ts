@@ -1,6 +1,4 @@
 import { z } from 'zod'
-import { DatabaseError } from '../database'
-import { queryPlanning } from './data'
 import { growthPageSchema, growthQuerySchema, rewardSourceSchema, rewardSourceQuerySchema } from '../../src/shared/adventure-growth'
 import type { Context } from 'hono'
 import type { AuthEnv, Identity } from '../auth'
@@ -33,21 +31,37 @@ const errors = {
   CAPACITY_REACHED: [400, '操作超出当前容量限制，未保存任何变更'],
 } as const
 
-async function execute<T>(c: PlanningContext, name: string, parameters: Record<string, unknown>, schema: z.ZodType<T>): Promise<T> {
+async function rpc<T>(c: PlanningContext, name: string, parameters: Record<string, unknown>, schema: z.ZodType<T>): Promise<T> {
+  const { SUPABASE_URL: base, SUPABASE_SECRET_KEY: key } = c.env
+  if (!base || !key) throw unavailable()
+  let url: URL
+  try { url = new URL(`/rest/v1/rpc/${name}`, base) } catch { throw unavailable() }
+  if (url.protocol !== 'https:' || url.username || url.password) throw unavailable()
+  const headers = new Headers({ apikey: key, 'Content-Type': 'application/json' })
+  if (key.startsWith('eyJ')) headers.set('Authorization', `Bearer ${key}`)
+  let response: Response
   try {
-    const parsed = schema.safeParse(await queryPlanning(c.env, c.get('identity').id, name, parameters))
+    response = await fetch(url, {
+      method: 'POST', headers,
+      body: JSON.stringify({ ...parameters, p_owner: c.get('identity').id }),
+      redirect: 'manual', signal: AbortSignal.timeout(10_000),
+    })
+    if (!response.body) throw unavailable()
+    const value: unknown = JSON.parse(await readBoundedBody(response.body, 1_048_576, 10_000))
+    if (!response.ok) {
+      const failure = z.object({ message: z.string() }).safeParse(value)
+      const code = failure.success ? failure.data.message : ''
+      if (Object.hasOwn(errors, code)) {
+        const [status, message] = errors[code as keyof typeof errors]
+        throw new ApiError(code, message, status)
+      }
+      throw unavailable()
+    }
+    const parsed = schema.safeParse(value)
     if (!parsed.success) throw unavailable()
     return parsed.data
   } catch (error) {
     if (error instanceof ApiError) throw error
-    // Legacy read projections raise only fixed domain messages. Never forward
-    // arbitrary PostgreSQL messages, SQL details or connection strings.
-    const code = error instanceof DatabaseError ? error.code :
-      error && typeof error === 'object' && 'code' in error && error.code === 'P0001' && error instanceof Error ? error.message : ''
-    if (Object.hasOwn(errors, code)) {
-      const [status, message] = errors[code as keyof typeof errors]
-      throw new ApiError(code, message, status)
-    }
     throw unavailable()
   }
 }
@@ -75,7 +89,7 @@ export async function readPlanning(c: PlanningContext) {
     includeTerminal: z.enum(['true', 'false']).default('false').transform(value => value === 'true'),
   }).strict().safeParse(c.req.query())
   if (!parsed.success) throw new ApiError('INVALID_QUERY', '分页参数无效', 400)
-  return c.json(await execute(c, 'adventure_workspace_read', { p_page: parsed.data.page, p_page_size: parsed.data.pageSize,
+  return c.json(await rpc(c, 'adventure_workspace_read', { p_page: parsed.data.page, p_page_size: parsed.data.pageSize,
     p_task_range: parsed.data.taskRange, p_task_page: parsed.data.taskPage, p_task_scope: parsed.data.taskScope, p_search: parsed.data.search,
     p_goal_id: parsed.data.goalId ?? null, p_goal_task_page: parsed.data.goalTaskPage, p_include_terminal: parsed.data.includeTerminal,
     p_mainline_id: parsed.data.mainlineId ?? null, p_goal_scope: parsed.data.goalScope }, planningPageSchema))
@@ -83,12 +97,12 @@ export async function readPlanning(c: PlanningContext) {
 
 export async function previewPlanning(c: PlanningContext) {
   const value = await input(c, planningPreviewInputSchema)
-  return c.json(await execute(c, 'adventure_planning_preview', { p_expected_version: value.expectedVersion, p_command: value.command }, planningPreviewSchema))
+  return c.json(await rpc(c, 'adventure_planning_preview', { p_expected_version: value.expectedVersion, p_command: value.command }, planningPreviewSchema))
 }
 
 export async function commandPlanning(c: PlanningContext) {
   const value = await input(c, planningEnvelopeSchema)
-  return c.json(await execute(c, 'adventure_planning_command', {
+  return c.json(await rpc(c, 'adventure_planning_command', {
     p_request_id: value.requestId, p_expected_version: value.expectedVersion, p_command: value.command,
   }, planningReceiptSchema))
 }
@@ -96,31 +110,31 @@ export async function commandPlanning(c: PlanningContext) {
 export async function readMigrationOptions(c: PlanningContext) {
   const parsed = z.strictObject({ kind: z.literal('goal'), id: z.uuid(), page: z.coerce.number().int().min(1).max(1_000_000).default(1) }).safeParse(c.req.query())
   if (!parsed.success) throw new ApiError('INVALID_QUERY', '迁移候选参数无效', 400)
-  return c.json(await execute(c, 'adventure_migration_options', { p_kind: parsed.data.kind, p_id: parsed.data.id, p_page: parsed.data.page }, migrationOptionsSchema))
+  return c.json(await rpc(c, 'adventure_migration_options', { p_kind: parsed.data.kind, p_id: parsed.data.id, p_page: parsed.data.page }, migrationOptionsSchema))
 }
 
 export async function readTaskHistory(c: PlanningContext) {
   const parsed = z.strictObject({ id: z.uuid(), page: z.coerce.number().int().min(1).max(1_000_000).default(1) }).safeParse(c.req.query())
   if (!parsed.success) throw new ApiError('INVALID_QUERY', '任务历史分页参数无效', 400)
-  return c.json(await execute(c, 'adventure_task_history', { p_task: parsed.data.id, p_page: parsed.data.page }, taskHistorySchema))
+  return c.json(await rpc(c, 'adventure_task_history', { p_task: parsed.data.id, p_page: parsed.data.page }, taskHistorySchema))
 }
 
 export async function readGrowth(c: PlanningContext) {
   const parsed = growthQuerySchema.safeParse(c.req.query())
   if (!parsed.success) throw new ApiError('INVALID_QUERY', '成长流水游标参数无效', 400)
-  return c.json(await execute(c, 'adventure_growth_read', { p_version: parsed.data.version ?? null, p_cursor: parsed.data.cursor ?? null }, growthPageSchema))
+  return c.json(await rpc(c, 'adventure_growth_read', { p_version: parsed.data.version ?? null, p_cursor: parsed.data.cursor ?? null }, growthPageSchema))
 }
 
 export async function readRewardSource(c: PlanningContext) {
   const parsed = rewardSourceQuerySchema.safeParse(c.req.query())
   if (!parsed.success) throw new ApiError('INVALID_QUERY', '奖励来源分页参数无效', 400)
-  return c.json(await execute(c, 'adventure_reward_source', { p_event: parsed.data.id, p_page: parsed.data.page, p_version: parsed.data.version ?? null }, rewardSourceSchema))
+  return c.json(await rpc(c, 'adventure_reward_source', { p_event: parsed.data.id, p_page: parsed.data.page, p_version: parsed.data.version ?? null }, rewardSourceSchema))
 }
 
 export async function readTaskList(c: PlanningContext) {
   if (Object.keys(c.req.query()).length) throw new ApiError('INVALID_QUERY', '任务查询条件请放入请求体', 400)
   const value = await input(c, taskListInputSchema)
-  return c.json(await execute(c, 'adventure_task_list', {
+  return c.json(await rpc(c, 'adventure_task_list', {
     p_date: value.date, p_scope: value.scope, p_expected_version: value.expectedVersion, p_today: value.today, p_page: value.page,
   }, taskListSchema))
 }
