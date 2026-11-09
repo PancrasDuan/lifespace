@@ -4,6 +4,7 @@ import type { Context } from 'hono'
 import type { AuthEnv, Identity } from '../auth'
 import { readBoundedBody, BodyLimitError } from '../read-body'
 import { ApiError } from '../upstream'
+import { traceUpstreamFailure, traceUpstreamStatus, upstreamFailureType } from '../trace'
 import {
   taskListInputSchema, taskListSchema, taskHistorySchema, migrationOptionsSchema, planningEnvelopeSchema, planningPageSchema, planningReceiptSchema, taskRangeSchema, taskScopeSchema, planningSearchSchema,
   planningPreviewInputSchema, planningPreviewSchema,
@@ -39,14 +40,20 @@ async function rpc<T>(c: PlanningContext, name: string, parameters: Record<strin
   if (url.protocol !== 'https:' || url.username || url.password) throw unavailable()
   const headers = new Headers({ apikey: key, 'Content-Type': 'application/json' })
   if (key.startsWith('eyJ')) headers.set('Authorization', `Bearer ${key}`)
-  let response: Response
+  let response: Response | undefined
+  let fetched = false
   try {
+    fetched = true
     response = await fetch(url, {
       method: 'POST', headers,
       body: JSON.stringify({ ...parameters, p_owner: c.get('identity').id }),
       redirect: 'manual', signal: AbortSignal.timeout(10_000),
     })
-    if (!response.body) throw unavailable()
+    if (!response.body) {
+      if (response.ok) traceUpstreamFailure('invalid-response')
+      else traceUpstreamStatus(response.status)
+      throw unavailable()
+    }
     const value: unknown = JSON.parse(await readBoundedBody(response.body, 1_048_576, 10_000))
     if (!response.ok) {
       const failure = z.object({ message: z.string() }).safeParse(value)
@@ -55,13 +62,16 @@ async function rpc<T>(c: PlanningContext, name: string, parameters: Record<strin
         const [status, message] = errors[code as keyof typeof errors]
         throw new ApiError(code, message, status)
       }
+      traceUpstreamStatus(response.status)
       throw unavailable()
     }
     const parsed = schema.safeParse(value)
-    if (!parsed.success) throw unavailable()
+    if (!parsed.success) { traceUpstreamFailure('invalid-response'); throw unavailable() }
     return parsed.data
   } catch (error) {
     if (error instanceof ApiError) throw error
+    if (response && !response.ok) traceUpstreamStatus(response.status)
+    else if (fetched) traceUpstreamFailure(upstreamFailureType(error))
     throw unavailable()
   }
 }

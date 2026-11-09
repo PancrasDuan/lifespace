@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { beijingDate, horoscopeDeadline, horoscopeSchema, isCurrentHoroscope, signSchema, type Horoscope, type HoroscopeResult, type ZodiacSign } from '../src/shared/horoscope-contracts'
 import { ApiError } from './upstream'
 import { BodyLimitError, readBoundedBody } from './read-body'
+import { traceUpstreamFailure, traceUpstreamStatus, upstreamFailureType } from './trace'
 
 // 仅包含外部 binding 的必要操作；缺失配置时保持正式服务的未配置状态。
 export type HoroscopeTimings = Partial<Record<'auth' | 'kv_read' | 'alapi' | 'alapi_headers' | 'alapi_body' | 'kv_write' | 'coalesce' | 'total', number>>
@@ -33,14 +34,14 @@ async function readAlapi(token: string, sign: ZodiacSign, date: string, timings?
       method: 'POST', headers: { token, 'Content-Type': 'application/json' }, body: JSON.stringify({ star: sign }),
       redirect: 'manual', signal: AbortSignal.timeout(10000),
     }))
-    if (response.status === 429) throw failure('HOROSCOPE_RATE_LIMITED', '运势读取过于频繁，请稍后重新读取', 429)
-    if (response.status === 401 || response.status === 403) throw failure('HOROSCOPE_TOKEN_INVALID', '运势数据源授权失效，请检查服务端配置')
-    if (!response.ok) throw failure('HOROSCOPE_SOURCE_UNAVAILABLE', '运势数据源暂时不可用')
-    if (!response.body) throw invalid()
+    if (response.status === 429) { traceUpstreamStatus(response.status); throw failure('HOROSCOPE_RATE_LIMITED', '运势读取过于频繁，请稍后重新读取', 429) }
+    if (response.status === 401 || response.status === 403) { traceUpstreamStatus(response.status); throw failure('HOROSCOPE_TOKEN_INVALID', '运势数据源授权失效，请检查服务端配置') }
+    if (!response.ok) { traceUpstreamStatus(response.status); throw failure('HOROSCOPE_SOURCE_UNAVAILABLE', '运势数据源暂时不可用') }
+    if (!response.body) { traceUpstreamFailure('invalid-response'); throw invalid() }
     const body = response.body
     const text = await measure('alapi_body', () => readBoundedBody(body, 256000, 10000))
     const envelope = envelopeSchema.safeParse(JSON.parse(text))
-    if (!envelope.success) throw invalid()
+    if (!envelope.success) { traceUpstreamFailure('invalid-response'); throw invalid() }
     const value = envelope.data
     if (!value.success || value.code !== 200) {
       if (value.code === 10010) throw failure('HOROSCOPE_QUOTA_EXHAUSTED', '今日运势接口额度已用完，请明日再试', 503)
@@ -51,7 +52,7 @@ async function readAlapi(token: string, sign: ZodiacSign, date: string, timings?
       throw failure('HOROSCOPE_BUSINESS_ERROR', '运势数据源请求失败，请稍后重新读取')
     }
     const data = z.object({ star: z.string().optional(), day: daySchema }).safeParse(value.data)
-    if (!data.success || (data.data.star !== undefined && data.data.star !== sign)) throw invalid()
+    if (!data.success || (data.data.star !== undefined && data.data.star !== sign)) { traceUpstreamFailure('invalid-response'); throw invalid() }
     const day = data.data.day
     if (day.date < date) throw notUpdated()
     if (day.date !== date) throw invalid()
@@ -63,10 +64,11 @@ async function readAlapi(token: string, sign: ZodiacSign, date: string, timings?
       texts: { all: day.all_text, love: day.love_text, work: day.work_text, money: day.money_text, health: day.health_text },
       lucky: { color: day.lucky_color, number: day.lucky_number, sign: day.lucky_star }, notice: day.notice, yi: day.yi, ji: day.ji,
     })
-    if (!normalized.success) throw invalid()
+    if (!normalized.success) { traceUpstreamFailure('invalid-response'); throw invalid() }
     return normalized.data
   } catch (error) {
     if (error instanceof ApiError) throw error
+    traceUpstreamFailure(upstreamFailureType(error))
     if (error instanceof SyntaxError || error instanceof BodyLimitError) throw invalid()
     if (error instanceof Error && ['AbortError', 'TimeoutError'].includes(error.name)) throw failure('HOROSCOPE_TIMEOUT', '运势读取超时，请稍后重新读取', 504)
     throw failure('HOROSCOPE_SOURCE_UNAVAILABLE', '运势数据源暂时不可用')
