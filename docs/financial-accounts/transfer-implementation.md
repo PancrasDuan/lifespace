@@ -1,7 +1,5 @@
 # 关联转账实施与结构升级
 
-> #149：业务数据库访问改为 pg／Hyperdrive，TypeScript 编排写事务；旧 RPC 保留作兼容与历史参考。当前接入、权限、验证和切换方式见[统一数据库访问](../database-access.md)。
-
 #121 基于已集成 #120 的 `1eb2d9c2e8f5f8d011f4a6e304bc19e9f9badb9b`，保持四表结构。正式页面提供账户区与单账户转账入口、转账后余额预览、对侧详情跳转和整笔转账删除。
 
 `POST /api/ledger/transfers` 接收 `requestId`、`fromAccountId`、`toAccountId`、正整数分 `amountCents`、UTC 秒精度 `occurredAt` 及可选 `note`，返回 `{ transferId, outEntryId, inEntryId, version, deleted }`。所有者由 Worker 核验并注入；两个账户必须不同且属于本人，余额可以为零或负数，联动结果须在 ±99,999,999,999 分内。

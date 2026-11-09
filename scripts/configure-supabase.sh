@@ -3,8 +3,7 @@ set -euo pipefail
 umask 077
 cd "$(dirname "$0")/.."
 
-printf '\n配置 LifeSpace 服务端 Supabase Auth 用户检查\n\n'
-printf '业务数据库通过 pg／Hyperdrive 连接，配置方法见 docs/database-access.md。\n'
+printf '\n配置 LifeSpace 本地任务来源\n\n'
 printf '请打开 Supabase 项目设置的 API Keys 页面，复制已有的服务端 secret key 或 legacy service_role。\n'
 printf '密钥只写入本项目的 .dev.vars，不会发送到 GitHub 或打印到终端。\n'
 printf '页面：https://supabase.com/dashboard/project/zvdcjzjfhkjasikchceo/settings/api-keys\n\n'
