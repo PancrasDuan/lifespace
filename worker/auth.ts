@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { ApiError } from './upstream'
 import { Webhook } from 'standardwebhooks'
 import { BodyLimitError, readBoundedBody } from './read-body'
+import { traceIdentity, traceUpstreamFailure, traceUpstreamStatus, upstreamFailureType } from './trace'
 
 export type AuthEnv = Partial<CloudflareEnv>
 export type Identity = { id: string; email: string }
@@ -45,7 +46,7 @@ export async function registrationHook(env: AuthEnv, request: Request) {
 const claimsSchema = z.object({ sub: z.uuid(), session_id: z.uuid(), exp: z.number().int() })
 const userSchema = z.object({ id: z.uuid(), email: z.email(), email_confirmed_at: z.string().min(1), is_anonymous: z.literal(false) })
 
-export async function verifyIdentity(env: AuthEnv, authorization?: string): Promise<Identity> {
+export async function verifyIdentity(env: AuthEnv, authorization?: string, route?: string): Promise<Identity> {
   if (!authorization) throw new ApiError('AUTH_REQUIRED', '请先登录', 401)
   const match = /^Bearer ([\w.-]+)$/.exec(authorization)
   if (!match || match[1].length > 16384) throw invalid()
@@ -59,8 +60,9 @@ export async function verifyIdentity(env: AuthEnv, authorization?: string): Prom
   } catch { throw invalid() }
   const allowed = allowedEmails(env)
   const config = publicConfig(env)
+  let response: Response | undefined
   try {
-    const response = await fetch(`${config.url.replace(/\/$/, '')}/auth/v1/user`, {
+    response = await fetch(`${config.url.replace(/\/$/, '')}/auth/v1/user`, {
       headers: { apikey: config.publishableKey, Authorization: authorization },
       signal: AbortSignal.timeout(5000), redirect: 'manual',
     })
@@ -68,15 +70,18 @@ export async function verifyIdentity(env: AuthEnv, authorization?: string): Prom
       if (claims.exp <= Date.now() / 1000) throw new ApiError('AUTH_EXPIRED', '登录凭据已过期', 401)
       throw invalid()
     }
-    if (!response.ok) throw unavailable()
-    if (!response.body) throw unavailable()
+    if (!response.ok) { traceUpstreamStatus(response.status); throw unavailable() }
+    if (!response.body) { traceUpstreamFailure('invalid-response'); throw unavailable() }
     const parsed = userSchema.safeParse(JSON.parse(await readBoundedBody(response.body, 65536, 5000)))
     if (!parsed.success || parsed.data.id !== claims.sub || claims.exp <= Date.now() / 1000) throw invalid()
     const normalized = parsed.data.email.trim().toLowerCase()
     if (!allowed.has(normalized)) throw new ApiError('AUTH_DENIED', '此账户暂未获准访问', 403)
+    traceIdentity(parsed.data.id, claims.session_id, route)
     return { id: parsed.data.id, email: normalized }
   } catch (error) {
     if (error instanceof ApiError) throw error
+    if (response && !response.ok) traceUpstreamStatus(response.status)
+    else traceUpstreamFailure(upstreamFailureType(error))
     throw unavailable()
   }
 }

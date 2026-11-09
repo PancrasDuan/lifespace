@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { allowedEmails, publicConfig, type AuthEnv, type Identity } from './auth'
 import { readBoundedBody } from './read-body'
 import { ApiError } from './upstream'
+import { traceUpstreamFailure, traceUpstreamStatus, upstreamFailureType } from './trace'
 
 export type AgentAuthEnv = AuthEnv & { CF_ACCESS_TEAM_DOMAIN?: string; CF_ACCESS_AUD?: string }
 
@@ -45,12 +46,18 @@ function config(env: AgentAuthEnv) {
   } catch { throw unavailable() }
 }
 async function jsonResponse(url: string, init: RequestInit): Promise<{ status: number; value: unknown }> {
+  let response: Response | undefined
   try {
-    const response = await fetch(url, { ...init, redirect: 'manual', signal: AbortSignal.timeout(5000) })
-    if (!response.ok) return { status: response.status, value: null }
-    if (!response.body) throw unavailable()
+    response = await fetch(url, { ...init, redirect: 'manual', signal: AbortSignal.timeout(5000) })
+    if (!response.ok) { traceUpstreamStatus(response.status); return { status: response.status, value: null } }
+    if (!response.body) { traceUpstreamFailure('invalid-response'); throw unavailable() }
     return { status: response.status, value: JSON.parse(await readBoundedBody(response.body, 65536, 5000)) }
-  } catch (error) { if (error instanceof ApiError) throw error; throw unavailable() }
+  } catch (error) {
+    if (error instanceof ApiError) throw error
+    if (response && !response.ok) traceUpstreamStatus(response.status)
+    else traceUpstreamFailure(upstreamFailureType(error))
+    throw unavailable()
+  }
 }
 
 export async function verifyAgentIdentity(env: AgentAuthEnv, assertion?: string): Promise<Identity> {

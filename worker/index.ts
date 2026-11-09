@@ -13,9 +13,13 @@ import { readAiStatus } from './ai-status'
 import { publicConfig, registrationHook, verifyIdentity, type AuthEnv, type Identity } from './auth'
 import { verifyAgentIdentity } from './agent-auth'
 import { handleAgentMcp } from './agent-mcp'
+import { beginTrace, traceErrorCode, withRootSpan } from './trace'
 
 const app = new Hono<{ Bindings: AuthEnv; Variables: { identity: Identity; horoscopeTimings?: HoroscopeTimings; horoscopeCacheHit?: boolean } }>()
-app.use('/api/*', async (c, next) => { c.header('Cache-Control', 'no-store'); await next() })
+app.use('/api/*', async (c, next) => {
+  c.header('Cache-Control', 'no-store')
+  await withRootSpan(beginTrace(c), () => next())
+})
 app.use('/api/horoscope', async (c, next) => {
   const started = performance.now()
   const timings: HoroscopeTimings = {}
@@ -32,7 +36,8 @@ app.post('/api/auth/hooks/before-user-created', async c => {
   try {
     const result = await registrationHook(c.env, c.req.raw)
     return c.json(result.body, result.status)
-  } catch {
+  } catch (error) {
+    traceErrorCode(error instanceof ApiError ? error.code : 'INTERNAL_ERROR', c.req.path, c)
     return c.json({ error: { http_code: 503, message: '注册服务暂时不可用' } }, 503)
   }
 })
@@ -40,7 +45,7 @@ app.get('/api/horoscope', async c => {
   const timings = c.get('horoscopeTimings')
   const result = await readHoroscope(c.env, new URL(c.req.url).searchParams, async () => {
     const started = performance.now()
-    try { await verifyIdentity(c.env, c.req.header('Authorization')) }
+    try { await verifyIdentity(c.env, c.req.header('Authorization'), c.req.path) }
     finally { if (timings) timings.auth = performance.now() - started }
   }, timings)
   c.set('horoscopeCacheHit', result.cacheHit)
@@ -52,7 +57,7 @@ app.use('/api/*', async (c, next) => {
     await next()
     return
   }
-  c.set('identity', await verifyIdentity(c.env, c.req.header('Authorization')))
+  c.set('identity', await verifyIdentity(c.env, c.req.header('Authorization'), c.req.path))
   await next()
 })
 app.all('/api/agent/mcp', async c => {
@@ -92,6 +97,7 @@ app.get('/api/weather/detail', async c => c.json(await readWeatherDetail(c.req.q
 app.get('/api/weather/air-quality', async c => c.json(await readAirQuality(c.req.query('latitude'), c.req.query('longitude'), c.req.query('timeZone'))))
 app.get('/api/weather/locations', async c => c.json(await searchLocations(c.req.query('q'))))
 app.onError((error, c) => {
+  traceErrorCode(error instanceof ApiError ? error.code : 'INTERNAL_ERROR', c.req.path, c)
   if (error instanceof ApiError) {
     if (error.status === 429) c.header('Retry-After', '60')
     return c.json(apiErrorBody(error), error.status)
@@ -99,7 +105,9 @@ app.onError((error, c) => {
   console.error(JSON.stringify({ event: 'api_error', code: 'INTERNAL_ERROR' }))
   return c.json(apiErrorBody(error), 500)
 })
-app.notFound(c => c.req.path.startsWith('/api/')
-  ? c.json({ error: { code: 'NOT_FOUND', message: '接口不存在' } }, 404)
-  : c.env.ASSETS ? c.env.ASSETS.fetch(c.req.raw) : c.text('页面不存在', 404))
+app.notFound(c => {
+  if (!c.req.path.startsWith('/api/')) return c.env.ASSETS ? c.env.ASSETS.fetch(c.req.raw) : c.text('页面不存在', 404)
+  traceErrorCode('NOT_FOUND', c.req.path, c)
+  return c.json({ error: { code: 'NOT_FOUND', message: '接口不存在' } }, 404)
+})
 export default app

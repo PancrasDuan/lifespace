@@ -3,6 +3,7 @@ import type { Context } from 'hono'
 import type { AuthEnv, Identity } from './auth'
 import { ApiError } from './upstream'
 import { readBoundedBody } from './read-body'
+import { traceUpstreamFailure, traceUpstreamStatus, upstreamFailureType } from './trace'
 import { ledgerTransferSchema, ledgerTransferReceiptSchema, ledgerAccountCreateSchema, ledgerAccountUpdateSchema, ledgerAccountReceiptSchema, ledgerAccountsSchema, ledgerCreateSchema, ledgerDeletePreviewSchema, ledgerDeleteSchema, ledgerDetailQuerySchema, ledgerDetailSchema, ledgerErrors, ledgerPageSchema, ledgerQuerySchema, ledgerReceiptSchema, ledgerRefundSchema } from '../src/shared/ledger'
 
 type LedgerContext = Context<{ Bindings: AuthEnv; Variables: { identity: Identity } }>
@@ -42,23 +43,36 @@ async function rpc<T>(c: LedgerContext, name: string, params: Record<string, unk
   const fallback = writing === 'delete' ? 'DELETE_UNKNOWN' : writing ? 'SAVE_UNKNOWN' : 'LEDGER_UNAVAILABLE'
   const { SUPABASE_URL: base, SUPABASE_SECRET_KEY: key } = c.env
   if (!base || !key) throw failure(fallback, fallbackMessage)
+  let response: Response | undefined
+  let fetched = false
   try {
     const url = new URL(`/rest/v1/rpc/${name}`, base)
     if (url.protocol !== 'https:' || url.username || url.password) throw failure(fallback, fallbackMessage)
     const headers = new Headers({ apikey: key, 'Content-Type': 'application/json' })
     if (key.startsWith('eyJ')) headers.set('Authorization', `Bearer ${key}`)
-    const response = await fetch(url, { method: 'POST', headers, redirect: 'manual', signal: AbortSignal.timeout(10_000), body: JSON.stringify({ ...params, p_owner: c.get('identity').id }) })
-    if (!response.body) throw failure(fallback, fallbackMessage)
+    fetched = true
+    response = await fetch(url, { method: 'POST', headers, redirect: 'manual', signal: AbortSignal.timeout(10_000), body: JSON.stringify({ ...params, p_owner: c.get('identity').id }) })
+    if (!response.body) {
+      if (response.ok) traceUpstreamFailure('invalid-response')
+      else traceUpstreamStatus(response.status)
+      throw failure(fallback, fallbackMessage)
+    }
     const value: unknown = JSON.parse(await readBoundedBody(response.body, 1_048_576, 10_000))
     if (!response.ok) {
       const parsed = z.object({ message: z.string() }).safeParse(value)
       if (parsed.success && Object.hasOwn(ledgerErrors, parsed.data.message)) throw failure(parsed.data.message as keyof typeof ledgerErrors)
+      traceUpstreamStatus(response.status)
       throw failure(fallback, fallbackMessage)
     }
     const parsed = schema.safeParse(value)
-    if (!parsed.success) throw failure(fallback, fallbackMessage)
+    if (!parsed.success) { traceUpstreamFailure('invalid-response'); throw failure(fallback, fallbackMessage) }
     return parsed.data
-  } catch (error) { if (error instanceof ApiError) throw error; throw failure(fallback, fallbackMessage) }
+  } catch (error) {
+    if (error instanceof ApiError) throw error
+    if (response && !response.ok) traceUpstreamStatus(response.status)
+    else if (fetched) traceUpstreamFailure(upstreamFailureType(error))
+    throw failure(fallback, fallbackMessage)
+  }
 }
 export async function listLedger(c: LedgerContext) {
   if (Object.values(c.req.queries()).some(values => values.length !== 1)) throw failure('INVALID_QUERY')
