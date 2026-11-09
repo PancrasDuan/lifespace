@@ -25,16 +25,24 @@ const restConfig = () => ({
   vars: { SUPABASE_URL: 'https://project-ref.supabase.co' },
   secrets: { required: ['SUPABASE_SECRET_KEY', 'SUPABASE_PUBLISHABLE_KEY'] },
 })
-
-test('配置 dry-run 移除生成的本地凭据文件且不调用远端部署', t => {
-  const fixture = mkdtempSync(join(tmpdir(), 'lifespace-preview-guard-'))
+const makeFixture = (t, prefix, { upload = false } = {}) => {
+  const fixture = mkdtempSync(join(tmpdir(), prefix))
   t.after(() => rmSync(fixture, { recursive: true, force: true }))
   mkdirSync(join(fixture, 'scripts'))
   mkdirSync(join(fixture, 'dist/lifespace'), { recursive: true })
-  for (const file of ['upload-preview.mjs', 'check-database-deployment.mjs', 'strip-worker-dev-vars.mjs']) cpSync(join(root, 'scripts', file), join(fixture, 'scripts', file))
-  const rest = restConfig()
+  const scripts = ['check-database-deployment.mjs', 'strip-worker-dev-vars.mjs']
+  if (upload) scripts.unshift('upload-preview.mjs')
+  for (const file of scripts) cpSync(join(root, 'scripts', file), join(fixture, 'scripts', file))
   const path = join(fixture, 'dist/lifespace/wrangler.json')
-  writeFileSync(path, JSON.stringify({ ...rest, observability: alignedObservability(), previews: { ...rest, observability: alignedObservability() } }))
+  return { fixture, path, write: (config) => writeFileSync(path, JSON.stringify(config)) }
+}
+const previewConfig = (preview = alignedObservability(), production = alignedObservability()) => ({
+  ...restConfig(), observability: production, previews: { ...restConfig(), observability: preview },
+})
+
+test('配置 dry-run 移除生成的本地凭据文件且不调用远端部署', t => {
+  const { fixture, write } = makeFixture(t, 'lifespace-preview-guard-', { upload: true })
+  write(previewConfig())
   const devVars = join(fixture, 'dist/lifespace/.dev.vars')
   writeFileSync(devVars, 'SUPABASE_SECRET_KEY="local-only"\n')
   const result = run('preview', ['--dry-run'], fixture)
@@ -44,62 +52,39 @@ test('配置 dry-run 移除生成的本地凭据文件且不调用远端部署',
 })
 
 test('生产 observability 缺少 traces 时阻断部署', t => {
-  const fixture = mkdtempSync(join(tmpdir(), 'lifespace-deployment-guard-'))
-  t.after(() => rmSync(fixture, { recursive: true, force: true }))
-  mkdirSync(join(fixture, 'scripts'))
-  mkdirSync(join(fixture, 'dist/lifespace'), { recursive: true })
-  for (const file of ['check-database-deployment.mjs', 'strip-worker-dev-vars.mjs']) cpSync(join(root, 'scripts', file), join(fixture, 'scripts', file))
-  const rest = restConfig()
-  const path = join(fixture, 'dist/lifespace/wrangler.json')
+  const { fixture, write } = makeFixture(t, 'lifespace-deployment-guard-')
   const observability = alignedObservability()
   observability.traces.enabled = false
-  writeFileSync(path, JSON.stringify({ ...rest, observability, previews: { ...rest, observability: alignedObservability() } }))
+  write(previewConfig(alignedObservability(), observability))
   const result = runDeploymentCheck(fixture)
   assert.equal(result.status, 1)
   assert.match(result.stderr, /生产 observability 必须启用、全量采样并持久化 traces/)
 })
 
 test('生产 observability 未持久化 logs 时阻断部署', t => {
-  const fixture = mkdtempSync(join(tmpdir(), 'lifespace-deployment-logs-'))
-  t.after(() => rmSync(fixture, { recursive: true, force: true }))
-  mkdirSync(join(fixture, 'scripts'))
-  mkdirSync(join(fixture, 'dist/lifespace'), { recursive: true })
-  for (const file of ['check-database-deployment.mjs', 'strip-worker-dev-vars.mjs']) cpSync(join(root, 'scripts', file), join(fixture, 'scripts', file))
-  const rest = restConfig()
-  const path = join(fixture, 'dist/lifespace/wrangler.json')
+  const { fixture, write } = makeFixture(t, 'lifespace-deployment-logs-')
   const observability = alignedObservability()
   observability.logs.persist = false
-  writeFileSync(path, JSON.stringify({ ...rest, observability, previews: { ...rest, observability: alignedObservability() } }))
+  write(previewConfig(alignedObservability(), observability))
   const result = runDeploymentCheck(fixture)
   assert.equal(result.status, 1)
   assert.match(result.stderr, /生产 observability 必须启用、全量采样并持久化 logs 与 invocation logs/)
 })
 
 test('生产与原生 Preview 的 observability 不一致时阻断部署', t => {
-  const fixture = mkdtempSync(join(tmpdir(), 'lifespace-deployment-parity-'))
-  t.after(() => rmSync(fixture, { recursive: true, force: true }))
-  mkdirSync(join(fixture, 'scripts'))
-  mkdirSync(join(fixture, 'dist/lifespace'), { recursive: true })
-  for (const file of ['check-database-deployment.mjs', 'strip-worker-dev-vars.mjs']) cpSync(join(root, 'scripts', file), join(fixture, 'scripts', file))
-  const rest = restConfig()
-  const path = join(fixture, 'dist/lifespace/wrangler.json')
+  const { fixture, write } = makeFixture(t, 'lifespace-deployment-parity-')
   const preview = alignedObservability()
   preview.logs.head_sampling_rate = 0.1
-  writeFileSync(path, JSON.stringify({ ...rest, observability: alignedObservability(), previews: { ...rest, observability: preview } }))
+  write(previewConfig(preview))
   const result = runDeploymentCheck(fixture)
   assert.equal(result.status, 1)
   assert.match(result.stderr, /生产与原生 Preview 的 observability 配置必须一致/)
 })
 
 test('缺少 Supabase Data API 地址时阻断部署', t => {
-  const fixture = mkdtempSync(join(tmpdir(), 'lifespace-deployment-rest-'))
-  t.after(() => rmSync(fixture, { recursive: true, force: true }))
-  mkdirSync(join(fixture, 'scripts'))
-  mkdirSync(join(fixture, 'dist/lifespace'), { recursive: true })
-  for (const file of ['check-database-deployment.mjs', 'strip-worker-dev-vars.mjs']) cpSync(join(root, 'scripts', file), join(fixture, 'scripts', file))
+  const { fixture, write } = makeFixture(t, 'lifespace-deployment-rest-')
   const rest = restConfig()
-  const path = join(fixture, 'dist/lifespace/wrangler.json')
-  writeFileSync(path, JSON.stringify({ ...rest, observability: alignedObservability(), previews: { secrets: rest.secrets, observability: alignedObservability() } }))
+  write({ ...rest, observability: alignedObservability(), previews: { secrets: rest.secrets, observability: alignedObservability() } })
   const result = runDeploymentCheck(fixture)
   assert.equal(result.status, 1)
   assert.match(result.stderr, /原生 Preview缺少 Supabase Data API 地址/)
