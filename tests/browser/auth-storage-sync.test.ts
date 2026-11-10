@@ -24,7 +24,7 @@ test('受控时序：新登录通知先读空，存储可见后仍在线重验�
       return value
     }
   }, { storageKey })
-  let logins = 0, expireTasks = false, refreshing = false, admissionAllowed = true
+  let logins = 0, expireDomains = false, refreshing = false, admissionAllowed = true
   let releaseRefresh: () => void = () => {}
   const held = new Promise<void>(resolve => { releaseRefresh = resolve })
   const active = new Set<string>(), identityTokens: string[] = []
@@ -49,7 +49,7 @@ test('受控时序：新登录通知先读空，存储可见后仍在线重验�
           : { status: 403, json: { error: { code: 'AUTH_DENIED', message: '不再允许访问' } } })
     })
     await context.route(/\/api\/(?!auth\/)/, route => {
-      const expired = expireTasks && route.request().url().includes('/api/tasks/') && route.request().headers().authorization === `Bearer ${session.access_token}`
+      const expired = expireDomains && route.request().url().includes('/api/domains') && route.request().headers().authorization === `Bearer ${session.access_token}`
       return route.fulfill({ status: expired ? 401 : 503, json: { error: { code: expired ? 'AUTH_EXPIRED' : 'SOURCE_UNAVAILABLE', message: '稍后重试' } } })
     })
     const first = await context.newPage(), second = await context.newPage()
@@ -60,8 +60,8 @@ test('受控时序：新登录通知先读空，存储可见后仍在线重验�
     await expect(first.getByRole('button', { name: '查看世界时间详情' })).toBeVisible()
     await second.goto('/')
     await expect(second.getByRole('button', { name: '查看世界时间详情' })).toBeVisible()
-    expireTasks = true
-    await first.getByRole('button', { name: '刷新今日待办', exact: true }).click()
+    expireDomains = true
+    await first.getByRole('button', { name: '刷新DNSHE 域名', exact: true }).click()
     await expect.poll(() => refreshing).toBe(true)
     await second.getByRole('button', { name: '账户菜单' }).click()
     await second.getByRole('menuitem', { name: '退出登录' }).click()

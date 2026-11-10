@@ -1,6 +1,6 @@
 # LifeSpace
 
-个人日常工作台，包含首页、新闻、人生冒险与个人账单。首页提供：Google 搜索、本地与海外时间、Open-Meteo 天气与预报、Supabase 今日待办、本地黄历、DNSHE 域名信息及服务状态。采用浅色布局；首页卡片与详情只读，人生冒险提供个人规划与成长记录，财务页管理本人收支。
+个人日常工作台，包含首页、新闻、人生冒险与个人账单。首页提供：Google 搜索、本地与海外时间、Open-Meteo 天气与预报、本地黄历、DNSHE 域名信息及服务状态。采用浅色布局；首页卡片与详情只读，人生冒险提供个人规划与成长记录，财务页管理本人收支。
 
 访问采用邮箱白名单与 Supabase Auth，前端 SDK 管理登录及续期，Worker 在线验证会话和准入。星座运势与其余业务接口一样逐次鉴权，缓存命中也不再匿名读取。配置及真实邮件验收见 [认证接入](docs/auth-setup.md)，职责与撤销边界见 [认证决策](docs/adr/0001-supabase-auth.md)。
 
@@ -15,7 +15,7 @@ npm ci
 npm run dev
 ```
 
-打开 `http://127.0.0.1:5174/`。首页地区与海外时区在首页设置中配置；天气城市在天气详情中独立选择，两张天气卡片共用该城市，互不影响其他模块。设置保存在当前浏览器；天气默认北京；可在天气详情切回自动定位，定位模式独立保存、每次进入页面重新定位，定位坐标不写入存储。海外时间默认纽约和伦敦。任务来源尚未配置时显示明确提示，其他卡片正常使用。
+打开 `http://127.0.0.1:5174/`。首页地区与海外时区在首页设置中配置；天气城市在天气详情中独立选择，两张天气卡片共用该城市，互不影响其他模块。设置保存在当前浏览器；天气默认北京；可在天气详情切回自动定位，定位模式独立保存、每次进入页面重新定位，定位坐标不写入存储。海外时间默认纽约和伦敦。
 
 ## 人生冒险
 
@@ -47,7 +47,7 @@ npm run setup:supabase
 
 密钥保存于本地 `.dev.vars`，由 Git 忽略；重新启动开发服务器使配置生效。模板见 [.dev.vars.example](.dev.vars.example)。
 
-今日待办筛选首页有效地区时区当天 `planned_at`、`status=todo`、`is_deleted=false`，按计划时间排序。首页最多显示三条，详情展示全部。时间字段使用 Unix 秒，接口仅执行读取。
+`GET /api/tasks/today` 仍保留为只读接口，筛选指定 `timeZone` 当天 `planned_at`、`status=todo`、`is_deleted=false`，按计划时间排序。首页已不再展示今日待办；时间字段使用 Unix 秒，接口仅执行读取。
 
 ## 接入 DNSHE
 
@@ -116,7 +116,7 @@ npm run test:browser
 - 以下业务接口均须携带当前会话，Worker 在线验证账户及白名单。
 - `GET /api/adventure`：读取／初始化当前账户冒险状态、版本与规划日期，不结算。
 - `POST /api/adventure/commands`：执行带 `requestId`、`expectedVersion` 的领域命令，包括 `refresh`；本期仅支持一次性任务规则，事实与奖励实时提交、等级成就实时计算，代码尚待同步；不接受客户端整包状态、owner、经验或模拟日期。
-- `GET /api/tasks/today?timeZone=<IANA 时区>`：首页只读今日待办。
+- `GET /api/tasks/today?timeZone=<IANA 时区>`：保留的只读今日待办查询；首页不再展示。
 - `GET /api/domains`：DNSHE 账户内全部域名的展示信息。
 - `GET /api/ai-status`：OpenAI、xAI、Resend、GitHub、Cloudflare、Supabase、Notion、Tailscale 与腾讯云的整体状态及按提供方归属的当前异常。
 - `GET /api/weather/locations?q=<城市关键词>`：城市搜索。
