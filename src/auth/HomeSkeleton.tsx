@@ -1,11 +1,10 @@
-import { Activity, CalendarDays, Clock3, CloudSun, Globe, ListTodo, Search, Settings2, Sparkles } from 'lucide-react'
+import { Activity, CalendarDays, Clock3, CloudSun, Globe, Search, Settings2, Sparkles } from 'lucide-react'
 import { AppLayout } from '../app/AppLayout'
 import './home-skeleton.css'
 
 const cards = [
   { kind: 'time', title: '世界时间', icon: Clock3 },
   { kind: 'weather', title: '今日天气', icon: CloudSun },
-  { kind: 'tasks', title: '今日待办', icon: ListTodo },
   { kind: 'calendar', title: '日期与黄历', icon: CalendarDays },
   { kind: 'horoscope', title: '星座运势', icon: Sparkles },
   { kind: 'domains', title: 'DNSHE 域名', icon: Globe },

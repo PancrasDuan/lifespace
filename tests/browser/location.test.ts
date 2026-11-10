@@ -33,7 +33,7 @@ test('自动定位统一核心日期，天气保持独立城市', async ({ page 
   await expect(timeCard(page).locator('.local-clock')).toContainText('当前位置')
   await expect(timeCard(page).locator('.local-clock')).toContainText('11:59')
   await expect(page.getByRole('button', { name: '查看日期与黄历详情' })).toContainText('八月廿五')
-  await expect.poll(() => requests.some(url => url.includes('timeZone=America%2FNew_York'))).toBe(true)
+  expect(requests.some(url => url.includes('/api/tasks/today'))).toBe(false)
   expect(requests.some(url => url.includes('latitude=40.71') && url.includes('longitude=-74.01'))).toBe(false)
   await expect(page.getByRole('button', { name: '查看今日天气详情' })).toContainText('北京')
   const stored = await page.evaluate(() => JSON.stringify({ ...localStorage }))
@@ -114,10 +114,9 @@ test('旧首页设置只重置一次，新闻设置保留，自动保存不包�
   expect(await page.evaluate(() => localStorage.getItem('lifespace.news-sources.v1'))).toBe('["zhihu"]')
 })
 
-test('有效地区午夜更新日历与任务，天气独立且失败不改地区', async ({ page }) => {
+test('有效地区午夜更新日历，天气独立且失败不改地区', async ({ page }) => {
   await fixture(page, '2026-10-06T03:59:00Z')
   let day = '2026-10-05'; let failed = false
-  await page.route('**/api/tasks/today?**', route => route.fulfill({ json: { date: day, timeZone: new URL(route.request().url()).searchParams.get('timeZone'), fetchedAt: '2026-10-06T03:59:00Z', tasks: [{ id: '1', title: `当天任务 ${day}`, plannedAt: 1791259140, dueAt: null, area: '学习' }] } }))
   await page.route('**/api/weather/detail?**', route => route.fulfill(failed ? { status: 502, json: { error: { code: 'SOURCE_UNAVAILABLE', message: '天气来源不可用' } } } : { json: { date: day, timeZone: new URL(route.request().url()).searchParams.get('timeZone'), fetchedAt: '2026-10-06T03:59:00Z', temperature: 23, weatherCode: 3, temperatureMin: 19, temperatureMax: 26, precipitationProbability: 65 } }))
   await page.goto('/')
   await locate(page)
@@ -130,7 +129,7 @@ test('有效地区午夜更新日历与任务，天气独立且失败不改地�
   await expect(page.getByRole('dialog')).toContainText('八月廿六')
   await page.keyboard.press('Escape')
   await expect(calendar).toContainText('八月廿六')
-  await expect(page.getByRole('button', { name: '查看今日待办详情' })).toContainText('当天任务 2026-10-06')
+  await expect(page.getByRole('button', { name: '查看今日待办详情' })).toHaveCount(0)
   await page.getByRole('button', { name: '查看今日天气详情' }).click()
   await expect(page.getByRole('dialog')).toContainText('2026-10-05')
   await page.keyboard.press('Escape')

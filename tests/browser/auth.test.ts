@@ -134,7 +134,7 @@ test('明确过期的业务读取由 SDK 续期后重试一次', async ({ page }
     return route.fulfill({ json: { ...session, access_token: 'renewed-access-token', refresh_token: 'renewed-refresh-token' } })
   })
   await page.route(/\/api\/(?!auth\/)/, route => {
-    const expired = route.request().url().includes('/api/tasks/') && route.request().headers().authorization === 'Bearer test-access-token'
+    const expired = route.request().url().includes('/api/domains') && route.request().headers().authorization === 'Bearer test-access-token'
     if (route.request().headers().authorization === 'Bearer renewed-access-token') renewedRequests++
     return route.fulfill({ status: expired ? 401 : 503, json: { error: { code: expired ? 'AUTH_EXPIRED' : 'SOURCE_UNAVAILABLE', message: '稍后重试' } } })
   })
@@ -243,7 +243,9 @@ test('刷新时显示首页骨架屏，准入完成前不请求或展示业务�
   try {
     await expect(page.getByRole('status', { name: '正在确认访问资格' })).toBeVisible()
     await expect(page.locator('.auth-card')).toHaveCount(0)
-    await expect(page.getByRole('button', { name: '查看今日待办详情' })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: '查看世界时间详情' })).toHaveCount(0)
+    await expect(page.getByText('今日待办', { exact: true })).toHaveCount(0)
+    await expect(page.locator('.auth-home-skeleton .info-panel')).toHaveCount(6)
     await expect(page.getByRole('link', { name: '新闻', exact: true })).toHaveCount(0)
     expect(businessRequests).toBe(readyRequests)
     for (const width of [1440, 390]) {
@@ -428,7 +430,7 @@ test('到期续期遇临时断网显示不可用，恢复后仍使用原会话�
 
 test('另一标签重新登录后，迟到续期不能覆盖新会话或触发旧请求退出', async ({ browser }) => {
   const context = await browser.newContext()
-  let passwordLogins = 0; let expireTasks = false; let refreshing = false
+  let passwordLogins = 0; let expireDomains = false; let refreshing = false
   let releaseRefresh: (() => void) | undefined
   const held = new Promise<void>(resolve => { releaseRefresh = resolve })
   const active = new Set<string>()
@@ -442,7 +444,7 @@ test('另一标签重新登录后，迟到续期不能覆盖新会话或触发�
     await context.route('https://auth-test.supabase.co/auth/v1/logout**', route => { active.delete(session.access_token); return route.fulfill({ status: 204 }) })
     await context.route('**/api/auth/me', route => route.fulfill(active.has(route.request().headers().authorization?.replace('Bearer ', '') ?? '') ? { json: { user: { id: user.id, email: user.email } } } : { status: 401, json: { error: { code: 'AUTH_INVALID', message: '登录失效' } } }))
     await context.route(/\/api\/(?!auth\/)/, route => {
-      const expired = expireTasks && route.request().url().includes('/api/tasks/') && route.request().headers().authorization === `Bearer ${session.access_token}`
+      const expired = expireDomains && route.request().url().includes('/api/domains') && route.request().headers().authorization === `Bearer ${session.access_token}`
       return route.fulfill({ status: expired ? 401 : 503, json: { error: { code: expired ? 'AUTH_EXPIRED' : 'SOURCE_UNAVAILABLE', message: '稍后重试' } } })
     })
     const first = await context.newPage(); const second = await context.newPage()
@@ -453,8 +455,8 @@ test('另一标签重新登录后，迟到续期不能覆盖新会话或触发�
     await expect(first.getByRole('button', { name: '查看世界时间详情' })).toBeVisible()
     await second.goto('/')
     await expect(second.getByRole('button', { name: '查看世界时间详情' })).toBeVisible()
-    expireTasks = true
-    await first.getByRole('button', { name: '刷新今日待办', exact: true }).click()
+    expireDomains = true
+    await first.getByRole('button', { name: '刷新DNSHE 域名', exact: true }).click()
     await expect.poll(() => refreshing).toBe(true)
     await second.getByRole('button', { name: '账户菜单' }).click()
     await second.getByRole('menuitem', { name: '退出登录' }).click()
