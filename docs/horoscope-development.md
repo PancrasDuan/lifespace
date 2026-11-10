@@ -6,7 +6,7 @@
 
 - 首页一张运势卡片，十二个名称与单色星座图标独立打开；首页不获取运势。
 - 二级卡片正面显示日期、五项指数、幸运信息与来源，背面显示完整文字、提示和宜忌；翻转不请求接口。
-- `GET /api/horoscope?sign=libra` 只接受唯一合法 `sign` 参数；有效当日 KV 缓存匿名可读，命中不请求 Auth。未命中仍须在线登录和白名单检查通过，再加入在途合并或请求 ALAPI。网站界面及其他 API 保持既有准入规则。
+- `GET /api/horoscope?sign=libra` 只接受唯一合法 `sign` 参数，且无论缓存是否命中都先完成与其他业务接口相同的在线登录和白名单检查。未通过时不读取 KV、不回源、不写缓存；通过后未命中才加入在途合并或请求 ALAPI。
 - ALAPI 成功内容标准化后按 `Asia/Shanghai` 日期与星座存入 KV，绝对期限为次日北京时间零点；不足 60 秒不写入。
 - 缓存、上游、浏览器都校验内容归属与日期。跨日清除旧展示；昨日内容显示“今日运势暂未更新”。
 - 缓存读取失败不回源；写入失败保留本次内容并进入 60 秒退避。实例内有限等待后复用已完成的普通数据，首请求未完成则返回忙碌状态，不共享在途 I/O Promise；回源间隔至少 1.1 秒；一般上游失败退避 10 秒，日额度耗尽保守退避至下一个北京日期。不承诺跨实例严格限流或仅回源一次。
@@ -27,7 +27,7 @@ npx vite --config vite.horoscope-preview.config.ts
 ## 核验方法
 
 - 接口：`npx vitest run tests/api/horoscope.test.ts`；通过真实应用路由与鉴权，外部 Auth、ALAPI 和 KV 使用替身。
-- 浏览器：`npx playwright test tests/browser/horoscope.test.ts`；包含浏览器→本地 HTTP→真实 Worker 应用路由及鉴权→受控 ALAPI/KV 的链路，重载后核对第二次 KV 读取与一次上游调用。
+- 浏览器：`npx playwright test tests/browser/horoscope.test.ts`；包含浏览器→本地 HTTP→真实 Worker 应用路由及鉴权→受控 ALAPI/KV 的链路，重载后核对第二次 KV 读取、第二次鉴权与一次上游调用。
 - 整体检查使用项目既有密钥扫描、API、安全、类型、构建及浏览器回归。截图见 `docs/evidence/horoscope-dev/`，仅为开发预览。
 
 ## 核验结果

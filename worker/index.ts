@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { listLedger, detailLedger, createLedger, createLedgerEntry, createLedgerRefund, createLedgerTransfer, refundLedger, previewLedgerDelete, deleteLedger, listLedgerAccounts, readLedgerAccounts, createLedgerAccount, updateLedgerAccount } from './ledger'
 import { readTaskList, readRewardSource, readGrowth, readTaskHistory, readMigrationOptions, readPlanning, previewPlanning, commandPlanning } from './adventure/planning'
-import { readHoroscope, type HoroscopeTimings } from './horoscope'
+import { readHoroscope } from './horoscope'
 import { readTasks } from './tasks'
 import { ApiError, apiErrorBody } from './upstream'
 import { searchLocations } from './weather'
@@ -15,21 +15,10 @@ import { verifyAgentIdentity } from './agent-auth'
 import { handleAgentMcp } from './agent-mcp'
 import { beginTrace, traceErrorCode, withRootSpan } from './trace'
 
-const app = new Hono<{ Bindings: AuthEnv; Variables: { identity: Identity; horoscopeTimings?: HoroscopeTimings; horoscopeCacheHit?: boolean } }>()
+const app = new Hono<{ Bindings: AuthEnv; Variables: { identity: Identity } }>()
 app.use('/api/*', async (c, next) => {
   c.header('Cache-Control', 'no-store')
   await withRootSpan(beginTrace(c), () => next())
-})
-app.use('/api/horoscope', async (c, next) => {
-  const started = performance.now()
-  const timings: HoroscopeTimings = {}
-  c.set('horoscopeTimings', timings)
-  try { await next() } finally {
-    timings.total = performance.now() - started
-    const elapsed = Object.fromEntries(Object.entries(timings).map(([stage, duration]) => [stage, Math.round(duration * 10) / 10]))
-    c.header('Server-Timing', Object.entries(elapsed).map(([stage, duration]) => `${stage};dur=${duration}`).join(', '))
-    console.info(JSON.stringify({ event: 'horoscope_timing', status: c.res.status, cacheHit: c.get('horoscopeCacheHit') ?? null, durationsMs: elapsed }))
-  }
 })
 app.get('/api/auth/config', c => c.json(publicConfig(c.env)))
 app.post('/api/auth/hooks/before-user-created', async c => {
@@ -40,16 +29,6 @@ app.post('/api/auth/hooks/before-user-created', async c => {
     traceErrorCode(error instanceof ApiError ? error.code : 'INTERNAL_ERROR', c.req.path, c)
     return c.json({ error: { http_code: 503, message: '注册服务暂时不可用' } }, 503)
   }
-})
-app.get('/api/horoscope', async c => {
-  const timings = c.get('horoscopeTimings')
-  const result = await readHoroscope(c.env, new URL(c.req.url).searchParams, async () => {
-    const started = performance.now()
-    try { await verifyIdentity(c.env, c.req.header('Authorization'), c.req.path) }
-    finally { if (timings) timings.auth = performance.now() - started }
-  }, timings)
-  c.set('horoscopeCacheHit', result.cacheHit)
-  return c.json(result)
 })
 app.use('/api/*', async (c, next) => {
   if (c.req.path === '/api/agent/mcp') {
@@ -70,6 +49,7 @@ app.all('/api/agent/mcp', async c => {
   return response
 })
 app.get('/api/auth/me', c => c.json({ user: c.get('identity') }))
+app.get('/api/horoscope', async c => c.json(await readHoroscope(c.env, new URL(c.req.url).searchParams)))
 app.get('/api/ledger/entries', listLedger)
 app.get('/api/ledger/accounts', listLedgerAccounts)
 app.post('/api/ledger/accounts', createLedgerAccount)

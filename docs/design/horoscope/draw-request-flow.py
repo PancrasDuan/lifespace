@@ -3,8 +3,8 @@ from pathlib import Path
 
 W,H=1760,1680
 svg=Element('svg', {'xmlns':'http://www.w3.org/2000/svg','width':str(W),'height':str(H),'viewBox':f'0 0 {W} {H}','role':'img','aria-labelledby':'title desc'})
-SubElement(svg,'title',{'id':'title'}).text='LifeSpace 星座运势当前请求流程与实测耗时'
-SubElement(svg,'desc',{'id':'desc'}).text='浏览器内存未命中时，请求经本地 Wrangler 转发至 Cloudflare Worker，先读取 KV；有效当日缓存匿名返回，未命中才验证 Supabase 会话和白名单，之后调用 ALAPI，校验内容并等待 KV 写入后返回。红色标出实测主要等待阶段。'
+SubElement(svg,'title',{'id':'title'}).text='LifeSpace 星座运势 2026-10-22 请求流程与实测耗时'
+SubElement(svg,'desc',{'id':'desc'}).text='这是 2026-10-22 的旧方案记录，不是当前鉴权顺序。当时浏览器内存未命中后先读取 KV；有效当日缓存匿名返回，未命中才验证 Supabase 会话和白名单，之后调用 ALAPI。红色标出当时实测的主要等待阶段。'
 def node(tag,attrs=None,parent=svg): return SubElement(parent,tag,{k:str(v) for k,v in (attrs or {}).items()})
 def rect(x,y,w,h,fill='#ffffff',stroke='none',radius=14,parent=svg):
  return node('rect',{'x':x,'y':y,'width':w,'height':h,'rx':radius,'fill':fill,'stroke':stroke},parent)
@@ -41,7 +41,7 @@ rect(0,0,W,H,'#f7f8f4',radius=0)
 rect(0,0,W,7,'#203f35',radius=0)
 text(64,52,'LIFESPACE  /  REQUEST MAP  /  2026.10.22',14,'#6a7e70',600)
 text(64,108,'星座运势：一次点击，哪些请求真的发生？',39,'#193d31',650)
-text(64,146,'当前方案：当日有效 KV 缓存匿名可读；缓存未命中先鉴权，再按需回源。',19,'#607367')
+text(64,146,'2026-10-22 旧方案记录：当日有效 KV 缓存匿名可读；不是当前鉴权顺序。',19,'#607367')
 rect(64,177,1632,100,'#eaf0e6','#d7e1d1')
 badge(84,194,'先看浏览器内存','#d5e4ce','#345d38',174)
 text(280,216,'当天、同星座且内存结果仍有效 → 直接展示，不发送业务请求。',20,'#294d3a',550)
