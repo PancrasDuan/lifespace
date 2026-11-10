@@ -33,60 +33,59 @@ function setup(date = '2026-10-22T08:00:00Z') {
   return { entries, get, put, fetch, env }
 }
 
-test('有效当日缓存允许匿名读取，不访问 Auth、ALAPI 或写入 KV', async () => {
+test('有效当日缓存仍须登录，命中不访问 ALAPI 或写入 KV', async () => {
   const { default: raw } = await import('../../worker/index')
   const s = setup()
   expect((await app.request('/api/horoscope?sign=libra', {}, s.env)).status).toBe(200)
-  s.fetch.mockClear(); s.put.mockClear()
-  const response = await raw.request('/api/horoscope?sign=libra', {}, { HOROSCOPE_KV: s.env.HOROSCOPE_KV })
+  s.fetch.mockClear(); s.put.mockClear(); s.get.mockClear()
+  const anonymous = await raw.request('/api/horoscope?sign=libra', {}, { HOROSCOPE_KV: s.env.HOROSCOPE_KV })
+  expect(anonymous.status).toBe(401)
+  expect(await anonymous.json()).toEqual({ error: { code: 'AUTH_REQUIRED', message: '请先登录' } })
+  expect(s.get).not.toHaveBeenCalled(); expect(s.fetch).not.toHaveBeenCalled(); expect(s.put).not.toHaveBeenCalled()
+  const response = await app.request('/api/horoscope?sign=libra', {}, s.env)
   expect(response.status).toBe(200)
   expect(await response.json()).toMatchObject({ sign: 'libra', cacheHit: true, dataDate: '2026-10-22' })
-  expect(response.headers.get('Server-Timing')).not.toContain('auth;')
-  expect(s.fetch).not.toHaveBeenCalled()
-  expect(s.put).not.toHaveBeenCalled()
+  expect(s.fetch).not.toHaveBeenCalled(); expect(s.put).not.toHaveBeenCalled()
 })
 
-test('未命中缓存时未登录或非白名单不访问 ALAPI、不写 KV', async () => {
+test('未登录或非白名单不读取缓存、不回源、不写 KV', async () => {
   const { default: raw } = await import('../../worker/index')
   const s = setup()
-  expect((await raw.request('/api/horoscope?sign=libra', {}, s.env)).status).toBe(401)
+  const missing = await raw.request('/api/horoscope?sign=nope', {}, s.env)
+  expect(missing.status).toBe(401)
+  expect(await missing.json()).toEqual({ error: { code: 'AUTH_REQUIRED', message: '请先登录' } })
   const encode = (value: unknown) => btoa(JSON.stringify(value)).replace(/=/g, '')
   const jwt = `${encode({ alg: 'HS256' })}.${encode({ sub: '00000000-0000-4000-8000-000000000001', session_id: '00000000-0000-4000-8000-000000000002', exp: 4102444800 })}.test-signature`
   s.fetch.mockImplementation(async () => Response.json({ id: '00000000-0000-4000-8000-000000000001', email: 'other@example.com', email_confirmed_at: '2026-10-22', is_anonymous: false }))
-  expect((await raw.request('/api/horoscope?sign=libra', { headers: { Authorization: `Bearer ${jwt}` } }, { ...s.env, SUPABASE_URL: 'https://auth-test.supabase.co', SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_test-only', AUTH_ALLOWED_EMAILS: 'demo@example.com' })).status).toBe(403)
-  expect(s.get).toHaveBeenCalledTimes(2); expect(s.put).not.toHaveBeenCalled()
+  const denied = await raw.request('/api/horoscope?sign=libra', { headers: { Authorization: `Bearer ${jwt}` } }, { ...s.env, SUPABASE_URL: 'https://auth-test.supabase.co', SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_test-only', AUTH_ALLOWED_EMAILS: 'demo@example.com' })
+  expect(denied.status).toBe(403)
+  expect(await denied.json()).toEqual({ error: { code: 'AUTH_DENIED', message: '此账户暂未获准访问' } })
+  expect(s.get).not.toHaveBeenCalled(); expect(s.put).not.toHaveBeenCalled()
   expect(s.fetch).toHaveBeenCalledTimes(1)
 })
 
-test('失效凭据不影响公共缓存读取，其他业务接口仍要求登录', async () => {
+test('失效凭据不能读取运势缓存，其他业务接口仍要求登录', async () => {
   const { default: raw } = await import('../../worker/index')
   const s = setup()
   await app.request('/api/horoscope?sign=libra', {}, s.env)
-  s.fetch.mockClear(); s.put.mockClear()
+  s.fetch.mockClear(); s.put.mockClear(); s.get.mockClear()
   const hit = await raw.request('/api/horoscope?sign=libra', { headers: { Authorization: 'Bearer invalid' } }, s.env)
-  expect(hit.status).toBe(200)
-  expect(await hit.json()).toMatchObject({ cacheHit: true })
+  expect(hit.status).toBe(401)
+  expect(await hit.json()).toEqual({ error: { code: 'AUTH_INVALID', message: '登录已失效，请重新登录' } })
   for (const path of ['/api/auth/me', '/api/tasks/today', '/api/domains', '/api/news/source?id=baidu', '/api/weather/detail']) {
     expect((await raw.request(path, {}, s.env)).status).toBe(401)
   }
-  expect(s.fetch).not.toHaveBeenCalled(); expect(s.put).not.toHaveBeenCalled()
+  expect(s.get).not.toHaveBeenCalled(); expect(s.fetch).not.toHaveBeenCalled(); expect(s.put).not.toHaveBeenCalled()
 })
 
-test('匿名请求不能读取损坏、过期、异星座缓存，也不能在 KV 故障时回源', async () => {
+test('未登录不因缓存损坏或 KV 故障而回源', async () => {
   const { default: raw } = await import('../../worker/index')
-  const seed = setup()
-  await app.request('/api/horoscope?sign=libra', {}, seed.env)
-  const original = JSON.parse([...seed.entries.values()][0])
-  for (const value of ['bad-json', JSON.stringify({}), JSON.stringify({ ...original, sign: 'leo' }), JSON.stringify({ ...original, validUntil: '2026-10-21T16:00:00.000Z' })]) {
-    const s = setup()
-    s.get.mockResolvedValue(value)
-    expect((await raw.request('/api/horoscope?sign=libra', {}, s.env)).status).toBe(401)
-    expect(s.fetch).not.toHaveBeenCalled(); expect(s.put).not.toHaveBeenCalled()
-  }
   const s = setup()
   s.get.mockRejectedValue(new Error('private'))
-  expect((await raw.request('/api/horoscope?sign=libra', {}, s.env)).status).toBe(503)
-  expect(s.fetch).not.toHaveBeenCalled(); expect(s.put).not.toHaveBeenCalled()
+  const response = await raw.request('/api/horoscope?sign=libra', {}, s.env)
+  expect(response.status).toBe(401)
+  expect(await response.json()).toEqual({ error: { code: 'AUTH_REQUIRED', message: '请先登录' } })
+  expect(s.get).not.toHaveBeenCalled(); expect(s.fetch).not.toHaveBeenCalled(); expect(s.put).not.toHaveBeenCalled()
 })
 
 test('未登录请求不能加入正在回源的读取，也不阻碍获准请求填充缓存', async () => {
@@ -108,7 +107,8 @@ test('未登录请求不能加入正在回源的读取，也不阻碍获准请�
   expect(s.put).not.toHaveBeenCalled()
   release()
   expect((await first).status).toBe(200)
-  const cached = await raw.request('/api/horoscope?sign=libra', {}, env)
+  expect((await raw.request('/api/horoscope?sign=libra', {}, env)).status).toBe(401)
+  const cached = await raw.request('/api/horoscope?sign=libra', { headers: { Authorization: `Bearer ${horoscopeTestToken}` } }, env)
   expect(cached.status).toBe(200)
   expect(await cached.json()).toMatchObject({ cacheHit: true })
   expect(upstreamCalls).toBe(1)
@@ -307,42 +307,3 @@ test('首请求尚未完成时，合并等待有界退出，不借用其 I/O Pro
   expect((await first).status).toBe(200)
 })
 
-test('正式接口返回不含凭据的分段耗时，缓存命中不包含 ALAPI 阶段', async () => {
-  const s = setup()
-  const first = await app.request('/api/horoscope?sign=libra', {}, s.env)
-  expect(first.headers.get('Server-Timing')).toMatch(/auth;dur=[\d.]+/)
-  expect(first.headers.get('Server-Timing')).toMatch(/kv_read;dur=[\d.]+/)
-  expect(first.headers.get('Server-Timing')).toMatch(/alapi;dur=[\d.]+/)
-  expect(first.headers.get('Server-Timing')).toMatch(/alapi_headers;dur=[\d.]+/)
-  expect(first.headers.get('Server-Timing')).toMatch(/alapi_body;dur=[\d.]+/)
-  expect(first.headers.get('Server-Timing')).toMatch(/kv_write;dur=[\d.]+/)
-  const next = await app.request('/api/horoscope?sign=libra', {}, s.env)
-  expect(next.headers.get('Server-Timing')).toContain('kv_read;dur=')
-  expect(next.headers.get('Server-Timing')).not.toContain('alapi;')
-  expect(next.headers.get('Server-Timing')).not.toContain('alapi_headers;')
-  expect(next.headers.get('Server-Timing')).not.toContain('alapi_body;')
-  expect(next.headers.get('Server-Timing')).not.toContain('test-horoscope-credential')
-})
-
-test('ALAPI 响应头等待与延迟正文分别计时', async () => {
-  const s = setup()
-  let clock = 0
-  const timer = vi.spyOn(performance, 'now').mockImplementation(() => clock)
-  try {
-    s.fetch.mockImplementation(async () => {
-      clock += 700
-      return new Response(new ReadableStream({
-        pull(controller) {
-          clock += 50
-          controller.enqueue(new TextEncoder().encode(JSON.stringify(alapiSuccess())))
-          controller.close()
-        },
-      }, { highWaterMark: 0 }))
-    })
-    const response = await app.request('/api/horoscope?sign=libra', {}, s.env)
-    expect(response.status).toBe(200)
-    expect(response.headers.get('Server-Timing')).toContain('alapi_headers;dur=700')
-    expect(response.headers.get('Server-Timing')).toContain('alapi_body;dur=50')
-    expect(response.headers.get('Server-Timing')).toContain('alapi;dur=750')
-  } finally { timer.mockRestore() }
-})

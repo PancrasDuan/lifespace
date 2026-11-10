@@ -40,6 +40,39 @@ test('认证成功后把身份、会话和路径写到根 span，且不改变响
   forbidSecrets()
 })
 
+test('运势缓存命中仍在认证成功后写入身份、会话和路径', async () => {
+  vi.useFakeTimers(); vi.setSystemTime(new Date('2026-10-22T08:00:00Z'))
+  const cached = {
+    version: 1, source: 'ALAPI', sign: 'libra', dataDate: '2026-10-22',
+    fetchedAt: '2026-10-22T01:00:00.000Z', validUntil: '2026-10-22T16:00:00.000Z',
+    scores: { all: 85, love: null, work: null, money: null, health: null },
+    texts: { all: '稳住节奏，踏实推进。', love: null, work: null, money: null, health: null },
+    lucky: { color: null, number: null, sign: null }, notice: null, yi: null, ji: null,
+  }
+  const upstream = vi.fn(async () => Response.json(user))
+  vi.stubGlobal('fetch', upstream)
+  const kv = { get: vi.fn(async () => JSON.stringify(cached)), put: vi.fn() }
+  try {
+    const response = await app.request('/api/horoscope?sign=libra', { headers: { Authorization: `Bearer ${token}` } }, { ...env, ALAPI_TOKEN: 'test-horoscope-credential', HOROSCOPE_KV: kv as unknown as KVNamespace })
+    expect(response.status).toBe(200)
+    expect(await response.json()).toMatchObject({ cacheHit: true, sign: 'libra' })
+    expect(upstream).toHaveBeenCalledTimes(1)
+    expect(kv.put).not.toHaveBeenCalled()
+    expect(span.attributes).toEqual({ 'user.id': userId, 'session.id': sessionId, 'http.route': '/api/horoscope' })
+    forbidSecrets()
+  } finally { vi.useRealTimers() }
+})
+
+test('未登录读取运势只写错误码和路径，且不读取缓存', async () => {
+  const kv = { get: vi.fn(), put: vi.fn() }
+  const response = await app.request('/api/horoscope?sign=libra&do-not-trace=1', {}, { ...env, HOROSCOPE_KV: kv as unknown as KVNamespace })
+  expect(response.status).toBe(401)
+  expect(await response.json()).toEqual({ error: { code: 'AUTH_REQUIRED', message: '请先登录' } })
+  expect(kv.get).not.toHaveBeenCalled()
+  expect(span.attributes).toEqual({ 'error.code': 'AUTH_REQUIRED', 'http.route': '/api/horoscope' })
+  forbidSecrets()
+})
+
 test('没有活动 span 时认证响应保持不变', async () => {
   clearTraceSpan()
   vi.stubGlobal('fetch', vi.fn(async () => Response.json(user)))

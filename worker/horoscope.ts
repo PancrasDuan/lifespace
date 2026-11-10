@@ -5,7 +5,6 @@ import { BodyLimitError, readBoundedBody } from './read-body'
 import { traceUpstreamFailure, traceUpstreamStatus, upstreamFailureType } from './trace'
 
 // 仅包含外部 binding 的必要操作；缺失配置时保持正式服务的未配置状态。
-export type HoroscopeTimings = Partial<Record<'auth' | 'kv_read' | 'alapi' | 'alapi_headers' | 'alapi_body' | 'kv_write' | 'coalesce' | 'total', number>>
 export type HoroscopeEnv = { ALAPI_TOKEN?: string; HOROSCOPE_KV?: Pick<KVNamespace, 'get' | 'put'> }
 type Flight = { until: number; result?: HoroscopeResult; error?: { code: string; message: string; status: ApiError['status'] } }
 type State = { pending: Map<string, Flight>; nextRead: number; blocked?: { until: number; error: ApiError } }
@@ -24,22 +23,18 @@ const daySchema = z.object({
 })
 const envelopeSchema = z.object({ success: z.boolean(), code: z.number(), data: z.unknown().optional() })
 
-async function readAlapi(token: string, sign: ZodiacSign, date: string, timings?: HoroscopeTimings): Promise<Horoscope> {
-  const measure = async <T>(stage: 'alapi_headers' | 'alapi_body', run: () => Promise<T>): Promise<T> => {
-    const started = performance.now()
-    try { return await run() } finally { if (timings) timings[stage] = performance.now() - started }
-  }
+async function readAlapi(token: string, sign: ZodiacSign, date: string): Promise<Horoscope> {
   try {
-    const response = await measure('alapi_headers', () => fetch('https://v3.alapi.cn/api/star', {
+    const response = await fetch('https://v3.alapi.cn/api/star', {
       method: 'POST', headers: { token, 'Content-Type': 'application/json' }, body: JSON.stringify({ star: sign }),
       redirect: 'manual', signal: AbortSignal.timeout(10000),
-    }))
+    })
     if (response.status === 429) { traceUpstreamStatus(response.status); throw failure('HOROSCOPE_RATE_LIMITED', '运势读取过于频繁，请稍后重新读取', 429) }
     if (response.status === 401 || response.status === 403) { traceUpstreamStatus(response.status); throw failure('HOROSCOPE_TOKEN_INVALID', '运势数据源授权失效，请检查服务端配置') }
     if (!response.ok) { traceUpstreamStatus(response.status); throw failure('HOROSCOPE_SOURCE_UNAVAILABLE', '运势数据源暂时不可用') }
     if (!response.body) { traceUpstreamFailure('invalid-response'); throw invalid() }
     const body = response.body
-    const text = await measure('alapi_body', () => readBoundedBody(body, 256000, 10000))
+    const text = await readBoundedBody(body, 256000, 10000)
     const envelope = envelopeSchema.safeParse(JSON.parse(text))
     if (!envelope.success) { traceUpstreamFailure('invalid-response'); throw invalid() }
     const value = envelope.data
@@ -75,11 +70,7 @@ async function readAlapi(token: string, sign: ZodiacSign, date: string, timings?
   }
 }
 
-export async function readHoroscope(env: HoroscopeEnv, params: URLSearchParams, authorizeRefresh: () => Promise<void>, timings?: HoroscopeTimings): Promise<HoroscopeResult> {
-  const measure = async <T>(stage: keyof HoroscopeTimings, run: () => Promise<T>): Promise<T> => {
-    const started = performance.now()
-    try { return await run() } finally { if (timings) timings[stage] = performance.now() - started }
-  }
+export async function readHoroscope(env: HoroscopeEnv, params: URLSearchParams): Promise<HoroscopeResult> {
   const selected = signSchema.safeParse(params.get('sign'))
   if (!selected.success || [...params.keys()].some(key => key !== 'sign') || params.getAll('sign').length !== 1) throw new ApiError('HOROSCOPE_SIGN_INVALID', '请选择有效星座', 400)
   const kv = env.HOROSCOPE_KV
@@ -89,15 +80,12 @@ export async function readHoroscope(env: HoroscopeEnv, params: URLSearchParams, 
   const key = `horoscope:v1:alapi:Asia-Shanghai:${date}:${sign}`
   let cached: unknown
   try {
-    const stored = await measure('kv_read', () => kv.get(key))
+    const stored = await kv.get(key)
     if (stored && stored.length <= 256000) { try { cached = JSON.parse(stored) } catch { /* 损坏缓存按未命中处理。 */ } }
   } catch { throw failure('HOROSCOPE_CACHE_UNAVAILABLE', '运势缓存暂时不可用，请稍后重新读取', 503) }
   if (beijingDate(Date.now()) !== date) throw notUpdated()
   const decoded = horoscopeSchema.safeParse(cached)
   if (decoded.success && isCurrentHoroscope(decoded.data, sign, Date.now())) return { ...decoded.data, cacheHit: true }
-  // 只有有效 KV 内容可以公开；鉴权前不加入在途回源，也不更改实例限流状态。
-  await authorizeRefresh()
-  if (beijingDate(Date.now()) !== date) throw notUpdated()
   const token = env.ALAPI_TOKEN
   if (!token?.trim()) throw failure('HOROSCOPE_NOT_CONFIGURED', '服务尚未配置', 503)
   let state = states.get(kv)
@@ -106,7 +94,7 @@ export async function readHoroscope(env: HoroscopeEnv, params: URLSearchParams, 
   const existing = state.pending.get(key)
   if (existing) {
     // 等待属于当前请求；首请求取消或耗时较长时有限退出，由使用者重新读取。
-    await measure('coalesce', () => new Promise<void>(resolve => setTimeout(resolve, 1100)))
+    await new Promise<void>(resolve => setTimeout(resolve, 1100))
     if (beijingDate(Date.now()) !== date) throw notUpdated()
     if (existing.result && isCurrentHoroscope(existing.result, sign, Date.now())) return existing.result
     if (existing.error) throw new ApiError(existing.error.code, existing.error.message, existing.error.status)
@@ -120,7 +108,7 @@ export async function readHoroscope(env: HoroscopeEnv, params: URLSearchParams, 
     if (Date.now() < currentState.nextRead) throw failure('HOROSCOPE_RATE_LIMITED', '运势读取过于频繁，请稍后重新读取', 429)
     currentState.nextRead = Date.now() + 1100
     let data: Horoscope
-    try { data = await measure('alapi', () => readAlapi(token, sign, date, timings)) }
+    try { data = await readAlapi(token, sign, date) }
     catch (error) {
       const safeError = error instanceof ApiError ? error : invalid()
       currentState.blocked = { until: safeError.code === 'HOROSCOPE_QUOTA_EXHAUSTED' ? horoscopeDeadline(date) : Date.now() + 10000, error: safeError }
@@ -128,7 +116,7 @@ export async function readHoroscope(env: HoroscopeEnv, params: URLSearchParams, 
     }
     let warning: string | undefined
     if (horoscopeDeadline(date) - Date.now() >= 60000) {
-      try { await measure('kv_write', () => kv.put(key, JSON.stringify(data), { expiration: horoscopeDeadline(date) / 1000 })) }
+      try { await kv.put(key, JSON.stringify(data), { expiration: horoscopeDeadline(date) / 1000 }) }
       catch {
         warning = '本次运势已获取，缓存暂存失败'
         currentState.blocked = { until: Date.now() + 60000, error: failure('HOROSCOPE_CACHE_UNAVAILABLE', '运势缓存暂时不可用，请稍后重新读取', 503) }
