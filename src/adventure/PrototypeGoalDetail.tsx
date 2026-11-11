@@ -4,9 +4,9 @@ import { MoreActions } from './PrototypeRecord'
 import { PlanningCompletionOrigin } from './PlanningCompletionOrigin'
 import { PlanningTaskHistory } from './PlanningReschedule'
 
-export function PrototypeGoalDetail({ goal, history, pageSize, blocked, edit, addTask, focus, achieve, migrate, end, changePage, reorder }: {
+export function PrototypeGoalDetail({ goal, history, pageSize, blocked, edit, addTask, achieve, end, changePage, reorder }: {
   goal: PlanningGoal; history: PlanningPage['goalDetail']; pageSize: number; blocked: boolean
-  edit: () => void; addTask: () => void; focus: () => void; achieve: () => void; migrate: () => void; end: () => void; changePage: (page: number) => void
+  edit: () => void; addTask: () => void; achieve: () => void; end: () => void; changePage: (page: number) => void
   reorder?: React.ReactNode
 }) {
   const active = goal.status === 'active'
@@ -20,8 +20,7 @@ export function PrototypeGoalDetail({ goal, history, pageSize, blocked, edit, ad
     {active && !goal.capabilities.achieve?.allowed && <p className="adventure-hint">{goal.capabilities.achieve?.reason}</p>}
     <div className="record-actions">
       {active ? <><button type="button" className="action-primary" disabled={blocked || !goal.capabilities.achieve?.allowed} title={goal.capabilities.achieve?.reason} onClick={achieve}>确认达成</button>
-        <button disabled={blocked || !goal.capabilities.focus?.allowed} title={goal.capabilities.focus?.reason} onClick={focus}>{goal.focused ? '取消聚焦' : '聚焦'}</button>
-        <MoreActions><button disabled={blocked || !goal.capabilities.edit?.allowed} onClick={edit}>编辑目标</button><button disabled={blocked || !goal.capabilities.createTask?.allowed} title={goal.capabilities.createTask?.reason} onClick={addTask}>添加任务</button><button disabled={blocked || !goal.capabilities.migrate?.allowed} title={goal.capabilities.migrate?.reason} onClick={migrate}>迁移目标</button><button disabled={blocked || !goal.capabilities.end?.allowed} title={goal.capabilities.end?.reason} onClick={end}>结束目标</button></MoreActions>{reorder && <div className="goal-reorder-actions">{reorder}</div>}</>
+        <MoreActions><button disabled={blocked || !goal.capabilities.edit?.allowed} onClick={edit}>编辑目标</button><button disabled={blocked || !goal.capabilities.createTask?.allowed} title={goal.capabilities.createTask?.reason} onClick={addTask}>添加任务</button><button disabled={blocked || !goal.capabilities.end?.allowed} title={goal.capabilities.end?.reason} onClick={end}>结束目标</button></MoreActions>{reorder && <div className="goal-reorder-actions">{reorder}</div>}</>
         : <span className="terminal-note"><CircleCheck size={14} />{goal.status === 'achieved' ? '结果已冻结，只剩历史可以查看' : '目标已结束，只剩历史可以查看'}</span>}
     </div>
     {history && <section role="region" aria-label="目标任务历史"><h4>任务历史</h4>

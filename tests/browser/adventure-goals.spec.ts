@@ -1,4 +1,3 @@
-import { openRecordActions } from './adventure-record-helpers'
 import { test, expect } from './authenticated-test'
 import { allowed, later, planningFixture, withGoal, goalId } from './adventure-fixture'
 import type { GoalAchievementPreview, PlanningPage } from '../../src/shared/adventure-planning'
@@ -19,8 +18,7 @@ test('达成后切到今天再查看结果会返回规划并展开冻结结果',
   const server = await planningFixture(context, initial)
   server.preview(preview)
   await page.goto('/adventure?view=planning')
-  await page.getByRole('button', { name: '目标：五公里', exact: true }).click()
-  await page.getByRole('button', { name: '确认达成', exact: true }).click()
+  await page.getByRole('row', { name: /五公里/ }).getByRole('button', { name: '达成', exact: true }).click()
   server.saved(achieved)
   await page.getByRole('button', { name: '确认达成并入账', exact: true }).click()
   const details = page.getByRole('region', { name: '目标详情', exact: true })
@@ -29,7 +27,7 @@ test('达成后切到今天再查看结果会返回规划并展开冻结结果',
   await navigation.getByRole('button', { name: '今日聚焦', exact: true }).click()
   await expect(navigation.getByRole('button', { name: '今日聚焦', exact: true })).toHaveAttribute('aria-current', 'page')
   await page.getByRole('button', { name: '查看达成结果', exact: true }).click()
-  await expect(navigation.getByRole('button', { name: '主线与目标', exact: true })).toHaveAttribute('aria-current', 'page')
+  await expect(navigation.getByRole('button', { name: '目标', exact: true })).toHaveAttribute('aria-current', 'page')
   await expect(details).toContainText('已达成 · 结果已冻结')
   expect(server.envelopes).toHaveLength(1)
 })
@@ -43,7 +41,7 @@ test('永久链接首次读取失败时能退出目标查询，也能重试恢�
   const exited = page.waitForRequest(request => request.method() === 'GET' && new URL(request.url()).pathname === '/api/adventure')
   await page.getByRole('button', { name: '返回冒险', exact: true }).click()
   expect(new URL((await exited).url()).searchParams.has('goalId')).toBe(false)
-  await expect(page.getByRole('button', { name: '新建主线', exact: true })).toBeEnabled()
+  await expect(page.getByRole('button', { name: '新建目标', exact: true })).toBeEnabled()
   await expect(page.getByRole('dialog')).toHaveCount(0)
   server.failNextQuery()
   await page.goto(`/adventure?goalId=${goalId}`)

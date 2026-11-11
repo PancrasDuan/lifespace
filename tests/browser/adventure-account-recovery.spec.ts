@@ -1,5 +1,5 @@
 import { test, expect } from './authenticated-test'
-import { withMainline } from './adventure-fixture'
+import { withGoal } from './adventure-fixture'
 
 test('账户切换期间迟到的旧账户规划响应不能覆盖新账户或阻塞新版本', async ({ page, context }) => {
   const first = '00000000-0000-4000-8000-000000000001'
@@ -11,12 +11,12 @@ test('账户切换期间迟到的旧账户规划响应不能覆盖新账户或�
   await context.route('**/api/adventure**', async route => {
     const account = owner
     if (hold && account === first) { held = true; await pending }
-    await route.fulfill({ json: { ...withMainline, version: account === first ? 100 : 1,
-      mainlines: [{ ...withMainline.mainlines[0], name: account === first ? '旧账户私有主线' : '新账户主线' }] } }).catch(() => {})
+    await route.fulfill({ json: { ...withGoal, version: account === first ? 100 : 1,
+      goals: [{ ...withGoal.goals[0], title: account === first ? '旧账户私有目标' : '新账户目标' }] } }).catch(() => {})
     if (account === first && held) settled = true
   })
   await page.goto('/adventure?view=planning')
-  await expect(page.getByRole('article', { name: '主线：旧账户私有主线', exact: true })).toBeVisible()
+  await expect(page.getByRole('row', { name: /旧账户私有目标/ })).toBeVisible()
   hold = true
   await page.getByLabel('显示已达成／已结束', { exact: true }).check()
   await expect.poll(() => held).toBe(true)
@@ -31,10 +31,10 @@ test('账户切换期间迟到的旧账户规划响应不能覆盖新账户或�
       channel.postMessage({ event: 'SIGNED_IN', session })
       channel.close()
     }, second)
-    await expect(page.getByRole('article', { name: '主线：新账户主线', exact: true })).toBeVisible()
+    await expect(page.getByRole('row', { name: /新账户目标/ })).toBeVisible()
   } finally { release() }
   await expect.poll(() => settled).toBe(true)
-  await expect(page.getByRole('article', { name: '主线：旧账户私有主线', exact: true })).toHaveCount(0)
-  await expect(page.getByRole('article', { name: '主线：新账户主线', exact: true })).toBeVisible()
-  await expect(page.getByRole('button', { name: '新建主线', exact: true })).toBeEnabled()
+  await expect(page.getByRole('row', { name: /旧账户私有目标/ })).toHaveCount(0)
+  await expect(page.getByRole('row', { name: /新账户目标/ })).toBeVisible()
+  await expect(page.getByRole('button', { name: '新建目标', exact: true })).toBeEnabled()
 })

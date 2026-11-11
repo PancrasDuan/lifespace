@@ -8,25 +8,20 @@ export const later = { allowed: false, reason: '此操作尚未交付' }
 export const emptyPlanning: PlanningPage = {
   tasks: [], totalTasks: 0, taskPage: 1, taskRange: 'today', taskScope: 'all', search: '',
   includeTerminal: false,
-  mainlineDetail: null,
   taskProgress: { completed: 0, total: 0, ratio: null },
   todayTaskProgress: { completed: 0, total: 0, ratio: null },
-  goalDetail: null, version: 0, today: '2026-10-20', mainlines: [], goals: [],
-  destinations: [],
-  goalScope: 'all', page: 1, pageSize: 20, totalGoals: 0,
+  goalDetail: null, version: 0, today: '2026-10-20', goals: [],
+  page: 1, pageSize: 20, totalGoals: 0,
   growth: { level: 1, totalXp: 0, progress: 0, needed: 20, remaining: 20, actions: 0, achievedGoals: 0, achievements: [] },
-  capabilities: { createMainline: allowed, createGoal: allowed, createTask: later, growth: later },
+  capabilities: { createGoal: allowed, createTask: later, growth: later },
   limits: { name: 200, standard: 4000, standards: 50 },
 }
-export const withMainline: PlanningPage = {
-  ...emptyPlanning, version: 1,
-  mainlines: [{ id: mainlineId, name: '健康', activeGoalCount: 0, todayTaskCount: 0, status: 'active', endedAt: null, capabilities: { rename: allowed, end: later } }],
-  destinations: [...emptyPlanning.destinations, { id: mainlineId, name: '健康' }],
-}
+// Compatibility name for callers that used an empty old-mainline fixture.
+export const withMainline: PlanningPage = { ...emptyPlanning, version: 1 }
 export const withGoal: PlanningPage = {
-  ...withMainline, version: 2, totalGoals: 1,
-  goals: [{ id: goalId, title: '五公里', standards: ['连续跑完五公里'], mainlineId, mainlineName: '健康', independent: false, focused: false, sortOrder: 0, status: 'active', terminatedAt: null, achievement: null,
-    progress: { completed: 0, total: 0, ratio: null }, createdAt: '2026-10-20T04:00:00Z', capabilities: { edit: allowed, focus: later, migrate: later, achieve: later, end: later } }],
+  ...emptyPlanning, version: 2, totalGoals: 1,
+  goals: [{ id: goalId, title: '五公里', standards: ['连续跑完五公里'], categoryLabel: '健康', focused: false, sortOrder: 0, status: 'active', terminatedAt: null, achievement: null,
+    progress: { completed: 0, total: 0, ratio: null }, createdAt: '2026-10-20T04:00:00Z', capabilities: { edit: allowed, reorder: allowed, moveUp: later, moveDown: later, achieve: later, end: later } }],
 }
 
 // UI-only fixture: supplied snapshots are independent expectations, not a second domain engine.

@@ -1,35 +1,37 @@
 import { useRef, type ReactNode } from 'react'
-import { ChevronDown, CircleCheck, Target } from 'lucide-react'
+import { GripVertical } from 'lucide-react'
 import type { PlanningCommand, PlanningGoal } from '../shared/adventure-planning'
-import { MoreActions, Progress, Record } from './PrototypeRecord'
+import { Progress } from './PrototypeRecord'
 
 type Action = (command: PlanningCommand) => Promise<boolean>
-export function PrototypeGoals({ goals, blocked, action, openGoal, toggleGoal, detail }: {
+export function PrototypeGoals({ goals, blocked, action, openGoal, toggleGoal, detail, edit, achieve, end }: {
   goals: PlanningGoal[]; blocked: boolean; action: Action; openGoal?: string; toggleGoal: (id: string) => void
-  detail: (goal: PlanningGoal) => ReactNode
+  detail: (goal: PlanningGoal) => ReactNode; edit: (goal: PlanningGoal) => void; achieve: (goal: PlanningGoal) => void; end: (goal: PlanningGoal) => void
 }) {
   const dragged = useRef<PlanningGoal | undefined>(undefined)
   const move = (goal: PlanningGoal, direction: 'up' | 'down', targetId?: string) => {
-    if (goal.status !== 'active') return
-    void action({ type: 'reorderGoals', mainlineId: goal.mainlineId, id: goal.id, direction, ...(targetId ? { targetId } : {}) })
+    if (goal.status === 'active') void action({ type: 'reorderGoals', id: goal.id, direction, ...(targetId ? { targetId } : {}) })
   }
-  return <div className="record-list adventure-proto-goal-list">{goals.map(goal => {
-    const open = openGoal === goal.id
-    return <article className={`record adventure-proto-goal${open ? ' is-open' : ''}${goal.status === 'achieved' ? ' is-terminal' : ''}`} key={goal.id} aria-label={`目标卡：${goal.title}`}
-      draggable={!blocked && goal.status === 'active' && goal.capabilities.reorder?.allowed}
-      onDragStart={event => { if (blocked) { event.preventDefault(); return }; dragged.current = goal; event.dataTransfer.setData('text/plain', goal.id); event.dataTransfer.effectAllowed = 'move' }}
-      onDragEnd={() => { dragged.current = undefined }}
-      onDragOver={event => { const source = dragged.current; if (!blocked && source?.status === 'active' && goal.status === 'active' && source.id !== goal.id && source.mainlineId === goal.mainlineId && source.focused === goal.focused) event.preventDefault() }}
-      onDrop={event => { event.preventDefault(); const source = dragged.current; dragged.current = undefined
-        if (!blocked && source?.status === 'active' && goal.status === 'active' && source.id !== goal.id && source.mainlineId === goal.mainlineId && source.focused === goal.focused)
-          move(source, source.sortOrder < goal.sortOrder ? 'down' : 'up', goal.id) }}>
-      <button type="button" className="record-summary" aria-label={`目标：${goal.title}`} aria-expanded={open} aria-controls={`goal-${goal.id}-details`} aria-disabled={blocked} onClick={() => { if (!blocked) toggleGoal(goal.id) }}>
-        <span className="record-mark"><Target size={17} /></span>
-        <span className="record-copy"><span className="record-kicker">{goal.independent ? '独立目标' : goal.mainlineName}{goal.focused && <em>聚焦中</em>}</span><strong>{goal.title}</strong>
-          <span className="goal-progress-line">{goal.progress.ratio === null ? <small>暂无可统计任务</small> : <><Progress value={goal.progress.ratio} label="目标任务进度" /><small>{goal.status === 'achieved' ? '已达成' : `${goal.progress.completed} / ${goal.progress.total}`}</small></>}</span></span>
-        <span className="record-meta"><span>{goal.status === 'achieved' ? '已达成' : goal.status === 'ended' ? '已结束' : '进行中'}</span><ChevronDown size={16} className={open ? 'is-open' : ''} /></span>
-      </button>
-      {open && <div className="record-details" id={`goal-${goal.id}-details`}>{detail(goal)}</div>}
-    </article>
-  })}</div>
+  return <div className="goal-console-table" role="table" aria-label="目标列表">
+    <div role="row" className="goal-console-head"><span role="columnheader">目标</span><span role="columnheader">分类标签</span><span role="columnheader">任务进度</span><span role="columnheader">任务数</span><span role="columnheader">状态</span><span role="columnheader">操作</span></div>
+    {goals.map(goal => <div key={goal.id}>
+      <div role="row" className="goal-console-row" draggable={!blocked && goal.status === 'active' && !!goal.capabilities.reorder?.allowed}
+        onDragStart={event => { dragged.current = goal; event.dataTransfer.setData('text/plain', goal.id); event.dataTransfer.effectAllowed = 'move' }}
+        onDragEnd={() => { dragged.current = undefined }}
+        onDragOver={event => { if (!blocked && dragged.current?.status === 'active' && goal.status === 'active' && dragged.current.id !== goal.id) event.preventDefault() }}
+        onDrop={event => { event.preventDefault(); const source = dragged.current; dragged.current = undefined; if (!blocked && source && source.id !== goal.id && source.status === 'active' && goal.status === 'active') move(source, source.sortOrder < goal.sortOrder ? 'down' : 'up', goal.id) }}>
+        <strong role="cell" className="goal-console-title">{goal.status === 'active' && <GripVertical size={15} aria-hidden="true" />}{goal.title}</strong><span role="cell">{goal.categoryLabel || '—'}</span>
+        <span role="cell" className="goal-console-progress">{goal.progress.ratio === null ? '暂无任务' : <Progress value={goal.progress.ratio} label={`目标 ${goal.title} 任务进度`} />}</span>
+        <span role="cell">{goal.progress.completed} / {goal.progress.total}</span><span role="cell">{goal.status === 'active' ? '进行中' : goal.status === 'achieved' ? '已达成' : '已结束'}</span>
+        <div role="cell" className="goal-console-actions">
+          <button type="button" disabled={blocked} onClick={() => toggleGoal(goal.id)}>关系卡片</button>
+          {goal.status === 'active' && <><button type="button" disabled={blocked || !goal.capabilities.achieve?.allowed} title={goal.capabilities.achieve?.reason} onClick={() => achieve(goal)}>达成</button>
+            <button type="button" aria-label={`变更目标 ${goal.title}`} disabled={blocked || !goal.capabilities.edit?.allowed} onClick={() => edit(goal)}>变更</button>
+            <button type="button" disabled={blocked || !goal.capabilities.end?.allowed} title={goal.capabilities.end?.reason} onClick={() => end(goal)}>结束</button>
+            {(['up', 'down'] as const).map(direction => <button key={direction} type="button" aria-label={`${direction === 'up' ? '上移' : '下移'}目标 ${goal.title}`} disabled={blocked || !goal.capabilities[direction === 'up' ? 'moveUp' : 'moveDown']?.allowed} onClick={() => move(goal, direction)}>{direction === 'up' ? '↑' : '↓'}</button>)}</>}
+        </div>
+      </div>
+      {openGoal === goal.id && <div className="record-details">{detail(goal)}</div>}
+    </div>)}
+  </div>
 }

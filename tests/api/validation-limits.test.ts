@@ -4,7 +4,7 @@ import { newsResultSchema } from '../../src/shared/news-contracts'
 
 const goal = (standards: unknown[]) => ({
   requestId: 'validation-limits-1', expectedVersion: 0,
-  command: { type: 'createGoal', destination: 'independent', title: '阅读', standards },
+  command: { type: 'createGoal', title: '阅读', standards },
 })
 const news = (items: unknown[]) => ({
   sourceId: 'baidu', fetchedAt: '2026-11-02T00:00:00.000Z', sourceUpdatedAt: null,

@@ -1,0 +1,48 @@
+import { test, expect } from './authenticated-test'
+import { localPlanningRpc, planningDatabaseBrowser } from '../support/planning-database-browser'
+
+const db = planningDatabaseBrowser()
+test.describe('目标控制台真实数据库', () => {
+  test.describe.configure({ timeout: 45000 })
+  test.skip(!localPlanningRpc, '需要隔离数据库')
+  test.beforeEach(async ({ context }) => { await db.install(context) })
+  test.afterEach(() => db.restore())
+  for (const width of [1440, 390]) test(`${width}px 创建、编辑、排序和刷新`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 })
+    await page.goto('/adventure?view=planning')
+    await page.getByRole('button', { name: '新建目标' }).click()
+    await page.getByLabel('目标名称').fill('阅读')
+    await page.getByLabel('完成标准 1', { exact: true }).fill('读完一本书')
+    await page.getByLabel('分类标签').fill('学习')
+    await page.getByRole('button', { name: '创建目标', exact: true }).click()
+    await expect(page.getByRole('row', { name: /阅读/ })).toContainText('学习')
+    await page.getByRole('button', { name: '新建目标' }).click()
+    await page.getByLabel('目标名称').fill('运动')
+    await page.getByLabel('完成标准 1', { exact: true }).fill('跑步')
+    await page.getByRole('button', { name: '创建目标', exact: true }).click()
+    await page.getByRole('button', { name: '上移目标 运动' }).click()
+    await expect(page.locator('.goal-console-row').first()).toContainText('运动')
+    await page.getByRole('button', { name: '变更目标 阅读' }).click()
+    await page.getByLabel('分类标签').fill('生活')
+    await page.getByRole('button', { name: '保存目标' }).click()
+    await page.reload()
+    await expect(page.locator('.goal-console-row').first()).toContainText('运动')
+    await expect(page.getByRole('row', { name: /阅读/ })).toContainText('生活')
+    await expect(page.getByRole('row', { name: /阅读/ })).not.toContainText('读完一本书')
+    const bounds = await page.locator('.goal-console-row').first().evaluate(row => {
+      const rect = row.getBoundingClientRect(), panel = row.closest('section')!.getBoundingClientRect()
+      return { rowRight: rect.right, panelRight: panel.right }
+    })
+    expect(bounds.rowRight).toBeLessThanOrEqual(bounds.panelRight)
+    await page.screenshot({ path: `.cache/goal-console-${width}.png`, fullPage: true })
+    const goal = (await db.snapshot()).goals.find(item => item.title === '阅读')!
+    await db.write({ type: 'endGoal', id: goal.id })
+    await page.reload()
+    await expect(page.getByRole('row', { name: /阅读/ })).toHaveCount(0)
+    await page.getByLabel('显示已达成／已结束').check()
+    await expect(page.getByRole('row', { name: /阅读/ })).toContainText('已结束')
+    await page.reload()
+    await expect(page.getByLabel('显示已达成／已结束')).toBeChecked()
+    await expect(page.getByRole('row', { name: /阅读/ })).toContainText('已结束')
+  })
+})

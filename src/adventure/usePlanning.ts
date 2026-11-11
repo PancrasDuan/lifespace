@@ -196,7 +196,7 @@ export function usePlanning(enabled = true) {
     return () => controller.abort()
   }, [load, enabled, invalidateConfirmation])
 
-  const clearGoal = useCallback(() => { query.current = { ...query.current, goalId: undefined, mainlineId: undefined, goalTaskPage: 1, page: 1 } }, [])
+  const clearGoal = useCallback(() => { query.current = { ...query.current, goalId: undefined, goalTaskPage: 1, page: 1 } }, [])
 
   const blocked = busy || uncertain || readRequired
   const confirmation: PlanningConfirmation = {
