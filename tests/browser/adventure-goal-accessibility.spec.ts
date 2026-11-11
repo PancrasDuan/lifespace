@@ -9,6 +9,7 @@ for (const width of [1440, 390]) test(`${width}px 目标表格保留列标题和
   for (const name of ['目标', '分类标签', '任务进度', '任务数', '状态', '操作'])
     await expect(table.getByRole('columnheader', { name, exact: true })).toBeAttached()
   const row = table.locator('.goal-console-row').filter({ hasText: '五公里' })
+  await expect(row.locator('..')).toHaveAttribute('role', 'rowgroup')
   await expect(row.getByRole('cell').nth(3)).toHaveText('3 项')
   const relation = row.getByRole('button', { name: '关系卡片' })
   await expect(relation).toHaveAttribute('aria-expanded', 'false')

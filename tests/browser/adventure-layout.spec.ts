@@ -14,12 +14,12 @@ const state: PlanningPage = { ...withGoal,
   growth: { ...withGoal.growth, level: 4, totalXp: 79, progress: 19, remaining: 1, actions: 32, achievedGoals: 7, achievements },
   goals: [{ ...withGoal.goals[0], progress: { completed: 5, total: 8, ratio: 5 / 8 }, capabilities: { edit: allowed, focus: allowed, achieve: allowed, moveUp: allowed, moveDown: allowed } }],
   tasks: [{ id: taskId, title: '整理本周设计反馈', description: '保留说明与完整原安排。', plannedOn: withGoal.today, rescheduleMin: withGoal.today,
-    independent: true, goalId: null, goalTitle: null, mainlineName: '独立区', status: 'pending', completedOn: null, completionId: null,
+    independent: true, goalId: null, goalTitle: null, status: 'pending', completedOn: null, completionId: null,
     completionOrigin: null, reward: null, overdue: false, progress: { completed: 0, total: 1, ratio: 0 }, arrangements: [], totalArrangements: 0,
     capabilities: { complete: allowed, edit: allowed, migrate: allowed, reschedule: allowed, end: allowed, delete: allowed } }], totalTasks: 1,
 }
 const source: RewardSource = { version: 2, event: { id: completionId, entityId: taskId, kind: 'task_completed', title: '发生时的任务名', occurredAt: '2026-10-20T04:00:00Z', occurredOn: '2026-10-20', amount: 1,
-  mainlineId, mainlineName: '发生时主线', mainlineKind: 'normal', goalId, goalTitle: '发生时目标', calculation: { type: 'fixed_task', completionId, count: 1, coefficient: 1 } },
+  categoryLabel: '发生时分类', goalId, goalTitle: '发生时目标', calculation: { type: 'fixed_task', completionId, count: 1, coefficient: 1 } },
   description: '发生时冻结说明', plannedOn: '2026-10-20', standards: [], reflection: null, actionSources: [], totalSources: 0, page: 1, pageSize: 5,
 }
 const growth: GrowthPage = { version: 2, growth: { ...state.growth, achievements }, items: [source.event], total: 1, pageSize: 10, nextCursor: null }
@@ -215,7 +215,7 @@ test('成长记录：已点亮进度封顶，整行打开奖励冻结来源', as
   await expect(page.getByRole('article', { name: '成就：稳稳向前', exact: true })).toContainText('32 / 40')
   await page.getByRole('button', { name: /^查看来源：发生时的任务名/ }).click()
   const detail = page.getByRole('region', { name: '发生时的任务名的奖励来源', exact: true })
-  await expect(detail).toContainText('发生时主线 / 发生时目标')
+  await expect(detail).toContainText('发生时分类 / 发生时目标')
   await expect(detail).toContainText('发生时冻结说明')
   await expect(detail).toContainText('完整行动 · 固定 1 点 · 系数 1')
   await expect(detail.getByRole('link')).toHaveCount(0)
@@ -266,6 +266,20 @@ test('目标页没有分类或聚焦筛选入口', async ({ page, context }) => 
   await page.goto('/adventure?view=planning')
   await expect(page.getByLabel('目标视图')).toHaveCount(0)
   await expect(page.getByRole('button', { name: '聚焦', exact: true })).toHaveCount(0)
+})
+
+test('任务归属候选独立读取全部进行中目标', async ({ page, context }) => {
+  const candidate = { ...state, goals: [{ ...state.goals[0], focused: false, capabilities: { ...state.goals[0].capabilities, createTask: allowed } }] }
+  await planningFixture(context, candidate)
+  let candidateRequests = 0
+  await context.route('**/api/adventure?**', async route => { candidateRequests++; await route.fallback() })
+  await page.goto('/adventure?view=planning')
+  const before = candidateRequests
+  await page.getByRole('button', { name: '新建行动' }).click()
+  await expect(page.getByLabel('任务归属').getByRole('option', { name: '五公里', exact: true })).toBeAttached()
+  expect(candidateRequests).toBeGreaterThan(before)
+  await page.getByLabel('任务归属').selectOption(goalId)
+  await page.getByRole('dialog').getByRole('button', { name: '取消' }).click()
 })
 
 test('目标页没有主线管理入口', async ({ page, context }) => {

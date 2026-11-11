@@ -18,3 +18,11 @@ test('旧聚焦筛选链接明确提示已退役', async ({ page, context }) => 
   await page.getByRole('button', { name: '查看目标' }).click()
   await expect(page.getByRole('row', { name: /五公里/ })).toBeVisible()
 })
+
+test('未知页面链接提示失效并提供目标入口', async ({ page, context }) => {
+  await planningFixture(context, withGoal)
+  await page.goto('/adventure?view=retired')
+  await expect(page.getByRole('alert')).toContainText('该页面链接已停用')
+  await page.getByRole('button', { name: '查看目标' }).click()
+  await expect(page).toHaveURL('/adventure?view=planning')
+})

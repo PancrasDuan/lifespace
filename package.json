@@ -28,6 +28,7 @@
     "test:secrets": "node --test tests/security/secrets.test.mjs",
     "setup:browser": "PLAYWRIGHT_BROWSERS_PATH=.cache/playwright playwright install chromium",
     "test:database": "node tests/support/run-planning-database.mjs",
+    "test:adventure-task-database": "node tests/support/run-planning-database.mjs --goal-model && node tests/support/run-planning-database.mjs --legacy-model",
     "test:goal-migration-baseline": "node --test tests/database/goal-migration-reconcile.test.mjs && node tests/support/run-goal-migration-baseline.mjs",
     "test:ledger-cleanup": "node tests/support/run-ledger-account-name-cleanup.mjs",
     "prototype:adventure-today": "vite --config vite.adventure-today-prototype.config.ts"

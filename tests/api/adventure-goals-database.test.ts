@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { localPlanningRpc, planningDatabase } from '../support/planning-database'
+import { planningReceiptSchema } from '../../src/shared/adventure-planning'
 
 const db = planningDatabase()
 describe.skipIf(!localPlanningRpc)('目标控制台真实数据库 HTTP', () => {
@@ -11,12 +12,23 @@ describe.skipIf(!localPlanningRpc)('目标控制台真实数据库 HTTP', () => 
     const taskResponse = await db.request(owner, '/api/adventure/commands', { requestId: crypto.randomUUID(), expectedVersion: goal.version,
       command: { type: 'createTask', title: '任务', description: '', plannedOn: '2099-01-01', destination: '' } })
     expect(taskResponse.status).toBe(200)
-    const task = (await taskResponse.json()).result.entityId
+    const task = planningReceiptSchema.parse(await taskResponse.json()).result.entityId
     const candidates = await db.request(owner, `/api/adventure/migration-options?kind=task&id=${task}`)
     expect(candidates.status).toBe(200)
     expect(await candidates.json()).toMatchObject({ kind: 'task', entityId: task, total: 2, options: [{ id: '' }, { id: goal.result.entityId, name: '目标' }] })
     expect((await db.request(other, `/api/adventure/migration-options?kind=task&id=${task}`)).status).toBe(404)
     expect((await db.request(owner, `/api/adventure/migration-options?kind=goal&id=${goal.result.entityId}`)).status).toBe(400)
+  })
+  it('真实 workspace 读取含任务目标，编辑标签后保留目标和任务身份', async () => {
+    const owner = crypto.randomUUID()
+    const goal = (await db.command(owner, { type: 'createGoal', title: '联合目标', standards: ['标准'], categoryLabel: '学习' })).result.entityId
+    const today = (await db.read(owner)).today
+    const task = (await db.command(owner, { type: 'createTask', title: '关联任务', description: '', plannedOn: today, destination: goal })).result.entityId
+    const before = await db.read(owner, `?goalId=${goal}`)
+    expect(before.goalDetail).toMatchObject({ goal: { id: goal, progress: { completed: 0, total: 1 } }, tasks: [{ id: task, goalId: goal }] })
+    await db.command(owner, { type: 'editGoal', id: goal, title: '联合目标改名', standards: ['新标准'], categoryLabel: '生活' })
+    const after = await db.read(owner, `?goalId=${goal}`)
+    expect(after.goalDetail).toMatchObject({ goal: { id: goal, categoryLabel: '生活', progress: { total: 1 } }, tasks: [{ id: task, goalId: goal }] })
   })
   it('标签、全局排序、分页、版本与账户隔离', async () => {
     const owner = crypto.randomUUID(), other = crypto.randomUUID()

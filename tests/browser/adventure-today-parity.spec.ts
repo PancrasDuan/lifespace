@@ -4,7 +4,7 @@ import type { PlanningTask } from '../../src/shared/adventure-planning'
 
 const task: PlanningTask = {
   id: '00000000-0000-4000-8000-000000000140', title: '整理书桌和工作区', description: '先整理眼前的一小块。',
-  plannedOn: '2026-10-19', rescheduleMin: withGoal.today, independent: true, goalId: null, goalTitle: null, mainlineName: '独立区',
+  plannedOn: '2026-10-19', rescheduleMin: withGoal.today, independent: true, goalId: null, goalTitle: null,
   status: 'pending', completedOn: null, completionId: null, completionOrigin: null, reward: null, overdue: true,
   progress: { completed: 0, total: 1, ratio: 0 }, arrangements: [], totalArrangements: 0,
   capabilities: { complete: allowed, edit: allowed, delete: allowed },

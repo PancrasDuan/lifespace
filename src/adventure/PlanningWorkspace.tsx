@@ -115,6 +115,7 @@ function Workspace() {
     else if (model.error) setPlanningReadFailed(true)
   }, [model.readRequired, model.error])
   const changeTerminal = async (value: boolean) => {
+    if (!model.canLoad()) return
     setPreferenceError(saveTerminalPreference(identity.ownerId, value) ? '' : '终态显示偏好未保存；本页仍可查看，刷新后使用默认设置。')
     setShowTerminal(value)
     await model.load({ includeTerminal: value, page: 1, goalId: undefined, goalTaskPage: 1 })

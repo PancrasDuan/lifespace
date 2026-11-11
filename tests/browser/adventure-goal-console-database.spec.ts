@@ -7,6 +7,24 @@ test.describe('目标控制台真实数据库', () => {
   test.skip(!localPlanningRpc, '需要隔离数据库')
   test.beforeEach(async ({ context }) => { await db.install(context) })
   test.afterEach(() => db.restore())
+  test('含任务目标在真实 workspace 中展示进度，任务表单可选择目标', async ({ page }) => {
+    const goal = (await db.write({ type: 'createGoal', title: '含任务目标', standards: ['标准'], categoryLabel: '学习' })).result.entityId
+    const today = (await db.snapshot()).today
+    const task = (await db.write({ type: 'createTask', title: '关联任务', description: '', plannedOn: today, destination: goal })).result.entityId
+    await page.goto('/adventure?view=planning')
+    const row = page.locator('.goal-console-row').filter({ hasText: '含任务目标' })
+    await expect(row).toContainText('1 项')
+    await page.getByRole('button', { name: '变更目标 含任务目标' }).click()
+    await page.getByLabel('分类标签').fill('生活')
+    await page.getByRole('button', { name: '保存目标' }).click()
+    await expect(row).toContainText('生活')
+    const after = await db.snapshot(`?goalId=${goal}`)
+    expect(after.goalDetail).toMatchObject({ goal: { id: goal, categoryLabel: '生活', progress: { total: 1 } }, tasks: [{ id: task, goalId: goal }] })
+    await page.getByRole('button', { name: '新建行动' }).click()
+    await expect(page.getByLabel('任务归属').getByRole('option', { name: '含任务目标', exact: true })).toHaveAttribute('value', goal)
+    await page.getByLabel('任务归属').selectOption(goal)
+    await expect(page.getByLabel('任务归属')).toHaveValue(goal)
+  })
   for (const width of [1440, 390]) test(`${width}px 创建、编辑、排序和刷新`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 })
     await page.goto('/adventure?view=planning')

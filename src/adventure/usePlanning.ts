@@ -197,6 +197,7 @@ export function usePlanning(enabled = true) {
   }, [load, enabled, invalidateConfirmation])
 
   const clearGoal = useCallback(() => { query.current = { ...query.current, goalId: undefined, goalTaskPage: 1, page: 1 } }, [])
+  const canLoad = useCallback(() => !active.current && !pending.current, [])
 
   const blocked = busy || uncertain || readRequired
   const confirmation: PlanningConfirmation = {
@@ -204,5 +205,5 @@ export function usePlanning(enabled = true) {
     stale: !confirmationPreview || confirmationPreview.value.version !== data?.version,
     blocked, refresh: preview, confirm, invalidate: invalidateConfirmation,
   }
-  return { lastAchievement, clearGoal, data, busy, blocked, error, clearError, notice, clearNotice, uncertain, readRequired, command, load, confirmation, recover }
+  return { lastAchievement, clearGoal, canLoad, data, busy, blocked, error, clearError, notice, clearNotice, uncertain, readRequired, command, load, confirmation, recover }
 }

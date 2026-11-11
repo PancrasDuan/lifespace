@@ -66,7 +66,6 @@ export const taskArrangementSchema = z.object({
   id: z.uuid(), kind: z.enum(['task_created', 'task_rescheduled']), sourceEventId: z.uuid().nullable(),
   oldPlannedOn: z.iso.date().nullable(), newPlannedOn: z.iso.date(), occurredAt: z.string(),
   title: z.string(), description: z.string(), goalId: z.uuid().nullable(), goalTitle: z.string().nullable(),
-  mainlineId: z.uuid(), mainlineName: z.string(),
 })
 export const taskHistorySchema = z.object({
   version, taskId: z.uuid(), title: z.string(), page: z.number().int().positive(), pageSize: z.literal(5), total: version,
@@ -77,8 +76,8 @@ export const planningTaskSchema = z.object({
   id: z.uuid(), title: z.string(), description: z.string(), plannedOn: z.iso.date(),
   rescheduleMin: z.iso.date().optional(), arrangements: z.array(taskArrangementSchema.pick({ id: true, kind: true, sourceEventId: true, oldPlannedOn: true, newPlannedOn: true, occurredAt: true })).max(5).default([]), totalArrangements: version.default(0),
   status: z.enum(['pending', 'completed', 'ended']), completedOn: z.iso.date().nullable(), completionId: z.uuid().nullable(), reward: taskRewardSchema.nullable(),
-  completionOrigin: z.object({ goalId: z.uuid().nullable(), mainlineId: z.uuid(), goalTitle: z.string().nullable(), mainlineName: z.string(), title: z.string(), description: z.string(), plannedOn: z.iso.date(), occurredOn: z.iso.date() }).nullable().default(null),
-  goalId: z.uuid().nullable(), goalTitle: z.string().nullable(), mainlineName: z.string(), independent: z.boolean(), overdue: z.boolean(), progress: planningProgressSchema, capabilities,
+  completionOrigin: z.object({ goalId: z.uuid().nullable(), goalTitle: z.string().nullable(), categoryLabel: z.string().nullable(), title: z.string(), description: z.string(), plannedOn: z.iso.date(), occurredOn: z.iso.date() }).nullable().default(null),
+  goalId: z.uuid().nullable(), goalTitle: z.string().nullable(), independent: z.boolean(), overdue: z.boolean(), progress: planningProgressSchema, capabilities,
 })
 export type PlanningTask = z.infer<typeof planningTaskSchema>
 export const planningGoalSchema = z.object({

@@ -8,7 +8,7 @@ const id = '00000000-0000-4000-8000-000000000062'
 const initial: PlanningPage = { ...withGoal, totalTasks: 1, capabilities: { ...withGoal.capabilities, createTask: allowed },
   tasks: [{ id, title: '待提交行动', description: '', plannedOn: withGoal.today, status: 'pending', completedOn: null,
     completionId: null, reward: null, completionOrigin: null, arrangements: [], totalArrangements: 0,
-    goalId: null, goalTitle: null, mainlineName: '独立区', independent: true, overdue: false,
+    goalId: null, goalTitle: null, independent: true, overdue: false,
     progress: { completed: 0, total: 1, ratio: 0 }, capabilities: { complete: allowed, cancel: later } }] }
 
 test('提交尚未完成时，所有成长入口禁用，不会提前读取旧流水', async ({ page, context }) => {

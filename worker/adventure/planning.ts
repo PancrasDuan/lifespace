@@ -16,6 +16,7 @@ const errors = {
   PENDING_TASKS: [400, '请先删除未完成任务，或在编辑任务中移到其他在用目标／独立任务'],
   VERSION_CONFLICT: [409, '数据已更新，请重新读取后确认操作'],
   REQUEST_ID_REUSED: [409, '请求编号已用于其他操作，请重新确认'],
+  REPLAY_UNAVAILABLE: [409, '历史结果无法安全重放，请重新读取后确认'],
   SAME_DESTINATION: [400, '当前归属无需迁移'],
   NOT_FOUND: [404, '内容不存在或不属于当前账户'],
   READ_ONLY: [400, '内容已进入终态，只能查看'],

@@ -19,6 +19,8 @@ test('终态偏好在延迟读取期间不能因重复切换与列表分离', as
   await toggle.evaluate(input => { const el = input as HTMLInputElement; el.click(); el.click() })
   await seen
   await expect(toggle).toBeDisabled()
+  // Simulate a second event arriving before the disabled state is reflected.
+  await toggle.evaluate(input => { const el = input as HTMLInputElement; el.disabled = false; el.click() })
   release()
   await expect(toggle).toBeChecked()
   expect(await page.evaluate(() => localStorage.getItem('lifespace.adventure.terminal.00000000-0000-4000-8000-000000000001'))).toBe('true')

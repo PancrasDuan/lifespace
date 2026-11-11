@@ -10,7 +10,7 @@ const initial: PlanningPage = {
   goals: [{ ...withGoal.goals[0], capabilities: { ...withGoal.goals[0].capabilities, achieve: allowed, end: allowed } }],
   tasks: [{ id: taskId, title: '确认流程行动', description: '', plannedOn: withGoal.today, rescheduleMin: withGoal.today,
     arrangements: [], totalArrangements: 0, status: 'pending', completedOn: null, completionId: null, reward: null, completionOrigin: null,
-    goalId: null, goalTitle: null, mainlineName: '独立区', independent: true, overdue: false,
+    goalId: null, goalTitle: null, independent: true, overdue: false,
     progress: { completed: 0, total: 1, ratio: 0 }, capabilities: { edit: allowed, delete: allowed, complete: allowed } }],
 }
 const goalReward = (coefficient: number, count = 0) => ({ amount: count === 0 ? 1 : coefficient,

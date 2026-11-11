@@ -33,7 +33,8 @@ for (const direct of [false, true]) for (const entry of entries) {
     await expect(page.getByRole('dialog')).toHaveCount(1)
     await expect(page).toHaveURL(entry.url)
     await expect(page.getByRole('button', { name: entry.tab, exact: true })).toHaveAttribute('aria-current', 'page')
-    if (direct) expect(planningRequests).toBe(1)
+    // TaskForm independently loads all candidate goals after the workspace.
+    if (direct) await expect.poll(() => planningRequests).toBe(entry.button === '新建行动' ? 2 : 1)
     await page.keyboard.press('Escape')
     await expect(dialog).toHaveCount(0)
     await expect(create).toBeFocused()

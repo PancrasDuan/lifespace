@@ -22,12 +22,19 @@ export function planningDatabase(email = 'lifecycle@example.invalid') {
     assert.equal(response.status, 200)
     return planningPageSchema.parse(await response.json())
   }
+  // The goal and task contracts are integrated; exercise the production Worker.
+  const readFourTable = read
   const envelope = (version: number, command: PlanningCommand) => ({ requestId: crypto.randomUUID(), expectedVersion: version, command })
   // Send an existing envelope unchanged, including intentionally stale versions and historical requestIds.
   const send = (owner: string, value: ReturnType<typeof envelope>) => request(owner, '/api/adventure/commands', value)
   const command = async (owner: string, value: PlanningCommand) => {
     const response = await send(owner, envelope((await read(owner)).version, value))
     assert.equal(response.status, 200)
+    return planningReceiptSchema.parse(await response.json())
+  }
+  const commandFourTable = async (owner: string, value: PlanningCommand) => {
+    const response = await send(owner, envelope((await readFourTable(owner)).version, value))
+    assert.equal(response.status, 200, await response.clone().text())
     return planningReceiptSchema.parse(await response.json())
   }
   // Explicit fixture path, available only on the runner's loopback database.
@@ -43,13 +50,31 @@ export function planningDatabase(email = 'lifecycle@example.invalid') {
     assert.equal(response.status, 200)
     return planningReceiptSchema.parse(await response.json())
   }
+  const fixtureGoal = async (owner: string, version: number, value: { type: 'createGoal'; title: string; standards: string[]; categoryLabel?: string | null } | { type: 'editGoal'; id: string; title: string; standards: string[]; categoryLabel?: string | null }) => {
+    const response = await send(owner, envelope(version, value))
+    assert.equal(response.status, 200, await response.clone().text())
+    return planningReceiptSchema.parse(await response.json())
+  }
+  const fixtureFocused = async (owner: string, goal: string) => {
+    const target = new URL(localPlanningRpc!)
+    if (target.hostname !== '127.0.0.1' || target.protocol !== 'http:' || target.username || target.password || !previousFetch) throw new Error('仅允许独立本机 RPC 验收')
+    const response = await previousFetch(new URL('/rpc/adventure_test_focus_seed', target), {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ p_owner: owner, p_goal: goal }),
+    })
+    assert.equal(response.status, 204, await response.clone().text())
+  }
   const createHistoricalTask = async (owner: string, value: Extract<PlanningCommand, { type: 'createTask' }>, completedOn?: string) => {
     const receipt = await historicalCommand(owner, envelope((await read(owner)).version, value), value.plannedOn)
     if (completedOn) await historicalCommand(owner, envelope(receipt.version, { type: 'completeTask', id: receipt.result.entityId }), completedOn)
     return receipt
   }
+  const createHistoricalTaskFourTable = async (owner: string, value: Extract<PlanningCommand, { type: 'createTask' }>, completedOn?: string) => {
+    const receipt = await historicalCommand(owner, envelope((await readFourTable(owner)).version, value), value.plannedOn)
+    if (completedOn) await historicalCommand(owner, envelope(receipt.version, { type: 'completeTask', id: receipt.result.entityId }), completedOn)
+    return receipt
+  }
   return {
-    request, read, envelope, send, command, historicalCommand, createHistoricalTask,
+    request, read, readFourTable, envelope, send, command, commandFourTable, fixtureGoal, fixtureFocused, historicalCommand, createHistoricalTask, createHistoricalTaskFourTable,
     install(options?: { browserOwner: string }) {
       const target = new URL(localPlanningRpc!)
       if (target.hostname !== '127.0.0.1' || target.protocol !== 'http:' || target.username || target.password) throw new Error('仅允许独立本机 RPC 验收')
