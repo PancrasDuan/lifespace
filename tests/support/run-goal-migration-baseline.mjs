@@ -75,7 +75,7 @@ try {
   client = new pg.Client({ host: '127.0.0.1', port, user: 'postgres', database: 'postgres', password: '', ssl: false })
   await client.connect()
   await client.query('create role anon; create role authenticated; create role service_role bypassrls;')
-  for (const path of ['db/adventure/create-planning.sql', 'db/adventure/list-tasks.sql', 'tests/database/goal-migration-fixture.sql', 'tests/database/goal-migration-baseline-test.sql']) {
+  for (const path of ['tests/database/legacy-goal-migration/create-planning.sql', 'tests/database/legacy-goal-migration/list-tasks.sql', 'tests/database/goal-migration-fixture.sql', 'tests/database/goal-migration-baseline-test.sql']) {
     await client.query(await readFile(join(root, path), 'utf8'))
   }
   const before = await capture(client, { legacy: true })
@@ -163,7 +163,7 @@ try {
       const probe = new pg.Client({ host: '127.0.0.1', port, user: 'postgres', database: `goal_${scenario}`, password: '', ssl: false })
       try {
         await probe.connect()
-        for (const path of ['db/adventure/create-planning.sql', 'db/adventure/list-tasks.sql', 'tests/database/goal-migration-fixture.sql']) {
+        for (const path of ['tests/database/legacy-goal-migration/create-planning.sql', 'tests/database/legacy-goal-migration/list-tasks.sql', 'tests/database/goal-migration-fixture.sql']) {
           await probe.query(await readFile(join(root, path), 'utf8'))
         }
         if (scenario === 'invalid_mapping') {
@@ -207,6 +207,17 @@ try {
     await client.query(migration)
     assert.deepEqual(await capture(client), after, '重复执行改变了持久化事实')
     assertSchemaUnchanged(afterSchema, await schemaSnapshot(client), '重复执行改变了结构或安全属性')
+    await client.query('create database goal_fresh')
+    const fresh = new pg.Client({ host: '127.0.0.1', port, user: 'postgres', database: 'goal_fresh', password: '', ssl: false })
+    try {
+      await fresh.connect()
+      for (const path of ['db/adventure/create-planning.sql', 'db/adventure/list-tasks.sql']) {
+        await fresh.query(await readFile(join(root, path), 'utf8'))
+      }
+      assertSchemaUnchanged(afterSchema, await schemaSnapshot(fresh), '新库和升级库的结构或安全属性不同')
+    } finally {
+      await fresh.end()
+    }
     console.log('通过：异常映射与注入失败回滚、实际迁移对账和重复执行')
   }
   console.log('通过：隔离旧库迁移验收基线')

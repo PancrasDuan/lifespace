@@ -2,6 +2,8 @@
 
 此夹具只含合成数据，必须运行于新建的隔离 PostgreSQL；不连接、读取或修改生产数据。`tests/support/run-goal-migration-baseline.mjs` 自建临时目录和随机本机端口，忽略 `PG*` 环境变量，结束时停止数据库并删除临时目录。需要本机 PostgreSQL 的 `initdb`、`pg_ctl` 和所需动态库；项目现有 `pg` 依赖负责连接。
 
+旧库结构固定在 `tests/database/legacy-goal-migration/`，使新库初始化变更后仍能用真实旧结构及旧 RPC 生成夹具。传入迁移脚本时，验收还会在同一隔离集群创建新库，比较新库和升级库的结构及安全属性。
+
 ```sh
 PATH=/home/lighthouse/.nvm/versions/node/v24.22.1/bin:$PATH \
 POSTGRES_BIN=<postgres-bin目录> LD_LIBRARY_PATH=<postgres动态库目录> \
