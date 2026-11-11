@@ -42,6 +42,7 @@ insert into public.adventure_events(id,owner_id,event_group_id,kind,entity_type,
  ('40000000-0000-4000-8000-000000000007','00000000-0000-4000-8000-000000000002','50000000-0000-4000-8000-000000000007','task_completed','task','30000000-0000-4000-8000-000000000006','30000000-0000-4000-8000-000000000006','10000000-0000-4000-8000-000000000006',null,'2020-01-06','2020-01-06','00000000-0000-4000-8000-000000000002','complete-001',repeat('a',64),'completeTask',8,1,'{"type":"fixed_task","count":1}', '{"title":"独立完成","mainlineKind":"independent","result":{"reward":{"amount":1}}}','2020-01-06'),
  ('40000000-0000-4000-8000-000000000008','00000000-0000-4000-8000-000000000001','50000000-0000-4000-8000-000000000008','goal_migrated','goal','20000000-0000-4000-8000-000000000003',null,'10000000-0000-4000-8000-000000000002','20000000-0000-4000-8000-000000000003','2020-01-05','2020-01-05','00000000-0000-4000-8000-000000000001','goal-migrate-001',repeat('e',64),'migrateGoal',8,null,null,'{"before":{"mainline_id":"10000000-0000-4000-8000-000000000001","title":"同名"},"after":{"mainline_id":"10000000-0000-4000-8000-000000000002","title":"同名"},"result":{"entityId":"20000000-0000-4000-8000-000000000003"}}','2020-01-05');
 update public.adventure_events set invalidated_at='2020-01-07', invalidated_by_event_id='40000000-0000-4000-8000-000000000003' where id='40000000-0000-4000-8000-000000000002';
+update public.adventure_events set snapshot=snapshot || '{"mainlineDetail":{"id":"10000000-0000-4000-8000-000000000002","name":"同名"},"mainlines":[{"id":"10000000-0000-4000-8000-000000000002"}],"note":"同名"}'::jsonb where id='40000000-0000-4000-8000-000000000001';
 -- The completion receipts use the real legacy command digest and can replay,
 -- including the invalidated completion, before the new migration exists.
 update public.adventure_events set command_hash=encode(sha256(convert_to(jsonb_build_object('type','completeTask','id',task_id)::text,'UTF8')),'hex')
@@ -70,4 +71,41 @@ begin
   r:=public.adventure_planning_command(o,'rpc-cancel-task',8,c); insert into goal_fixture_receipts values(o,'rpc-cancel-task',c,r);
   c:=jsonb_build_object('type','achieveGoal','id',target_goal,'coefficient',3,'reflection','冻结评价');
   r:=public.adventure_planning_command(o,'rpc-achieve-goal',9,c); insert into goal_fixture_receipts values(o,'rpc-achieve-goal',c,r);
+end $$;
+
+-- A completion remains locked if its former mainline ends after its goal moved.
+-- The current goal and task stay active/completed, so their state alone is not
+-- enough to reconstruct this legacy cancellation rule.
+create temporary table goal_fixture_historical_lock(owner_id uuid, completion_id uuid, cancel_command jsonb, unlocked_completion_id uuid, invalidated_completion_id uuid, expected_version bigint);
+do $$
+declare o uuid:='00000000-0000-4000-8000-000000000004'; a uuid; b uuid; g uuid; t uuid; e uuid; unlocked uuid; cancelled uuid;
+  today date:=(clock_timestamp() at time zone 'Asia/Shanghai')::date; r jsonb; c jsonb;
+begin
+  r:=public.adventure_planning_command(o,'lock-main-a',0,'{"type":"createMainline","name":"旧方向"}'); a:=(r->'result'->>'entityId')::uuid;
+  r:=public.adventure_planning_command(o,'lock-main-b',1,'{"type":"createMainline","name":"新方向"}'); b:=(r->'result'->>'entityId')::uuid;
+  r:=public.adventure_planning_command(o,'lock-goal-a',2,jsonb_build_object('type','createGoal','destination',a,'title','转移的目标','standards',jsonb_build_array('标准'))); g:=(r->'result'->>'entityId')::uuid;
+  r:=public.adventure_planning_command(o,'lock-task-a',3,jsonb_build_object('type','createTask','destination',g,'title','历史锁定任务','description','','plannedOn',today)); t:=(r->'result'->>'entityId')::uuid;
+  r:=public.adventure_planning_command(o,'lock-complete',4,jsonb_build_object('type','completeTask','id',t)); e:=(r->'result'->>'completionId')::uuid;
+  r:=public.adventure_planning_command(o,'lock-cancelled-create',5,jsonb_build_object('type','createTask','destination',g,'title','已取消历史','description','','plannedOn',today)); t:=(r->'result'->>'entityId')::uuid;
+  c:=jsonb_build_object('type','completeTask','id',t);
+  r:=public.adventure_planning_command(o,'lock-cancelled-complete',6,c); cancelled:=(r->'result'->>'completionId')::uuid;
+  insert into goal_fixture_receipts values(o,'lock-cancelled-complete',c,r);
+  c:=jsonb_build_object('type','cancelTaskCompletion','completionId',cancelled);
+  r:=public.adventure_planning_command(o,'lock-cancelled-cancel',7,c); insert into goal_fixture_receipts values(o,'lock-cancelled-cancel',c,r);
+  perform public.adventure_planning_command(o,'lock-cancelled-delete',8,jsonb_build_object('type','deleteTask','id',t));
+  c:=jsonb_build_object('type','migrateGoal','id',g,'destination',b);
+  r:=public.adventure_planning_command(o,'lock-move-goal',9,c); insert into goal_fixture_receipts values(o,'lock-move-goal',c,r);
+  perform public.adventure_planning_command(o,'lock-end-main',10,jsonb_build_object('type','endMainline','id',a));
+  c:=jsonb_build_object('type','cancelTaskCompletion','completionId',e);
+  begin
+    perform public.adventure_planning_command(o,'lock-cancel',11,c);
+    raise exception 'historical lock missing before migration';
+  exception when others then
+    if sqlerrm <> 'READ_ONLY' then raise; end if;
+  end;
+  r:=public.adventure_planning_command(o,'lock-new-task',11,jsonb_build_object('type','createTask','destination',g,'title','可以取消的任务','description','','plannedOn',today)); t:=(r->'result'->>'entityId')::uuid;
+  c:=jsonb_build_object('type','completeTask','id',t);
+  r:=public.adventure_planning_command(o,'lock-new-complete',12,c); unlocked:=(r->'result'->>'completionId')::uuid;
+  insert into goal_fixture_receipts values(o,'lock-new-complete',c,r);
+  insert into goal_fixture_historical_lock values(o,e,jsonb_build_object('type','cancelTaskCompletion','completionId',e),unlocked,cancelled,13);
 end $$;

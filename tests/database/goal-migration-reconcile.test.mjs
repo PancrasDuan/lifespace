@@ -11,13 +11,15 @@ test('异常映射探针只接受带账户和目标标识的明确错误', () =>
 })
 
 test('异常旧主线映射必须在升级前报告', () => {
-  const before = { mainlines: [{ owner_id: 'a', id: 'm', kind: 'normal', name: '  标签  ' }], goals: [{ owner_id: 'a', id: 'g', kind: 'real', mainline_id: 'm' }] }
+  const before = { mainlines: [{ owner_id: 'a', id: 'm', kind: 'normal', status: 'active', name: '  标签  ' }], goals: [{ owner_id: 'a', id: 'g', kind: 'real', mainline_id: 'm' }] }
   assert.deepEqual(validateMappings(before), [])
   for (const change of [
     x => { x.mainlines[0].name = '   ' },
     x => { x.mainlines[0].name = '字'.repeat(201) },
     x => { x.goals[0].mainline_id = 'missing' },
     x => { x.mainlines[0].owner_id = 'other' },
+    x => { x.mainlines[0].status = 'invalid' },
+    x => { x.goals[0].kind = 'inbox' },
   ]) {
     const bad = structuredClone(before)
     change(bad)
@@ -28,16 +30,16 @@ test('异常旧主线映射必须在升级前报告', () => {
 test('逐账户和 ID 对账会发现等行数但事实、奖励或归属变化', () => {
   const legacy = {
     accounts: [{ owner_id: 'a', total_xp: 1, revision: 4, time_zone: 'Asia/Shanghai' }],
-    mainlines: [{ owner_id: 'a', id: 'm', kind: 'normal', name: '同名', created_at: '2020-01-01' }],
+    mainlines: [{ owner_id: 'a', id: 'm', kind: 'normal', status: 'active', name: '同名', created_at: '2020-01-01' }],
     goals: [{ owner_id: 'a', id: 'g', mainline_id: 'm', kind: 'real', status: 'active', focused: true, sort_order: 0, title: '同名', attainment_snapshot: null }],
     tasks: [{ owner_id: 'a', id: 't', goal_id: 'g', end_cause: null, title: '同名' }],
-    events: [{ owner_id: 'a', id: 'e', kind: 'task_completed', mainline_id: 'm', amount: 1, invalidated_at: null, snapshot: { title: '同名', mainlineName: '同名', result: { reward: { amount: 1 } } }, calculation: { count: 1 } }],
+    events: [{ owner_id: 'a', id: 'e', kind: 'task_completed', mainline_id: 'm', amount: 1, invalidated_at: null, snapshot: { title: '同名', mainlineName: '同名', mainlineDetail: { id: 'm', name: '同名' }, mainlines: [{ id: 'm' }], result: { reward: { amount: 1 } } }, calculation: { count: 1 } }],
   }
   const migrated = {
     accounts: structuredClone(legacy.accounts),
     goals: [{ owner_id: 'a', id: 'g', kind: 'real', status: 'active', focused: true, sort_order: 0, title: '同名', attainment_snapshot: null, category_label: '同名' }],
     tasks: structuredClone(legacy.tasks),
-    events: [{ owner_id: 'a', id: 'e', kind: 'task_completed', amount: 1, invalidated_at: null, snapshot: { title: '同名', result: { reward: { amount: 1 } } }, calculation: { count: 1 } }],
+    events: [{ owner_id: 'a', id: 'e', kind: 'task_completed', amount: 1, invalidated_at: null, historical_lock: false, snapshot: { title: '同名', result: { reward: { amount: 1 } } }, calculation: { count: 1 } }],
   }
   assert.deepEqual(reconcile(legacy, migrated), [])
   for (const change of [
@@ -58,7 +60,7 @@ test('每个账户的进行中目标必须有合法排序键，即使只有一�
   const owners = ['a', 'b']
   const before = {
     accounts: owners.map(owner_id => ({ owner_id, total_xp: 0 })),
-    mainlines: owners.map(owner_id => ({ owner_id, id: `m${owner_id}`, kind: 'normal', name: '标签', created_at: '2020-01-01' })),
+    mainlines: owners.map(owner_id => ({ owner_id, id: `m${owner_id}`, kind: 'normal', status: 'active', name: '标签', created_at: '2020-01-01' })),
     goals: owners.map(owner_id => ({ owner_id, id: `g${owner_id}`, mainline_id: `m${owner_id}`, kind: 'real', status: 'active', focused: false, sort_order: 0 })),
     tasks: [], events: [],
   }
@@ -71,4 +73,21 @@ test('每个账户的进行中目标必须有合法排序键，即使只有一�
     else goal.sort_order = invalid
     assert.ok(reconcile(before, bad).some(error => error.includes(`${owner}/g${owner}`) && error.includes('sort_order')), `${owner}: ${String(invalid)}`)
   }
+})
+
+test('完成发生时的旧主线后来结束时，逐 ID 对账要求保留中性历史锁定', () => {
+  const before = {
+    accounts: [{ owner_id: 'a', total_xp: 1 }],
+    mainlines: [{ owner_id: 'a', id: 'old', kind: 'normal', name: '旧', status: 'ended', created_at: '2020-01-01' },
+      { owner_id: 'a', id: 'new', kind: 'normal', name: '新', status: 'active', created_at: '2020-01-02' }],
+    goals: [{ owner_id: 'a', id: 'g', mainline_id: 'new', kind: 'real', status: 'active', focused: false, sort_order: 0 }],
+    tasks: [{ owner_id: 'a', id: 't', goal_id: 'g' }],
+    events: [{ owner_id: 'a', id: 'e', kind: 'task_completed', mainline_id: 'old', goal_id: 'g', task_id: 't', amount: 1, invalidated_at: null }],
+  }
+  const after = { accounts: before.accounts, goals: [{ owner_id: 'a', id: 'g', kind: 'real', status: 'active', focused: false, sort_order: 0, category_label: '新' }],
+    tasks: before.tasks, events: [{ owner_id: 'a', id: 'e', kind: 'task_completed', goal_id: 'g', task_id: 't', amount: 1, invalidated_at: null, historical_lock: true }] }
+  assert.deepEqual(reconcile(before, after), [])
+  const bad = structuredClone(after)
+  bad.events[0].historical_lock = false
+  assert.ok(reconcile(before, bad).some(error => error.includes('events a/e')))
 })

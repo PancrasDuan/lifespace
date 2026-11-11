@@ -10,7 +10,7 @@ begin
   elsif jsonb_typeof(j)='object' then
     result:='{}';
     for k,v in select key,value from jsonb_each(j) loop
-      if k in ('mainline_id','mainlineId','mainlineName','mainlineKind','mainline_name','mainline_kind','mainlineType','mainline_type') then continue; end if;
+      if k in ('mainline','mainlines','mainlineDetail','mainline_detail','mainline_id','mainlineId','mainlineName','mainlineKind','mainline_name','mainline_kind','mainlineType','mainline_type') then continue; end if;
       if v='"mainline_ended"'::jsonb and k in ('termination_cause','terminationCause') then v:='"ended"';
       elsif v='"mainline_ended"'::jsonb and k in ('end_cause','endCause') then v:='"historical_ended"';
       else v:=pg_temp.goal_fixture_clean(v); end if;
@@ -29,5 +29,7 @@ select pg_temp.goal_fixture_clean(to_jsonb(g)) || jsonb_build_object(
       order by m.created_at,m.id,g.focused desc,g.sort_order,g.id)-1 else g.sort_order end) row
 from public.adventure_goals g join public.adventure_mainlines m on (m.owner_id,m.id)=(g.owner_id,g.mainline_id);
 create temporary table expected_tasks as select pg_temp.goal_fixture_clean(to_jsonb(t)) row from public.adventure_tasks t;
-create temporary table expected_events as select pg_temp.goal_fixture_clean(to_jsonb(e)) row from public.adventure_events e
-  where kind not in ('mainline_created','mainline_updated','mainline_ended');
+create temporary table expected_events as select pg_temp.goal_fixture_clean(to_jsonb(e)) || jsonb_build_object('historical_lock',
+  e.kind='task_completed' and coalesce(m.status='ended',false)) row from public.adventure_events e
+  left join public.adventure_mainlines m on (m.owner_id,m.id)=(e.owner_id,e.mainline_id)
+  where e.kind not in ('mainline_created','mainline_updated','mainline_ended');

@@ -3,7 +3,7 @@ import { isDeepStrictEqual } from 'node:util'
 // Only structured field names are removed. User text, including identical names,
 // is never searched or rewritten. Extend this explicit list if the old schema
 // contains another mainline-bearing structured field.
-const mainlineKeys = new Set(['mainline_id', 'mainlineId', 'mainlineName', 'mainlineKind', 'mainline_name', 'mainline_kind', 'mainlineType', 'mainline_type'])
+const mainlineKeys = new Set(['mainline', 'mainlines', 'mainlineDetail', 'mainline_detail', 'mainline_id', 'mainlineId', 'mainlineName', 'mainlineKind', 'mainline_name', 'mainline_kind', 'mainlineType', 'mainline_type'])
 function sanitize(value, taskEndCause) {
   if (Array.isArray(value)) return value.map(item => sanitize(item, taskEndCause))
   if (!value || typeof value !== 'object') return value
@@ -30,7 +30,7 @@ export function validateMappings(before) {
   const mainlines = new Map(before.mainlines.map(m => [`${m.owner_id}/${m.id}`, m]))
   for (const goal of before.goals) {
     const mainline = mainlines.get(`${goal.owner_id}/${goal.mainline_id}`)
-    if (!mainline || !['normal', 'independent'].includes(mainline.kind)) {
+    if (!mainline || !['normal', 'independent'].includes(mainline.kind) || !['active', 'ended'].includes(mainline.status) || (goal.kind === 'inbox' && mainline.kind !== 'independent')) {
       errors.push(`goals ${goal.owner_id}/${goal.id}: invalid mainline mapping`)
     } else if (goal.kind === 'real' && mainline.kind === 'normal' &&
       (typeof mainline.name !== 'string' || [...mainline.name.trim()].length < 1 || [...mainline.name.trim()].length > 200)) {
@@ -59,6 +59,9 @@ export function reconcile(before, after, { taskEndCause = 'historical_ended' } =
       if (!mainline) errors.push(`goals ${key(row, table)}: missing legacy mainline`)
       value.category_label = row.kind === 'real' && mainline?.kind === 'normal' ? mainline.name.trim() : null
       if (row.status === 'active' && row.kind === 'real') delete value.sort_order
+    }
+    if (table === 'events') {
+      value.historical_lock = row.kind === 'task_completed' && mainlines.get(`${row.owner_id}/${row.mainline_id}`)?.status === 'ended'
     }
     return value
   }
