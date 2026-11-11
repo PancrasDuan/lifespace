@@ -3,8 +3,7 @@ import { achievementSchema, growthSchema } from './adventure-planning'
 
 const version = z.number().int().nonnegative().safe()
 const origin = {
-  mainlineId: z.uuid(), mainlineName: z.string(), mainlineKind: z.enum(['normal', 'independent']),
-  goalId: z.uuid().nullable(), goalTitle: z.string().nullable(),
+  goalId: z.uuid().nullable(), goalTitle: z.string().nullable(), categoryLabel: z.string().nullable(),
 }
 export const rewardEntrySchema = z.object({
   id: z.uuid(), kind: z.enum(['task_completed', 'goal_achieved']), entityId: z.uuid(), title: z.string(),

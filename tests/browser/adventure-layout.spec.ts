@@ -14,12 +14,12 @@ const state: PlanningPage = { ...withGoal,
   growth: { ...withGoal.growth, level: 4, totalXp: 79, progress: 19, remaining: 1, actions: 32, achievedGoals: 7, achievements },
   goals: [{ ...withGoal.goals[0], progress: { completed: 5, total: 8, ratio: 5 / 8 }, capabilities: { edit: allowed, focus: allowed, achieve: allowed, moveUp: allowed, moveDown: allowed } }],
   tasks: [{ id: taskId, title: '整理本周设计反馈', description: '保留说明与完整原安排。', plannedOn: withGoal.today, rescheduleMin: withGoal.today,
-    independent: true, goalId: null, goalTitle: null, mainlineName: '独立区', status: 'pending', completedOn: null, completionId: null,
+    independent: true, goalId: null, goalTitle: null, status: 'pending', completedOn: null, completionId: null,
     completionOrigin: null, reward: null, overdue: false, progress: { completed: 0, total: 1, ratio: 0 }, arrangements: [], totalArrangements: 0,
     capabilities: { complete: allowed, edit: allowed, migrate: allowed, reschedule: allowed, end: allowed, delete: allowed } }], totalTasks: 1,
 }
 const source: RewardSource = { version: 2, event: { id: completionId, entityId: taskId, kind: 'task_completed', title: '发生时的任务名', occurredAt: '2026-10-20T04:00:00Z', occurredOn: '2026-10-20', amount: 1,
-  mainlineId, mainlineName: '发生时主线', mainlineKind: 'normal', goalId, goalTitle: '发生时目标', calculation: { type: 'fixed_task', completionId, count: 1, coefficient: 1 } },
+  categoryLabel: '发生时分类', goalId, goalTitle: '发生时目标', calculation: { type: 'fixed_task', completionId, count: 1, coefficient: 1 } },
   description: '发生时冻结说明', plannedOn: '2026-10-20', standards: [], reflection: null, actionSources: [], totalSources: 0, page: 1, pageSize: 5,
 }
 const growth: GrowthPage = { version: 2, growth: { ...state.growth, achievements }, items: [source.event], total: 1, pageSize: 10, nextCursor: null }

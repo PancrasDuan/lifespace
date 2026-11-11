@@ -12,6 +12,7 @@ import { seedLedgerRefundScale } from './ledger-refund-scale.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
 const ledgerOnly = process.argv.includes('--ledger')
+const goalModel = process.argv.includes('--goal-model')
 const work = await mkdtemp(join(tmpdir(), 'lifespace-actions-db-'))
 const binary = name => process.env.POSTGRES_BIN ? join(process.env.POSTGRES_BIN, name) : name
 const cleanEnv = Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('PG')))
@@ -65,8 +66,8 @@ try {
   }
   await sql('create role anon; create role authenticated; create role service_role bypassrls; grant usage on schema public to service_role;')
   if (ledgerOnly) await sql('create schema auth; create table auth.users (id uuid primary key);')
-  for (const path of ledgerOnly ? ['db/ledger/create-ledger.sql', 'db/ledger/list-ledger.sql', 'db/ledger/refunds.sql', 'db/ledger/delete.sql', 'db/ledger/accounts.sql', 'db/ledger/account-entries.sql', 'db/ledger/transfers.sql', 'db/ledger/migrations/20261105002135_remove_legacy_ledger_account_name_v1.sql', 'db/ledger/migrations/20261106000000_ledger_account_filter.sql', 'db/agent/migrations/20261106031343_agent_access_bindings.sql', 'tests/database/ledger.sql', 'tests/database/ledger-accounts.sql', 'tests/database/ledger-transfers.sql', 'tests/database/agent-bindings.sql'] : ['db/adventure/create-planning.sql', 'db/adventure/list-tasks.sql', 'tests/database/adventure-history-seed.sql', 'tests/database/adventure-planning.sql', 'tests/database/adventure-actions.sql', 'tests/database/adventure-goals.sql', 'tests/database/adventure-migrations.sql', 'tests/database/adventure-lifecycle.sql', 'tests/database/adventure-reschedule.sql', 'tests/database/adventure-growth.sql']) await sql(await readFile(join(root, path), 'utf8'))
-  if (!ledgerOnly) {
+  for (const path of ledgerOnly ? ['db/ledger/create-ledger.sql', 'db/ledger/list-ledger.sql', 'db/ledger/refunds.sql', 'db/ledger/delete.sql', 'db/ledger/accounts.sql', 'db/ledger/account-entries.sql', 'db/ledger/transfers.sql', 'db/ledger/migrations/20261105002135_remove_legacy_ledger_account_name_v1.sql', 'db/ledger/migrations/20261106000000_ledger_account_filter.sql', 'db/agent/migrations/20261106031343_agent_access_bindings.sql', 'tests/database/ledger.sql', 'tests/database/ledger-accounts.sql', 'tests/database/ledger-transfers.sql', 'tests/database/agent-bindings.sql'] : goalModel ? ['db/adventure/create-planning.sql', 'db/adventure/list-tasks.sql'] : ['db/adventure/create-planning.sql', 'db/adventure/list-tasks.sql', 'tests/database/adventure-history-seed.sql', 'tests/database/adventure-planning.sql', 'tests/database/adventure-actions.sql', 'tests/database/adventure-goals.sql', 'tests/database/adventure-migrations.sql', 'tests/database/adventure-lifecycle.sql', 'tests/database/adventure-reschedule.sql', 'tests/database/adventure-growth.sql']) await sql(await readFile(join(root, path), 'utf8'))
+  if (!ledgerOnly && !goalModel) {
     await sql(await readFile(join(root, 'tests/database/adventure-today-upgrade-before.sql'), 'utf8'))
     const migration = await readFile(join(root, 'db/adventure/migrations/20261106200055_adventure_today_task_rules.sql'), 'utf8')
     await sql(migration)
@@ -77,13 +78,22 @@ try {
   if (ledgerOnly) await sql(`insert into auth.users (id) values ('00000000-0000-4000-8000-000000000007');
     insert into public.agent_identity_bindings (client_id, owner_id, enabled)
       values ('synthetic-http-active.access', '00000000-0000-4000-8000-000000000007', true);`)
-  if (!ledgerOnly) await sql(`create function pg_temp.fail_reschedule_http() returns trigger language plpgsql as $$
+  if (!ledgerOnly && !goalModel) await sql(`create function pg_temp.fail_reschedule_http() returns trigger language plpgsql as $$
     begin
       if new.kind='task_rescheduled' and new.snapshot->>'title'='reschedule-http-failpoint' then raise exception 'RESCHEDULE_HTTP_FAILPOINT'; end if;
       return new;
     end $$;
     create trigger reschedule_http_failpoint before insert on public.adventure_events
       for each row execute function pg_temp.fail_reschedule_http();`)
+  if (goalModel) await sql(`create function pg_temp.unsafe_receipt_fixture() returns trigger language plpgsql as $$
+    begin
+      if new.kind='task_created' and new.snapshot->>'title'='unsafe-receipt-fixture' and new.snapshot ? 'result' then
+        new.snapshot := new.snapshot - 'result';
+      end if;
+      return new;
+    end $$;
+    create trigger unsafe_receipt_fixture before update on public.adventure_events
+      for each row execute function pg_temp.unsafe_receipt_fixture();`)
   if (ledgerOnly) await sql(`create function pg_temp.ledger_failpoint() returns trigger language plpgsql as $$
     begin
       if exists(select from public.ledger_entries where owner_id=new.owner_id and note='ledger91-rollback') then raise exception 'LEDGER_TEST_ROLLBACK_AFTER_INSERT'; end if;
@@ -100,7 +110,7 @@ try {
     end $$;
     create trigger ledger_transfer_test_failpoint before insert on public.ledger_entries
       for each row execute function pg_temp.ledger_transfer_failpoint();`)
-  console.log(ledgerOnly ? '通过：隔离账单基线与账户结构升级（四表）' : '通过：空库初始化、规划／任务事务、回滚、历史锁定和权限探针')
+  console.log(ledgerOnly ? '通过：隔离账单基线与账户结构升级（四表）' : goalModel ? '通过：四表空库初始化' : '通过：空库初始化、规划／任务事务、回滚、历史锁定和权限探针')
   const rpcPort = await freePort()
   const ledgerJwtSecret = ledgerOnly ? crypto.randomUUID() + crypto.randomUUID() : undefined
   cancellation.signal.throwIfAborted()
@@ -126,7 +136,7 @@ try {
   const scaleOwner = ledgerOnly && process.argv.includes('--ledger-scale') ? await seedLedgerScale(client, process.env.LEDGER_SCALE_INDEX_REPORT || join(root, '.cache/ledger-scale-index.json')) : undefined
   const refundScaleOwner = scaleOwner ? await seedLedgerRefundScale(client, process.env.LEDGER_REFUND_SCALE_INDEX_REPORT || join(root, '.cache/ledger-refund-scale-index.json')) : undefined
   const env = { ...cleanEnv, ADVENTURE_LOCAL_RPC_URL: url, LEDGER_LOCAL_RPC_URL: url, LEDGER_LOCAL_JWT_SECRET: ledgerJwtSecret, ...(scaleOwner ? { LEDGER_SCALE_OWNER: scaleOwner, LEDGER_REFUND_SCALE_OWNER: refundScaleOwner } : {}), PLAYWRIGHT_BROWSERS_PATH: process.env.PLAYWRIGHT_BROWSERS_PATH || '.cache/playwright' }
-  const apiArgs = process.argv.includes('--api') ? process.argv.slice(process.argv.indexOf('--api') + 1, process.argv.includes('--browser') ? process.argv.indexOf('--browser') : undefined) : []
+  const apiArgs = process.argv.includes('--api') ? process.argv.slice(process.argv.indexOf('--api') + 1, process.argv.includes('--browser') ? process.argv.indexOf('--browser') : undefined) : goalModel ? ['tests/api/adventure-category-database.test.ts'] : []
   if (!process.argv.includes('--browser-only')) await run(process.execPath, ['node_modules/vitest/vitest.mjs', 'run', ...(apiArgs.length ? apiArgs : ledgerOnly ? ['tests/api/ledger-database.test.ts', 'tests/api/ledger-accounts-database.test.ts', 'tests/api/ledger-account-entries-database.test.ts', 'tests/api/ledger-transfers-database.test.ts', 'tests/api/ledger-dates-database.test.ts', 'tests/api/ledger-account-filter-database.test.ts', 'tests/api/ledger-refunds-database.test.ts', 'tests/api/ledger-delete-database.test.ts', 'tests/api/agent-bindings-database.test.ts', 'tests/api/agent-mcp-database.test.ts', ...(scaleOwner ? ['tests/api/ledger-scale-database.test.ts', 'tests/api/ledger-refund-scale-database.test.ts'] : [])] : ['tests/api/adventure-task-edit-database.test.ts', 'tests/api/adventure-task-delete-database.test.ts', 'tests/api/adventure-actions-database.test.ts', 'tests/api/adventure-overdue-database.test.ts', 'tests/api/adventure-date-list-database.test.ts', 'tests/api/adventure-lifecycle-database.test.ts', 'tests/api/adventure-reschedule-database.test.ts', 'tests/api/adventure-growth-database.test.ts', 'tests/api/adventure-integration-database.test.ts'])], { env })
   if (process.argv.includes('--browser')) {
     const browserArgs = process.argv.slice(process.argv.indexOf('--browser') + 1)
@@ -135,9 +145,9 @@ try {
     const specs = browserArgs.length && !browserArgs[0].startsWith('-') ? [] : ledgerOnly ? ['tests/browser/ledger-database.spec.ts', 'tests/browser/ledger-accounts-database.spec.ts', 'tests/browser/ledger-account-entries-database.spec.ts', 'tests/browser/ledger-transfers-database.spec.ts', 'tests/browser/ledger-dates-database.spec.ts', 'tests/browser/ledger-account-filter-database.spec.ts', 'tests/browser/ledger-refunds-database.spec.ts', 'tests/browser/ledger-delete-database.spec.ts'] : ['tests/browser/adventure-actions-database.spec.ts', 'tests/browser/adventure-overdue-database.spec.ts', 'tests/browser/adventure-date-list-database.spec.ts', 'tests/browser/adventure-growth-database.spec.ts', 'tests/browser/adventure-integration-database.spec.ts', 'tests/browser/adventure-task-edit-database.spec.ts', 'tests/browser/adventure-task-delete-database.spec.ts', 'tests/browser/adventure-review-fixes-database.spec.ts', 'tests/browser/adventure-task-date-interaction-database.spec.ts']
     await run(process.execPath, ['node_modules/@playwright/test/cli.js', 'test', ...specs, ...browserArgs], { env })
   }
-  if (!ledgerOnly) await sql('drop trigger reschedule_http_failpoint on public.adventure_events')
-  if (!ledgerOnly) await sql(await readFile(join(root, 'tests/database/adventure-actions-audit.sql'), 'utf8'))
-  console.log(ledgerOnly ? '通过：真实账单数据库验收，临时环境将清理' : '通过：HTTP／浏览器操作后的任务、冻结奖励、取消关联、账户经验、请求数与版本全量核对')
+  if (!ledgerOnly && !goalModel) await sql('drop trigger reschedule_http_failpoint on public.adventure_events')
+  if (!ledgerOnly && !goalModel) await sql(await readFile(join(root, 'tests/database/adventure-actions-audit.sql'), 'utf8'))
+  console.log(ledgerOnly ? '通过：真实账单数据库验收，临时环境将清理' : goalModel ? '通过：所选四表 HTTP／浏览器测试，临时环境将清理' : '通过：HTTP／浏览器操作后的任务、冻结奖励、取消关联、账户经验、请求数与版本全量核对')
   result = 0
 } catch (error) {
   console.error(error instanceof Error ? error.message : '隔离数据库验收失败')

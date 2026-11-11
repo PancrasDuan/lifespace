@@ -294,6 +294,11 @@ begin
   select * into v_prior from public.adventure_events where owner_id=p_owner and request_id=p_request_id;
   if found then
     if v_prior.command_hash<>v_hash then raise exception 'REQUEST_ID_REUSED'; end if;
+    if jsonb_typeof(v_prior.snapshot->'result') is distinct from 'object'
+      or jsonb_typeof(v_prior.snapshot->'result'->'entityId') is distinct from 'string'
+      or jsonb_typeof(v_prior.snapshot->'result'->'message') is distinct from 'string'
+      or lower(v_prior.snapshot->'result'->>'message') like '%'||('main'||'line')||'%'
+      or v_prior.snapshot->'result'->>'message' like '%'||chr(20027)||chr(32447)||'%' then raise exception 'REPLAY_UNAVAILABLE'; end if;
     return jsonb_build_object('version',v_prior.applied_revision,'result',v_prior.snapshot->'result');
   end if;
   if v_type is null or v_type not in ('createGoal','editGoal','reorderGoals','endGoal','achieveGoal','createTask','editTask','completeTask','cancelTaskCompletion','deleteTask') then raise exception 'INVALID_COMMAND'; end if;
