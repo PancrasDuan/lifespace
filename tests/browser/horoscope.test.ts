@@ -15,12 +15,12 @@ test('首页只有十二星座入口，点击后显示未配置状态且不影�
   await expect(card.getByRole('button', { name: '天秤座', exact: true })).toBeFocused()
 })
 
-test('星座运势卡片位于 DNSHE 卡片上方，详情不展示娱乐参考', async ({ page }) => {
+test('星座运势卡片位于日期与黄历之前，详情不展示娱乐参考', async ({ page }) => {
   await page.clock.install({ time: new Date('2026-10-22T08:00:00Z') })
   await page.route('**/api/horoscope?*', route => route.fulfill({ json: result() }))
   await page.goto('/')
   const headings = await page.locator('.glass-grid .panel-heading h2').allTextContents()
-  expect(headings.indexOf('星座运势')).toBe(headings.indexOf('DNSHE 域名') - 1)
+  expect(headings.indexOf('星座运势')).toBe(headings.indexOf('日期与黄历') - 1)
   await page.getByRole('button', { name: '天秤座', exact: true }).click()
   const dialog = page.getByRole('dialog', { name: '天秤座 · 今日运势' })
   await expect(dialog.getByRole('button', { name: '查看详情', exact: true })).toBeVisible()
@@ -28,6 +28,30 @@ test('星座运势卡片位于 DNSHE 卡片上方，详情不展示娱乐参考'
   await page.getByRole('button', { name: '查看详情', exact: true }).click()
   await expect(dialog.getByRole('button', { name: '返回', exact: true })).toBeVisible()
   await expect(dialog.getByText(/娱乐参考/)).toHaveCount(0)
+})
+
+test('星座与日期卡片在桌面左右排列，在较窄屏幕依次展示且可操作', async ({ page }) => {
+  await page.goto('/')
+  for (const width of [1440, 952, 390]) {
+    await page.setViewportSize({ width, height: 954 })
+    const horoscope = page.locator('.home-page .panel-horoscope')
+    const calendar = page.locator('.home-page .panel-calendar')
+    const horoscopeBox = (await horoscope.boundingBox())!
+    const calendarBox = (await calendar.boundingBox())!
+    if (width === 1440) {
+      expect(horoscopeBox.y).toBe(calendarBox.y)
+      expect(horoscopeBox.x + horoscopeBox.width).toBeLessThan(calendarBox.x)
+    } else {
+      expect(horoscopeBox.y + horoscopeBox.height).toBeLessThan(calendarBox.y)
+    }
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true)
+    await horoscope.getByRole('button', { name: '天秤座', exact: true }).click()
+    await expect(page.getByRole('dialog', { name: '天秤座 · 今日运势' })).toBeVisible()
+    await page.keyboard.press('Escape')
+    await calendar.getByRole('button', { name: '查看日期与黄历详情' }).click()
+    await expect(page.getByRole('dialog', { name: '日历' })).toBeVisible()
+    await page.keyboard.press('Escape')
+  }
 })
 
 import { startHoroscopeWorker, horoscopeTestToken } from '../fixtures/horoscope-worker'
