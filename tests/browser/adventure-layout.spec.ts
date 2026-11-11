@@ -227,7 +227,7 @@ test('成长记录：已点亮进度封顶，整行打开奖励冻结来源', as
   await expect(page.getByRole('article', { name: '成就：稳稳向前', exact: true })).toContainText('32 / 40')
   await page.getByRole('button', { name: /^查看来源：发生时的任务名/ }).click()
   const detail = page.getByRole('region', { name: '发生时的任务名的奖励来源', exact: true })
-  await expect(detail).toContainText('发生时主线 / 发生时目标')
+  await expect(detail).toContainText('发生时分类 / 发生时目标')
   await expect(detail).toContainText('发生时冻结说明')
   await expect(detail).toContainText('完整行动 · 固定 1 点 · 系数 1')
   await expect(detail.getByRole('link')).toHaveCount(0)
@@ -296,14 +296,21 @@ test('目标编辑取消后焦点回到对应目标摘要', async ({ page, conte
 })
 
 test('聚焦视图创建任务仍可选择未聚焦目标，候选读取不改变页面筛选', async ({ page, context }) => {
-  await planningFixture(context, { ...state, goalScope: 'focus', goals: [], totalGoals: 0 })
-  await context.route('**/api/adventure?**', async route => {
-    const scope = new URL(route.request().url()).searchParams.get('goalScope')
-    await route.fulfill({ json: scope === 'all' ? { ...state, goals: [{ ...state.goals[0], focused: false, capabilities: { ...state.goals[0].capabilities, createTask: allowed } }] } : { ...state, goalScope: 'focus', goals: [], totalGoals: 0 } })
-  })
+  const server = await planningFixture(context, state)
   await page.goto('/adventure?view=planning')
+  server.show({ ...state, goalScope: 'focus', goals: [], totalGoals: 0 })
+  await page.getByLabel('目标视图').getByRole('button', { name: '聚焦', exact: true }).click()
+  await expect(page.getByLabel('目标视图').getByRole('button', { name: '聚焦', exact: true })).toHaveAttribute('aria-pressed', 'true')
+  await expect(page.getByRole('button', { name: '目标：五公里', exact: true })).toHaveCount(0)
+  let candidateRequests = 0
+  await context.route('**/api/adventure?**', async route => {
+    expect(new URL(route.request().url()).searchParams.has('goalScope')).toBe(false)
+    candidateRequests++
+    await route.fulfill({ json: { ...state, goals: [{ ...state.goals[0], focused: false, capabilities: { ...state.goals[0].capabilities, createTask: allowed } }] } })
+  })
   await page.getByRole('button', { name: '新建行动', exact: true }).click()
-  await expect(page.getByLabel('任务归属').getByRole('option', { name: '健康 / 五公里', exact: true })).toBeAttached()
+  await expect(page.getByLabel('任务归属').getByRole('option', { name: '五公里', exact: true })).toBeAttached()
+  expect(candidateRequests).toBe(1)
   await page.getByLabel('任务归属').selectOption(goalId)
   await page.getByRole('dialog').getByRole('button', { name: '取消', exact: true }).click()
   await expect(page.getByLabel('目标视图').getByRole('button', { name: '聚焦', exact: true })).toHaveAttribute('aria-pressed', 'true')

@@ -70,6 +70,26 @@ try {
   for (const path of ledgerOnly ? ['db/ledger/create-ledger.sql', 'db/ledger/list-ledger.sql', 'db/ledger/refunds.sql', 'db/ledger/delete.sql', 'db/ledger/accounts.sql', 'db/ledger/account-entries.sql', 'db/ledger/transfers.sql', 'db/ledger/migrations/20261105002135_remove_legacy_ledger_account_name_v1.sql', 'db/ledger/migrations/20261106000000_ledger_account_filter.sql', 'db/agent/migrations/20261106031343_agent_access_bindings.sql', 'tests/database/ledger.sql', 'tests/database/ledger-accounts.sql', 'tests/database/ledger-transfers.sql', 'tests/database/agent-bindings.sql'] : legacyModel ? ['tests/database/legacy-goal-migration/create-planning.sql', 'tests/database/legacy-goal-migration/list-tasks.sql', 'tests/database/goal-migration-fixture.sql'] : goalModel ? ['db/adventure/create-planning.sql', 'db/adventure/list-tasks.sql', 'tests/database/adventure-goal-model-history-seed.sql'] : ['db/adventure/create-planning.sql', 'db/adventure/list-tasks.sql', 'tests/database/adventure-history-seed.sql', 'tests/database/adventure-planning.sql', 'tests/database/adventure-actions.sql', 'tests/database/adventure-goals.sql', 'tests/database/adventure-migrations.sql', 'tests/database/adventure-lifecycle.sql', 'tests/database/adventure-reschedule.sql', 'tests/database/adventure-growth.sql']) await sql(await readFile(join(root, path), 'utf8'))
   let migratedFixture
   if (legacyModel) {
+    // Additional genuine legacy non-mainline receipts, plus two unsafe message
+    // variants, exist only in this disposable migration fixture.
+    await sql(`do $$
+    declare o uuid:='00000000-0000-4000-8000-000000000005'; u uuid:='00000000-0000-4000-8000-000000000006';
+      m uuid; g uuid; r jsonb; c jsonb; today date:=(clock_timestamp() at time zone 'Asia/Shanghai')::date;
+    begin
+      r:=public.adventure_planning_command(o,'replay-mainline',0,'{"type":"createMainline","name":"旧方向"}'); m:=(r->'result'->>'entityId')::uuid;
+      r:=public.adventure_planning_command(o,'replay-goal',1,jsonb_build_object('type','createGoal','destination',m,'title','历史目标','standards',jsonb_build_array('标准'))); g:=(r->'result'->>'entityId')::uuid;
+      c:=jsonb_build_object('type','focusGoal','id',g,'focused',true);
+      r:=public.adventure_planning_command(o,'replay-focus',2,c); insert into goal_fixture_receipts values(o,'replay-focus',c,r);
+      c:=jsonb_build_object('type','migrateGoal','id',g,'destination','');
+      r:=public.adventure_planning_command(o,'replay-goal-migrate',3,c); insert into goal_fixture_receipts values(o,'replay-goal-migrate',c,r);
+      for i in 0..1 loop
+        c:=jsonb_build_object('type','createTask','title','旧回执任务 '||i,'description','','plannedOn',today,'destination','');
+        r:=public.adventure_planning_command(u,case i when 0 then 'unsafe-cn-receipt' else 'unsafe-en-receipt' end,i,c);
+        insert into goal_fixture_receipts values(u,case i when 0 then 'unsafe-cn-receipt' else 'unsafe-en-receipt' end,c,r);
+      end loop;
+    end $$;
+    update public.adventure_events set snapshot=jsonb_set(snapshot,'{result,message}',to_jsonb(case request_id when 'unsafe-cn-receipt' then '旧主线已保存' else 'Old MainLine saved' end)) where request_id in ('unsafe-cn-receipt','unsafe-en-receipt');
+    update goal_fixture_receipts set receipt=jsonb_set(receipt,'{result,message}',to_jsonb(case request_id when 'unsafe-cn-receipt' then '旧主线已保存' else 'Old MainLine saved' end)) where request_id in ('unsafe-cn-receipt','unsafe-en-receipt');`)
     // Put old structured attribution inside a genuine success receipt; retain
     // the original envelope so HTTP replay can be checked after migration.
     await sql(`update public.adventure_events set snapshot=jsonb_set(snapshot,'{result}',snapshot->'result' || '{"mainlineName":"旧方向","source":{"mainlineId":"10000000-0000-4000-8000-000000000001","goalTitle":"保留的旧名称"}}'::jsonb) where request_id='rpc-complete-task';
@@ -103,6 +123,8 @@ try {
     begin
       if new.kind='task_created' and new.snapshot->>'title'='unsafe-receipt-fixture' and new.snapshot ? 'result' then
         new.snapshot := new.snapshot - 'result';
+      elsif new.kind='task_created' and new.snapshot->>'title' in ('unsafe-cn-fixture','unsafe-en-fixture') and new.snapshot ? 'result' then
+        new.snapshot := jsonb_set(new.snapshot,'{result,message}',to_jsonb(case new.snapshot->>'title' when 'unsafe-cn-fixture' then '旧主线已保存' else 'Old MainLine saved' end));
       end if;
       return new;
     end $$;

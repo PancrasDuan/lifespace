@@ -46,6 +46,45 @@ describe.skipIf(!localPlanningRpc || !fixture)('旧库迁移后的真实 Worker 
     expect((await api.request(crypto.randomUUID(), `/api/adventure/reward-source?id=${receipt.result.achievementId}`)).status).toBe(404)
   })
 
+  it('旧目标迁移和聚焦回执精确重放，冲突与新的退役命令均不改变账户', async () => {
+    for (const id of ['lock-move-goal', 'replay-goal-migrate', 'replay-focus']) {
+      const row = fixture!.receipts.find(item => item.request_id === id)!
+      const expected = planningReceiptSchema.parse(row.receipt)
+      const before = await (await api.request(row.owner_id, '/api/adventure/growth')).json()
+      const envelope = { requestId: id, expectedVersion: 0, command: row.command }
+      const response = await api.request(row.owner_id, '/api/adventure/commands', envelope)
+      expect(response.status, id).toBe(200)
+      const actual = await response.json()
+      expect(actual, id).toEqual(expected)
+      expect(JSON.stringify(actual), id).not.toMatch(/mainline|主线/i)
+      const conflict = await api.request(row.owner_id, '/api/adventure/commands', { ...envelope, command: { type: 'deleteTask', id: expected.result.entityId } })
+      expect(conflict.status, id).toBe(409)
+      expect(await conflict.json()).toMatchObject({ error: { code: 'REQUEST_ID_REUSED' } })
+      const fresh = await api.request(row.owner_id, '/api/adventure/commands', { ...envelope, requestId: `new-${id}`, expectedVersion: z.object({ version: z.number() }).parse(before).version })
+      expect(fresh.status, id).toBe(400)
+      expect(await (await api.request(row.owner_id, '/api/adventure/growth')).json()).toEqual(before)
+    }
+  })
+
+  it('旧回执的中英文退役名称不可安全重放，摘要冲突优先且不重新执行', async () => {
+    for (const id of ['unsafe-cn-receipt', 'unsafe-en-receipt']) {
+      const row = fixture!.receipts.find(item => item.request_id === id)!
+      const old = planningReceiptSchema.parse(row.receipt)
+      expect(old.result.message).toMatch(/主线|mainline/i)
+      const before = await (await api.request(row.owner_id, '/api/adventure/growth')).json()
+      const envelope = { requestId: id, expectedVersion: 0, command: row.command }
+      const conflict = await api.request(row.owner_id, '/api/adventure/commands', { ...envelope, command: { type: 'deleteTask', id: old.result.entityId } })
+      expect(conflict.status).toBe(409)
+      expect(await conflict.json()).toMatchObject({ error: { code: 'REQUEST_ID_REUSED' } })
+      const response = await api.request(row.owner_id, '/api/adventure/commands', envelope)
+      expect(response.status).toBe(409)
+      const error = await response.json()
+      expect(error).toMatchObject({ error: { code: 'REPLAY_UNAVAILABLE' } })
+      expect(JSON.stringify(error)).not.toMatch(/mainline|主线/i)
+      expect(await (await api.request(row.owner_id, '/api/adventure/growth')).json()).toEqual(before)
+    }
+  })
+
   it('原归属已结束的完成不可撤销，其他完成仍可撤销且旧失效回执不复活', async () => {
     const lock = fixture!.locks[0]
     const growthBefore = await (await api.request(lock.owner_id, '/api/adventure/growth')).json()

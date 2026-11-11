@@ -44,6 +44,27 @@ describe.skipIf(!localPlanningRpc)('无主线任务的真实数据库 API', () =
     expect(await list.json()).toMatchObject({ version: 1, total: 1 })
   })
 
+  it('四表初始化下含退役名称的回执拒绝重放且摘要冲突优先', async () => {
+    for (const suffix of ['cn', 'en']) {
+      const other = crypto.randomUUID()
+      const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Shanghai' })
+      const envelope = { requestId: `unsafe-${suffix}-fixture`, expectedVersion: 0, command: { type: 'createTask', title: `unsafe-${suffix}-fixture`, description: '', plannedOn: today, destination: '' } }
+      const initial = await api.request(other, '/api/adventure/commands', envelope)
+      expect(initial.status).toBe(200)
+      const task = planningReceiptSchema.parse(await initial.json()).result.entityId
+      const conflict = await api.request(other, '/api/adventure/commands', { ...envelope, command: { type: 'deleteTask', id: task } })
+      expect(conflict.status).toBe(409)
+      expect(await conflict.json()).toMatchObject({ error: { code: 'REQUEST_ID_REUSED' } })
+      const retry = await api.request(other, '/api/adventure/commands', envelope)
+      expect(retry.status).toBe(409)
+      const error = await retry.json()
+      expect(error).toMatchObject({ error: { code: 'REPLAY_UNAVAILABLE' } })
+      expect(JSON.stringify(error)).not.toMatch(/mainline|主线/i)
+      const list = await api.request(other, '/api/adventure/tasks/list', { date: today, today, scope: 'all', expectedVersion: 1 })
+      expect(await list.json()).toMatchObject({ version: 1, total: 1, tasks: [{ id: task }] })
+    }
+  })
+
   it('并发写入仅一项成功，旧任务命令不可作为新操作', async () => {
     const other = crypto.randomUUID()
     const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Shanghai' })
