@@ -107,5 +107,15 @@ begin
   c:=jsonb_build_object('type','completeTask','id',t);
   r:=public.adventure_planning_command(o,'lock-new-complete',12,c); unlocked:=(r->'result'->>'completionId')::uuid;
   insert into goal_fixture_receipts values(o,'lock-new-complete',c,r);
-  insert into goal_fixture_historical_lock values(o,e,jsonb_build_object('type','cancelTaskCompletion','completionId',e),unlocked,cancelled,13);
+  -- Build genuine legacy helper receipts under the account lock. They represent
+  -- old successful commands, even though new requests are now disabled.
+  r:=public.adventure_planning_command(o,'legacy-retired-create',13,jsonb_build_object('type','createTask','destination',g,'title','旧命令回执','description','','plannedOn',today)); t:=(r->'result'->>'entityId')::uuid;
+  perform 1 from public.adventure_accounts where owner_id=o for update;
+  c:=jsonb_build_object('type','rescheduleTask','id',t,'plannedOn',today+1);
+  r:=public.adventure_task_apply(o,'legacy-reschedule',14,c,clock_timestamp()); insert into goal_fixture_receipts values(o,'legacy-reschedule',c,r);
+  c:=jsonb_build_object('type','migrateTask','id',t,'destination','');
+  r:=public.adventure_task_apply(o,'legacy-migrate-task',15,c,clock_timestamp()); insert into goal_fixture_receipts values(o,'legacy-migrate-task',c,r);
+  c:=jsonb_build_object('type','endTask','id',t);
+  r:=public.adventure_task_apply(o,'legacy-end-task',16,c,clock_timestamp()); insert into goal_fixture_receipts values(o,'legacy-end-task',c,r);
+  insert into goal_fixture_historical_lock values(o,e,jsonb_build_object('type','cancelTaskCompletion','completionId',e),unlocked,cancelled,17);
 end $$;

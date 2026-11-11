@@ -66,6 +66,39 @@ const assertSchemaUnchanged = (before, after, message) => {
   const differences = Object.keys(before).filter(key => !isDeepStrictEqual(before[key], after[key]))
   assert.deepEqual(differences, [], message)
 }
+// Use actual roles and disposable objects. In particular, TRUNCATE and TRIGGER
+// must be denied by ACLs; row-level security alone cannot protect them.
+const assertRoleDenials = async db => {
+  await db.query('begin')
+  try {
+    await db.query('create function public.goal_permission_probe() returns trigger language plpgsql as $$ begin return new; end $$')
+    for (const role of ['anon', 'authenticated', 'service_role']) {
+      await db.query('create table public.goal_reference_probe (id uuid)')
+      await db.query(`alter table public.goal_reference_probe owner to ${role}`)
+      await db.query(`set local role ${role}`)
+      for (const privilege of ['delete', 'truncate', 'references', 'trigger', 'maintain', ...(role === 'service_role' ? [] : ['select', 'insert', 'update'])]) {
+        const actual = (await db.query(`select has_table_privilege(current_user,'public.adventure_events','${privilege}') allowed`)).rows[0].allowed
+        assert.equal(actual, false, `${role} has ${privilege}`)
+      }
+      const statements = [
+        'truncate public.adventure_events',
+        'delete from public.adventure_events where false',
+        'alter table public.goal_reference_probe add foreign key (id) references public.adventure_events(id)',
+        'create trigger goal_permission_probe before insert on public.adventure_events for each row execute function public.goal_permission_probe()',
+      ]
+      if (role !== 'service_role') statements.push('select * from public.adventure_events', 'insert into public.adventure_events default values', 'update public.adventure_events set snapshot=snapshot where false')
+      for (const statement of statements) {
+        await db.query('savepoint denied_action')
+        await assert.rejects(db.query(statement), error => error.code === '42501', `${role}: ${statement}`)
+        await db.query('rollback to savepoint denied_action')
+      }
+      await db.query('reset role')
+      await db.query('drop table public.goal_reference_probe')
+    }
+  } finally {
+    await db.query('rollback')
+  }
+}
 const server = createServer().listen(0, '127.0.0.1')
 await once(server, 'listening')
 const port = server.address().port
@@ -77,7 +110,7 @@ try {
   started = true
   client = new pg.Client({ host: '127.0.0.1', port, user: 'postgres', database: 'postgres', password: '', ssl: false })
   await client.connect()
-  await client.query('create role anon; create role authenticated; create role service_role bypassrls;')
+  await client.query('create role anon; create role authenticated; create role service_role bypassrls; create role goal_acl_parent;')
   for (const path of ['tests/database/legacy-goal-migration/create-planning.sql', 'tests/database/legacy-goal-migration/list-tasks.sql', 'tests/database/goal-migration-fixture.sql', 'tests/database/goal-migration-baseline-test.sql']) {
     await client.query(await readFile(join(root, path), 'utf8'))
   }
@@ -159,9 +192,34 @@ try {
   assert.deepEqual(await capture(client, { legacy: true }), before)
   if (migrationPath) {
     const migration = await readFile(migrationPath, 'utf8')
+    const allTablePrivileges = ['select', 'insert', 'update', 'delete', 'truncate', 'references', 'trigger', 'maintain']
+    const unsafeMatrix = [
+      ...['public', 'anon', 'authenticated'].flatMap(grantee => allTablePrivileges.map(privilege => ({
+        id: `acl_${grantee}_${privilege}`, grantee, privilege, actor: grantee === 'public' ? 'anon' : grantee,
+      }))),
+      ...['delete', 'truncate', 'references', 'trigger', 'maintain'].map(privilege => ({
+        id: `acl_service_${privilege}`, grantee: 'service_role', privilege, actor: 'service_role',
+      })),
+      ...['anon', 'authenticated', 'service_role'].flatMap(actor => ['truncate', 'references', 'trigger', 'maintain'].map(privilege => ({
+        id: `acl_parent_${actor}_${privilege}`, grantee: 'goal_acl_parent', privilege, actor, inherited: true,
+      }))),
+      ...['public', 'anon', 'authenticated', 'service_role'].map(grantee => ({
+        id: `acl_column_${grantee}`, grantee, privilege: 'references', actor: grantee === 'public' ? 'anon' : grantee, column: true,
+      })),
+      ...['anon', 'authenticated', 'service_role'].map(actor => ({
+        id: `acl_parent_column_${actor}`, grantee: 'goal_acl_parent', privilege: 'references', actor, column: true, inherited: true,
+      })),
+      ...['select', 'insert', 'update'].flatMap(privilege => [false, true].map(column => ({
+        id: `acl_grant_${privilege}_${column ? 'column' : 'table'}`, grantee: 'service_role', privilege, actor: 'service_role', column, delegation: true,
+      }))),
+      ...['select', 'insert', 'update'].flatMap(privilege => [false, true].map(column => ({
+        id: `acl_parent_grant_${privilege}_${column ? 'column' : 'table'}`, grantee: 'goal_acl_parent', privilege, actor: 'service_role', column, inherited: true, delegation: true,
+      }))),
+    ]
+    const unsafeById = new Map(unsafeMatrix.map(entry => [entry.id, entry]))
     // Each failure scenario gets its own database. The bad reference is made
     // possible only by removing the legacy FK in that disposable database.
-    for (const scenario of ['invalid_mapping', 'invalid_kind', 'invalid_status', 'invalid_inbox', 'blank_label', 'tab_label', 'long_label', 'orphan_event', 'mixed_event', 'inconsistent_xp', 'missing_fk', 'wrong_fk', 'cascade_fk', 'wrong_index', 'unsafe_acl', 'mutating_trigger', 'failpoint', 'late_failpoint']) {
+    for (const scenario of [...unsafeById.keys(), 'unsafe_truncate_anon', 'unsafe_inherited_truncate', 'unsafe_service_column_reference', 'unsafe_service_grant_option', 'unsafe_function_grant_option', 'unsafe_parent_function_grant_option', 'unsafe_inherited_execute', 'unsafe_inherited_schema', 'unsafe_anon_bypassrls', 'invalid_mapping', 'invalid_kind', 'invalid_status', 'invalid_inbox', 'blank_label', 'tab_label', 'long_label', 'orphan_event', 'mixed_event', 'inconsistent_xp', 'missing_fk', 'wrong_fk', 'cascade_fk', 'wrong_index', 'unsafe_acl', 'mutating_trigger', 'failpoint', 'late_failpoint']) {
       await client.query(`create database goal_${scenario}`)
       const probe = new pg.Client({ host: '127.0.0.1', port, user: 'postgres', database: `goal_${scenario}`, password: '', ssl: false })
       try {
@@ -169,7 +227,32 @@ try {
         for (const path of ['tests/database/legacy-goal-migration/create-planning.sql', 'tests/database/legacy-goal-migration/list-tasks.sql', 'tests/database/goal-migration-fixture.sql']) {
           await probe.query(await readFile(join(root, path), 'utf8'))
         }
-        if (scenario === 'invalid_mapping') {
+        const acl = unsafeById.get(scenario)
+        if (acl) {
+          await probe.query(`grant ${acl.privilege}${acl.column ? ' (id)' : ''} on public.adventure_events to ${acl.grantee}${acl.delegation ? ' with grant option' : ''}`)
+          if (acl.inherited) await probe.query(`grant goal_acl_parent to ${acl.actor} with inherit false, set true`)
+          if (acl.privilege === 'references') {
+            await probe.query('create table public.goal_acl_reference_probe (id uuid)')
+            await probe.query(`alter table public.goal_acl_reference_probe owner to ${acl.grantee === 'public' ? acl.actor : acl.grantee}`)
+          }
+          if (acl.privilege === 'trigger') await probe.query('create function public.goal_acl_trigger_probe() returns trigger language plpgsql as $$ begin return new; end $$')
+          await probe.query(`set session authorization ${acl.actor}`)
+          if (acl.inherited) await probe.query('set role goal_acl_parent')
+          const privilegeQuery = acl.column
+            ? `select has_column_privilege(current_user,'public.adventure_events','id','${acl.privilege}${acl.delegation ? ' with grant option' : ''}') allowed`
+            : `select has_table_privilege(current_user,'public.adventure_events','${acl.privilege}${acl.delegation ? ' with grant option' : ''}') allowed`
+          assert.equal((await probe.query(privilegeQuery)).rows[0].allowed, true, scenario)
+          await probe.query('begin')
+          if (acl.privilege === 'truncate') await probe.query('truncate public.adventure_events')
+          if (acl.privilege === 'references') await probe.query('alter table public.goal_acl_reference_probe add foreign key (id) references public.adventure_events(id)')
+          if (acl.privilege === 'trigger') await probe.query('create trigger goal_acl_probe before insert on public.adventure_events for each row execute function public.goal_acl_trigger_probe()')
+          if (acl.privilege === 'maintain') await probe.query('analyze public.adventure_events')
+          if (acl.delegation) await probe.query(`grant ${acl.privilege}${acl.column ? ' (id)' : ''} on public.adventure_events to anon`)
+          await probe.query('rollback')
+          await probe.query('reset session authorization')
+          if (acl.privilege === 'references') await probe.query('drop table public.goal_acl_reference_probe')
+          if (acl.privilege === 'trigger') await probe.query('drop function public.goal_acl_trigger_probe()')
+        } else if (scenario === 'invalid_mapping') {
           await probe.query('alter table public.adventure_goals drop constraint adventure_goals_owner_id_mainline_id_fkey')
           await probe.query("update public.adventure_goals set mainline_id='10000000-0000-4000-8000-000000000099' where id='20000000-0000-4000-8000-000000000001'")
           assert.notDeepEqual(validateMappings(await capture(probe, { legacy: true })), [])
@@ -206,6 +289,69 @@ try {
         } else if (scenario === 'wrong_index') {
           await probe.query('drop index public.adventure_one_inbox')
           await probe.query("create unique index adventure_one_inbox on public.adventure_goals(owner_id,id) where kind='inbox'")
+        } else if (scenario === 'unsafe_truncate_anon') {
+          await probe.query('grant truncate on public.adventure_events to anon')
+          await probe.query('set role anon')
+          await probe.query('begin')
+          await probe.query('truncate public.adventure_events')
+          await probe.query('rollback')
+          await probe.query('reset role')
+        } else if (scenario === 'unsafe_inherited_truncate') {
+          await probe.query('grant truncate on public.adventure_events to goal_acl_parent')
+          await probe.query('grant goal_acl_parent to anon with inherit false, set true')
+          await probe.query('set session authorization anon')
+          await probe.query('set role goal_acl_parent')
+          await probe.query('begin')
+          await probe.query('truncate public.adventure_events')
+          await probe.query('rollback')
+          await probe.query('reset session authorization')
+        } else if (scenario === 'unsafe_service_column_reference') {
+          await probe.query('grant references (id) on public.adventure_events to service_role')
+          await probe.query('create table public.goal_acl_reference_probe (id uuid)')
+          await probe.query('alter table public.goal_acl_reference_probe owner to service_role')
+          await probe.query('set role service_role')
+          await probe.query('begin')
+          await probe.query('alter table public.goal_acl_reference_probe add foreign key (id) references public.adventure_events(id)')
+          await probe.query('rollback')
+          await probe.query('reset role')
+          await probe.query('drop table public.goal_acl_reference_probe')
+        } else if (scenario === 'unsafe_service_grant_option') {
+          await probe.query('grant select on public.adventure_events to service_role with grant option')
+          await probe.query('set session authorization service_role')
+          await probe.query('begin')
+          await probe.query('grant select on public.adventure_events to anon')
+          await probe.query('rollback')
+          await probe.query('reset session authorization')
+        } else if (scenario === 'unsafe_function_grant_option' || scenario === 'unsafe_parent_function_grant_option') {
+          const parent = scenario === 'unsafe_parent_function_grant_option'
+          const grantee = parent ? 'goal_acl_parent' : 'service_role'
+          await probe.query(`grant execute on function public.adventure_task_capability(uuid,jsonb,date) to ${grantee} with grant option`)
+          if (parent) await probe.query('grant goal_acl_parent to service_role with inherit false, set true')
+          await probe.query('set session authorization service_role')
+          if (parent) await probe.query('set role goal_acl_parent')
+          await probe.query('begin')
+          await probe.query('grant execute on function public.adventure_task_capability(uuid,jsonb,date) to anon')
+          await probe.query('rollback')
+          await probe.query('reset session authorization')
+        } else if (scenario === 'unsafe_inherited_execute' || scenario === 'unsafe_inherited_schema') {
+          await probe.query('grant goal_acl_parent to anon with inherit false, set true')
+          if (scenario === 'unsafe_inherited_execute') {
+            await probe.query('grant execute on function public.adventure_task_capability(uuid,jsonb,date) to goal_acl_parent')
+          } else {
+            await probe.query('grant create on schema public to goal_acl_parent')
+          }
+          await probe.query('set session authorization anon')
+          await probe.query('set role goal_acl_parent')
+          await probe.query('begin')
+          if (scenario === 'unsafe_inherited_execute') {
+            await probe.query("select public.adventure_task_capability('00000000-0000-4000-8000-000000000001', '{\"type\":\"deleteTask\",\"id\":\"30000000-0000-4000-8000-000000000003\"}', current_date)")
+          } else {
+            await probe.query('create table public.goal_acl_schema_probe (id uuid)')
+          }
+          await probe.query('rollback')
+          await probe.query('reset session authorization')
+        } else if (scenario === 'unsafe_anon_bypassrls') {
+          await probe.query('alter role anon bypassrls')
         } else if (scenario === 'unsafe_acl') {
           await probe.query('grant select on public.adventure_goals to anon')
         } else if (scenario === 'mutating_trigger') {
@@ -232,7 +378,7 @@ try {
         else if (scenario === 'mixed_event') assert.match(failure.message, /GOAL_MIGRATION_UNSAFE_EVENT owner=00000000-0000-4000-8000-000000000001 event=40000000-0000-4000-8000-000000000006/)
         else if (scenario === 'inconsistent_xp') assert.match(failure.message, /GOAL_MIGRATION_INCONSISTENT_XP owner=00000000-0000-4000-8000-000000000001/)
         else if (['missing_fk', 'wrong_fk', 'cascade_fk', 'wrong_index'].includes(scenario)) assert.match(failure.message, /GOAL_MIGRATION_INVALID_SCHEMA/)
-        else if (scenario === 'unsafe_acl') assert.match(failure.message, /GOAL_MIGRATION_UNSAFE_SECURITY/)
+        else if (acl || ['unsafe_acl', 'unsafe_truncate_anon', 'unsafe_inherited_truncate', 'unsafe_service_column_reference', 'unsafe_service_grant_option', 'unsafe_function_grant_option', 'unsafe_parent_function_grant_option', 'unsafe_inherited_execute', 'unsafe_inherited_schema', 'unsafe_anon_bypassrls'].includes(scenario)) assert.match(failure.message, /GOAL_MIGRATION_UNSAFE_SECURITY/)
         else assert.ok(isMappingFailure(failure, {
           code: ['invalid_mapping', 'invalid_kind', 'invalid_status', 'invalid_inbox'].includes(scenario) ? 'GOAL_MIGRATION_INVALID_MAPPING' : 'GOAL_MIGRATION_INVALID_LABEL',
           ownerId: '00000000-0000-4000-8000-000000000001', goalId: `20000000-0000-4000-8000-00000000000${scenario === 'invalid_inbox' ? 5 : 1}`,
@@ -240,7 +386,13 @@ try {
         assert.deepEqual(await capture(probe, { legacy: true }), original, `${scenario}: failed migration changed legacy rows`)
         assertSchemaUnchanged(originalSchema, await schemaSnapshot(probe), `${scenario}: failed migration changed legacy schema`)
       } finally {
+        const acl = unsafeById.get(scenario)
+        if (acl?.inherited) await client.query(`revoke goal_acl_parent from ${acl.actor}`)
+        if (['unsafe_inherited_truncate', 'unsafe_inherited_execute', 'unsafe_inherited_schema'].includes(scenario)) await client.query('revoke goal_acl_parent from anon')
+        if (scenario === 'unsafe_parent_function_grant_option') await client.query('revoke goal_acl_parent from service_role')
+        if (scenario === 'unsafe_anon_bypassrls') await client.query('alter role anon nobypassrls')
         await probe.end()
+        await client.query(`drop database goal_${scenario}`)
       }
     }
     console.log('通过：异常映射与故障注入后的旧数据和结构回滚')
@@ -249,7 +401,10 @@ try {
     const afterSchema = await schemaSnapshot(client)
     assert.deepEqual(reconcile(before, after, { taskEndCause }), [], '升级后的逐账户逐 ID 对账失败')
     const businessRegression = await readFile(join(root, 'tests/database/goal-post-migration-regression.sql'), 'utf8')
+    const retiredRegression = await readFile(join(root, 'tests/database/goal-retired-command-regression.sql'), 'utf8')
     await client.query(businessRegression)
+    await client.query(retiredRegression)
+    await assertRoleDenials(client)
     assert.deepEqual(await capture(client), after, '升级库业务回归未回滚合成数据')
     assertSchemaUnchanged(afterSchema, await schemaSnapshot(client), '升级库业务回归未回滚测试触发器')
     const lock = (await client.query('select * from goal_fixture_historical_lock')).rows[0]
@@ -262,13 +417,22 @@ try {
       [lock.owner_id, 'lock-cancel', lock.expected_version, lock.cancel_command]),
     error => error.message === 'READ_ONLY', '历史完成的锁定被绕过')
     const receipts = (await client.query('select owner_id,request_id,command,pg_temp.goal_fixture_clean(receipt) receipt from goal_fixture_receipts')).rows
-    for (const saved of receipts) {
-      const replay = await client.query('select public.adventure_planning_command($1,$2,0,$3) as receipt', [saved.owner_id, saved.request_id, saved.command])
-      assert.deepEqual(replay.rows[0].receipt, saved.receipt, `清理后的回执重放不同: ${saved.request_id}`)
+    await client.query('set role service_role')
+    try {
+      for (const saved of receipts) {
+        const replay = await client.query('select public.adventure_planning_command($1,$2,0,$3) as receipt', [saved.owner_id, saved.request_id, saved.command])
+        assert.deepEqual(replay.rows[0].receipt, saved.receipt, `清理后的回执重放不同: ${saved.request_id}`)
+      }
+      await assert.rejects(client.query('select public.adventure_planning_command($1,$2,0,$3)',
+        [lock.owner_id, 'legacy-end-task', { type: 'endTask', id: '30000000-0000-4000-8000-000000000001' }]),
+      error => error.message === 'REQUEST_ID_REUSED', '停用命令的旧回执允许不同摘要复用')
+    } finally {
+      await client.query('reset role')
     }
     const reopened = new pg.Client({ host: '127.0.0.1', port, user: 'postgres', database: 'postgres', password: '', ssl: false })
     try {
       await reopened.connect()
+      await reopened.query('set role service_role')
       const saved = receipts.find(receipt => receipt.request_id === 'rpc-complete-cancel')
       const replay = await reopened.query('select public.adventure_planning_command($1,$2,0,$3) as receipt', [saved.owner_id, saved.request_id, saved.command])
       assert.deepEqual(replay.rows[0].receipt, saved.receipt, '新连接无法重放已取消完成的回执')
@@ -401,19 +565,23 @@ try {
       where p.pronamespace='public'::regnamespace and p.proname like 'adventure\\_%' escape '\\'
       and (p.prosecdef or not exists(select 1 from unnest(coalesce(p.proconfig,array[]::text[])) c where c in ('search_path=""','search_path='))
         or has_function_privilege('anon',p.oid,'execute') or has_function_privilege('authenticated',p.oid,'execute')
+        or has_function_privilege('service_role',p.oid,'execute with grant option')
         or not has_function_privilege('service_role',p.oid,'execute')) order by 1`)).rows.map(row => row.name)
     assert.deepEqual(unsafeFunctions, [], '函数权限或安全属性不符合服务端专用约定')
     const unsafeTables = (await client.query(`select c.relname from pg_class c where c.relnamespace='public'::regnamespace
       and c.relname like 'adventure\\_%' escape '\\' and c.relkind='r'
-      and (not c.relrowsecurity or has_table_privilege('anon',c.oid,'select,insert,update,delete')
-        or has_table_privilege('authenticated',c.oid,'select,insert,update,delete')
+      and (not c.relrowsecurity or has_table_privilege('anon',c.oid,'select,insert,update,delete,truncate,references,trigger,maintain')
+        or has_table_privilege('authenticated',c.oid,'select,insert,update,delete,truncate,references,trigger,maintain')
         or exists(select 1 from unnest(array['select','insert','update']) privilege where not has_table_privilege('service_role',c.oid,privilege))
-        or has_table_privilege('service_role',c.oid,'delete')) order by c.relname`)).rows.map(row => row.relname)
+        or has_table_privilege('service_role',c.oid,'delete,truncate,references,trigger,maintain,select with grant option,insert with grant option,update with grant option')
+        or exists(select 1 from aclexplode(coalesce(c.relacl,acldefault('r',c.relowner))) acl where acl.grantee=0)) order by c.relname`)).rows.map(row => row.relname)
     assert.deepEqual(unsafeTables, [], '表权限或 RLS 不符合服务端专用约定')
     const unsafeColumns = (await client.query(`select c.relname||'.'||a.attname as name from pg_class c join pg_attribute a on a.attrelid=c.oid
       where c.relnamespace='public'::regnamespace and c.relname like 'adventure\\_%' escape '\\' and c.relkind='r'
       and a.attnum>0 and not a.attisdropped and (has_column_privilege('anon',c.oid,a.attname,'select,insert,update,references')
-        or has_column_privilege('authenticated',c.oid,a.attname,'select,insert,update,references')) order by 1`)).rows.map(row => row.name)
+        or has_column_privilege('authenticated',c.oid,a.attname,'select,insert,update,references')
+        or has_column_privilege('service_role',c.oid,a.attname,'references,select with grant option,insert with grant option,update with grant option')
+        or exists(select 1 from aclexplode(a.attacl) acl where acl.grantee=0)) order by 1`)).rows.map(row => row.name)
     assert.deepEqual(unsafeColumns, [], '列权限不符合服务端专用约定')
     assert.equal((await client.query("select has_schema_privilege('anon','public','create') or has_schema_privilege('authenticated','public','create') unsafe")).rows[0].unsafe, false)
     assert.equal((await client.query("select rolbypassrls from pg_roles where rolname='service_role'")).rows[0].rolbypassrls, true)
@@ -421,6 +589,28 @@ try {
     await client.query(migration)
     assert.deepEqual(await capture(client), after, '重复执行改变了持久化事实')
     assertSchemaUnchanged(afterSchema, await schemaSnapshot(client), '重复执行改变了结构或安全属性')
+    for (const unsafeCase of ['default_table', 'default_function', 'service_schema', 'role_bypass']) {
+      await client.query(`create database goal_unsafe_fresh_${unsafeCase}`)
+      const unsafeInit = new pg.Client({ host: '127.0.0.1', port, user: 'postgres', database: `goal_unsafe_fresh_${unsafeCase}`, password: '', ssl: false })
+      try {
+        await unsafeInit.connect()
+        if (unsafeCase === 'default_table') await unsafeInit.query('alter default privileges in schema public grant truncate on tables to goal_acl_parent')
+        if (unsafeCase === 'default_function') await unsafeInit.query('alter default privileges in schema public grant execute on functions to goal_acl_parent')
+        if (unsafeCase === 'service_schema') await unsafeInit.query('grant create on schema public to service_role')
+        if (unsafeCase === 'role_bypass') await unsafeInit.query('alter role authenticated bypassrls')
+        if (unsafeCase === 'default_table' || unsafeCase === 'default_function') await unsafeInit.query('grant goal_acl_parent to anon with inherit false, set true')
+        const unsafeInitSchema = await schemaSnapshot(unsafeInit)
+        const initialization = await readFile(join(root, 'db/adventure/create-planning.sql'), 'utf8')
+        await assert.rejects(unsafeInit.query(initialization), error => error.message === 'GOAL_MIGRATION_UNSAFE_SECURITY', `新库接受了异常授权 ${unsafeCase}`)
+        await unsafeInit.query('rollback')
+        assertSchemaUnchanged(unsafeInitSchema, await schemaSnapshot(unsafeInit), `${unsafeCase}: 不安全的新库初始化未完全回滚`)
+      } finally {
+        if (unsafeCase === 'default_table' || unsafeCase === 'default_function') await client.query('revoke goal_acl_parent from anon')
+        if (unsafeCase === 'role_bypass') await client.query('alter role authenticated nobypassrls')
+        await unsafeInit.end()
+        await client.query(`drop database goal_unsafe_fresh_${unsafeCase}`)
+      }
+    }
     await client.query('create database goal_fresh')
     const fresh = new pg.Client({ host: '127.0.0.1', port, user: 'postgres', database: 'goal_fresh', password: '', ssl: false })
     try {
@@ -430,6 +620,8 @@ try {
       }
       assertSchemaUnchanged(afterSchema, await schemaSnapshot(fresh), '新库和升级库的结构或安全属性不同')
       await fresh.query(businessRegression)
+      await fresh.query(retiredRegression)
+      await assertRoleDenials(fresh)
       assertSchemaUnchanged(afterSchema, await schemaSnapshot(fresh), '新库业务回归未回滚测试触发器')
       await fresh.query('begin')
       try {
@@ -472,6 +664,55 @@ try {
       await fresh.query('rollback')
       assertSchemaUnchanged(unsafeFreshSchema, await schemaSnapshot(fresh), '重复执行失败未保留原结构')
       await fresh.query('revoke select on public.adventure_goals from anon')
+      const freshOwner = '00000000-0000-4000-8000-000000000008'
+      await fresh.query('select public.adventure_planning_command($1,$2,0,$3)',
+        [freshOwner, 'fresh-acl-goal', { type: 'createGoal', title: '合成权限探针', standards: ['完成'] }])
+      const freshBefore = await capture(fresh)
+      for (const acl of unsafeMatrix) {
+        await fresh.query(`grant ${acl.privilege}${acl.column ? ' (id)' : ''} on public.adventure_events to ${acl.grantee}${acl.delegation ? ' with grant option' : ''}`)
+        if (acl.inherited) await fresh.query(`grant goal_acl_parent to ${acl.actor} with inherit false, set true`)
+        await fresh.query(`set session authorization ${acl.actor}`)
+        if (acl.inherited) await fresh.query('set role goal_acl_parent')
+        const privilegeQuery = acl.column
+          ? `select has_column_privilege(current_user,'public.adventure_events','id','${acl.privilege}${acl.delegation ? ' with grant option' : ''}') allowed`
+          : `select has_table_privilege(current_user,'public.adventure_events','${acl.privilege}${acl.delegation ? ' with grant option' : ''}') allowed`
+        assert.equal((await fresh.query(privilegeQuery)).rows[0].allowed, true, `fresh ${acl.id}`)
+        await fresh.query('reset session authorization')
+        const unsafeSchema = await schemaSnapshot(fresh)
+        await assert.rejects(fresh.query(migration), error => error.message === 'GOAL_MIGRATION_UNSAFE_SECURITY', `fresh ${acl.id}`)
+        await fresh.query('rollback')
+        assertSchemaUnchanged(unsafeSchema, await schemaSnapshot(fresh), `fresh ${acl.id}: failed migration changed schema`)
+        assert.deepEqual(await capture(fresh), freshBefore, `fresh ${acl.id}: failed migration changed data`)
+        if (acl.delegation && acl.grantee === 'service_role' && !acl.column) {
+          await fresh.query(`revoke grant option for ${acl.privilege} on public.adventure_events from service_role`)
+        } else {
+          await fresh.query(`revoke ${acl.privilege}${acl.column ? ' (id)' : ''} on public.adventure_events from ${acl.grantee}`)
+        }
+        if (acl.inherited) await fresh.query(`revoke goal_acl_parent from ${acl.actor}`)
+      }
+      for (const inherited of [false, true]) {
+        const grantee = inherited ? 'goal_acl_parent' : 'service_role'
+        await fresh.query(`grant execute on function public.adventure_task_capability(uuid,jsonb,date) to ${grantee} with grant option`)
+        if (inherited) await fresh.query('grant goal_acl_parent to service_role with inherit false, set true')
+        await fresh.query('set session authorization service_role')
+        if (inherited) await fresh.query('set role goal_acl_parent')
+        await fresh.query('begin')
+        await fresh.query('grant execute on function public.adventure_task_capability(uuid,jsonb,date) to anon')
+        await fresh.query('rollback')
+        await fresh.query('reset session authorization')
+        const unsafeSchema = await schemaSnapshot(fresh)
+        await assert.rejects(fresh.query(migration), error => error.message === 'GOAL_MIGRATION_UNSAFE_SECURITY')
+        await fresh.query('rollback')
+        assertSchemaUnchanged(unsafeSchema, await schemaSnapshot(fresh), '函数转授权失败未回滚')
+        assert.deepEqual(await capture(fresh), freshBefore, '函数转授权失败改变了业务数据')
+        if (inherited) {
+          await fresh.query('revoke execute on function public.adventure_task_capability(uuid,jsonb,date) from goal_acl_parent')
+          await fresh.query('revoke goal_acl_parent from service_role')
+        } else {
+          await fresh.query('revoke grant option for execute on function public.adventure_task_capability(uuid,jsonb,date) from service_role')
+        }
+      }
+      assertSchemaUnchanged(afterSchema, await schemaSnapshot(fresh), '权限矩阵清理未恢复新库结构')
       await fresh.query('set role anon')
       await assert.rejects(fresh.query('select * from public.adventure_goals'), error => error.code === '42501')
       await fresh.query('reset role')

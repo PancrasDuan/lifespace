@@ -30,6 +30,8 @@ npm run test:goal-migration-baseline -- --migration db/adventure/migrations/2026
 
 #170 在 PostgreSQL 17、Node.js 24 的隔离合成库中验证实际升级脚本：异常映射、异常外键／索引／权限、静默改写和早晚故障注入均回滚；逐账户逐 ID 对账、重复执行、新库结构及权限等价、回执重放和历史锁定检查通过。新库还检查分类快照、独立任务、服务端权限、旧命令拒绝及并发版本。HTTP／浏览器适配和生产迁移、备份恢复及发布不属于此脚本的验证范围。具体切换与回退注意事项见 [目标分类迁移](goal-category-migration.md)。
 
+独立复审修复补充了 PUBLIC、`anon`、`authenticated`、`service_role` 的全部 PostgreSQL 17 表权限、列级 `REFERENCES`、转授权以及只能通过 `SET ROLE` 使用的父角色权限矩阵；部分场景以真实角色执行 `TRUNCATE`、创建触发器或外键，再回滚测试操作。新库默认继承异常授权时的初始化和新库／旧库出现异常授权时的迁移均需失败并恢复原结构及数据。`tests/database/goal-retired-command-regression.sql` 在新库和升级库以 `service_role` 检查已停用命令的各辅助入口、无副作用及回执优先；旧库夹具另通过旧 RPC 生成停用命令的真实成功回执。
+
 ## 原五表数据库回归的清点
 
 `npm run test:database` 当前仍以新初始化执行旧五表测试。它在 `tests/database/adventure-planning.sql` 的第一条预览请求中传入旧目标 `destination`，新数据库按退役契约返回 `INVALID_COMMAND`，测试运行器随即停止；后面的旧 SQL、旧升级测试及 HTTP 测试尚未运行，不能将该命令报告为通过。

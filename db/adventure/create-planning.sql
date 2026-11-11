@@ -175,14 +175,13 @@ declare
   v_task public.adventure_tasks;
   v_goal public.adventure_goals;
 begin
-  if p_command->>'type' not in ('endTask','deleteTask') then raise exception 'INVALID_COMMAND'; end if;
+  if p_command->>'type' is distinct from 'deleteTask' then raise exception 'INVALID_COMMAND'; end if;
   perform public.adventure_task_check(p_owner,p_command,p_today);
   select * into strict v_task from public.adventure_tasks where owner_id=p_owner and id=(p_command->>'id')::uuid and deleted_at is null;
   select * into strict v_goal from public.adventure_goals where owner_id=p_owner and id=v_task.goal_id;
   return jsonb_build_object('operation',p_command->>'type','entityId',v_task.id,'title',v_task.title,
     'stoppingGoals','[]'::jsonb,
-    'stoppingTasks',case when p_command->>'type'='endTask' then
-      jsonb_build_array(jsonb_build_object('id',v_task.id,'title',v_task.title,'plannedOn',v_task.planned_on)) else '[]'::jsonb end,
+    'stoppingTasks','[]'::jsonb,
     'preservedCompletedTasks',case when v_task.status='completed' then 1 else 0 end,
     'preservedAchievedGoals',0,
     'historicalArrangements',(select count(*) from public.adventure_events where owner_id=p_owner and task_id=v_task.id
@@ -252,13 +251,11 @@ declare
 begin
   if p_owner is null or p_today is null or jsonb_typeof(p_command) is distinct from 'object'
     or pg_column_size(p_command)>32768 then raise exception 'INVALID_COMMAND'; end if;
-  if v_type='migrateTask' then return public.adventure_migration_check(p_owner,p_command); end if;
+  if v_type is null or v_type not in ('createTask','editTask','completeTask','cancelTaskCompletion','deleteTask') then raise exception 'INVALID_COMMAND'; end if;
   case v_type
     when 'createTask' then v_keys:=array['type','title','description','plannedOn','destination'];
-    when 'rescheduleTask' then v_keys:=array['type','id','plannedOn'];
     when 'editTask' then v_keys:=array['type','id','title','description','plannedOn','destination'];
     when 'completeTask' then v_keys:=array['type','id'];
-    when 'endTask' then v_keys:=array['type','id'];
     when 'deleteTask' then v_keys:=array['type','id'];
     when 'cancelTaskCompletion' then v_keys:=array['type','completionId'];
     else raise exception 'INVALID_COMMAND';
@@ -291,13 +288,12 @@ begin
     end if;
     if not found then raise exception 'NOT_FOUND'; end if;
     if v_task.status='ended' then raise exception 'READ_ONLY'; end if;
-    if v_type in ('editTask','rescheduleTask','completeTask','endTask') and v_task.status<>'pending' then raise exception 'TASK_NOT_PENDING'; end if;
-    if v_type in ('editTask','rescheduleTask') then
+    if v_type in ('editTask','completeTask') and v_task.status<>'pending' then raise exception 'TASK_NOT_PENDING'; end if;
+    if v_type='editTask' then
       if jsonb_typeof(p_command->'plannedOn') is distinct from 'string' or p_command->>'plannedOn' !~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' then raise exception 'INVALID_COMMAND'; end if;
       v_day:=(p_command->>'plannedOn')::date;
       if v_day::text<>p_command->>'plannedOn' then raise exception 'INVALID_COMMAND'; end if;
-      if v_day<p_today and (v_type='rescheduleTask' or v_day<>v_task.planned_on) then raise exception 'RESCHEDULE_PAST'; end if;
-      if v_type='rescheduleTask' and v_day=v_task.planned_on then raise exception 'SAME_DATE'; end if;
+      if v_day<p_today and v_day<>v_task.planned_on then raise exception 'RESCHEDULE_PAST'; end if;
       if v_type='editTask' then
         if jsonb_typeof(p_command->'destination') is distinct from 'string' then raise exception 'INVALID_COMMAND'; end if;
         if p_command->>'destination'<>'' then
@@ -347,9 +343,9 @@ declare
   v_impact jsonb;
 begin
   perform public.adventure_task_check(p_owner,p_command,v_today);
-  if v_type in ('endTask','deleteTask') then v_impact:=public.adventure_task_impact(p_owner,p_command,v_today); end if;
+  if v_type='deleteTask' then v_impact:=public.adventure_task_impact(p_owner,p_command,v_today); end if;
   v_before_growth:=public.adventure_growth(p_owner);
-  if v_type in ('createTask','migrateTask','editTask') then
+  if v_type in ('createTask','editTask') then
     if coalesce(p_command->>'destination','')='' then
       select * into v_goal from public.adventure_goals where owner_id=p_owner and kind='inbox';
       if not found then
@@ -365,14 +361,9 @@ begin
     v_kind:='task_created';
     else
       select to_jsonb(t)-'owner_id' into v_before from public.adventure_tasks t where owner_id=p_owner and id=(p_command->>'id')::uuid;
-      if v_type='editTask' then
-        update public.adventure_tasks set goal_id=v_goal.id,title=btrim(p_command->>'title'),description=btrim(p_command->>'description'),planned_on=(p_command->>'plannedOn')::date,updated_at=p_now
-          where owner_id=p_owner and id=(p_command->>'id')::uuid returning * into v_task;
-        v_kind:=case when (v_before->>'planned_on')::date<>v_task.planned_on then 'task_rescheduled' when (v_before->>'goal_id')::uuid<>v_task.goal_id then 'task_migrated' else 'task_updated' end;
-      else
-        update public.adventure_tasks set goal_id=v_goal.id,updated_at=p_now where owner_id=p_owner and id=(p_command->>'id')::uuid returning * into v_task;
-        v_kind:='task_migrated';
-      end if;
+      update public.adventure_tasks set goal_id=v_goal.id,title=btrim(p_command->>'title'),description=btrim(p_command->>'description'),planned_on=(p_command->>'plannedOn')::date,updated_at=p_now
+        where owner_id=p_owner and id=(p_command->>'id')::uuid returning * into v_task;
+      v_kind:=case when (v_before->>'planned_on')::date<>v_task.planned_on then 'task_rescheduled' when (v_before->>'goal_id')::uuid<>v_task.goal_id then 'task_migrated' else 'task_updated' end;
     end if;
   else
     if v_type='cancelTaskCompletion' then
@@ -384,18 +375,10 @@ begin
     v_before:=to_jsonb(v_task)-'owner_id';
     select * into strict v_goal from public.adventure_goals where owner_id=p_owner and id=v_task.goal_id;
     case v_type
-      when 'rescheduleTask' then
-        update public.adventure_tasks set planned_on=(p_command->>'plannedOn')::date,updated_at=p_now
-          where owner_id=p_owner and id=v_task.id returning * into v_task;
-        v_kind:='task_rescheduled';
       when 'completeTask' then
         update public.adventure_tasks set status='completed',completed_at=p_now,completed_on=v_today,updated_at=p_now
           where owner_id=p_owner and id=v_task.id returning * into v_task;
         v_kind:='task_completed';v_delta:=1;
-      when 'endTask' then
-        update public.adventure_tasks set status='ended',ended_at=p_now,end_cause='manual',updated_at=p_now
-          where owner_id=p_owner and id=v_task.id returning * into v_task;
-        v_kind:='task_ended';
       when 'deleteTask' then
         update public.adventure_tasks set deleted_at=p_now,updated_at=p_now
           where owner_id=p_owner and id=v_task.id returning * into v_task;
@@ -446,8 +429,8 @@ begin
   select coalesce(jsonb_agg(b->>'label'),'[]'::jsonb) into v_lost from jsonb_array_elements(v_before_growth->'achievements') b
     where (b->>'unlocked')::boolean and not exists(select 1 from jsonb_array_elements(v_after_growth->'achievements') a where a->>'id'=b->>'id' and (a->>'unlocked')::boolean);
   v_result:=jsonb_build_object('entityId',v_task.id,'message',case v_type
-    when 'createTask' then '已创建任务' when 'editTask' then '已保存任务' when 'endTask' then '任务已结束，不再执行且不可恢复'
-    when 'deleteTask' then '未完成任务已删除' when 'rescheduleTask' then '已改期，保留原安排与行动身份' when 'migrateTask' then '已迁移任务'
+    when 'createTask' then '已创建任务' when 'editTask' then '已保存任务'
+    when 'deleteTask' then '未完成任务已删除'
     when 'cancelTaskCompletion' then '已取消完成，成长已同步更新'
     else '已完成，获得 1 点经验' || case when (v_after_growth->>'level')::bigint>(v_before_growth->>'level')::bigint then '，升至 '||(v_after_growth->>'level')||' 级' else '' end
       || case when jsonb_array_length(v_unlocked)>0 then '，点亮：'||(select string_agg(value, '、') from jsonb_array_elements_text(v_unlocked)) else '' end end,
@@ -463,7 +446,7 @@ returns jsonb language plpgsql security invoker set search_path='' as $$
 declare v_type text:=p_command->>'type'; v_goal public.adventure_goals; v_keys text[];
 begin
   if p_owner is null or jsonb_typeof(p_command) is distinct from 'object' or pg_column_size(p_command)>32768 or v_type is null then raise exception 'INVALID_COMMAND'; end if;
-  if v_type in ('createTask','editTask','rescheduleTask','completeTask','cancelTaskCompletion','migrateTask','endTask','deleteTask') then
+  if v_type in ('createTask','editTask','completeTask','cancelTaskCompletion','deleteTask') then
     return public.adventure_task_check(p_owner,p_command,(clock_timestamp() at time zone 'Asia/Shanghai')::date);
   end if;
   if v_type='endGoal' then return public.adventure_lifecycle_check(p_owner,p_command,(clock_timestamp() at time zone 'Asia/Shanghai')::date); end if;
@@ -707,7 +690,7 @@ returns jsonb language plpgsql security invoker set search_path='' as $$
 declare v_goal public.adventure_goals; v_task public.adventure_tasks; v_target public.adventure_goals; v_destination text:=p_command->>'destination';
 begin
   if p_owner is null or jsonb_typeof(p_command) is distinct from 'object' or pg_column_size(p_command)>32768
-    or p_command->>'type' is distinct from 'migrateTask' or p_command-array['type','id','destination']<>'{}'::jsonb
+    or p_command->>'type' is distinct from 'taskDestination' or p_command-array['type','id','destination']<>'{}'::jsonb
     or not(p_command ?& array['type','id','destination']) or jsonb_typeof(p_command->'id') is distinct from 'string'
     or jsonb_typeof(p_command->'destination') is distinct from 'string' then raise exception 'INVALID_COMMAND'; end if;
   select * into v_task from public.adventure_tasks where owner_id=p_owner and id=(p_command->>'id')::uuid and deleted_at is null;
@@ -741,7 +724,7 @@ begin
     union all select g.id::text,g.title::text,1 from public.adventure_goals g where g.owner_id=p_owner and g.kind='real'
   ) select (select count(*) from candidates),
     (select coalesce(jsonb_agg(jsonb_build_object('id',id,'name',name,'capability',public.adventure_migration_capability(p_owner,
-      jsonb_build_object('type','migrateTask','id',p_id,'destination',id))) order by rank,name,id),'[]')
+      jsonb_build_object('type','taskDestination','id',p_id,'destination',id))) order by rank,name,id),'[]')
       from (select * from candidates order by rank,name,id limit 20 offset (p_page::bigint-1)*20) page) into v_total,v_options;
   v_result:=jsonb_build_object('version',coalesce(v_revision,0),'kind',p_kind,'entityId',p_id,'page',p_page,'pageSize',20,'total',v_total,'options',v_options);
   if octet_length(v_result::text)>1000000 then raise exception 'CAPACITY_REACHED'; end if;
@@ -854,11 +837,11 @@ begin
   if v_revision <> p_expected_version then raise exception 'VERSION_CONFLICT'; end if;
   v_today:=(clock_timestamp() at time zone 'Asia/Shanghai')::date;
   if p_command->>'type'='endTask' then raise exception 'INVALID_COMMAND'; end if;
-  if p_command->>'type' in ('endGoal','endTask','deleteTask') then
-    if p_command->>'type' in ('endTask','deleteTask') then
+  if p_command->>'type' in ('endGoal','deleteTask') then
+    if p_command->>'type'='deleteTask' then
       v_preview:=public.adventure_task_impact(p_owner,p_command,v_today)
         || jsonb_build_object('version',v_revision,'today',v_today,'allowed',true,'requiresConfirmation',true,
-          'message',case when p_command->>'type'='endTask' then '结束后不可恢复，不会获得奖励；已有完成记录和经验保持不变。' else '删除后任务将从规划中移除，保留历史事实和请求回执，不扣除经验。' end);
+          'message','删除后任务将从规划中移除，保留历史事实和请求回执，不扣除经验。');
     else
       v_preview:=public.adventure_lifecycle_impact(p_owner,p_command,v_today)
       || jsonb_build_object('version',v_revision,'today',v_today,'allowed',true,'requiresConfirmation',true,
@@ -868,17 +851,9 @@ begin
     return v_preview;
   end if;
   if p_command->>'type' in ('rescheduleTask','migrateTask') then raise exception 'INVALID_COMMAND'; end if;
-  if p_command->>'type' in ('createTask','editTask','rescheduleTask','completeTask','cancelTaskCompletion','migrateTask','endTask','deleteTask') then
+  if p_command->>'type' in ('createTask','editTask','completeTask','cancelTaskCompletion','deleteTask') then
     perform public.adventure_task_check(p_owner,p_command,v_today);
   else perform public.adventure_planning_check(p_owner,p_command); end if;
-  if p_command->>'type'='rescheduleTask' then
-    return (select jsonb_build_object('version',v_revision,'today',v_today,'allowed',true,'requiresConfirmation',true,
-      'operation','rescheduleTask','taskId',t.id,'title',t.title,'oldPlannedOn',t.planned_on,'newPlannedOn',p_command->>'plannedOn',
-      'sourceEventId',(select id from public.adventure_events where owner_id=p_owner and task_id=t.id
-        and kind in ('task_created','task_rescheduled') order by applied_revision desc,id desc limit 1),
-      'message','仅调整当前执行日期，保留原安排与行动身份，不增加行动数或奖励')
-      from public.adventure_tasks t where owner_id=p_owner and id=(p_command->>'id')::uuid);
-  end if;
   if p_command->>'type'='achieveGoal' then
     select * into strict v_goal from public.adventure_goals where owner_id=p_owner and id=(p_command->>'id')::uuid;
     v_plan:=public.adventure_goal_reward(p_owner,v_goal.id,1);
@@ -1038,6 +1013,48 @@ begin
     execute format('revoke execute on function %s from public, anon, authenticated',r.signature);
     execute format('grant execute on function %s to service_role',r.signature);
   end loop;
+end $$;
+-- Reject unsafe inherited or default grants before exposing the new schema.
+do $$
+begin
+  if exists(select 1 from pg_class c where c.relnamespace='public'::regnamespace and c.relname like 'adventure\_%' escape '\'
+    and c.relkind='r' and (not c.relrowsecurity or c.relforcerowsecurity or has_table_privilege('anon',c.oid,'select,insert,update,delete,truncate,references,trigger')
+      or has_table_privilege('authenticated',c.oid,'select,insert,update,delete,truncate,references,trigger') or has_table_privilege('service_role',c.oid,'delete,truncate,references,trigger')
+      or exists(select 1 from aclexplode(coalesce(c.relacl,acldefault('r',c.relowner))) acl where acl.grantee=0)
+      or exists(select 1 from pg_roles role where
+        ((pg_has_role('anon',role.oid,'MEMBER') or pg_has_role('authenticated',role.oid,'MEMBER'))
+          and (has_table_privilege(role.oid,c.oid,'select,insert,update,delete,truncate,references,trigger')
+            or case when current_setting('server_version_num')::integer>=170000 then has_table_privilege(role.oid,c.oid,'maintain') else false end))
+        or (pg_has_role('service_role',role.oid,'MEMBER')
+          and (has_table_privilege(role.oid,c.oid,'delete,truncate,references,trigger')
+            or has_table_privilege(role.oid,c.oid,'select with grant option,insert with grant option,update with grant option')
+            or case when current_setting('server_version_num')::integer>=170000 then has_table_privilege(role.oid,c.oid,'maintain') else false end)))
+      or exists(select 1 from unnest(array['select','insert','update']) v where not has_table_privilege('service_role',c.oid,v))))
+    or exists(select 1 from pg_class c join pg_attribute a on a.attrelid=c.oid where c.relnamespace='public'::regnamespace
+      and c.relname like 'adventure\_%' escape '\' and c.relkind='r' and a.attnum>0 and not a.attisdropped
+      and (has_column_privilege('anon',c.oid,a.attname,'select,insert,update,references') or has_column_privilege('authenticated',c.oid,a.attname,'select,insert,update,references')
+        or has_column_privilege('service_role',c.oid,a.attname,'references')
+        or exists(select 1 from aclexplode(a.attacl) acl where acl.grantee=0)
+        or exists(select 1 from pg_roles role where
+          ((pg_has_role('anon',role.oid,'MEMBER') or pg_has_role('authenticated',role.oid,'MEMBER'))
+            and has_column_privilege(role.oid,c.oid,a.attname,'select,insert,update,references'))
+          or (pg_has_role('service_role',role.oid,'MEMBER') and
+            (has_column_privilege(role.oid,c.oid,a.attname,'references') or has_column_privilege(role.oid,c.oid,a.attname,'select with grant option,insert with grant option,update with grant option'))))))
+    or exists(select 1 from pg_proc p where p.pronamespace='public'::regnamespace and p.proname like 'adventure\_%' escape '\'
+      and (p.prosecdef or not exists(select 1 from unnest(coalesce(p.proconfig,array[]::text[])) c where c in ('search_path=""','search_path='))
+        or has_function_privilege('anon',p.oid,'execute') or has_function_privilege('authenticated',p.oid,'execute') or not has_function_privilege('service_role',p.oid,'execute')
+        or exists(select 1 from pg_roles role where (pg_has_role('anon',role.oid,'MEMBER') or pg_has_role('authenticated',role.oid,'MEMBER'))
+          and has_function_privilege(role.oid,p.oid,'execute'))
+        or exists(select 1 from pg_roles role where pg_has_role('service_role',role.oid,'MEMBER') and has_function_privilege(role.oid,p.oid,'execute with grant option'))))
+    or has_schema_privilege('anon','public','create') or has_schema_privilege('authenticated','public','create')
+    or exists(select 1 from pg_roles role where (pg_has_role('anon',role.oid,'MEMBER') or pg_has_role('authenticated',role.oid,'MEMBER')
+      or pg_has_role('service_role',role.oid,'MEMBER')) and has_schema_privilege(role.oid,'public','create'))
+    or not coalesce((select rolbypassrls from pg_roles where rolname='service_role'),false)
+    or exists(select 1 from pg_roles role where (pg_has_role('anon',role.oid,'MEMBER') or pg_has_role('authenticated',role.oid,'MEMBER'))
+      and (role.rolsuper or role.rolbypassrls or role.rolcreaterole or role.rolcreatedb or role.rolreplication))
+    or exists(select 1 from pg_roles role where pg_has_role('service_role',role.oid,'MEMBER')
+      and (role.rolsuper or role.rolcreaterole or role.rolcreatedb or role.rolreplication))
+    then raise exception 'GOAL_MIGRATION_UNSAFE_SECURITY'; end if;
 end $$;
 notify pgrst,'reload schema';
 commit;
