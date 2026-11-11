@@ -57,4 +57,29 @@ describe.skipIf(!localPlanningRpc)('无主线任务的真实数据库 API', () =
     const list = await api.request(other, '/api/adventure/tasks/list', { date: today, today, scope: 'all', expectedVersion: 1 })
     expect(await list.json()).toMatchObject({ version: 1, total: 1, tasks: [{ id: receipt.result.entityId, status: 'pending' }] })
   })
+
+  it('目标标签改变后，任务完成和目标达成的奖励来源仍保留各自发生时标签', async () => {
+    const other = crypto.randomUUID()
+    const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Shanghai' })
+    const goal = (await api.fixtureGoal(other, 0, { type: 'createGoal', title: '目标原名', standards: ['原标准'], categoryLabel: '原分类' })).result.entityId
+    const send = (requestId: string, expectedVersion: number, command: unknown) => api.request(other, '/api/adventure/commands', { requestId, expectedVersion, command })
+    const created = await send('freeze-task-1', 1, { type: 'createTask', title: '行动原名', description: '原说明', plannedOn: today, destination: goal })
+    const task = planningReceiptSchema.parse(await created.json()).result.entityId
+    const done = planningReceiptSchema.parse(await (await send('freeze-done-1', 2, { type: 'completeTask', id: task })).json())
+    await api.fixtureGoal(other, 3, { type: 'editGoal', id: goal, title: '目标新名', standards: ['新标准'], categoryLabel: '新分类' })
+    const achieved = planningReceiptSchema.parse(await (await send('freeze-goal-1', 4, { type: 'achieveGoal', id: goal, coefficient: 2, reflection: '完成' })).json())
+    const growth = await api.request(other, '/api/adventure/growth')
+    expect(growth.status).toBe(200)
+    const page = await growth.json()
+    expect(page).toMatchObject({ growth: { totalXp: 3, actions: 1, achievedGoals: 1 }, items: [
+      { id: achieved.result.achievementId, title: '目标新名', categoryLabel: '新分类', amount: 2 },
+      { id: done.result.completionId, title: '行动原名', goalTitle: '目标原名', categoryLabel: '原分类', amount: 1 },
+    ] })
+    const source = await api.request(other, `/api/adventure/reward-source?id=${achieved.result.achievementId}`)
+    expect(source.status).toBe(200)
+    expect(await source.json()).toMatchObject({ event: { categoryLabel: '新分类' }, actionSources: [{ taskId: task, goalTitle: '目标原名', categoryLabel: '原分类', description: '原说明' }] })
+    const taskSource = await api.request(other, `/api/adventure/reward-source?id=${done.result.completionId}`)
+    expect(await taskSource.json()).toMatchObject({ event: { goalTitle: '目标原名', categoryLabel: '原分类' }, standards: ['原标准'], description: '原说明' })
+    expect(JSON.stringify(page)).not.toMatch(/mainline|主线/i)
+  })
 })

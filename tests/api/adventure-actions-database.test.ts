@@ -4,7 +4,15 @@ import { planningPreviewSchema, planningReceiptSchema, type PlanningCommand } fr
 import { localPlanningRpc as rpcOrigin, planningDatabase } from '../support/planning-database'
 
 const database = planningDatabase('actions@example.invalid')
-const { request, read, envelope, send, command } = database
+const { request, readFourTable: read, envelope, send } = database
+// Goal creation is fixture setup until the new goal Worker is integrated.
+const command = async (owner: string, value: PlanningCommand | { type: 'createGoal'; destination: ''; title: string; standards: string[] }) => {
+  if (value.type === 'createGoal') {
+    if ('destination' in value && value.destination !== '') throw new Error('旧主线归属不再可用于目标准备')
+    return database.fixtureGoal(owner, (await read(owner)).version, { type: 'createGoal', title: value.title, standards: value.standards })
+  }
+  return database.commandFourTable(owner, value)
+}
 
 // Read the current task through the public workspace interface before building a complete edit.
 const editFor = async (owner: string, id: string, changes: Partial<{ title: string; description: string; plannedOn: string; destination: string }>) => {
@@ -17,12 +25,30 @@ const editFor = async (owner: string, id: string, changes: Partial<{ title: stri
 
 const createTask = async (owner: string, title = '完整行动', plannedOn?: string, destination = '') => {
   const today = (await read(owner)).today
-  return (plannedOn && plannedOn < today ? database.createHistoricalTask : command)(owner, { type: 'createTask', title, description: '行动说明', destination, plannedOn: plannedOn ?? today })
+  return (plannedOn && plannedOn < today ? database.createHistoricalTaskFourTable : command)(owner, { type: 'createTask', title, description: '行动说明', destination, plannedOn: plannedOn ?? today })
 }
 
 describe.skipIf(!rpcOrigin)('正式 Worker HTTP → 本机真实 PostgREST → 独立 PostgreSQL 任务事务', () => {
   beforeEach(() => database.install())
   afterEach(() => database.restore())
+
+  it('主线、目标跨主线迁移和旧聚焦命令均停用，不能改变任务或账户', async () => {
+    const owner = crypto.randomUUID()
+    const goal = (await command(owner, { type: 'createGoal', destination: '', title: '目标', standards: ['标准'] })).result.entityId
+    const task = (await createTask(owner, '保留行动', undefined, goal)).result.entityId
+    const before = await read(owner)
+    const commands: PlanningCommand[] = [
+      { type: 'createMainline', name: '旧方向' }, { type: 'renameMainline', id: goal, name: '旧名称' },
+      { type: 'endMainline', id: goal }, { type: 'migrateGoal', id: goal, destination: '' },
+      { type: 'focusGoal', id: goal, focused: true },
+    ]
+    for (const value of commands) {
+      expect((await send(owner, envelope(before.version, value))).status).toBe(400)
+      expect(await read(owner)).toEqual(before)
+    }
+    expect((await request(owner, `/api/adventure/migration-options?kind=goal&id=${goal}`)).status).toBe(400)
+    expect((await read(owner)).tasks[0]).toMatchObject({ id: task, goalId: goal, status: 'pending' })
+  })
 
   it('待完成任务编辑归属保持身份和日期，完成后冻结归属与奖励且不可再编辑', async () => {
     const owner = crypto.randomUUID()
@@ -54,84 +80,9 @@ describe.skipIf(!rpcOrigin)('正式 Worker HTTP → 本机真实 PostgREST → �
   })
 
 
-  it('目标跨主线与独立归属迁移保留聚焦、任务身份，按同类组末尾落位且幂等', async () => {
+  it('编辑归属候选可分页读取，跨账户、未知及终态目的拒绝，独立任务往返保留日期', async () => {
     const owner = crypto.randomUUID(), other = crypto.randomUUID()
-    const a = (await command(owner, { type: 'createMainline', name: '来源主线' })).result.entityId
-    const b = (await command(owner, { type: 'createMainline', name: '目的主线' })).result.entityId
-    const goal = (await command(owner, { type: 'createGoal', destination: a, title: '随行成果', standards: ['原标准'] })).result.entityId
-    const peers: string[] = []
-    for (let i = 0; i < 3; i++) peers.push((await command(owner, { type: 'createGoal', destination: b, title: `目的目标 ${i}`, standards: ['标准'] })).result.entityId)
-    await command(owner, { type: 'focusGoal', id: goal, focused: true })
-    await command(owner, { type: 'focusGoal', id: peers[0], focused: true })
-    const task = (await createTask(owner, '跟随任务', undefined, goal)).result.entityId
-    await command(owner, { type: 'completeTask', id: task })
-    const before = await read(owner)
-    const move = envelope(before.version, { type: 'migrateGoal', id: goal, destination: b })
-    const options = await request(owner, `/api/adventure/migration-options?kind=goal&id=${goal}`)
-    expect(options.status).toBe(200)
-    expect(await options.json()).toMatchObject({ version: before.version, options: expect.arrayContaining([
-      expect.objectContaining({ id: a, capability: { allowed: false, reason: '当前归属，无需迁移' } }),
-      expect.objectContaining({ id: b, capability: { allowed: true } }),
-    ]) })
-    expect(await read(owner)).toEqual(before)
-    const preview = await request(owner, '/api/adventure/preview', { expectedVersion: before.version, command: move.command })
-    expect(preview.status).toBe(200)
-    expect(planningPreviewSchema.parse(await preview.json())).toMatchObject({ version: before.version, requiresConfirmation: false })
-    expect(await read(owner)).toEqual(before)
-    const responses = await Promise.all([send(owner, move), send(owner, move)])
-    expect(responses.map(value => value.status)).toEqual([200, 200])
-    const receipt = await responses[0].json()
-    expect(await responses[1].json()).toEqual(receipt)
-    const after = await read(owner)
-    expect(after.goals.map(g => g.id)).toEqual([peers[0], goal, peers[1], peers[2]])
-    expect(after.tasks[0]).toMatchObject({ id: task, goalId: goal, mainlineName: '目的主线', completionOrigin: { mainlineId: a, mainlineName: '来源主线' }, reward: before.tasks[0].reward })
-    expect(after.goals.find(g => g.id === goal)).toMatchObject({ focused: true, title: '随行成果', standards: ['原标准'] })
-    expect(after.growth).toEqual(before.growth)
-    await command(owner, { type: 'migrateGoal', id: goal, destination: '' })
-    expect((await read(owner)).goals.find(g => g.id === goal)).toMatchObject({ independent: true, focused: true })
-    expect(await (await send(owner, move)).json()).toEqual(receipt)
-    expect((await send(other, envelope(0, move.command))).status).toBe(404)
-    expect((await request(other, `/api/adventure/migration-options?kind=goal&id=${goal}`)).status).toBe(404)
-    expect((await send(owner, { ...move, command: { type: 'migrateGoal', id: goal, destination: a } })).status).toBe(409)
-    await command(owner, { type: 'migrateGoal', id: goal, destination: a })
-    const final = await read(owner)
-    expect(final.mainlines).toHaveLength(2)
-    expect(final.totalGoals).toBe(4)
-    expect(final.goals.find(g => g.id === goal)).toMatchObject({ mainlineId: a, focused: true })
-  })
-
-  it('聚焦迁移竞争最后名额，满额候选和旧编辑入口均不能超额，失败无变化', async () => {
-    const owner = crypto.randomUUID()
-    const main = (await command(owner, { type: 'createMainline', name: '配额目的' })).result.entityId
-    for (let i = 0; i < 2; i++) {
-      const id = (await command(owner, { type: 'createGoal', destination: main, title: `已有 ${i}`, standards: ['标准'] })).result.entityId
-      await command(owner, { type: 'focusGoal', id, focused: true })
-    }
-    const ids: string[] = []
-    for (let i = 0; i < 2; i++) {
-      const id = (await command(owner, { type: 'createGoal', destination: '', title: `迁移 ${i}`, standards: ['标准'] })).result.entityId
-      ids.push(id)
-      await command(owner, { type: 'focusGoal', id, focused: true })
-    }
-    const before = await read(owner)
-    const inputs = ids.map(id => envelope(before.version, { type: 'migrateGoal', id, destination: main }))
-    const responses = await Promise.all(inputs.map(value => send(owner, value)))
-    expect(responses.map(value => value.status).sort()).toEqual([200, 409])
-    const loser = responses.findIndex(value => value.status === 409)
-    const after = await read(owner)
-    expect(after.goals.filter(g => g.focused && g.mainlineId === main)).toHaveLength(3)
-    const options = await (await request(owner, `/api/adventure/migration-options?kind=goal&id=${ids[loser]}`)).json()
-    expect(options).toMatchObject({ options: expect.arrayContaining([expect.objectContaining({ id: main, capability: { allowed: false, reason: expect.stringContaining('3') } })]) })
-    const blocked = await send(owner, { ...inputs[loser], expectedVersion: after.version })
-    expect(blocked.status).toBe(400)
-    expect(await blocked.json()).toMatchObject({ error: { code: 'FOCUS_LIMIT' } })
-    expect((await send(owner, envelope(after.version, { type: 'editGoal', id: ids[loser], destination: main, title: '旧入口', standards: ['标准'] }))).status).toBe(400)
-    expect(await read(owner)).toEqual(after)
-  })
-
-  it('编辑归属候选可分页读取，跨账户、主线和终态目的拒绝，独立任务往返保留日期', async () => {
-    const owner = crypto.randomUUID(), other = crypto.randomUUID()
-    const main = (await command(owner, { type: 'createMainline', name: '不是任务容器' })).result.entityId
+    const unknown = crypto.randomUUID()
     const goals: string[] = []
     for (let i = 0; i < 23; i++) goals.push((await command(owner, { type: 'createGoal', destination: '', title: `候选 ${String(i).padStart(2, '0')}`, standards: ['标准'] })).result.entityId)
     await command(owner, { type: 'achieveGoal', id: goals[1], coefficient: 1, reflection: '' })
@@ -146,10 +97,10 @@ describe.skipIf(!rpcOrigin)('正式 Worker HTTP → 本机真实 PostgREST → �
     const all = [...a.goals, ...b.goals]
     expect(new Set(all.map(goal => goal.id)).size).toBe(23)
     expect(all.find(goal => goal.id === goals[1])?.capabilities.createTask.allowed).toBe(false)
-    expect(all.some(goal => goal.id === foreign || goal.id === main)).toBe(false)
+    expect(all.some(goal => goal.id === foreign || goal.id === unknown)).toBe(false)
     expect((await request(owner, `/api/adventure/migration-options?kind=task&id=${task}`)).status).toBe(400)
     const before = await read(owner, '?taskRange=future')
-    for (const destination of [main, foreign, goals[1]]) expect((await send(owner, envelope(before.version, await editFor(owner, task, { destination })))).status).toBe(destination === goals[1] ? 400 : 404)
+    for (const destination of [unknown, foreign, goals[1]]) expect((await send(owner, envelope(before.version, await editFor(owner, task, { destination })))).status).toBe(destination === goals[1] ? 400 : 404)
     expect(await read(owner, '?taskRange=future')).toEqual(before)
     const target = all.find(goal => goal.status === 'active')!.id
     await command(owner, await editFor(owner, task, { destination: target }))
@@ -213,7 +164,7 @@ describe.skipIf(!rpcOrigin)('正式 Worker HTTP → 本机真实 PostgREST → �
     expect(completed.result.reward).toEqual({ amount: 1, calculation: { type: 'fixed_task', completionId: completed.result.completionId, count: 1, coefficient: 1 } })
     expect((await read(owner)).tasks[0]).toMatchObject({ completionId: completed.result.completionId, reward: completed.result.reward })
     expect(completed.result.growthChange).toMatchObject({ xpDelta: 1, unlocked: ['迈出第一步'] })
-    expect(await read(owner)).toMatchObject({ totalGoals: 0, mainlines: [], growth: { totalXp: 1, actions: 1 }, tasks: [{ status: 'completed' }] })
+    expect(await read(owner)).toMatchObject({ totalGoals: 0, growth: { totalXp: 1, actions: 1 }, tasks: [{ status: 'completed' }] })
     expect(await read(other)).toMatchObject({ tasks: [], growth: { totalXp: 0 } })
   })
 
@@ -324,86 +275,11 @@ describe.skipIf(!rpcOrigin)('正式 Worker HTTP → 本机真实 PostgREST → �
     await command(owner, { type: 'completeTask', id: last })
     expect((await read(owner)).growth).toMatchObject({ totalXp: 20, level: 2, progress: 0, actions: 20 })
   }, 30_000)
-  it('聚焦配额按归属独立计数，并发争最后名额、幂等与跨账户拒绝均保持原子', async () => {
-    const owner = crypto.randomUUID(), other = crypto.randomUUID()
-    const main = (await command(owner, { type: 'createMainline', name: '普通主线' })).result.entityId
-    const ids: string[] = []
-    for (let i = 0; i < 4; i++) ids.push((await command(owner, { type: 'createGoal', destination: main, title: `目标 ${i}`, standards: ['标准'] })).result.entityId)
-    for (const id of ids.slice(0, 2)) await command(owner, { type: 'focusGoal', id, focused: true })
-    const before = await read(owner)
-    const requests = ids.slice(2).map(id => envelope(before.version, { type: 'focusGoal', id, focused: true }))
-    const race = await Promise.all(requests.map(value => send(owner, value)))
-    expect(race.map(response => response.status).sort()).toEqual([200, 409])
-    const winner = race.findIndex(response => response.status === 200), loser = 1 - winner
-    const receipt = await race[winner].json()
-    expect(await (await send(owner, requests[winner])).json()).toEqual(receipt)
-    const full = await read(owner)
-    expect(full.goals.filter(goal => goal.focused)).toHaveLength(3)
-    const failure = await send(owner, envelope(full.version, requests[loser].command))
-    expect(failure.status).toBe(400)
-    expect(await failure.json()).toMatchObject({ error: { code: 'FOCUS_LIMIT' } })
-    expect(await read(owner)).toEqual(full)
-    expect((await send(owner, { ...requests[winner], command: { type: 'focusGoal', id: ids[0], focused: false } })).status).toBe(409)
-    expect((await send(other, envelope(0, { type: 'focusGoal', id: ids[0], focused: true }))).status).toBe(404)
-    expect((await send(other, envelope(0, { type: 'reorderGoals', mainlineId: main, id: ids[0], direction: 'up' }))).status).toBe(404)
-    // No account-wide cap: independent goals have their own three slots.
-    const independents: string[] = []
-    for (let i = 0; i < 4; i++) {
-      const id = (await command(owner, { type: 'createGoal', destination: '', title: `独立目标 ${i}`, standards: ['标准'] })).result.entityId
-      independents.push(id)
-      if (i < 3) await command(owner, { type: 'focusGoal', id, focused: true })
-    }
-    expect((await read(owner)).goals.filter(goal => goal.focused)).toHaveLength(6)
-    const version = (await read(owner)).version
-    expect((await send(owner, envelope(version, { type: 'focusGoal', id: independents[3], focused: true }))).status).toBe(400)
-    // Existing destination editing must not bypass the focus quota.
-    expect((await send(owner, envelope(version, { type: 'editGoal', id: ids[0], destination: '', title: '不能超额迁入', standards: ['标准'] }))).status).toBe(400)
-    expect((await read(owner)).version).toBe(version)
-    await command(owner, { type: 'focusGoal', id: independents[0], focused: false })
-    await command(owner, { type: 'focusGoal', id: independents[3], focused: true })
-  })
-
-  it('同归属同聚焦组排序支持相邻移动与拖动目标，非法排序回滚并保留稳定回执', async () => {
-    const owner = crypto.randomUUID()
-    const ids: string[] = []
-    const destination = (await command(owner, { type: 'createMainline', name: '排序主线' })).result.entityId
-    for (let i = 0; i < 4; i++) ids.push((await command(owner, { type: 'createGoal', destination, title: `顺序 ${i}`, standards: ['标准'] })).result.entityId)
-    const initial = await read(owner), mainlineId = initial.goals[0].mainlineId
-    const original = envelope(initial.version, { type: 'reorderGoals', id: ids[3], mainlineId, direction: 'up', targetId: ids[0] })
-    const receipt = await (await send(owner, original)).json()
-    expect((await read(owner)).goals.map(goal => goal.id)).toEqual([ids[3], ids[0], ids[1], ids[2]])
-    await command(owner, { type: 'reorderGoals', id: ids[3], mainlineId, direction: 'down' })
-    expect((await read(owner)).goals.map(goal => goal.id)).toEqual([ids[0], ids[3], ids[1], ids[2]])
-    expect(await (await send(owner, original)).json()).toEqual(receipt)
-    await command(owner, { type: 'focusGoal', id: ids[2], focused: true })
-    const before = await read(owner)
-    expect(before.goals[0].id).toBe(ids[2])
-    const invalid = await send(owner, envelope(before.version, { type: 'reorderGoals', id: ids[0], mainlineId, direction: 'down', targetId: ids[2] }))
-    expect(invalid.status).toBe(400)
-    expect(await read(owner)).toEqual(before)
-    const otherMain = (await command(owner, { type: 'createMainline', name: '其他组' })).result.entityId
-    const wrong = await read(owner)
-    expect((await send(owner, envelope(wrong.version, { type: 'reorderGoals', id: ids[0], mainlineId: otherMain, direction: 'up' }))).status).toBe(404)
-    expect(await read(owner)).toEqual(wrong)
-    const paged = await read(owner, '?pageSize=1&page=2')
-    expect(paged.goals[0].id).toBe(ids[0])
-    expect(paged.mainlines.find(item => item.id === mainlineId)?.activeGoalCount).toBe(4)
-    expect((await read(owner, `?mainlineId=${mainlineId}&pageSize=1`)).mainlineDetail?.activeGoalCount).toBe(4)
-    const focusedPage = await read(owner, '?goalScope=focus&pageSize=1')
-    expect(focusedPage.totalGoals).toBe(1)
-    expect(focusedPage.goals.map(goal => goal.id)).toEqual([ids[2]])
-    expect(focusedPage.mainlines.find(item => item.id === mainlineId)?.activeGoalCount).toBe(4)
-    await createTask(owner, '主线今天行动', focusedPage.today, ids[0])
-    const main = (await read(owner, '?taskRange=future&search=无匹配')).mainlines.find(item => item.id === mainlineId)!
-    expect(main.todayTaskCount).toBe(1)
-    expect((await read(owner, `?mainlineId=${mainlineId}`)).mainlineDetail?.todayTaskCount).toBe(1)
-  })
-
   it('搜索和日期与双视图组合，分页不截断进度，取消后重算但不自动达成', async () => {
     const owner = crypto.randomUUID()
     const focused = (await command(owner, { type: 'createGoal', destination: '', title: '聚焦结果', standards: ['标准'] })).result.entityId
     const unfocused = (await command(owner, { type: 'createGoal', destination: '', title: '普通结果', standards: ['标准'] })).result.entityId
-    await command(owner, { type: 'focusGoal', id: focused, focused: true })
+    await database.fixtureFocused(owner, focused)
     const today = Temporal.PlainDate.from((await read(owner)).today)
     const a = (await createTask(owner, '检索行动 A', today.toString(), focused)).result.entityId
     const b = (await createTask(owner, '检索行动 B', today.toString(), focused)).result.entityId
@@ -442,7 +318,6 @@ describe.skipIf(!rpcOrigin)('正式 Worker HTTP → 本机真实 PostgREST → �
   it('目标八次行动选系数二：先转移未完成任务，额外入账16且总经验24', async () => {
     const owner = crypto.randomUUID()
     const goal = (await command(owner, { type: 'createGoal', destination: '', title: '八次行动成果', standards: ['按标准确认结果'] })).result.entityId
-    await command(owner, { type: 'focusGoal', id: goal, focused: true })
     const ids: string[] = []
     for (let i = 0; i < 8; i++) {
       const id = (await createTask(owner, `计奖行动 ${i}`, undefined, goal)).result.entityId
@@ -524,17 +399,16 @@ describe.skipIf(!rpcOrigin)('正式 Worker HTTP → 本机真实 PostgREST → �
     expect(after.goals).toEqual([])
     const detail = await read(owner, `?goalId=${id}&pageSize=1&goalTaskPage=2`)
     expect(detail.goalDetail).toMatchObject({ totalTasks: 2, taskPage: 2, goal: { id, status: 'achieved', achievement: { reflection: '冻结感想', reward: { amount: 6, calculation: { count: 2, coefficient: 3 } } } }, tasks: [{ id: pending, status: 'completed' }] })
-    for (const operation of ['edit', 'focus', 'reorder', 'achieve', 'createTask']) expect(detail.goalDetail!.goal.capabilities[operation].allowed).toBe(false)
+    for (const operation of ['edit', 'achieve', 'createTask']) expect(detail.goalDetail!.goal.capabilities[operation].allowed).toBe(false)
     for (const cmd of [
       { type: 'editGoal', id, destination: '', title: '非法改名', standards: ['标准'] },
       { type: 'focusGoal', id, focused: true },
-      { type: 'reorderGoals', id, mainlineId: detail.goalDetail!.goal.mainlineId, direction: 'up' },
       { type: 'createTask', destination: id, title: '非法新增', description: '', plannedOn: after.today },
       { type: 'completeTask', id: pending }, await editFor(owner, pending, { title: '非法编辑', description: '' }),
       { type: 'cancelTaskCompletion', completionId },
     ] satisfies PlanningCommand[]) expect((await send(owner, envelope(after.version, cmd))).status).toBe(400)
     expect(await read(owner)).toEqual(after)
-    expect((await request(other, `/api/adventure?goalId=${id}`)).status).toBe(404)
+    expect((await request(other, `/api/adventure/task-history?id=${completed}`)).status).toBe(404)
     expect((await send(other, envelope(0, input))).status).toBe(404)
   })
 

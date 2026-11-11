@@ -4,7 +4,9 @@ import { planningPreviewSchema, planningReceiptSchema } from '../../src/shared/a
 import { localPlanningRpc as rpcOrigin, planningDatabase } from '../support/planning-database'
 
 const database = planningDatabase('lifecycle@example.invalid')
-const { request, read, envelope, send, command } = database
+const { request, readFourTable: read, envelope, send, commandFourTable: command } = database
+const createGoal = async (owner: string, title: string, standards: string[], categoryLabel?: string) =>
+  database.fixtureGoal(owner, (await read(owner)).version, { type: 'createGoal', title, standards, categoryLabel })
 describe.skipIf(!rpcOrigin)('正式 Worker HTTP → 本机真实 PostgREST → 独立 PostgreSQL 成长记录', () => {
   beforeEach(() => database.install())
   afterEach(() => database.restore())
@@ -25,32 +27,29 @@ describe.skipIf(!rpcOrigin)('正式 Worker HTTP → 本机真实 PostgREST → �
         ] } })
     expect(await read(owner)).toEqual(before)
   })
-  it('任务与目标奖励仅投影冻结事件，迁移、改名和结束后来源仍可读，零行动固定保底', async () => {
-    const main = (await command(owner, { type: 'createMainline', name: '发生时主线' })).result.entityId
-    const goal = (await command(owner, { type: 'createGoal', destination: main, title: '发生时目标', standards: ['原标准'] })).result.entityId
+  it('任务与目标奖励仅投影冻结事件，标签和改名后来源仍可读，零行动固定保底', async () => {
+    const goal = (await createGoal(owner, '发生时目标', ['原标准'], '发生时分类')).result.entityId
     const today = (await read(owner)).today
     const task = (await command(owner, { type: 'createTask', title: '发生时任务', description: '冻结说明', plannedOn: today, destination: goal })).result.entityId
     const done = await command(owner, { type: 'completeTask', id: task })
-    await command(owner, { type: 'migrateGoal', id: goal, destination: '' })
+    await database.fixtureGoal(owner, (await read(owner)).version, { type: 'editGoal', id: goal, title: '现在目标', standards: ['新标准'], categoryLabel: '现在分类' })
     const achieved = await command(owner, { type: 'achieveGoal', id: goal, coefficient: 3, reflection: '完成时感想' })
-    await command(owner, { type: 'renameMainline', id: main, name: '现在主线' })
-    await command(owner, { type: 'endMainline', id: main })
-    const fallback = (await command(owner, { type: 'createGoal', destination: '', title: '无行动成果', standards: ['标准'] })).result.entityId
+    const fallback = (await createGoal(owner, '无行动成果', ['标准'])).result.entityId
     const fallbackReceipt = await command(owner, { type: 'achieveGoal', id: fallback, coefficient: 3, reflection: '' })
     const response = await request(owner, '/api/adventure/growth')
     expect(response.status).toBe(200)
     expect(await response.json()).toMatchObject({ total: 3, nextCursor: null, growth: { totalXp: 5, actions: 1, achievedGoals: 2 }, items: [
       { id: fallbackReceipt.result.achievementId, kind: 'goal_achieved', title: '无行动成果', amount: 1, calculation: { count: 0, coefficient: 3, fallback: true } },
-      { id: achieved.result.achievementId, title: '发生时目标', amount: 3, calculation: { count: 1, coefficient: 3, fallback: false } },
-      { id: done.result.completionId, title: '发生时任务', goalId: goal, mainlineId: main, mainlineName: '发生时主线', goalTitle: '发生时目标', amount: 1 },
+      { id: achieved.result.achievementId, title: '现在目标', categoryLabel: '现在分类', amount: 3, calculation: { count: 1, coefficient: 3, fallback: false } },
+      { id: done.result.completionId, title: '发生时任务', goalId: goal, categoryLabel: '发生时分类', goalTitle: '发生时目标', amount: 1 },
     ] })
     const taskSource = await request(owner, `/api/adventure/reward-source?id=${done.result.completionId}`)
     expect(taskSource.status).toBe(200)
     expect(await taskSource.json()).toMatchObject({ event: { id: done.result.completionId, entityId: task }, description: '冻结说明', plannedOn: today, standards: ['原标准'], actionSources: [], totalSources: 0 })
     const goalSource = await request(owner, `/api/adventure/reward-source?id=${achieved.result.achievementId}`)
     expect(goalSource.status).toBe(200)
-    expect(await goalSource.json()).toMatchObject({ reflection: '完成时感想', standards: ['原标准'], totalSources: 1,
-      actionSources: [{ taskId: task, completionId: done.result.completionId, title: '发生时任务', description: '冻结说明', goalId: goal, mainlineId: main }] })
+    expect(await goalSource.json()).toMatchObject({ reflection: '完成时感想', standards: ['新标准'], totalSources: 1,
+      actionSources: [{ taskId: task, completionId: done.result.completionId, title: '发生时任务', description: '冻结说明', goalId: goal, categoryLabel: '发生时分类' }] })
     expect((await read(owner)).goals.some(g => g.id === goal)).toBe(false)
     expect((await request(crypto.randomUUID(), `/api/adventure/reward-source?id=${done.result.completionId}`)).status).toBe(404)
   })
@@ -113,7 +112,7 @@ describe.skipIf(!rpcOrigin)('正式 Worker HTTP → 本机真实 PostgREST → �
     for (const query of ['?cursor=bad', `?cursor=${first.nextCursor}`, '?version=-1', '?version=1.2', '?version=9007199254740992', `?owner=${other}`, '?page=2']) {
       expect((await request(owner, '/api/adventure/growth' + query)).status).toBe(400)
     }
-    await command(owner, { type: 'createGoal', destination: '', title: '只改规划也使旧游标失效', standards: ['标准'] })
+    await createGoal(owner, '只改规划也使旧游标失效', ['标准'])
     expect((await request(owner, `/api/adventure/growth?version=${first.version}&cursor=${first.nextCursor}`)).status).toBe(409)
     expect((await request(owner, `/api/adventure/reward-source?id=${ids[0]}&version=${first.version}`)).status).toBe(409)
     expect((await growth(owner)).growth).toEqual(first.growth)
@@ -123,7 +122,7 @@ describe.skipIf(!rpcOrigin)('正式 Worker HTTP → 本机真实 PostgREST → �
     let last: Awaited<ReturnType<typeof complete>> | undefined
     for (let i = 0; i < 100; i++) last = await complete(owner, `里程碑 ${i}`)
     for (let i = 0; i < 10; i++) {
-      const goal = (await command(owner, { type: 'createGoal', destination: '', title: `成果 ${i}`, standards: ['完成标准'] })).result.entityId
+      const goal = (await createGoal(owner, `成果 ${i}`, ['完成标准'])).result.entityId
       await command(owner, { type: 'achieveGoal', id: goal, coefficient: 3, reflection: '' })
     }
     const page = await growth(owner)
@@ -138,7 +137,7 @@ describe.skipIf(!rpcOrigin)('正式 Worker HTTP → 本机真实 PostgREST → �
   }, 20_000)
 
   it('大内容目标的计奖来源独立分页，保留冻结行动身份和说明，不随流水页重复膨胀', async () => {
-    const goal = (await command(owner, { type: 'createGoal', destination: '', title: '多行动目标', standards: ['历史标准'] })).result.entityId
+    const goal = (await createGoal(owner, '多行动目标', ['历史标准'])).result.entityId
     const ids: string[] = []
     for (let i = 0; i < 12; i++) ids.push((await complete(owner, `长来源 ${i}`, goal, '冻结内容'.repeat(1000))).id)
     const receipt = await command(owner, { type: 'achieveGoal', id: goal, coefficient: 2, reflection: '保留感想' })
