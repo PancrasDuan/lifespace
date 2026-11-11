@@ -26,7 +26,7 @@ test('提交尚未完成时，所有成长入口禁用，不会提前读取旧�
     expect(await page.getByRole('button', { name: '成长记录', exact: true }).isDisabled()).toBe(true)
     expect(await page.getByRole('button', { name: '查看完整成长记录', exact: true }).isDisabled()).toBe(true)
   } finally { release() }
-  await expect(page.getByRole('button', { name: '新建主线', exact: true })).toBeEnabled()
+  await expect(page.getByRole('button', { name: '新建目标', exact: true })).toBeEnabled()
   expect(server.envelopes).toHaveLength(1)
 })
 
@@ -40,7 +40,7 @@ test('结果未知时侧栏不能隐藏安全重试，重试保持原封套', as
   await expect(page.getByRole('button', { name: '安全重试同一次操作', exact: true })).toBeVisible()
   expect(await page.getByRole('button', { name: '查看完整成长记录', exact: true }).isDisabled()).toBe(true)
   await page.getByRole('button', { name: '安全重试同一次操作', exact: true }).click()
-  await expect(page.getByRole('button', { name: '新建主线', exact: true })).toBeEnabled()
+  await expect(page.getByRole('button', { name: '新建目标', exact: true })).toBeEnabled()
   expect(server.envelopes).toHaveLength(2)
   expect(server.envelopes[1]).toEqual(server.envelopes[0])
 })

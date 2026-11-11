@@ -115,7 +115,7 @@ export const planningReceiptSchema = z.object({
 const previewBase = { version, today: z.iso.date(), allowed: z.literal(true), message: z.string() }
 export const lifecyclePreviewSchema = z.object({
   ...previewBase, requiresConfirmation: z.literal(true),
-  operation: z.enum(['endGoal', 'endMainline', 'endTask', 'deleteTask']), entityId: z.uuid(), title: z.string(),
+  operation: z.enum(['endGoal', 'deleteTask']), entityId: z.uuid(), title: z.string(),
   stoppingGoals: z.array(z.object({ id: z.uuid(), title: z.string() })).default([]),
   stoppingTasks: z.array(z.object({ id: z.uuid(), title: z.string(), plannedOn: z.iso.date() })).default([]),
   preservedCompletedTasks: version, preservedAchievedGoals: version,
@@ -147,7 +147,7 @@ export type PlanningPreview = z.infer<typeof planningPreviewSchema>
 export type PlanningQuery = { page: number; taskRange: TaskRange; taskPage: number; taskScope: TaskScope; search: string; goalId?: string; goalTaskPage: number; includeTerminal: boolean }
 
 export const migrationOptionsSchema = z.object({
-  version, kind: z.enum(['goal', 'task']), entityId: z.uuid(), page: z.number().int().positive(), pageSize: z.literal(20), total: version,
+  version, kind: z.literal('task'), entityId: z.uuid(), page: z.number().int().positive(), pageSize: z.literal(20), total: version,
   options: z.array(z.object({ id: z.union([z.literal(''), z.uuid()]), name: z.string(), capability: capabilitySchema })).max(20),
 })
 export type MigrationOptions = z.infer<typeof migrationOptionsSchema>

@@ -32,9 +32,9 @@ const achieved: PlanningPage = { ...initial, goals: [], totalGoals: 0,
 
 async function openGoal(page: Page, action: string, menu = false) {
   await page.goto('/adventure?view=planning')
-  await page.getByRole('button', { name: '目标：五公里', exact: true }).click()
-  if (menu) await openRecordActions(page.locator('.adventure-proto-goal').first())
-  await page.getByRole('button', { name: action, exact: true }).click()
+  const row = page.locator('.goal-console-row').filter({ hasText: '五公里' })
+  await row.getByRole('button', { name: '关系卡片' }).click()
+  await row.getByRole('button', { name: action === '结束目标' ? '结束' : '达成', exact: true }).click()
 }
 async function openTask(page: Page, action: string) {
   await page.goto('/adventure')
@@ -94,7 +94,7 @@ for (const scenario of scenarios) {
     expect(server.envelopes).toHaveLength(2)
     expect(server.envelopes[1]).toEqual(server.envelopes[0])
     await page.getByRole('button', { name: '重新读取', exact: true }).click()
-    await expect(page.getByRole('button', { name: '新建主线', exact: true })).toBeEnabled()
+    await expect(page.getByRole('button', { name: '新建目标', exact: true })).toBeEnabled()
     expect(server.envelopes).toHaveLength(2)
     if (scenario.name === '达成') {
       await page.getByRole('button', { name: '查看达成结果', exact: true }).click()
@@ -175,7 +175,7 @@ test('关闭详情后迟到的首次预览不能重新打开确认弹窗', async
     await held.promise
     await page.keyboard.press('Escape')
     release.resolve()
-    await expect(page.getByRole('button', { name: '新建主线', exact: true })).toBeEnabled()
+    await expect(page.getByRole('button', { name: '新建目标', exact: true })).toBeEnabled()
     await expect(page.getByRole('dialog')).toBeHidden()
     await expect(page.getByRole('region', { name: '目标详情', exact: true })).toBeHidden()
     expect(server.envelopes).toHaveLength(0)
@@ -201,7 +201,7 @@ test('关闭删除确认后迟到的重新预览不能影响下一次编辑', as
     await held.promise
     await page.getByRole('button', { name: '关闭弹窗', exact: true }).click()
     release.resolve()
-    await expect(page.getByRole('button', { name: '新建主线', exact: true })).toBeEnabled()
+    await expect(page.getByRole('button', { name: '新建目标', exact: true })).toBeEnabled()
     await openRecordActions(page.locator('.adventure-proto-task').first())
     await page.getByRole('button', { name: '编辑任务', exact: true }).click()
     await expect(page.getByLabel('执行日期', { exact: true })).toHaveValue(initial.today)

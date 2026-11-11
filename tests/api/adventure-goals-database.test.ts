@@ -5,6 +5,19 @@ const db = planningDatabase()
 describe.skipIf(!localPlanningRpc)('目标控制台真实数据库 HTTP', () => {
   beforeEach(() => db.install())
   afterEach(() => db.restore())
+  it('任务迁移候选可查询，目标候选退役且账户隔离', async () => {
+    const owner = crypto.randomUUID(), other = crypto.randomUUID()
+    const goal = await db.command(owner, { type: 'createGoal', title: '目标', standards: ['标准'] })
+    const taskResponse = await db.request(owner, '/api/adventure/commands', { requestId: crypto.randomUUID(), expectedVersion: goal.version,
+      command: { type: 'createTask', title: '任务', description: '', plannedOn: '2099-01-01', destination: '' } })
+    expect(taskResponse.status).toBe(200)
+    const task = (await taskResponse.json()).result.entityId
+    const candidates = await db.request(owner, `/api/adventure/migration-options?kind=task&id=${task}`)
+    expect(candidates.status).toBe(200)
+    expect(await candidates.json()).toMatchObject({ kind: 'task', entityId: task, total: 2, options: [{ id: '' }, { id: goal.result.entityId, name: '目标' }] })
+    expect((await db.request(other, `/api/adventure/migration-options?kind=task&id=${task}`)).status).toBe(404)
+    expect((await db.request(owner, `/api/adventure/migration-options?kind=goal&id=${goal.result.entityId}`)).status).toBe(400)
+  })
   it('标签、全局排序、分页、版本与账户隔离', async () => {
     const owner = crypto.randomUUID(), other = crypto.randomUUID()
     const a = (await db.command(owner, { type: 'createGoal', title: '甲', standards: ['完成'], categoryLabel: ' 学习 ' })).result.entityId

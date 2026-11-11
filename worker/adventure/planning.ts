@@ -17,8 +17,6 @@ const errors = {
   VERSION_CONFLICT: [409, '数据已更新，请重新读取后确认操作'],
   REQUEST_ID_REUSED: [409, '请求编号已用于其他操作，请重新确认'],
   SAME_DESTINATION: [400, '当前归属无需迁移'],
-  FOCUS_LIMIT: [400, '每条主线或独立目标组最多聚焦 3 个目标'],
-  MAINLINE_LIMIT: [400, '最多保留 5 条在用主线'],
   NOT_FOUND: [404, '内容不存在或不属于当前账户'],
   READ_ONLY: [400, '内容已进入终态，只能查看'],
   RESCHEDULE_PAST: [400, '只能改到服务端今天或未来，不能补写过去完成'],
@@ -132,7 +130,7 @@ export async function commandPlanning(c: PlanningContext) {
 }
 
 export async function readMigrationOptions(c: PlanningContext) {
-  const parsed = z.strictObject({ kind: z.literal('goal'), id: z.uuid(), page: z.coerce.number().int().min(1).max(1_000_000).default(1) }).safeParse(c.req.query())
+  const parsed = z.strictObject({ kind: z.literal('task'), id: z.uuid(), page: z.coerce.number().int().min(1).max(1_000_000).default(1) }).safeParse(c.req.query())
   if (!parsed.success) throw new ApiError('INVALID_QUERY', '迁移候选参数无效', 400)
   return c.json(await rpc(c, 'adventure_migration_options', { p_kind: parsed.data.kind, p_id: parsed.data.id, p_page: parsed.data.page }, migrationOptionsSchema))
 }

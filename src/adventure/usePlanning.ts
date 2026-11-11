@@ -8,7 +8,7 @@ const initialQuery = (includeTerminal = false): PlanningQuery => ({ page: 1, tas
   goalId: new URLSearchParams(window.location.search).get('goalId') ?? undefined,
   includeTerminal })
 
-type ConfirmationCommand = Extract<PlanningCommand, { type: 'endGoal' | 'endMainline' | 'endTask' | 'deleteTask' | 'achieveGoal' | 'rescheduleTask' | 'cancelTaskCompletion' }>
+type ConfirmationCommand = Extract<PlanningCommand, { type: 'endGoal' | 'deleteTask' | 'achieveGoal' | 'rescheduleTask' | 'cancelTaskCompletion' }>
 type ConfirmationPreview = { command: ConfirmationCommand; value: PlanningPreview }
 export type PlanningConfirmation = {
   preview?: PlanningPreview; stale: boolean; blocked: boolean;

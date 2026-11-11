@@ -113,7 +113,7 @@ it('数据库业务错误映射为稳定错误，内部详情与密钥不出现�
       return Response.json({ id: owner, email: 'planning@example.com', email_confirmed_at: '2026-10-20', is_anonymous: false })
     return Response.json({ message, details: 'private database context', hint: env.SUPABASE_SECRET_KEY }, { status: 400 })
   })
-  for (const [code, status] of [['VERSION_CONFLICT', 409], ['REQUEST_ID_REUSED', 409], ['NOT_FOUND', 404], ['MAINLINE_LIMIT', 400], ['private exception', 503]] as const) {
+  for (const [code, status] of [['VERSION_CONFLICT', 409], ['REQUEST_ID_REUSED', 409], ['NOT_FOUND', 404], ['private exception', 503]] as const) {
     message = code
     const response = await app.request('/api/adventure', { headers }, env)
     expect(response.status).toBe(status)

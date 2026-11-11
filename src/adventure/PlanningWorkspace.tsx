@@ -85,7 +85,11 @@ function PlanningForm({ dialog, data, action, busy, close, saved }: {
 
 function Workspace() {
   const [tab, setTab] = useState<'overview' | 'planning' | 'growth'>(() => { const params = new URLSearchParams(window.location.search); return params.get('view') === 'growth' || params.has('rewardId') ? 'growth' : params.get('view') === 'planning' || params.has('goalId') ? 'planning' : 'overview' })
-  const [legacyLink, setLegacyLink] = useState(() => new URLSearchParams(window.location.search).has('mainlineId'))
+  const [legacyLink, setLegacyLink] = useState(() => {
+    const params = new URLSearchParams(window.location.search), view = params.get('view')
+    return params.has('mainlineId') ? '旧主线链接已停用' : params.has('goalScope') ? '旧目标筛选链接已停用'
+      : view && !['overview', 'planning', 'growth'].includes(view) ? '该页面链接已停用' : ''
+  })
   const [planningEnabled, setPlanningEnabled] = useState(tab !== 'growth')
   const model = usePlanning(planningEnabled)
   const { data, busy, uncertain } = model
@@ -227,7 +231,7 @@ function Workspace() {
         <button type="button" className="new-button create-action-primary" disabled={busy || uncertain || !!pendingCreate || (data ? blocked || !createCapability('task')?.allowed : tab !== 'growth')} title={createCapability('task')?.reason} onClick={() => { inlineOrigin.current = document.activeElement instanceof HTMLElement ? document.activeElement : undefined; launchCreate('task') }}><Plus size={15} /><span>新建行动</span></button>
       </div>
     </div>
-    {legacyLink && <p role="alert" className="adventure-hint">旧主线链接已停用，请从目标列表查看。 <button type="button" onClick={() => { setLegacyLink(false); selectTab('planning') }}>查看目标</button></p>}
+    {legacyLink && <p role="alert" className="adventure-hint">{legacyLink}，请从目标列表查看。 <button type="button" onClick={() => { setLegacyLink(''); selectTab('planning') }}>查看目标</button></p>}
     {pendingCreate && busy && <p role="status" className="adventure-hint">正在读取创建所需的数据…</p>}
     {pendingCreate && model.error && <div role="alert" className="planning-recovery">{model.error} {recovery}<button type="button" onClick={() => setPendingCreate(undefined)}>取消</button></div>}
     {createError && <p role="alert" className="adventure-hint">{createError}</p>}

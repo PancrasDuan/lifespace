@@ -32,7 +32,7 @@ for (const fail of [false, true]) test(`三个标签共享顶部区域：成长�
   await expect(summary).toContainText('累计经验26')
   await summary.evaluate(element => { (window as Window & { sharedSummary?: Element }).sharedSummary = element })
   const top = (await tabs.boundingBox())!.y
-  await tabs.getByRole('button', { name: '主线与目标', exact: true }).click()
+  await tabs.getByRole('button', { name: '目标', exact: true }).click()
   expect((await tabs.boundingBox())!.y).toBeCloseTo(top, 0)
   await tabs.getByRole('button', { name: '成长记录', exact: true }).click()
   await requested

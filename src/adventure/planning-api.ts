@@ -34,7 +34,7 @@ export const planningApi = {
   async taskHistory(owner: string, id: string, page: number, signal: AbortSignal) {
     return read(await authorizedFetch(`/api/adventure/task-history?${new URLSearchParams({ id, page: String(page) })}`, signal, owner), taskHistorySchema)
   },
-  async migrationOptions(owner: string, kind: 'goal' | 'task', id: string, page: number, signal: AbortSignal) {
+  async migrationOptions(owner: string, kind: 'task', id: string, page: number, signal: AbortSignal) {
     return read(await authorizedFetch(`/api/adventure/migration-options?${new URLSearchParams({ kind, id, page: String(page) })}`, signal, owner), migrationOptionsSchema)
   },
   async load(owner: string, filters: PlanningQuery, signal: AbortSignal) {

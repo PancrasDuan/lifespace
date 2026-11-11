@@ -2,7 +2,7 @@ import type { LifecyclePreview } from '../shared/adventure-planning'
 import type { PlanningConfirmation } from './usePlanning'
 
 export const lifecycleTitles: Record<LifecyclePreview['operation'], string> = {
-  endGoal: '确认结束目标', endMainline: '确认结束主线', endTask: '确认结束任务', deleteTask: '删除任务',
+  endGoal: '确认结束目标', deleteTask: '删除任务',
 }
 
 export function PlanningLifecycle({ preview: current, confirmation, saved, cancel }: {

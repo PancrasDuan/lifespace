@@ -9,7 +9,6 @@ const achievements = [1, 10, 40, 100, 1, 3, 10].map((threshold, index) => ({
 const state = { ...withGoal, capabilities: { ...withGoal.capabilities, createTask: allowed } }
 const growth: GrowthPage = { version: state.version, growth: { ...state.growth, achievements }, items: [], total: 0, pageSize: 10, nextCursor: null }
 const entries = [
-  { button: '新建主线', dialog: '创建主线', tab: '成长记录', url: '/adventure?view=growth' },
   { button: '新建目标', dialog: '创建目标', tab: '成长记录', url: '/adventure?view=growth' },
   { button: '新建行动', dialog: '创建任务', tab: '成长记录', url: '/adventure?view=growth' },
 ]
@@ -83,7 +82,6 @@ test('成长页首次读取后，受限的创建操作显示原因而不打开�
 })
 
 for (const entry of [
-  { button: '新建主线', dialog: '创建主线', name: '主线名称' },
   { button: '新建目标', dialog: '创建目标', name: '目标名称' },
 ]) for (const start of ['overview', 'growth'] as const) {
   test(`${start} 页${entry.button}失败后留在原页，成功后进入规划`, async ({ page, context }) => {
@@ -105,12 +103,11 @@ for (const entry of [
     await dialog.getByRole('button', { name: entry.dialog, exact: true }).click()
     await expect(dialog).toHaveCount(0)
     await expect(page).toHaveURL('/adventure?view=planning')
-    await expect(page.getByRole('button', { name: '主线与目标', exact: true })).toHaveAttribute('aria-current', 'page')
+    await expect(page.getByRole('button', { name: '目标', exact: true })).toHaveAttribute('aria-current', 'page')
   })
 }
 
 for (const entry of [
-  { button: '新建主线', dialog: '创建主线', name: '主线名称' },
   { button: '新建目标', dialog: '创建目标', name: '目标名称' },
 ]) test(`${entry.button}结果未知时安全重试成功后进入规划`, async ({ page, context }) => {
   const server = await planningFixture(context, state)
@@ -129,7 +126,6 @@ for (const entry of [
 })
 
 for (const entry of [
-  { button: '新建主线', dialog: '创建主线', name: '主线名称' },
   { button: '新建目标', dialog: '创建目标', name: '目标名称' },
 ]) test(`成长页${entry.button}结果未知并关闭弹窗后仍可安全重试`, async ({ page, context }) => {
   const server = await planningFixture(context, state)
