@@ -402,8 +402,10 @@ try {
     assert.deepEqual(reconcile(before, after, { taskEndCause }), [], '升级后的逐账户逐 ID 对账失败')
     const businessRegression = await readFile(join(root, 'tests/database/goal-post-migration-regression.sql'), 'utf8')
     const retiredRegression = await readFile(join(root, 'tests/database/goal-retired-command-regression.sql'), 'utf8')
+    const applyBoundaryRegression = await readFile(join(root, 'tests/database/goal-apply-boundary-regression.sql'), 'utf8')
     await client.query(businessRegression)
     await client.query(retiredRegression)
+    await client.query(applyBoundaryRegression)
     await assertRoleDenials(client)
     assert.deepEqual(await capture(client), after, '升级库业务回归未回滚合成数据')
     assertSchemaUnchanged(afterSchema, await schemaSnapshot(client), '升级库业务回归未回滚测试触发器')
@@ -422,6 +424,11 @@ try {
       for (const saved of receipts) {
         const replay = await client.query('select public.adventure_planning_command($1,$2,0,$3) as receipt', [saved.owner_id, saved.request_id, saved.command])
         assert.deepEqual(replay.rows[0].receipt, saved.receipt, `清理后的回执重放不同: ${saved.request_id}`)
+      }
+      for (const [request, fn] of [['rpc-achieve-goal', 'adventure_goal_apply'], ['rpc-complete-cancel', 'adventure_task_apply']]) {
+        const saved = receipts.find(receipt => receipt.request_id === request)
+        const replay = await client.query(`select public.${fn}($1,$2,0,$3,clock_timestamp()) as receipt`, [saved.owner_id, saved.request_id, saved.command])
+        assert.deepEqual(replay.rows[0].receipt, saved.receipt, `辅助入口未重放迁移前的历史回执: ${request}`)
       }
       await assert.rejects(client.query('select public.adventure_planning_command($1,$2,0,$3)',
         [lock.owner_id, 'legacy-end-task', { type: 'endTask', id: '30000000-0000-4000-8000-000000000001' }]),
@@ -621,6 +628,7 @@ try {
       assertSchemaUnchanged(afterSchema, await schemaSnapshot(fresh), '新库和升级库的结构或安全属性不同')
       await fresh.query(businessRegression)
       await fresh.query(retiredRegression)
+      await fresh.query(applyBoundaryRegression)
       await assertRoleDenials(fresh)
       assertSchemaUnchanged(afterSchema, await schemaSnapshot(fresh), '新库业务回归未回滚测试触发器')
       await fresh.query('begin')
@@ -728,6 +736,33 @@ try {
       }))
       assert.equal(parallel.filter(result => result instanceof Error && result.message === 'VERSION_CONFLICT').length, 1)
       assert.equal(parallel.filter(result => !(result instanceof Error) && result.version === 1).length, 1)
+      // Distinct exposed apply helpers race on the same account version.  Both
+      // must use the same lock and only one may publish an event/reward.
+      for (const [database, db] of [['postgres', client], ['goal_fresh', fresh]]) {
+        const owner = '00000000-0000-4000-8000-000000000099'
+        const create = async (request, version) => (await db.query('select public.adventure_planning_command($1,$2,$3,$4) result',
+          [owner, request, version, { type: 'createGoal', title: '并发执行器', standards: ['完成'] }])).rows[0].result
+        const achievement = await create('apply-race-create-a', 0)
+        const ending = await create('apply-race-create-b', 1)
+        const calls = [
+          ['adventure_goal_apply', 'apply-race-achieve', { type: 'achieveGoal', id: achievement.result.entityId }],
+          ['adventure_lifecycle_apply', 'apply-race-end', { type: 'endGoal', id: ending.result.entityId }],
+        ]
+        const outcomes = await Promise.all(calls.map(async ([fn, request, command]) => {
+          const connection = new pg.Client({ host: '127.0.0.1', port, user: 'postgres', database, password: '', ssl: false })
+          try {
+            await connection.connect()
+            await connection.query('set role service_role')
+            return (await connection.query(`select public.${fn}($1,$2,2,$3,clock_timestamp()) result`, [owner, request, command])).rows[0].result
+          } catch (error) { return error } finally { await connection.end() }
+        }))
+        assert.equal(outcomes.filter(result => result instanceof Error && result.message === 'VERSION_CONFLICT').length, 1, `${database}: apply race conflict`)
+        assert.equal(outcomes.filter(result => !(result instanceof Error) && result.version === 3).length, 1, `${database}: apply race success`)
+        const state = (await db.query('select revision,total_xp,(select count(*) from public.adventure_events where owner_id=$1) events from public.adventure_accounts where owner_id=$1', [owner])).rows[0]
+        assert.equal(Number(state.revision), 3)
+        assert.equal(Number(state.events), 3)
+        assert.equal(Number(state.total_xp), outcomes[0] instanceof Error ? 0 : 1)
+      }
       console.log('通过：新库和升级库业务回归、历史锁定与回执、权限及并发')
     } finally {
       await fresh.end()

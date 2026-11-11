@@ -32,6 +32,8 @@ npm run test:goal-migration-baseline -- --migration db/adventure/migrations/2026
 
 独立复审修复补充了 PUBLIC、`anon`、`authenticated`、`service_role` 的全部 PostgreSQL 17 表权限、列级 `REFERENCES`、转授权以及只能通过 `SET ROLE` 使用的父角色权限矩阵；部分场景以真实角色执行 `TRUNCATE`、创建触发器或外键，再回滚测试操作。新库默认继承异常授权时的初始化和新库／旧库出现异常授权时的迁移均需失败并恢复原结构及数据。`tests/database/goal-retired-command-regression.sql` 在新库和升级库以 `service_role` 检查已停用命令的各辅助入口、无副作用及回执优先；旧库夹具另通过旧 RPC 生成停用命令的真实成功回执。
 
+`tests/database/goal-apply-boundary-regression.sql` 在新库和升级库以 `service_role` 直接调用各 `apply` 入口，检查不匹配命令、过期版本、跨账户、无效请求、事件故障回滚、合法达成／结束、回执重放及服务端时间；执行前后比较目标、任务、事件、revision 和 XP。两个数据库还分别让达成和结束辅助入口竞争同一版本，验证账户锁只允许一次成功。
+
 ## 原五表数据库回归的清点
 
 `npm run test:database` 当前仍以新初始化执行旧五表测试。它在 `tests/database/adventure-planning.sql` 的第一条预览请求中传入旧目标 `destination`，新数据库按退役契约返回 `INVALID_COMMAND`，测试运行器随即停止；后面的旧 SQL、旧升级测试及 HTTP 测试尚未运行，不能将该命令报告为通过。

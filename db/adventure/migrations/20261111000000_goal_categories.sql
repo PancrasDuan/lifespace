@@ -197,123 +197,9 @@ end $$;
 
 create or replace function public.adventure_task_apply(p_owner uuid,p_request_id text,p_revision bigint,p_command jsonb,p_now timestamptz)
 returns jsonb language plpgsql security invoker set search_path = '' as $$
-declare
-  v_type text:=p_command->>'type';
-  v_today date:=(p_now at time zone 'Asia/Shanghai')::date;
-  v_task public.adventure_tasks;
-  v_goal public.adventure_goals;
-  v_done public.adventure_events;
-  v_event uuid:=gen_random_uuid();
-  v_group uuid:=gen_random_uuid();
-  v_kind text;
-  v_before jsonb;
-  v_after jsonb;
-  v_snapshot jsonb;
-  v_before_growth jsonb;
-  v_after_growth jsonb;
-  v_delta bigint:=0;
-  v_reward jsonb;
-  v_result jsonb;
-  v_unlocked jsonb;
-  v_lost jsonb;
-  v_impact jsonb;
 begin
-  perform public.adventure_task_check(p_owner,p_command,v_today);
-  if v_type='deleteTask' then v_impact:=public.adventure_task_impact(p_owner,p_command,v_today); end if;
-  v_before_growth:=public.adventure_growth(p_owner);
-  if v_type in ('createTask','editTask') then
-    if coalesce(p_command->>'destination','')='' then
-      select * into v_goal from public.adventure_goals where owner_id=p_owner and kind='inbox';
-      if not found then
-        insert into public.adventure_goals(owner_id,kind,title,standards,created_at,updated_at)
-          values(p_owner,'inbox','独立任务','["系统收纳目标，仅承接独立任务。"]',p_now,p_now) returning * into v_goal;
-      end if;
-    else
-      select * into strict v_goal from public.adventure_goals where owner_id=p_owner and id=(p_command->>'destination')::uuid;
-    end if;
-    if v_type='createTask' then
-    insert into public.adventure_tasks(owner_id,goal_id,title,description,planned_on,created_at,updated_at)
-      values(p_owner,v_goal.id,btrim(p_command->>'title'),btrim(p_command->>'description'),(p_command->>'plannedOn')::date,p_now,p_now) returning * into v_task;
-    v_kind:='task_created';
-    else
-      select to_jsonb(t)-'owner_id' into v_before from public.adventure_tasks t where owner_id=p_owner and id=(p_command->>'id')::uuid;
-      update public.adventure_tasks set goal_id=v_goal.id,title=btrim(p_command->>'title'),description=btrim(p_command->>'description'),planned_on=(p_command->>'plannedOn')::date,updated_at=p_now
-        where owner_id=p_owner and id=(p_command->>'id')::uuid returning * into v_task;
-      v_kind:=case when (v_before->>'planned_on')::date<>v_task.planned_on then 'task_rescheduled' when (v_before->>'goal_id')::uuid<>v_task.goal_id then 'task_migrated' else 'task_updated' end;
-    end if;
-  else
-    if v_type='cancelTaskCompletion' then
-      select * into strict v_done from public.adventure_events where owner_id=p_owner and id=(p_command->>'completionId')::uuid;
-      select * into strict v_task from public.adventure_tasks where owner_id=p_owner and id=v_done.task_id;
-    else
-      select * into strict v_task from public.adventure_tasks where owner_id=p_owner and id=(p_command->>'id')::uuid;
-    end if;
-    v_before:=to_jsonb(v_task)-'owner_id';
-    select * into strict v_goal from public.adventure_goals where owner_id=p_owner and id=v_task.goal_id;
-    case v_type
-      when 'completeTask' then
-        update public.adventure_tasks set status='completed',completed_at=p_now,completed_on=v_today,updated_at=p_now
-          where owner_id=p_owner and id=v_task.id returning * into v_task;
-        v_kind:='task_completed';v_delta:=1;
-      when 'deleteTask' then
-        update public.adventure_tasks set deleted_at=p_now,updated_at=p_now
-          where owner_id=p_owner and id=v_task.id returning * into v_task;
-        v_kind:='task_deleted';
-      when 'cancelTaskCompletion' then
-        update public.adventure_tasks set status='pending',completed_at=null,completed_on=null,updated_at=p_now
-          where owner_id=p_owner and id=v_task.id returning * into v_task;
-        v_kind:='task_completion_cancelled';v_delta:=-v_done.amount;
-    end case;
-  end if;
-  v_after:=to_jsonb(v_task)-'owner_id';
-  v_snapshot:=jsonb_build_object('before',v_before,'after',v_after,'title',v_task.title,'description',v_task.description,
-    'completionId',case when v_type='cancelTaskCompletion' then v_done.id end,
-    'plannedOn',v_task.planned_on,
-    'goalTitle',case when v_goal.kind='real' then v_goal.title end,'goalStandards',case when v_goal.kind='real' then v_goal.standards end,
-    'impact',v_impact);
-  if v_kind='task_rescheduled' then
-    v_snapshot:=v_snapshot||jsonb_build_object('oldPlannedOn',v_before->>'planned_on','newPlannedOn',v_task.planned_on,
-      'sourceEventId',(select id from public.adventure_events where owner_id=p_owner and task_id=v_task.id
-        and kind in ('task_created','task_rescheduled') order by applied_revision desc,id desc limit 1));
-  end if;
-  if v_before is not null and (v_before->>'goal_id')::uuid<>v_task.goal_id then
-    v_snapshot:=v_snapshot||jsonb_build_object('origin',(select jsonb_build_object('goalId',case when g.kind='real' then g.id end,'goalTitle',case when g.kind='real' then g.title end) from public.adventure_goals g where g.owner_id=p_owner and g.id=(v_before->>'goal_id')::uuid));
-  end if;
-  if v_type='completeTask' then
-    v_snapshot:=v_snapshot||jsonb_build_object('categoryLabel',case when v_goal.kind='real' then v_goal.category_label end);
-    v_reward:=jsonb_build_object('amount',v_delta,'calculation',jsonb_build_object(
-      'type','fixed_task','completionId',v_event,'count',1,'coefficient',1));
-  elsif v_type='cancelTaskCompletion' then
-    v_reward:=jsonb_build_object('amount',v_done.amount,'calculation',v_done.calculation);
-  end if;
-  insert into public.adventure_events(id,owner_id,event_group_id,kind,entity_type,entity_id,task_id,goal_id,
-    occurred_at,occurred_on,actor_owner_id,request_id,command_hash,command_type,applied_revision,amount,calculation,snapshot,created_at)
-    values(v_event,p_owner,v_group,v_kind,'task',v_task.id,v_task.id,case when v_goal.kind='real' then v_goal.id end,
-      p_now,v_today,p_owner,p_request_id,encode(sha256(convert_to(p_command::text,'UTF8')),'hex'),v_type,p_revision+1,
-      case when v_type='completeTask' then v_delta end,case when v_type='completeTask' then v_reward->'calculation' end,v_snapshot,p_now);
-  if v_type='cancelTaskCompletion' then
-    update public.adventure_events set invalidated_at=p_now,invalidated_by_event_id=v_event
-      where owner_id=p_owner and id=v_done.id and invalidated_at is null;
-  end if;
-  update public.adventure_accounts set total_xp=total_xp+v_delta,revision=p_revision+1,updated_at=p_now where owner_id=p_owner;
-  if (select total_xp from public.adventure_accounts where owner_id=p_owner) <>
-    (select coalesce(sum(amount),0) from public.adventure_events where owner_id=p_owner and kind in ('task_completed','goal_achieved') and invalidated_at is null)
-    then raise exception 'INCONSISTENT_REWARDS'; end if;
-  v_after_growth:=public.adventure_growth(p_owner);
-  select coalesce(jsonb_agg(a->>'label'),'[]'::jsonb) into v_unlocked from jsonb_array_elements(v_after_growth->'achievements') a
-    where (a->>'unlocked')::boolean and not exists(select 1 from jsonb_array_elements(v_before_growth->'achievements') b where b->>'id'=a->>'id' and (b->>'unlocked')::boolean);
-  select coalesce(jsonb_agg(b->>'label'),'[]'::jsonb) into v_lost from jsonb_array_elements(v_before_growth->'achievements') b
-    where (b->>'unlocked')::boolean and not exists(select 1 from jsonb_array_elements(v_after_growth->'achievements') a where a->>'id'=b->>'id' and (a->>'unlocked')::boolean);
-  v_result:=jsonb_build_object('entityId',v_task.id,'message',case v_type
-    when 'createTask' then '已创建任务' when 'editTask' then '已保存任务'
-    when 'deleteTask' then '未完成任务已删除'
-    when 'cancelTaskCompletion' then '已取消完成，成长已同步更新'
-    else '已完成，获得 1 点经验' || case when (v_after_growth->>'level')::bigint>(v_before_growth->>'level')::bigint then '，升至 '||(v_after_growth->>'level')||' 级' else '' end
-      || case when jsonb_array_length(v_unlocked)>0 then '，点亮：'||(select string_agg(value, '、') from jsonb_array_elements_text(v_unlocked)) else '' end end,
-    'completionId',case when v_type='completeTask' then v_event when v_type='cancelTaskCompletion' then v_done.id end,
-    'reward',v_reward,'growthChange',jsonb_build_object('xpDelta',v_delta,'before',v_before_growth,'after',v_after_growth,'unlocked',v_unlocked,'lost',v_lost));
-  update public.adventure_events set snapshot=snapshot||jsonb_build_object('result',v_result) where owner_id=p_owner and id=v_event;
-  return jsonb_build_object('version',p_revision+1,'result',v_result);
+  if p_command->>'type' is null or p_command->>'type' not in ('createTask','editTask','completeTask','cancelTaskCompletion','deleteTask') then raise exception 'INVALID_COMMAND'; end if;
+  return public.adventure_planning_command(p_owner,p_request_id,p_revision,p_command);
 end $$;
 
 
@@ -388,54 +274,9 @@ end $$;
 
 create or replace function public.adventure_goal_apply(p_owner uuid,p_request_id text,p_revision bigint,p_command jsonb,p_now timestamptz)
 returns jsonb language plpgsql security invoker set search_path = '' as $$
-declare
-  v_goal public.adventure_goals;
-  v_plan jsonb;
-  v_reward jsonb;
-  v_amount bigint;
-  v_event uuid:=gen_random_uuid();
-  v_source jsonb;
-  v_before jsonb;
-  v_after jsonb;
-  v_unlocked jsonb;
-  v_result jsonb;
 begin
-  perform public.adventure_planning_check(p_owner,p_command);
-  select * into strict v_goal from public.adventure_goals where owner_id=p_owner and id=(p_command->>'id')::uuid;
-  v_before:=public.adventure_growth(p_owner);
-  v_plan:=public.adventure_goal_reward(p_owner,v_goal.id,coalesce((p_command->>'coefficient')::integer,1));
-  v_reward:=v_plan->'reward';v_amount:=(v_reward->>'amount')::bigint;
-  if (v_before->>'totalXp')::bigint>9007199254740991-v_amount then raise exception 'CAPACITY_REACHED'; end if;
-  v_source:=jsonb_build_object('goalId',v_goal.id,'title',v_goal.title,'standards',v_goal.standards,
-    'categoryLabel',v_goal.category_label,'actionSources',v_plan->'actionSources',
-    'stoppedTasks',(select coalesce(jsonb_agg(jsonb_build_object('id',id,'title',title,'description',description,'plannedOn',planned_on) order by planned_on,created_at,id),'[]')
-      from public.adventure_tasks where owner_id=p_owner and goal_id=v_goal.id and status='pending' and deleted_at is null));
-  if octet_length(v_source::text)>900000 then raise exception 'CAPACITY_REACHED'; end if;
-  update public.adventure_goals set status='achieved',focused=false,terminated_at=p_now,termination_cause='achieved',
-    achieved_at=p_now,achieved_on=(p_now at time zone 'Asia/Shanghai')::date,
-    attainment_coefficient=coalesce((p_command->>'coefficient')::integer,1),attainment_reflection=btrim(coalesce(p_command->>'reflection','')),
-    attainment_action_count=(v_reward->'calculation'->>'count')::integer,
-    attainment_action_ids=array(select value::uuid from jsonb_array_elements_text(v_reward->'calculation'->'actionIds')),
-    attainment_snapshot=v_source,updated_at=p_now where owner_id=p_owner and id=v_goal.id;
-  insert into public.adventure_events(id,owner_id,event_group_id,kind,entity_type,entity_id,goal_id,
-    occurred_at,occurred_on,actor_owner_id,request_id,command_hash,command_type,applied_revision,amount,calculation,snapshot,created_at)
-    values(v_event,p_owner,gen_random_uuid(),'goal_achieved','goal',v_goal.id,v_goal.id,p_now,(p_now at time zone 'Asia/Shanghai')::date,
-      p_owner,p_request_id,encode(sha256(convert_to(p_command::text,'UTF8')),'hex'),'achieveGoal',p_revision+1,v_amount,v_reward->'calculation',
-      v_source||jsonb_build_object('before',to_jsonb(v_goal)-'owner_id','reflection',btrim(coalesce(p_command->>'reflection',''))),p_now);
-  update public.adventure_accounts set total_xp=total_xp+v_amount,revision=p_revision+1,updated_at=p_now where owner_id=p_owner;
-  if (select total_xp from public.adventure_accounts where owner_id=p_owner) <>
-    (select coalesce(sum(amount),0) from public.adventure_events where owner_id=p_owner and kind in ('task_completed','goal_achieved') and invalidated_at is null)
-    then raise exception 'INCONSISTENT_REWARDS'; end if;
-  v_after:=public.adventure_growth(p_owner);
-  select coalesce(jsonb_agg(a->>'label'),'[]') into v_unlocked from jsonb_array_elements(v_after->'achievements') a
-    where (a->>'unlocked')::boolean and not exists(select 1 from jsonb_array_elements(v_before->'achievements') b where b->>'id'=a->>'id' and (b->>'unlocked')::boolean);
-  v_result:=jsonb_build_object('entityId',v_goal.id,'achievementId',v_event,'reward',v_reward,
-    'message','目标已达成，获得 '||v_amount||' 点经验' || case when (v_after->>'level')::bigint>(v_before->>'level')::bigint then '，升至 '||(v_after->>'level')||' 级' else '' end
-      || case when jsonb_array_length(v_unlocked)>0 then '，点亮：'||(select string_agg(value,'、') from jsonb_array_elements_text(v_unlocked)) else '' end,
-    'growthChange',jsonb_build_object('xpDelta',v_amount,'before',v_before,'after',v_after,'unlocked',v_unlocked,'lost','[]'::jsonb));
-  if octet_length(v_result::text)>1000000 then raise exception 'CAPACITY_REACHED'; end if;
-  update public.adventure_events set snapshot=snapshot||jsonb_build_object('result',v_result) where owner_id=p_owner and id=v_event;
-  return jsonb_build_object('version',p_revision+1,'result',v_result);
+  if p_command->>'type' is distinct from 'achieveGoal' then raise exception 'INVALID_COMMAND'; end if;
+  return public.adventure_planning_command(p_owner,p_request_id,p_revision,p_command);
 end $$;
 
 create or replace function public.adventure_planning_command(p_owner uuid,p_request_id text,p_expected_version bigint,p_command jsonb)
@@ -459,11 +300,201 @@ begin
   if v_account.revision<>p_expected_version then raise exception 'VERSION_CONFLICT'; end if;
   if v_account.revision>=9007199254740991 then raise exception 'CAPACITY_REACHED'; end if;
   v_now:=clock_timestamp();
-  if v_type='endGoal' then return public.adventure_lifecycle_apply(p_owner,p_request_id,v_account.revision,p_command,v_now); end if;
-  if v_type in ('createTask','editTask','completeTask','cancelTaskCompletion','deleteTask') then
-    return public.adventure_task_apply(p_owner,p_request_id,v_account.revision,p_command,v_now);
+  -- Execute only after the account lock, receipt and version checks above.
+  if v_type='endGoal' then
+    declare
+      p_revision bigint:=v_account.revision; p_now timestamptz:=v_now; v_today date:=(p_now at time zone 'Asia/Shanghai')::date; v_goal public.adventure_goals;
+      v_before jsonb; v_after jsonb; v_impact jsonb; v_result jsonb;
+    begin
+      perform public.adventure_lifecycle_check(p_owner,p_command,v_today);
+      v_impact:=public.adventure_lifecycle_impact(p_owner,p_command,v_today);
+      select * into strict v_goal from public.adventure_goals where owner_id=p_owner and id=(p_command->>'id')::uuid;
+      v_before:=to_jsonb(v_goal)-'owner_id';
+      update public.adventure_goals set status='ended',focused=false,terminated_at=p_now,termination_cause='ended',updated_at=p_now
+        where owner_id=p_owner and id=v_goal.id returning * into v_goal;
+      v_after:=to_jsonb(v_goal)-'owner_id';
+      v_result:=jsonb_build_object('entityId',v_goal.id,'message','目标已结束');
+      insert into public.adventure_events(id,owner_id,event_group_id,kind,entity_type,entity_id,goal_id,occurred_at,occurred_on,actor_owner_id,
+        request_id,command_hash,command_type,applied_revision,snapshot,created_at)
+        values(gen_random_uuid(),p_owner,gen_random_uuid(),'goal_ended','goal',v_goal.id,v_goal.id,p_now,v_today,p_owner,p_request_id,
+          encode(sha256(convert_to(p_command::text,'UTF8')),'hex'),'endGoal',p_revision+1,jsonb_build_object('before',v_before,'after',v_after,'impact',v_impact,'result',v_result),p_now);
+      if (select total_xp from public.adventure_accounts where owner_id=p_owner)<>(select coalesce(sum(amount),0) from public.adventure_events
+        where owner_id=p_owner and kind in ('task_completed','goal_achieved') and invalidated_at is null) then raise exception 'INCONSISTENT_REWARDS'; end if;
+      update public.adventure_accounts set revision=p_revision+1,updated_at=p_now where owner_id=p_owner;
+      return jsonb_build_object('version',p_revision+1,'result',v_result);
+    end;
+  elsif v_type in ('createTask','editTask','completeTask','cancelTaskCompletion','deleteTask') then
+    declare
+      p_revision bigint:=v_account.revision; p_now timestamptz:=v_now;
+      v_type text:=p_command->>'type';
+      v_today date:=(p_now at time zone 'Asia/Shanghai')::date;
+      v_task public.adventure_tasks;
+      v_goal public.adventure_goals;
+      v_done public.adventure_events;
+      v_event uuid:=gen_random_uuid();
+      v_group uuid:=gen_random_uuid();
+      v_kind text;
+      v_before jsonb;
+      v_after jsonb;
+      v_snapshot jsonb;
+      v_before_growth jsonb;
+      v_after_growth jsonb;
+      v_delta bigint:=0;
+      v_reward jsonb;
+      v_result jsonb;
+      v_unlocked jsonb;
+      v_lost jsonb;
+      v_impact jsonb;
+    begin
+      perform public.adventure_task_check(p_owner,p_command,v_today);
+      if v_type='deleteTask' then v_impact:=public.adventure_task_impact(p_owner,p_command,v_today); end if;
+      v_before_growth:=public.adventure_growth(p_owner);
+      if v_type in ('createTask','editTask') then
+        if coalesce(p_command->>'destination','')='' then
+          select * into v_goal from public.adventure_goals where owner_id=p_owner and kind='inbox';
+          if not found then
+            insert into public.adventure_goals(owner_id,kind,title,standards,created_at,updated_at)
+              values(p_owner,'inbox','独立任务','["系统收纳目标，仅承接独立任务。"]',p_now,p_now) returning * into v_goal;
+          end if;
+        else
+          select * into strict v_goal from public.adventure_goals where owner_id=p_owner and id=(p_command->>'destination')::uuid;
+        end if;
+        if v_type='createTask' then
+        insert into public.adventure_tasks(owner_id,goal_id,title,description,planned_on,created_at,updated_at)
+          values(p_owner,v_goal.id,btrim(p_command->>'title'),btrim(p_command->>'description'),(p_command->>'plannedOn')::date,p_now,p_now) returning * into v_task;
+        v_kind:='task_created';
+        else
+          select to_jsonb(t)-'owner_id' into v_before from public.adventure_tasks t where owner_id=p_owner and id=(p_command->>'id')::uuid;
+          update public.adventure_tasks set goal_id=v_goal.id,title=btrim(p_command->>'title'),description=btrim(p_command->>'description'),planned_on=(p_command->>'plannedOn')::date,updated_at=p_now
+            where owner_id=p_owner and id=(p_command->>'id')::uuid returning * into v_task;
+          v_kind:=case when (v_before->>'planned_on')::date<>v_task.planned_on then 'task_rescheduled' when (v_before->>'goal_id')::uuid<>v_task.goal_id then 'task_migrated' else 'task_updated' end;
+        end if;
+      else
+        if v_type='cancelTaskCompletion' then
+          select * into strict v_done from public.adventure_events where owner_id=p_owner and id=(p_command->>'completionId')::uuid;
+          select * into strict v_task from public.adventure_tasks where owner_id=p_owner and id=v_done.task_id;
+        else
+          select * into strict v_task from public.adventure_tasks where owner_id=p_owner and id=(p_command->>'id')::uuid;
+        end if;
+        v_before:=to_jsonb(v_task)-'owner_id';
+        select * into strict v_goal from public.adventure_goals where owner_id=p_owner and id=v_task.goal_id;
+        case v_type
+          when 'completeTask' then
+            update public.adventure_tasks set status='completed',completed_at=p_now,completed_on=v_today,updated_at=p_now
+              where owner_id=p_owner and id=v_task.id returning * into v_task;
+            v_kind:='task_completed';v_delta:=1;
+          when 'deleteTask' then
+            update public.adventure_tasks set deleted_at=p_now,updated_at=p_now
+              where owner_id=p_owner and id=v_task.id returning * into v_task;
+            v_kind:='task_deleted';
+          when 'cancelTaskCompletion' then
+            update public.adventure_tasks set status='pending',completed_at=null,completed_on=null,updated_at=p_now
+              where owner_id=p_owner and id=v_task.id returning * into v_task;
+            v_kind:='task_completion_cancelled';v_delta:=-v_done.amount;
+        end case;
+      end if;
+      v_after:=to_jsonb(v_task)-'owner_id';
+      v_snapshot:=jsonb_build_object('before',v_before,'after',v_after,'title',v_task.title,'description',v_task.description,
+        'completionId',case when v_type='cancelTaskCompletion' then v_done.id end,
+        'plannedOn',v_task.planned_on,
+        'goalTitle',case when v_goal.kind='real' then v_goal.title end,'goalStandards',case when v_goal.kind='real' then v_goal.standards end,
+        'impact',v_impact);
+      if v_kind='task_rescheduled' then
+        v_snapshot:=v_snapshot||jsonb_build_object('oldPlannedOn',v_before->>'planned_on','newPlannedOn',v_task.planned_on,
+          'sourceEventId',(select id from public.adventure_events where owner_id=p_owner and task_id=v_task.id
+            and kind in ('task_created','task_rescheduled') order by applied_revision desc,id desc limit 1));
+      end if;
+      if v_before is not null and (v_before->>'goal_id')::uuid<>v_task.goal_id then
+        v_snapshot:=v_snapshot||jsonb_build_object('origin',(select jsonb_build_object('goalId',case when g.kind='real' then g.id end,'goalTitle',case when g.kind='real' then g.title end) from public.adventure_goals g where g.owner_id=p_owner and g.id=(v_before->>'goal_id')::uuid));
+      end if;
+      if v_type='completeTask' then
+        v_snapshot:=v_snapshot||jsonb_build_object('categoryLabel',case when v_goal.kind='real' then v_goal.category_label end);
+        v_reward:=jsonb_build_object('amount',v_delta,'calculation',jsonb_build_object(
+          'type','fixed_task','completionId',v_event,'count',1,'coefficient',1));
+      elsif v_type='cancelTaskCompletion' then
+        v_reward:=jsonb_build_object('amount',v_done.amount,'calculation',v_done.calculation);
+      end if;
+      insert into public.adventure_events(id,owner_id,event_group_id,kind,entity_type,entity_id,task_id,goal_id,
+        occurred_at,occurred_on,actor_owner_id,request_id,command_hash,command_type,applied_revision,amount,calculation,snapshot,created_at)
+        values(v_event,p_owner,v_group,v_kind,'task',v_task.id,v_task.id,case when v_goal.kind='real' then v_goal.id end,
+          p_now,v_today,p_owner,p_request_id,encode(sha256(convert_to(p_command::text,'UTF8')),'hex'),v_type,p_revision+1,
+          case when v_type='completeTask' then v_delta end,case when v_type='completeTask' then v_reward->'calculation' end,v_snapshot,p_now);
+      if v_type='cancelTaskCompletion' then
+        update public.adventure_events set invalidated_at=p_now,invalidated_by_event_id=v_event
+          where owner_id=p_owner and id=v_done.id and invalidated_at is null;
+      end if;
+      update public.adventure_accounts set total_xp=total_xp+v_delta,revision=p_revision+1,updated_at=p_now where owner_id=p_owner;
+      if (select total_xp from public.adventure_accounts where owner_id=p_owner) <>
+        (select coalesce(sum(amount),0) from public.adventure_events where owner_id=p_owner and kind in ('task_completed','goal_achieved') and invalidated_at is null)
+        then raise exception 'INCONSISTENT_REWARDS'; end if;
+      v_after_growth:=public.adventure_growth(p_owner);
+      select coalesce(jsonb_agg(a->>'label'),'[]'::jsonb) into v_unlocked from jsonb_array_elements(v_after_growth->'achievements') a
+        where (a->>'unlocked')::boolean and not exists(select 1 from jsonb_array_elements(v_before_growth->'achievements') b where b->>'id'=a->>'id' and (b->>'unlocked')::boolean);
+      select coalesce(jsonb_agg(b->>'label'),'[]'::jsonb) into v_lost from jsonb_array_elements(v_before_growth->'achievements') b
+        where (b->>'unlocked')::boolean and not exists(select 1 from jsonb_array_elements(v_after_growth->'achievements') a where a->>'id'=b->>'id' and (a->>'unlocked')::boolean);
+      v_result:=jsonb_build_object('entityId',v_task.id,'message',case v_type
+        when 'createTask' then '已创建任务' when 'editTask' then '已保存任务'
+        when 'deleteTask' then '未完成任务已删除'
+        when 'cancelTaskCompletion' then '已取消完成，成长已同步更新'
+        else '已完成，获得 1 点经验' || case when (v_after_growth->>'level')::bigint>(v_before_growth->>'level')::bigint then '，升至 '||(v_after_growth->>'level')||' 级' else '' end
+          || case when jsonb_array_length(v_unlocked)>0 then '，点亮：'||(select string_agg(value, '、') from jsonb_array_elements_text(v_unlocked)) else '' end end,
+        'completionId',case when v_type='completeTask' then v_event when v_type='cancelTaskCompletion' then v_done.id end,
+        'reward',v_reward,'growthChange',jsonb_build_object('xpDelta',v_delta,'before',v_before_growth,'after',v_after_growth,'unlocked',v_unlocked,'lost',v_lost));
+      update public.adventure_events set snapshot=snapshot||jsonb_build_object('result',v_result) where owner_id=p_owner and id=v_event;
+      return jsonb_build_object('version',p_revision+1,'result',v_result);
+    end;
+  elsif v_type='achieveGoal' then
+    declare
+      p_revision bigint:=v_account.revision; p_now timestamptz:=v_now;
+      v_goal public.adventure_goals;
+      v_plan jsonb;
+      v_reward jsonb;
+      v_amount bigint;
+      v_event uuid:=gen_random_uuid();
+      v_source jsonb;
+      v_before jsonb;
+      v_after jsonb;
+      v_unlocked jsonb;
+      v_result jsonb;
+    begin
+      perform public.adventure_planning_check(p_owner,p_command);
+      select * into strict v_goal from public.adventure_goals where owner_id=p_owner and id=(p_command->>'id')::uuid;
+      v_before:=public.adventure_growth(p_owner);
+      v_plan:=public.adventure_goal_reward(p_owner,v_goal.id,coalesce((p_command->>'coefficient')::integer,1));
+      v_reward:=v_plan->'reward';v_amount:=(v_reward->>'amount')::bigint;
+      if (v_before->>'totalXp')::bigint>9007199254740991-v_amount then raise exception 'CAPACITY_REACHED'; end if;
+      v_source:=jsonb_build_object('goalId',v_goal.id,'title',v_goal.title,'standards',v_goal.standards,
+        'categoryLabel',v_goal.category_label,'actionSources',v_plan->'actionSources',
+        'stoppedTasks',(select coalesce(jsonb_agg(jsonb_build_object('id',id,'title',title,'description',description,'plannedOn',planned_on) order by planned_on,created_at,id),'[]')
+          from public.adventure_tasks where owner_id=p_owner and goal_id=v_goal.id and status='pending' and deleted_at is null));
+      if octet_length(v_source::text)>900000 then raise exception 'CAPACITY_REACHED'; end if;
+      update public.adventure_goals set status='achieved',focused=false,terminated_at=p_now,termination_cause='achieved',
+        achieved_at=p_now,achieved_on=(p_now at time zone 'Asia/Shanghai')::date,
+        attainment_coefficient=coalesce((p_command->>'coefficient')::integer,1),attainment_reflection=btrim(coalesce(p_command->>'reflection','')),
+        attainment_action_count=(v_reward->'calculation'->>'count')::integer,
+        attainment_action_ids=array(select value::uuid from jsonb_array_elements_text(v_reward->'calculation'->'actionIds')),
+        attainment_snapshot=v_source,updated_at=p_now where owner_id=p_owner and id=v_goal.id;
+      insert into public.adventure_events(id,owner_id,event_group_id,kind,entity_type,entity_id,goal_id,
+        occurred_at,occurred_on,actor_owner_id,request_id,command_hash,command_type,applied_revision,amount,calculation,snapshot,created_at)
+        values(v_event,p_owner,gen_random_uuid(),'goal_achieved','goal',v_goal.id,v_goal.id,p_now,(p_now at time zone 'Asia/Shanghai')::date,
+          p_owner,p_request_id,encode(sha256(convert_to(p_command::text,'UTF8')),'hex'),'achieveGoal',p_revision+1,v_amount,v_reward->'calculation',
+          v_source||jsonb_build_object('before',to_jsonb(v_goal)-'owner_id','reflection',btrim(coalesce(p_command->>'reflection',''))),p_now);
+      update public.adventure_accounts set total_xp=total_xp+v_amount,revision=p_revision+1,updated_at=p_now where owner_id=p_owner;
+      if (select total_xp from public.adventure_accounts where owner_id=p_owner) <>
+        (select coalesce(sum(amount),0) from public.adventure_events where owner_id=p_owner and kind in ('task_completed','goal_achieved') and invalidated_at is null)
+        then raise exception 'INCONSISTENT_REWARDS'; end if;
+      v_after:=public.adventure_growth(p_owner);
+      select coalesce(jsonb_agg(a->>'label'),'[]') into v_unlocked from jsonb_array_elements(v_after->'achievements') a
+        where (a->>'unlocked')::boolean and not exists(select 1 from jsonb_array_elements(v_before->'achievements') b where b->>'id'=a->>'id' and (b->>'unlocked')::boolean);
+      v_result:=jsonb_build_object('entityId',v_goal.id,'achievementId',v_event,'reward',v_reward,
+        'message','目标已达成，获得 '||v_amount||' 点经验' || case when (v_after->>'level')::bigint>(v_before->>'level')::bigint then '，升至 '||(v_after->>'level')||' 级' else '' end
+          || case when jsonb_array_length(v_unlocked)>0 then '，点亮：'||(select string_agg(value,'、') from jsonb_array_elements_text(v_unlocked)) else '' end,
+        'growthChange',jsonb_build_object('xpDelta',v_amount,'before',v_before,'after',v_after,'unlocked',v_unlocked,'lost','[]'::jsonb));
+      if octet_length(v_result::text)>1000000 then raise exception 'CAPACITY_REACHED'; end if;
+      update public.adventure_events set snapshot=snapshot||jsonb_build_object('result',v_result) where owner_id=p_owner and id=v_event;
+      return jsonb_build_object('version',p_revision+1,'result',v_result);
+    end;
   end if;
-  if v_type='achieveGoal' then return public.adventure_goal_apply(p_owner,p_request_id,v_account.revision,p_command,v_now); end if;
   perform public.adventure_planning_check(p_owner,p_command);
   case v_type
     when 'createGoal' then
@@ -540,25 +571,9 @@ end $$;
 
 create or replace function public.adventure_lifecycle_apply(p_owner uuid,p_request_id text,p_revision bigint,p_command jsonb,p_now timestamptz)
 returns jsonb language plpgsql security invoker set search_path='' as $$
-declare v_today date:=(p_now at time zone 'Asia/Shanghai')::date; v_goal public.adventure_goals;
-  v_before jsonb; v_after jsonb; v_impact jsonb; v_result jsonb;
 begin
-  perform public.adventure_lifecycle_check(p_owner,p_command,v_today);
-  v_impact:=public.adventure_lifecycle_impact(p_owner,p_command,v_today);
-  select * into strict v_goal from public.adventure_goals where owner_id=p_owner and id=(p_command->>'id')::uuid;
-  v_before:=to_jsonb(v_goal)-'owner_id';
-  update public.adventure_goals set status='ended',focused=false,terminated_at=p_now,termination_cause='ended',updated_at=p_now
-    where owner_id=p_owner and id=v_goal.id returning * into v_goal;
-  v_after:=to_jsonb(v_goal)-'owner_id';
-  v_result:=jsonb_build_object('entityId',v_goal.id,'message','目标已结束');
-  insert into public.adventure_events(id,owner_id,event_group_id,kind,entity_type,entity_id,goal_id,occurred_at,occurred_on,actor_owner_id,
-    request_id,command_hash,command_type,applied_revision,snapshot,created_at)
-    values(gen_random_uuid(),p_owner,gen_random_uuid(),'goal_ended','goal',v_goal.id,v_goal.id,p_now,v_today,p_owner,p_request_id,
-      encode(sha256(convert_to(p_command::text,'UTF8')),'hex'),'endGoal',p_revision+1,jsonb_build_object('before',v_before,'after',v_after,'impact',v_impact,'result',v_result),p_now);
-  if (select total_xp from public.adventure_accounts where owner_id=p_owner)<>(select coalesce(sum(amount),0) from public.adventure_events
-    where owner_id=p_owner and kind in ('task_completed','goal_achieved') and invalidated_at is null) then raise exception 'INCONSISTENT_REWARDS'; end if;
-  update public.adventure_accounts set revision=p_revision+1,updated_at=p_now where owner_id=p_owner;
-  return jsonb_build_object('version',p_revision+1,'result',v_result);
+  if p_command->>'type' is distinct from 'endGoal' then raise exception 'INVALID_COMMAND'; end if;
+  return public.adventure_planning_command(p_owner,p_request_id,p_revision,p_command);
 end $$;
 
 create or replace function public.adventure_migration_check(p_owner uuid,p_command jsonb)
