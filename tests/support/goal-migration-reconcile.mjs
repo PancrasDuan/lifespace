@@ -40,6 +40,13 @@ export function validateMappings(before) {
   return errors
 }
 
+// Explicit migration error contract; an unrelated SQL failure is not evidence
+// that the invalid mapping was detected and reported.
+export function isMappingFailure(error, { code, ownerId, goalId }) {
+  const message = error?.message ?? ''
+  return message.split(/\s+/).includes(code) && message.split(/\s+/).includes(`owner=${ownerId}`) && message.split(/\s+/).includes(`goal=${goalId}`)
+}
+
 export function reconcile(before, after, { taskEndCause = 'historical_ended' } = {}) {
   const errors = validateMappings(before)
   const key = (row, table) => table === 'accounts' ? row.owner_id : `${row.owner_id}/${row.id}`
@@ -65,7 +72,10 @@ export function reconcile(before, after, { taskEndCause = 'historical_ended' } =
       if (!actual) { errors.push(`${table} ${id}: missing`); continue }
       const expected = project(row, table)
       const observed = structuredClone(actual)
-      if (table === 'goals' && row.status === 'active' && row.kind === 'real') delete observed.sort_order
+      if (table === 'goals' && row.status === 'active' && row.kind === 'real') {
+        if (!Number.isSafeInteger(observed.sort_order) || observed.sort_order < 0) errors.push(`goals ${id}: invalid sort_order`)
+        delete observed.sort_order
+      }
       if (!isDeepStrictEqual(expected, observed)) errors.push(`${table} ${id}: retained fields differ`)
     }
     for (const id of newMap.keys()) if (!oldMap.has(id)) errors.push(`${table} ${id}: unexpected`)

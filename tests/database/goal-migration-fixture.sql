@@ -46,3 +46,28 @@ update public.adventure_events set invalidated_at='2020-01-07', invalidated_by_e
 -- including the invalidated completion, before the new migration exists.
 update public.adventure_events set command_hash=encode(sha256(convert_to(jsonb_build_object('type','completeTask','id',task_id)::text,'UTF8')),'hex')
 where kind='task_completed';
+
+-- Complement the fixed edge-case rows with genuine legacy RPC envelopes and
+-- nested reward sources, retaining the exact commands for replay assertions.
+create temporary table goal_fixture_receipts(owner_id uuid, request_id text, command jsonb, receipt jsonb);
+do $$
+declare o uuid:='00000000-0000-4000-8000-000000000003'; m uuid; source_goal uuid; target_goal uuid; task uuid; cancelled_task uuid; completion uuid;
+  today date:=(clock_timestamp() at time zone 'Asia/Shanghai')::date; r jsonb; c jsonb;
+begin
+  r:=public.adventure_planning_command(o,'rpc-mainline',0,'{"type":"createMainline","name":"RPC主线"}'); m:=(r->'result'->>'entityId')::uuid;
+  r:=public.adventure_planning_command(o,'rpc-source-goal',1,jsonb_build_object('type','createGoal','destination',m,'title','RPC来源','standards',jsonb_build_array('来源标准'))); source_goal:=(r->'result'->>'entityId')::uuid;
+  r:=public.adventure_planning_command(o,'rpc-target-goal',2,jsonb_build_object('type','createGoal','destination',m,'title','RPC成果','standards',jsonb_build_array('成果标准'))); target_goal:=(r->'result'->>'entityId')::uuid;
+  r:=public.adventure_planning_command(o,'rpc-create-task',3,jsonb_build_object('type','createTask','destination',source_goal,'title','RPC迁移任务','description','原始说明','plannedOn',today)); task:=(r->'result'->>'entityId')::uuid;
+  c:=jsonb_build_object('type','editTask','id',task,'destination',target_goal,'title','RPC迁移任务','description','原始说明','plannedOn',today);
+  r:=public.adventure_planning_command(o,'rpc-move-task',4,c); insert into goal_fixture_receipts values(o,'rpc-move-task',c,r);
+  c:=jsonb_build_object('type','completeTask','id',task);
+  r:=public.adventure_planning_command(o,'rpc-complete-task',5,c); insert into goal_fixture_receipts values(o,'rpc-complete-task',c,r);
+  r:=public.adventure_planning_command(o,'rpc-create-cancel',6,jsonb_build_object('type','createTask','destination','','title','RPC取消完成','description','保留说明','plannedOn',today)); cancelled_task:=(r->'result'->>'entityId')::uuid;
+  c:=jsonb_build_object('type','completeTask','id',cancelled_task);
+  r:=public.adventure_planning_command(o,'rpc-complete-cancel',7,c); completion:=(r->'result'->>'completionId')::uuid;
+  insert into goal_fixture_receipts values(o,'rpc-complete-cancel',c,r);
+  c:=jsonb_build_object('type','cancelTaskCompletion','completionId',completion);
+  r:=public.adventure_planning_command(o,'rpc-cancel-task',8,c); insert into goal_fixture_receipts values(o,'rpc-cancel-task',c,r);
+  c:=jsonb_build_object('type','achieveGoal','id',target_goal,'coefficient',3,'reflection','冻结评价');
+  r:=public.adventure_planning_command(o,'rpc-achieve-goal',9,c); insert into goal_fixture_receipts values(o,'rpc-achieve-goal',c,r);
+end $$;
