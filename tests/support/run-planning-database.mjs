@@ -17,6 +17,15 @@ const goalModel = process.argv.includes('--goal-model')
 const legacyModel = process.argv.includes('--legacy-model')
 const legacyRegression = process.argv.includes('--legacy-regression')
 const fullAdventure = !ledgerOnly && !goalsOnly && !goalModel && !legacyModel && !legacyRegression
+if (process.argv.includes('--browser-only') && !process.argv.includes('--browser')) {
+  console.error('--browser-only 必须与 --browser 同时使用')
+  process.exit(2)
+}
+const nonExecutingOptions = new Set(['--list', '--help', '-h', '--version', '-V', '--passWithNoTests', '--pass-with-no-tests'])
+if (process.argv.slice(2).some(arg => nonExecutingOptions.has(arg.split('=')[0]))) {
+  console.error('不能使用仅列出、帮助或允许空测试的选项作为数据库验收')
+  process.exit(2)
+}
 const legacySchema = ['tests/database/legacy-goal-migration/create-planning.sql', 'tests/database/legacy-goal-migration/list-tasks.sql']
 const legacyChecks = ['tests/database/adventure-history-seed.sql', 'tests/database/adventure-planning.sql',
   'tests/database/adventure-actions.sql', 'tests/database/adventure-goals.sql', 'tests/database/adventure-migrations.sql',
@@ -69,7 +78,11 @@ try {
     }
     await run(process.execPath, ['--test', 'tests/database/goal-migration-reconcile.test.mjs'])
     await run(process.execPath, ['tests/support/run-goal-migration-baseline.mjs', '--migration', 'db/adventure/migrations/20261111000000_goal_categories.sql'])
-    console.log('通过：旧库保护、四表 HTTP、历史回执、目标契约与完整迁移安全验收')
+    if (process.argv.length === 2) {
+      console.log('通过：旧库保护、四表 HTTP、历史回执、目标契约与完整迁移安全验收')
+    } else {
+      console.log(`通过：旧库保护、历史回执、目标契约与迁移安全验收；四表运行范围见上方（参数：${process.argv.slice(2).join(' ')}）`)
+    }
     result = 0
   } else {
   await mkdir(join(root, '.cache'), { recursive: true })
@@ -226,17 +239,20 @@ try {
     'tests/api/adventure-growth-database.test.ts', 'tests/api/adventure-integration-database.test.ts',
   ] : []
   if (!process.argv.includes('--browser-only')) await run(process.execPath, ['node_modules/vitest/vitest.mjs', 'run', ...(apiArgs.length ? apiArgs : ledgerOnly ? ['tests/api/ledger-database.test.ts', 'tests/api/ledger-accounts-database.test.ts', 'tests/api/ledger-account-entries-database.test.ts', 'tests/api/ledger-transfers-database.test.ts', 'tests/api/ledger-dates-database.test.ts', 'tests/api/ledger-account-filter-database.test.ts', 'tests/api/ledger-refunds-database.test.ts', 'tests/api/ledger-delete-database.test.ts', 'tests/api/agent-bindings-database.test.ts', 'tests/api/agent-mcp-database.test.ts', ...(scaleOwner ? ['tests/api/ledger-scale-database.test.ts', 'tests/api/ledger-refund-scale-database.test.ts'] : [])] : ['tests/api/adventure-task-edit-database.test.ts', 'tests/api/adventure-task-delete-database.test.ts', 'tests/api/adventure-actions-database.test.ts', 'tests/api/adventure-overdue-database.test.ts', 'tests/api/adventure-date-list-database.test.ts', 'tests/api/adventure-lifecycle-database.test.ts', 'tests/api/adventure-reschedule-database.test.ts', 'tests/api/adventure-growth-database.test.ts', 'tests/api/adventure-integration-database.test.ts'])], { env })
+  let browserScope = '未运行'
   if (process.argv.includes('--browser')) {
     const browserArgs = process.argv.slice(process.argv.indexOf('--browser') + 1)
     // Flags such as --output/--grep refine the domain defaults; a leading file
     // selector replaces them. Never run another domain against this database.
     const specs = browserArgs.length && !browserArgs[0].startsWith('-') ? [] : goalsOnly ? ['tests/browser/adventure-goal-console-database.spec.ts'] : ledgerOnly ? ['tests/browser/ledger-database.spec.ts', 'tests/browser/ledger-accounts-database.spec.ts', 'tests/browser/ledger-account-entries-database.spec.ts', 'tests/browser/ledger-transfers-database.spec.ts', 'tests/browser/ledger-dates-database.spec.ts', 'tests/browser/ledger-account-filter-database.spec.ts', 'tests/browser/ledger-refunds-database.spec.ts', 'tests/browser/ledger-delete-database.spec.ts'] : ['tests/browser/adventure-actions-database.spec.ts', 'tests/browser/adventure-overdue-database.spec.ts', 'tests/browser/adventure-date-list-database.spec.ts', 'tests/browser/adventure-growth-database.spec.ts', 'tests/browser/adventure-integration-database.spec.ts', 'tests/browser/adventure-task-edit-database.spec.ts', 'tests/browser/adventure-task-delete-database.spec.ts', 'tests/browser/adventure-review-fixes-database.spec.ts', 'tests/browser/adventure-task-date-interaction-database.spec.ts']
     await run(process.execPath, ['node_modules/@playwright/test/cli.js', 'test', ...specs, ...browserArgs], { env })
+    browserScope = `已运行（参数：${[...specs, ...browserArgs].join(' ')}）`
   }
   if (!ledgerOnly && !legacyModel && !goalsOnly) await sql('drop trigger reschedule_http_failpoint on public.adventure_events')
   if (goalModel) await sql(await readFile(join(root, 'tests/database/adventure-goal-model-audit.sql'), 'utf8'))
   if (!ledgerOnly && !goalModel && !legacyModel && !goalsOnly) await sql(await readFile(join(root, 'tests/database/adventure-actions-audit.sql'), 'utf8'))
-  console.log(ledgerOnly ? '通过：真实账单数据库验收，临时环境将清理' : goalModel || legacyModel || goalsOnly ? '通过：所选四表 HTTP／浏览器测试，临时环境将清理' : '通过：HTTP／浏览器操作后的任务、冻结奖励、取消关联、账户经验、请求数与版本全量核对')
+  const httpScope = process.argv.includes('--browser-only') ? '未运行' : process.argv.includes('--api') ? `筛选：${apiArgs.join(' ') || '默认列表'}` : '默认列表'
+  console.log(`通过：HTTP ${httpScope}；浏览器：${browserScope}；数据库检查已执行，临时环境将清理`)
   }
   result = 0
   }
