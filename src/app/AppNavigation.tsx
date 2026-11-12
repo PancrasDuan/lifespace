@@ -26,7 +26,7 @@ const items = [
 
 export function AppNavigation({ page }: { page: AppPage }) {
   const identity = useContext(VerifiedIdentityContext)
-  return <aside id="app-primary-navigation" className="sidebar app-navigation" aria-label="主导航">
+  return <aside className="sidebar app-navigation" aria-label="主导航">
     <PageLink className="brand-mark" href="/" aria-label="LifeSpace 首页">
       <img src="/favicon.svg" alt="" width={38} height={38} />
     </PageLink>

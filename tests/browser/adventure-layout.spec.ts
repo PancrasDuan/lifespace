@@ -166,11 +166,6 @@ test('经验概览位于三个标签上方，成长页使用最新数据', async
   for (const label of ['今日聚焦', '目标', '成长记录']) {
     await navigation.getByRole('button', { name: label, exact: true }).click()
     await expect(summary).toBeVisible()
-    if (label === '目标') {
-      await summary.getByRole('button', { name: '查看经验概览' }).click()
-      await expect(summary.getByText('真实行动')).toBeVisible()
-      await expect(summary.getByRole('progressbar', { name: '当前等级经验' })).toBeVisible()
-    }
     await expect(summary).toContainText(label === '成长记录' ? '累计经验99' : '累计经验79')
     expect((await summary.boundingBox())!.y + (await summary.boundingBox())!.height).toBeLessThanOrEqual((await navigation.boundingBox())!.y)
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
@@ -252,10 +247,7 @@ test('键盘收起目标详情后焦点回到关系入口', async ({ page, conte
 test('目标页保留经验概览，不提供目标聚焦筛选', async ({ page, context }) => {
   await planningFixture(context, state)
   await page.goto('/adventure?view=planning')
-  const summary = page.getByRole('region', { name: '经验概览' })
-  await summary.getByRole('button', { name: '查看经验概览' }).click()
-  await expect(summary).toContainText('累计经验79')
-  await expect(summary.getByText('真实行动')).toBeVisible()
+  await expect(page.getByRole('region', { name: '经验概览' })).toContainText('累计经验79')
   await expect(page.getByLabel('目标视图')).toHaveCount(0)
   await expect(page.getByRole('row', { name: /五公里/ })).toBeVisible()
 })

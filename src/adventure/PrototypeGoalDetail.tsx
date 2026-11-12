@@ -27,7 +27,7 @@ export function PrototypeGoalDetail({ goal, detail, pageSize, blocked, changePag
       <footer className="goal-relation-footer"><small>{status} · {goal.progress.total} 项任务</small><button ref={taskButton} type="button" onClick={() => setFace('tasks')}>相关任务 <ChevronRight size={14} aria-hidden="true" /></button></footer>
     </> : <>
       <div className="goal-relation-content">
-        <div className="goal-relation-task-heading"><div><h3>相关任务</h3><p>只展示任务名称、计划时间和完成时间。</p></div>{detail && <span className="goal-count">{detail.totalRelatedTasks}</span>}</div>
+        <div className="goal-relation-task-heading"><div><span className="goal-relation-task-kicker" aria-hidden="true">RELATED TASKS</span><h3>相关任务</h3><p>只展示任务名称、计划时间和完成时间。</p></div>{detail && <span className="goal-count">{detail.totalRelatedTasks}</span>}</div>
         {!detail ? <p role="status">正在读取相关任务…</p> : <>
           {detail.relatedTasks.length ? <ul className="goal-relation-tasks">{detail.relatedTasks.map(task => <li key={task.id}>
             <span className="goal-relation-task-icon" aria-hidden="true">{task.completedAt ? <Check size={13} /> : <Circle size={7} />}</span>

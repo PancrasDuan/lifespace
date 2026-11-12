@@ -29,7 +29,7 @@ export function PrototypeGoals({ goals, blocked, action, openGoal, toggleGoal, e
           {goal.status === 'active' && <><button type="button" disabled={blocked || !goal.capabilities.achieve?.allowed} title={goal.capabilities.achieve?.reason} onClick={() => achieve(goal)}>达成</button>
             <button type="button" aria-label={`变更目标 ${goal.title}`} disabled={blocked || !goal.capabilities.edit?.allowed} onClick={() => edit(goal)}>变更</button>
             <button type="button" disabled={blocked || !goal.capabilities.end?.allowed} title={goal.capabilities.end?.reason} onClick={() => end(goal)}>结束</button>
-            {(['up', 'down'] as const).map(direction => <button key={direction} type="button" aria-label={`${direction === 'up' ? '上移' : '下移'}目标 ${goal.title}`} disabled={blocked || !goal.capabilities[direction === 'up' ? 'moveUp' : 'moveDown']?.allowed} onClick={() => move(goal, direction)}>{direction === 'up' ? <ArrowUp size={13} /> : <ArrowDown size={13} />}</button>)}</>}
+            <span className="goal-console-reorder">{(['up', 'down'] as const).map(direction => <button key={direction} type="button" aria-label={`${direction === 'up' ? '上移' : '下移'}目标 ${goal.title}`} disabled={blocked || !goal.capabilities[direction === 'up' ? 'moveUp' : 'moveDown']?.allowed} onClick={() => move(goal, direction)}>{direction === 'up' ? <ArrowUp size={13} /> : <ArrowDown size={13} />}</button>)}</span></>}
         </div>
       </div>
     </div>)}

@@ -1,5 +1,5 @@
 import { test, expect } from './authenticated-test'
-import { planningFixture, withGoal } from './adventure-fixture'
+import { allowed, planningFixture, withGoal } from './adventure-fixture'
 
 for (const width of [1440, 390]) test(`${width}px 目标控制台和关系卡与已确认布局一致`, async ({ page, context }) => {
   const goal = { ...withGoal.goals[0], title: '完成一项目标', categoryLabel: '健康', standards: ['第一条完成标准', '第二条完成标准'], progress: { completed: 1, total: 3, ratio: 1 / 3 }, capabilities: { ...withGoal.goals[0].capabilities, achieve: { allowed: false, reason: '还有 2 项未完成任务，处理后才能达成或结束。' } } }
@@ -12,16 +12,19 @@ for (const width of [1440, 390]) test(`${width}px 目标控制台和关系卡与
   await page.setViewportSize({ width, height: 844 })
   await page.goto('/adventure?view=planning')
   await expect(page.getByRole('row', { name: /完成一项目标/ })).toBeVisible()
-  await page.screenshot({ path: `.cache/goal-parity/after-${width}-list.png`, fullPage: true })
+  await page.screenshot({ path: `.cache/scope-correction/final-${width}-list.png`, fullPage: true })
   await page.getByRole('button', { name: '关系卡片' }).click()
   const dialog = page.getByRole('dialog', { name: '目标详情' })
   await expect(dialog).toContainText('第一条完成标准')
-  await page.screenshot({ path: `.cache/goal-parity/after-${width}-detail.png` })
+  await page.screenshot({ path: `.cache/scope-correction/final-${width}-detail.png` })
   await dialog.getByRole('button', { name: '相关任务' }).click()
   await expect(dialog).toContainText('下一步行动')
   await expect(dialog.getByRole('listitem').first()).toContainText('已完成')
   await expect(dialog.getByRole('listitem').nth(1)).toContainText('待完成')
-  await page.screenshot({ path: `.cache/goal-parity/after-${width}-tasks.png` })
+  await expect(dialog.getByText('下一步行动')).toHaveCSS('font-size', '11px')
+  await expect(dialog.getByText('计划 2026-11-13')).toHaveCSS('font-size', '10px')
+  await expect(dialog.getByText('RELATED TASKS', { exact: true })).toBeVisible()
+  await page.screenshot({ path: `.cache/scope-correction/final-${width}-tasks.png` })
   await page.keyboard.press('Escape')
   const metrics = await page.evaluate(() => {
     const get = (selector: string) => { const e = document.querySelector<HTMLElement>(selector); if (!e) return null; const s = getComputedStyle(e), r = e.getBoundingClientRect(); return { width: Math.round(r.width), height: Math.round(r.height), background: s.backgroundColor, borderRadius: s.borderRadius, font: s.fontSize, display: s.display } }
@@ -33,8 +36,8 @@ for (const width of [1440, 390]) test(`${width}px 目标控制台和关系卡与
   await expect.poll(() => category.evaluate(element => getComputedStyle(element).backgroundColor)).not.toBe('rgba(0, 0, 0, 0)')
   await expect(page.getByText('阶段成果')).toBeVisible()
   await expect(page.locator('.goal-console-status-cell')).toContainText('进行中')
-  await expect(page.locator('.goal-console-heading')).toContainText('分类标签只是可选备注')
-  expect(metrics.section?.width).toBeGreaterThan(width === 390 ? 350 : 1000)
+  await expect(page.locator('.goal-console-heading')).toContainText('查看目标及其关联任务的进度')
+  expect(metrics.section?.width).toBe(metrics.view?.width)
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
 })
 
@@ -50,27 +53,28 @@ for (const width of [1440, 390]) test(`${width}px 多目标、长标签和空态
   await expect(page.getByRole('row', { name: /较长目标名称/ })).toBeVisible()
   await expect(page.getByRole('button', { name: '下一页', exact: true })).toBeEnabled()
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
-  await page.screenshot({ path: `.cache/goal-parity/after-${width}-multiple.png`, fullPage: true })
+  await page.screenshot({ path: `.cache/scope-correction/final-${width}-multiple.png`, fullPage: true })
   fixture.show({ ...withGoal, goals: [], totalGoals: 0 })
   await page.reload()
   await expect(page.getByText('还没有目标。先创建一个目标，再为它添加任务。')).toBeVisible()
-  await page.screenshot({ path: `.cache/goal-parity/after-${width}-empty.png`, fullPage: true })
+  await page.screenshot({ path: `.cache/scope-correction/final-${width}-empty.png`, fullPage: true })
 })
 
-test('手机目标页导航可展开，切回今日聚焦后保留常规导航和新建入口', async ({ page, context }) => {
-  await planningFixture(context, withGoal)
+test('手机目标页保留侧栏和唯一的新建入口，切换页签后仍可使用', async ({ page, context }) => {
+  await planningFixture(context, { ...withGoal, capabilities: { ...withGoal.capabilities, createTask: allowed } })
   await page.setViewportSize({ width: 390, height: 844 })
   await page.goto('/adventure?view=planning')
-  const menu = page.getByRole('button', { name: '打开导航' })
-  await menu.click()
-  await expect(page.getByRole('navigation', { name: '主导航' })).toHaveCount(0) // the named sidebar is complementary
   await expect(page.getByRole('complementary', { name: '主导航' })).toBeVisible()
-  await page.getByRole('button', { name: '关闭导航' }).click()
-  await expect(page.getByRole('complementary', { name: '主导航' })).toBeHidden()
+  await expect(page.getByRole('button', { name: '打开导航' })).toHaveCount(0)
+  for (const name of ['新建目标', '新建行动']) await expect(page.getByRole('button', { name, exact: true })).toHaveCount(1)
+  const opener = page.getByRole('button', { name: '新建目标', exact: true })
+  await opener.click()
+  await expect(page.getByRole('dialog', { name: '创建目标' })).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(opener).toBeFocused()
   await page.getByRole('button', { name: '今日聚焦', exact: true }).click()
   await expect(page.getByRole('complementary', { name: '主导航' })).toBeVisible()
   await expect(page.getByRole('button', { name: '新建目标', exact: true })).toBeVisible()
-  await expect(page.getByRole('button', { name: '打开导航' })).toHaveCount(0)
 })
 
 test('窄屏长内容与关系卡可滚动，完整标题和操作保持可达', async ({ page, context }) => {
@@ -89,5 +93,5 @@ test('窄屏长内容与关系卡可滚动，完整标题和操作保持可达',
   const content = dialog.locator('.goal-relation-content')
   expect(await content.evaluate(element => element.scrollHeight > element.clientHeight)).toBe(true)
   await expect(dialog.getByRole('button', { name: '相关任务' })).toBeVisible()
-  await page.screenshot({ path: '.cache/goal-parity/after-320-long-dialog.png' })
+  await page.screenshot({ path: '.cache/scope-correction/final-320-long-dialog.png' })
 })

@@ -1,5 +1,9 @@
 ## Agent skills
 
+### 必读：踩坑与防范
+
+每次开始任务时，先阅读 `docs/agents/lessons-learned.md`；拆分任务、交接、实现、评审和验收时按其中适用要求执行。
+
 ### 任务跟踪
 
 规格和任务使用 GitHub Issues，见 `docs/agents/issue-tracker.md`。
