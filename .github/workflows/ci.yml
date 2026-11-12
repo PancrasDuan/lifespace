@@ -29,62 +29,70 @@ jobs:
         run: npm run check:secrets
       - run: npm run test:secrets
 
-  checks:
+  api:
     needs: secrets
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    strategy:
-      fail-fast: false
-      matrix:
-        command: [test:api, 'test:security:portable', build]
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        with:
-          persist-credentials: false
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
-        with:
-          node-version-file: .node-version
-          cache: npm
-      - run: npm ci
-      - run: npm run ${{ matrix.command }}
+    uses: ./.github/workflows/ci-check.yml
+    with:
+      command: test:api
 
-  browser:
+  security:
     needs: secrets
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    strategy:
-      fail-fast: false
-      matrix:
-        shard: [1, 2, 3, 4]
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        with:
-          persist-credentials: false
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
-        with:
-          node-version-file: .node-version
-          cache: npm
-      - run: npm ci
-      - name: Install Chromium
-        run: PLAYWRIGHT_BROWSERS_PATH=.cache/playwright npx playwright install --with-deps chromium
-      - run: npm run test:browser -- --shard=${{ matrix.shard }}/4
+    uses: ./.github/workflows/ci-check.yml
+    with:
+      command: test:security:portable
+
+  build:
+    needs: secrets
+    uses: ./.github/workflows/ci-check.yml
+    with:
+      command: build
+
+  browser_1:
+    needs: secrets
+    uses: ./.github/workflows/ci-browser.yml
+    with:
+      shard: 1
+
+  browser_2:
+    needs: secrets
+    uses: ./.github/workflows/ci-browser.yml
+    with:
+      shard: 2
+
+  browser_3:
+    needs: secrets
+    uses: ./.github/workflows/ci-browser.yml
+    with:
+      shard: 3
+
+  browser_4:
+    needs: secrets
+    uses: ./.github/workflows/ci-browser.yml
+    with:
+      shard: 4
 
   # Keep the branch protection check stable and fail closed for every dependency,
-  # including skipped or cancelled jobs. Matrix results cover every shard.
+  # including skipped or cancelled jobs. Each shard is a separate dependency.
   validate:
     name: validate
     if: ${{ always() }}
-    needs: [secrets, checks, browser]
+    needs: [secrets, api, security, build, browser_1, browser_2, browser_3, browser_4]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - name: Require every job to succeed
         env:
           SECRETS_RESULT: ${{ needs.secrets.result }}
-          CHECKS_RESULT: ${{ needs.checks.result }}
-          BROWSER_RESULT: ${{ needs.browser.result }}
+          API_RESULT: ${{ needs.api.result }}
+          SECURITY_RESULT: ${{ needs.security.result }}
+          BUILD_RESULT: ${{ needs.build.result }}
+          BROWSER_1_RESULT: ${{ needs.browser_1.result }}
+          BROWSER_2_RESULT: ${{ needs.browser_2.result }}
+          BROWSER_3_RESULT: ${{ needs.browser_3.result }}
+          BROWSER_4_RESULT: ${{ needs.browser_4.result }}
         run: |
-          for result in "$SECRETS_RESULT" "$CHECKS_RESULT" "$BROWSER_RESULT"; do
+          for result in "$SECRETS_RESULT" "$API_RESULT" "$SECURITY_RESULT" "$BUILD_RESULT" \
+            "$BROWSER_1_RESULT" "$BROWSER_2_RESULT" "$BROWSER_3_RESULT" "$BROWSER_4_RESULT"; do
             if [ "$result" != success ]; then
               echo "A required CI job did not succeed: $result"
               exit 1

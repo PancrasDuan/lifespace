@@ -1,0 +1,28 @@
+name: CI browser
+
+on:
+  workflow_call:
+    inputs:
+      shard:
+        required: true
+        type: number
+
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version-file: .node-version
+          cache: npm
+      - run: npm ci
+      - name: Install Chromium
+        run: PLAYWRIGHT_BROWSERS_PATH=.cache/playwright npx playwright install --with-deps chromium
+      - name: Run browser shard
+        env:
+          SHARD: ${{ inputs.shard }}
+        run: npm run test:browser -- --shard="$SHARD/4"
