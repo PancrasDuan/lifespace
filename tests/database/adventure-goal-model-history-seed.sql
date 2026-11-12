@@ -37,3 +37,17 @@ begin
 end $$;
 revoke execute on function public.adventure_test_focus_seed(uuid,uuid) from public,anon,authenticated;
 grant execute on function public.adventure_test_focus_seed(uuid,uuid) to service_role;
+
+-- Model a legacy completed task migrated after completion; current commands do
+-- not permit this state, but its historical completion must remain readable.
+create function public.adventure_test_move_completed(p_owner uuid,p_task uuid,p_goal uuid)
+returns void language plpgsql security invoker set search_path='' as $$
+begin
+  perform 1 from public.adventure_accounts where owner_id=p_owner for update;
+  if not found or not exists(select 1 from public.adventure_goals where owner_id=p_owner and id=p_goal and kind='real') then raise exception 'NOT_FOUND'; end if;
+  update public.adventure_tasks set goal_id=p_goal where owner_id=p_owner and id=p_task and status='completed' and deleted_at is null;
+  if not found then raise exception 'NOT_FOUND'; end if;
+  update public.adventure_accounts set revision=revision+1 where owner_id=p_owner;
+end $$;
+revoke execute on function public.adventure_test_move_completed(uuid,uuid,uuid) from public,anon,authenticated;
+grant execute on function public.adventure_test_move_completed(uuid,uuid,uuid) to service_role;

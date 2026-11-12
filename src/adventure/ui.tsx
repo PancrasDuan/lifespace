@@ -7,12 +7,14 @@ export function Modal({
   children,
   restoreFocus,
   className = '',
+  id,
 }: {
   title: string
   close: () => void
   children: ReactNode
   restoreFocus?: HTMLElement
   className?: string
+  id?: string
 }) {
   const dialog = useRef<HTMLDivElement>(null)
   const closeRef = useRef(close)
@@ -72,7 +74,7 @@ export function Modal({
       // Restore the actual opener after the overlay is gone. The fallback is
       // only for an opener that React replaced during an inline create step.
       requestAnimationFrame(() => {
-        const target = opener?.isConnected ? opener : recordSummary?.isConnected ? recordSummary : document.querySelector<HTMLElement>('.heading-actions .new-button:last-child')
+        const target = restoreFocus?.isConnected ? restoreFocus : opener?.isConnected ? opener : recordSummary?.isConnected ? recordSummary : document.querySelector<HTMLElement>('.heading-actions .new-button:last-child')
         if (target && document.contains(target)) target.focus()
       })
     }
@@ -87,12 +89,13 @@ export function Modal({
   return (
     <div
       className="adventure-overlay"
-      onMouseDown={(event) => {
+      onClick={(event) => {
         if (event.target === event.currentTarget) close()
       }}
     >
       <div
         ref={dialog}
+        id={id}
         role="dialog"
         aria-modal="true"
         aria-label={title}

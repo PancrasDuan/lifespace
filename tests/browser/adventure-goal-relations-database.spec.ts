@@ -1,0 +1,47 @@
+import { test, expect } from './authenticated-test'
+import { localPlanningRpc, planningDatabaseBrowser } from '../support/planning-database-browser'
+
+const db = planningDatabaseBrowser()
+test.describe('关系卡片真实数据库', () => {
+  test.describe.configure({ timeout: 90000 })
+  test.skip(!localPlanningRpc, '需要隔离数据库')
+  test.beforeEach(async ({ context }) => { await db.install(context) })
+  test.afterEach(() => db.restore())
+  for (const width of [1440, 390]) test(`${width}px 查看、分页并关闭关系卡片`, async ({ page }) => {
+    const goal = (await db.write({ type: 'createGoal', title: '关系目标', standards: ['完成标准'], categoryLabel: '学习' })).result.entityId
+    const today = (await db.snapshot()).today
+    for (let i = 0; i < 21; i++) await db.write({ type: 'createTask', title: `关联 ${String(i).padStart(2, '0')}`, description: '不能显示的说明', plannedOn: today, destination: goal })
+    await page.setViewportSize({ width, height: 844 })
+    await page.goto('/adventure?view=planning')
+    const opener = page.getByRole('button', { name: '关系卡片' })
+    await opener.click()
+    const dialog = page.getByRole('dialog', { name: '目标详情' })
+    await expect(dialog).toContainText('学习')
+    await expect(dialog).toContainText('完成标准')
+    await expect(dialog).toContainText('未完成任务')
+    await dialog.getByRole('button', { name: '相关任务' }).click()
+    await expect(dialog).toContainText('共 21 项')
+    await expect(dialog).toContainText('关联 00')
+    await expect(dialog).not.toContainText('不能显示的说明')
+    await dialog.getByRole('button', { name: '下一页' }).click()
+    await expect(dialog).toContainText('关联 20')
+    await expect(dialog).not.toContainText('关联 00')
+    await page.screenshot({ path: `.cache/goal-relation-${width}.png` })
+    await page.locator('.adventure-overlay').click({ position: { x: 5, y: 5 } })
+    await expect(dialog).toBeHidden()
+    await expect(opener).toBeFocused()
+  })
+  test('达成后读取终态关系卡，不展示奖励或感想', async ({ page }) => {
+    await db.write({ type: 'createGoal', title: '达成目标', standards: ['标准'], categoryLabel: '分类' })
+    await page.goto('/adventure?view=planning')
+    await page.getByRole('button', { name: '达成', exact: true }).click()
+    await page.getByLabel('达成感想（可选）').fill('私人感想')
+    await page.getByRole('button', { name: '确认达成并入账' }).click()
+    const dialog = page.getByRole('dialog', { name: '目标详情' })
+    await expect(dialog).toContainText('达成目标')
+    await expect(dialog).toContainText('已达成')
+    await expect(dialog).not.toContainText('奖励')
+    await expect(dialog).not.toContainText('系数')
+    await expect(dialog).not.toContainText('私人感想')
+  })
+})

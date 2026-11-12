@@ -868,10 +868,14 @@ begin
     v_detail:=public.adventure_goal_view(p_owner,p_goal_id);
     if v_detail is null then raise exception 'NOT_FOUND'; end if;
     v_result:=v_result||jsonb_build_object('goalDetail',jsonb_build_object('goal',v_detail,
-      'taskPage',p_goal_task_page,'totalTasks',(select count(*) from public.adventure_tasks where owner_id=p_owner and deleted_at is null and goal_id=p_goal_id and status in ('pending','completed')),
+      'taskPage',p_goal_task_page,'totalTasks',(select count(*) from public.adventure_tasks t where t.owner_id=p_owner and t.deleted_at is null and (t.goal_id=p_goal_id or exists(select 1 from public.adventure_events e where e.owner_id=p_owner and e.task_id=t.id and e.kind='task_completed' and e.invalidated_at is null and e.goal_id=p_goal_id))),
+      'totalRelatedTasks',(select count(*) from public.adventure_tasks where owner_id=p_owner and deleted_at is null and goal_id=p_goal_id and status in ('pending','completed')),
+      'relatedTasks',(select coalesce(jsonb_agg(jsonb_build_object('id',id,'title',title,'plannedOn',planned_on,'completedAt',completed_at) order by planned_on,created_at,id),'[]'::jsonb) from (
+        select id,title,planned_on,completed_at,created_at from public.adventure_tasks where owner_id=p_owner and goal_id=p_goal_id and deleted_at is null and status in ('pending','completed')
+        order by planned_on,created_at,id limit p_page_size offset (p_goal_task_page::bigint-1)*p_page_size) related),
       'tasks',(select coalesce(jsonb_agg(item order by planned_on,created_at,id),'[]') from (
         select planned_on,created_at,id,public.adventure_task_view(p_owner,id,v_today) item from public.adventure_tasks
-        where owner_id=p_owner and deleted_at is null and goal_id=p_goal_id and status in ('pending','completed') order by planned_on,created_at,id
+        where owner_id=p_owner and deleted_at is null and (goal_id=p_goal_id or exists(select 1 from public.adventure_events e where e.owner_id=p_owner and e.task_id=adventure_tasks.id and e.kind='task_completed' and e.invalidated_at is null and e.goal_id=p_goal_id)) order by planned_on,created_at,id
         limit p_page_size offset (p_goal_task_page::bigint-1)*p_page_size) history)));
   end if;
   v_result:=jsonb_set(v_result,'{capabilities,createTask}','{"allowed":true}');

@@ -1,31 +1,35 @@
-import { CircleCheck } from 'lucide-react'
+import { useRef, useState } from 'react'
 import type { PlanningGoal, PlanningPage } from '../shared/adventure-planning'
-import { MoreActions } from './PrototypeRecord'
-import { PlanningCompletionOrigin } from './PlanningCompletionOrigin'
-import { PlanningTaskHistory } from './PlanningReschedule'
 
-export function PrototypeGoalDetail({ goal, history, pageSize, blocked, edit, addTask, achieve, end, changePage, reorder }: {
-  goal: PlanningGoal; history: PlanningPage['goalDetail']; pageSize: number; blocked: boolean
-  edit: () => void; addTask: () => void; achieve: () => void; end: () => void; changePage: (page: number) => void
-  reorder?: React.ReactNode
+export function PrototypeGoalDetail({ goal, detail, pageSize, blocked, changePage }: {
+  goal: PlanningGoal; detail: PlanningPage['goalDetail']; pageSize: number; blocked: boolean
+  changePage: (page: number) => void
 }) {
-  const active = goal.status === 'active'
-  return <>
-    <p className="muted">创建时间：{new Date(goal.createdAt).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })}</p>
-    <p>{goal.status === 'achieved' ? '已达成 · 结果已冻结' : goal.status === 'ended' ? '已结束 · 只读' : '进行中'}</p>{goal.terminatedAt && <p className="muted">终态时间：{new Date(goal.terminatedAt).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })}</p>}
-    <div className="details-columns"><section><h3>完成标准</h3><ul className="plain-list">{goal.standards.map((standard, index) => <li key={index}>{standard}</li>)}</ul></section>
-      <section><h3>当前进度</h3><p>{goal.progress.completed} 项完成，共 {goal.progress.total} 项行动。</p><p className="muted">任务全部完成不等于目标已经达成，由你确认实际结果。</p>
-        {goal.achievement && <><p>目标奖励 {goal.achievement.reward.amount} 点经验 · 计奖行动 {goal.achievement.reward.calculation.count} 次 · 系数 {goal.achievement.reward.calculation.coefficient}</p>{goal.achievement.reward.calculation.fallback && <p className="muted">无有效计奖行动，使用 1 点保底奖励。</p>}<p>达成感想：{goal.achievement.reflection || '未填写'}</p></>}
-      </section></div>
-    {active && !goal.capabilities.achieve?.allowed && <p className="adventure-hint">{goal.capabilities.achieve?.reason}</p>}
-    <div className="record-actions">
-      {active ? <><button type="button" className="action-primary" disabled={blocked || !goal.capabilities.achieve?.allowed} title={goal.capabilities.achieve?.reason} onClick={achieve}>确认达成</button>
-        <MoreActions><button disabled={blocked || !goal.capabilities.edit?.allowed} onClick={edit}>编辑目标</button><button disabled={blocked || !goal.capabilities.createTask?.allowed} title={goal.capabilities.createTask?.reason} onClick={addTask}>添加任务</button><button disabled={blocked || !goal.capabilities.end?.allowed} title={goal.capabilities.end?.reason} onClick={end}>结束目标</button></MoreActions>{reorder && <div className="goal-reorder-actions">{reorder}</div>}</>
-        : <span className="terminal-note"><CircleCheck size={14} />{goal.status === 'achieved' ? '结果已冻结，只剩历史可以查看' : '目标已结束，只剩历史可以查看'}</span>}
-    </div>
-    {history && <section role="region" aria-label="目标任务历史"><h4>任务历史</h4>
-      {history.tasks.length ? <ul className="plain-list">{history.tasks.map(task => <li key={task.id}>{task.title} · {task.plannedOn} · {task.status === 'completed' ? '已完成' : task.status === 'ended' ? '已结束' : '待完成'}{task.reward ? ` · 冻结奖励 ${task.reward.amount} 点经验` : ''}{task.completionOrigin && <> · <PlanningCompletionOrigin origin={task.completionOrigin} /></>}{task.goalId !== goal.id ? ` · 当前已迁出至 ${task.goalTitle ?? '独立任务'}` : ''}<PlanningTaskHistory key={`${task.id}:${goal.id}:${history.taskPage}`} id={task.id} /></li>)}</ul> : <p>暂无任务历史。</p>}
-      {history.totalTasks > pageSize && <div className="planning-pagination"><small>共 {history.totalTasks} 项 · 第 {history.taskPage} 页</small><div><button disabled={blocked || history.taskPage <= 1} onClick={() => changePage(history.taskPage - 1)}>上一页历史</button><button disabled={blocked || history.taskPage * pageSize >= history.totalTasks} onClick={() => changePage(history.taskPage + 1)}>下一页历史</button></div></div>}
-    </section>}
-  </>
+  const [face, setFace] = useState<'goal' | 'tasks'>('goal')
+  const taskButton = useRef<HTMLButtonElement>(null)
+  return <div className="goal-relation">
+    {face === 'goal' ? <>
+      <p className="goal-relation-category">{goal.categoryLabel || '无分类'}</p>
+      <h3>{goal.title}</h3>
+      <p>{goal.status === 'active' ? '进行中' : goal.status === 'achieved' ? '已达成' : '已结束'} · {goal.progress.completed} / {goal.progress.total} 项任务完成</p>
+      <section><h4>完成标准</h4><ul>{goal.standards.map((standard, index) => <li key={index}>{standard}</li>)}</ul></section>
+      {goal.status === 'active' && !goal.capabilities.achieve?.allowed && <p className="adventure-hint">{goal.capabilities.achieve?.reason}</p>}
+      {goal.status === 'active' && !goal.capabilities.end?.allowed && goal.capabilities.end?.reason && goal.capabilities.end.reason !== goal.capabilities.achieve?.reason && <p className="adventure-hint">{goal.capabilities.end.reason}</p>}
+      {goal.status !== 'active' && <p className="muted">目标已进入终态，只读保留。</p>}
+      <button ref={taskButton} type="button" className="adventure-primary" onClick={() => setFace('tasks')}>相关任务</button>
+    </> : <>
+      <h3>相关任务</h3>
+      {!detail ? <p role="status">正在读取相关任务…</p> : <>
+        <p className="muted">共 {detail.totalRelatedTasks} 项</p>
+        {detail.relatedTasks.length ? <ul className="goal-relation-tasks">{detail.relatedTasks.map(task => <li key={task.id}>
+          <strong>{task.title}</strong><span>计划时间：{task.plannedOn}</span><span>完成时间：{task.completedAt ? new Date(task.completedAt).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' }) : '尚未完成'}</span>
+        </li>)}</ul> : <p>暂无相关任务。</p>}
+        {detail.totalRelatedTasks > pageSize && <div className="planning-pagination"><small>第 {detail.taskPage} 页</small><div>
+          <button type="button" disabled={blocked || detail.taskPage <= 1} onClick={() => changePage(detail.taskPage - 1)}>上一页</button>
+          <button type="button" disabled={blocked || detail.taskPage * pageSize >= detail.totalRelatedTasks} onClick={() => changePage(detail.taskPage + 1)}>下一页</button>
+        </div></div>}
+      </>}
+      <button type="button" autoFocus onClick={() => { setFace('goal'); requestAnimationFrame(() => taskButton.current?.focus()) }}>返回目标详情</button>
+    </>}
+  </div>
 }

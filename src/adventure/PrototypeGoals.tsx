@@ -1,12 +1,12 @@
-import { useRef, type ReactNode } from 'react'
+import { useRef } from 'react'
 import { GripVertical } from 'lucide-react'
 import type { PlanningCommand, PlanningGoal } from '../shared/adventure-planning'
 import { Progress } from './PrototypeRecord'
 
 type Action = (command: PlanningCommand) => Promise<boolean>
-export function PrototypeGoals({ goals, blocked, action, openGoal, toggleGoal, detail, edit, achieve, end }: {
+export function PrototypeGoals({ goals, blocked, action, openGoal, toggleGoal, edit, achieve, end }: {
   goals: PlanningGoal[]; blocked: boolean; action: Action; openGoal?: string; toggleGoal: (id: string) => void
-  detail: (goal: PlanningGoal) => ReactNode; edit: (goal: PlanningGoal) => void; achieve: (goal: PlanningGoal) => void; end: (goal: PlanningGoal) => void
+  edit: (goal: PlanningGoal) => void; achieve: (goal: PlanningGoal) => void; end: (goal: PlanningGoal) => void
 }) {
   const dragged = useRef<PlanningGoal | undefined>(undefined)
   const move = (goal: PlanningGoal, direction: 'up' | 'down', targetId?: string) => {
@@ -31,7 +31,6 @@ export function PrototypeGoals({ goals, blocked, action, openGoal, toggleGoal, d
             {(['up', 'down'] as const).map(direction => <button key={direction} type="button" aria-label={`${direction === 'up' ? '上移' : '下移'}目标 ${goal.title}`} disabled={blocked || !goal.capabilities[direction === 'up' ? 'moveUp' : 'moveDown']?.allowed} onClick={() => move(goal, direction)}>{direction === 'up' ? '↑' : '↓'}</button>)}</>}
         </div>
       </div>
-      <div role="row" hidden={openGoal !== goal.id}><div role="cell" aria-colspan={6} id={`goal-detail-${goal.id}`} className="record-details">{openGoal === goal.id && detail(goal)}</div></div>
     </div>)}
   </div>
 }
