@@ -151,23 +151,26 @@ test('真实旧构建跨切换保留未知封套并由受控人员核对', async
     await expect.poll(async () => (await nativeFetch(`${rpc}/rpc/adventure_receipt_lookup`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ p_owner: owner, p_request_id: original.requestId, p_command: original.command }),
     })).status).toBe(200)
-    const replay = await database.request(owner, '/api/adventure/receipts/lookup', original, null)
+    const nonce = 'a'.repeat(64)
+    const replay = await database.request(owner, '/api/adventure/receipts/lookup', { ...original, nonce }, null)
     expect(replay.status, await replay.clone().text()).toBe(200)
     expect(replay.headers.get('x-lifespace-adventure-model')).toBe('goal-categories-1')
     expect(replay.headers.get('cache-control')).toBe('no-store')
-    expect(JSON.stringify(await replay.json())).not.toMatch(/mainline|主线/i)
+    const linked = await replay.json()
+    expect(linked).toEqual({ requestId: original.requestId, nonce, receipt: parsedReceipt.success ? parsedReceipt.data : null })
+    expect(JSON.stringify(linked)).not.toMatch(/mainline|主线/i)
     expect((await sql.query('select count(*)::int n from public.adventure_tasks where owner_id=$1 and title=$2', [owner, '旧请求已提交'])).rows[0].n).toBe(1)
     const date = (await sql.query("select (clock_timestamp() at time zone 'Asia/Shanghai')::date::text today")).rows[0].today
     const inFlight = { requestId: 'cutover-inflight-001', expectedVersion: Number(before.rows[0].revision), command: { type: 'createTask', title: '在途行动', description: '', plannedOn: date, destination: '' } }
     await sql.query('begin')
     try {
       await sql.query('select public.adventure_planning_command($1,$2,$3,$4)', [owner, inFlight.requestId, inFlight.expectedVersion, JSON.stringify(inFlight.command)])
-      const notCommitted = await database.request(owner, '/api/adventure/receipts/lookup', inFlight, null)
+      const notCommitted = await database.request(owner, '/api/adventure/receipts/lookup', { ...inFlight, nonce }, null)
       expect(notCommitted.status).toBe(404)
       expect(await notCommitted.json()).toMatchObject({ error: { code: 'RECEIPT_UNKNOWN' } })
       await sql.query('commit')
     } catch (error) { await sql.query('rollback'); throw error }
-    expect((await database.request(owner, '/api/adventure/receipts/lookup', inFlight, null)).status).toBe(200)
+    expect((await database.request(owner, '/api/adventure/receipts/lookup', { ...inFlight, nonce }, null)).status).toBe(200)
     // An unrelated authentication revalidation can still unmount the old UI
     // and discard its in-memory pending envelope; the 503 gate cannot stop it.
     await context.route('**/api/auth/me', route => route.fulfill({ status: 403, json: { error: { code: 'AUTH_DENIED', message: '无权访问' } } }))

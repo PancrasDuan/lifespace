@@ -16,10 +16,11 @@ describe.skipIf(!localPlanningRpc || !fixture)('旧目标封套只读查询', ()
       [fixture!.owner, 'legacy-edit-171', fixture!.edit, fixture!.edited],
       [fixture!.orderOwner, 'order-replay-a', fixture!.oldOrder, fixture!.orderReceipt],
     ] as const) {
-      const response = await db.request(owner, '/api/adventure/receipts/lookup', { requestId, expectedVersion: 0, command }, null)
+      const nonce = 'a'.repeat(64)
+      const response = await db.request(owner, '/api/adventure/receipts/lookup', { requestId, expectedVersion: 0, command, nonce }, null)
       expect(response.status, requestId).toBe(200)
       const actual = await response.json()
-      expect(actual).toEqual(receipt)
+      expect(actual).toEqual({ requestId, nonce, receipt })
       expect(JSON.stringify(actual)).not.toMatch(/mainline|主线/i)
     }
   })

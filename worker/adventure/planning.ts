@@ -16,7 +16,7 @@ type PlanningContext = Context<{ Bindings: AuthEnv; Variables: { identity: Ident
 const unavailable = () => new ApiError('ADVENTURE_UNAVAILABLE', '暂时无法读取人生冒险，请稍后重试', 503)
 export const oldClientUnavailable = () => new ApiError('CLIENT_UPDATE_REQUIRED', '旧页面操作结果可能未知，请不要刷新或重新提交，请联系维护人员核对。', 503)
 const errors = {
-  PENDING_TASKS: [400, '请先删除未完成任务，或在编辑任务中移到其他在用目标／独立任务'],
+  PENDING_TASKS: [400, '请先删除未完成任务，或在编辑任务中移到其他进行中目标／独立任务'],
   VERSION_CONFLICT: [409, '数据已更新，请重新读取后确认操作'],
   REQUEST_ID_REUSED: [409, '请求编号已用于其他操作，请重新确认'],
   RECEIPT_UNKNOWN: [404, '无法确认历史结果，请勿重新提交并联系维护人员'],
@@ -28,8 +28,8 @@ const errors = {
   SAME_DATE: [400, '新日期与当前执行日期相同，无需改期'],
   DATE_LOCKED: [400, '不能提前完成未来安排，且仅能取消今天的完成'],
   TASK_NOT_PENDING: [400, '仅待完成任务可以执行此操作'],
-  HISTORY_LOCKED: [400, '任务已有完成或历史安排，不能按误建删除'],
-  DATE_STARTED: [400, '执行日已到，不能按误建删除；不再执行可选择结束'],
+  HISTORY_LOCKED: [400, '任务已有完成或历史安排，此操作不可用'],
+  DATE_STARTED: [400, '执行日已到，此操作不可用'],
   COMPLETION_CHANGED: [409, '这次完成已变化，请重新读取后确认'],
   INVALID_COMMAND: [400, '输入字段或内容无效'],
   CAPACITY_REACHED: [400, '操作超出当前容量限制，未保存任何变更'],
@@ -122,12 +122,19 @@ export async function commandPlanning(c: PlanningContext) {
 
 // This is a read-only lookup: it must never fall through to a command when a receipt is absent.
 export async function lookupPlanningReceipt(c: PlanningContext) {
-  const value = await input(c, storedPlanningEnvelopeSchema)
+  const lookupSchema = z.strictObject({ requestId: z.string(), expectedVersion: z.number(), command: z.unknown(), nonce: z.string().regex(/^[0-9a-f]{64}$/) }).transform((value, ctx) => {
+    const parsed = storedPlanningEnvelopeSchema.safeParse({ requestId: value.requestId, expectedVersion: value.expectedVersion, command: value.command })
+    if (!parsed.success) { ctx.addIssue({ code: 'custom', message: 'Invalid envelope' }); return z.NEVER }
+    return { ...parsed.data, nonce: value.nonce }
+  })
+  const value = await input(c, lookupSchema)
+  // Historical receipts do not store expectedVersion; lookup binds only the
+  // authenticated owner, request ID and normalized command digest.
   const receipt = await rpc(c, 'adventure_receipt_lookup', {
     p_request_id: value.requestId, p_command: value.command,
   }, planningReceiptSchema)
   c.header('X-Lifespace-Adventure-Model', adventureClientVersion)
-  return c.json(receipt)
+  return c.json({ requestId: value.requestId, nonce: value.nonce, receipt })
 }
 
 export async function readMigrationOptions(c: PlanningContext) {

@@ -571,7 +571,7 @@ begin
   perform public.adventure_lifecycle_check(p_owner,p_command,p_today); return '{"allowed":true}'::jsonb;
 exception when others then return jsonb_build_object('allowed',false,'reason',case sqlerrm
   when 'READ_ONLY' then '目标已进入终态，只能查看' when 'NOT_FOUND' then '目标不存在或不属于当前账户'
-  when 'PENDING_TASKS' then '请先删除未完成任务，或在编辑任务中移到其他在用目标／独立任务' else '当前不可结束，请重新读取' end);
+  when 'PENDING_TASKS' then '请先删除未完成任务，或在编辑任务中移到其他进行中目标／独立任务' else '当前不可结束，请重新读取' end);
 end $$;
 
 create or replace function public.adventure_lifecycle_apply(p_owner uuid,p_request_id text,p_revision bigint,p_command jsonb,p_now timestamptz)

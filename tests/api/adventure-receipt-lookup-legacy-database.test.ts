@@ -12,11 +12,13 @@ describe.skipIf(!localPlanningRpc || !fixture)('迁移后的只读历史回执',
   afterEach(() => db.restore())
   it('安全结果按账户和摘要返回，冲突、无法安全重放和删除历史均不执行', async () => {
     const row = fixture!.receipts.find(item => item.request_id === 'rpc-complete-task')!
-    const envelope = { requestId: row.request_id, expectedVersion: 0, command: row.command }
+    const envelope = { requestId: row.request_id, expectedVersion: 0, command: row.command, nonce: 'a'.repeat(64) }
     const before = await (await db.request(row.owner_id, '/api/adventure/growth')).json()
     const found = await db.request(row.owner_id, '/api/adventure/receipts/lookup', envelope, null)
     expect(found.status).toBe(200)
-    const receipt = planningReceiptSchema.parse(await found.json())
+    const linked = await found.json() as { requestId: string; nonce: string; receipt: unknown }
+    expect(linked).toMatchObject({ requestId: envelope.requestId, nonce: envelope.nonce })
+    const receipt = planningReceiptSchema.parse(linked.receipt)
     expect(receipt).toEqual(planningReceiptSchema.parse(row.receipt))
     expect(JSON.stringify(receipt)).not.toMatch(/mainline|主线/i)
     const conflict = await db.request(row.owner_id, '/api/adventure/receipts/lookup', { ...envelope, command: { type: 'deleteTask', id: receipt.result.entityId } }, null)
@@ -24,13 +26,13 @@ describe.skipIf(!localPlanningRpc || !fixture)('迁移后的只读历史回执',
     expect(await conflict.json()).toMatchObject({ error: { code: 'REQUEST_ID_REUSED' } })
     for (const id of ['unsafe-cn-receipt', 'unsafe-en-receipt']) {
       const unsafe = fixture!.receipts.find(item => item.request_id === id)!
-      const response = await db.request(unsafe.owner_id, '/api/adventure/receipts/lookup', { requestId: id, expectedVersion: 0, command: unsafe.command }, null)
+      const response = await db.request(unsafe.owner_id, '/api/adventure/receipts/lookup', { requestId: id, expectedVersion: 0, command: unsafe.command, nonce: envelope.nonce }, null)
       expect(response.status).toBe(409)
       const error = await response.json()
       expect(error).toMatchObject({ error: { code: 'REPLAY_UNAVAILABLE' } })
       expect(JSON.stringify(error)).not.toMatch(/mainline|主线/i)
     }
-    const removed = await db.request('00000000-0000-4000-8000-000000000005', '/api/adventure/receipts/lookup', { requestId: 'replay-mainline', expectedVersion: 0, command: { type: 'createMainline', name: '旧方向' } }, null)
+    const removed = await db.request('00000000-0000-4000-8000-000000000005', '/api/adventure/receipts/lookup', { requestId: 'replay-mainline', expectedVersion: 0, command: { type: 'createMainline', name: '旧方向' }, nonce: envelope.nonce }, null)
     expect(removed.status).toBe(404)
     expect(await removed.json()).toMatchObject({ error: { code: 'RECEIPT_UNKNOWN' } })
     expect(await (await db.request(row.owner_id, '/api/adventure/growth')).json()).toEqual(before)

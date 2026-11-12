@@ -78,7 +78,7 @@ test('过渡版持久封套跨关闭与迁移由新构建只读接续，并隔�
       if (phase === 'current' && url.pathname === '/api/adventure/receipts/lookup' && lookupFault) {
         if (lookupFault === 'delay') {
           await new Promise<void>(resolve => { resumeLookup = resolve })
-          try { await route.fulfill({ headers: { 'Cache-Control': 'no-store', 'X-Lifespace-Adventure-Model': 'goal-categories-1' }, json: { version: 1, result: { entityId: firstOwner, message: '延迟响应' } } }) } catch { /* browser aborted the old identity's request */ }
+          try { await route.fulfill({ headers: { 'Cache-Control': 'no-store', 'X-Lifespace-Adventure-Model': 'goal-categories-1' }, json: { requestId: body.requestId, nonce: body.nonce, receipt: { version: 1, result: { entityId: firstOwner, message: '延迟响应' } } } }) } catch { /* browser aborted the old identity's request */ }
           return
         }
         if (lookupFault === 'bad-cache') return route.fulfill({ headers: { 'Cache-Control': 'no-store, extension=', 'X-Lifespace-Adventure-Model': 'goal-categories-1' }, json: { version: 1, result: { entityId: firstOwner, message: '合成响应' } } })
@@ -201,7 +201,8 @@ test('过渡版持久封套跨关闭与迁移由新构建只读接续，并隔�
     // Only the authentic Worker and isolated database can resolve the receipt.
     await current.getByRole('button', { name: '确认上次操作结果' }).click()
     await expect.poll(async () => lookups.length).toBe(7)
-    for (const lookup of lookups) expect(lookup).toEqual(oldEnvelopes[0])
+    for (const lookup of lookups) expect(lookup).toEqual({ ...Object(oldEnvelopes[0]), nonce: expect.stringMatching(/^[0-9a-f]{64}$/) })
+    expect(new Set(lookups.map(value => (value as { nonce: string }).nonce)).size).toBe(lookups.length)
     await expect.poll(() => pending(current, firstOwner)).toBeUndefined()
     expect(newCommands).toEqual([])
     expect((await sql.query('select revision,total_xp from public.adventure_accounts where owner_id=$1', [firstOwner])).rows).toEqual(before.rows)

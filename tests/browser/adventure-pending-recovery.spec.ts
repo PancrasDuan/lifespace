@@ -4,6 +4,10 @@ import { planningFixture } from './adventure-fixture'
 const owner = '00000000-0000-4000-8000-000000000001'
 const goal = '00000000-0000-4000-8000-000000000055'
 const legacyEnvelope = { requestId: 'legacy-goal-create-001', expectedVersion: 2, command: { type: 'createGoal', destination: '', title: '旧目标', standards: ['标准'] } }
+const linkedReceipt = (route: import('@playwright/test').Route, message = '已保存') => {
+  const { requestId, nonce } = route.request().postDataJSON()
+  return { requestId, nonce, receipt: { version: 3, result: { entityId: goal, message } } }
+}
 
 async function putPending(page: import('@playwright/test').Page, key: string, value: unknown) {
   await page.evaluate(async ({ key, value }) => {
@@ -45,7 +49,7 @@ test('新页面保留旧目标封套，只在只读回执确认后解除冻结',
   await context.route('**/api/adventure/compatibility', route => route.fulfill({ headers: { 'Cache-Control': 'no-store, extension="quoted, \\"value\\""' }, json: { model: 'goal-categories', version: 1, receiptLookup: true, legacyRetry: false } }))
   await context.route('**/api/adventure/receipts/lookup', route => {
     lookups.push(route.request().postDataJSON())
-    return route.fulfill({ headers: { 'Cache-Control': 'extension="quoted, \\"value\\"", no-store', 'X-Lifespace-Adventure-Model': 'goal-categories-1' }, json: { version: 3, result: { entityId: goal, message: '已创建目标' } } })
+    return route.fulfill({ headers: { 'Cache-Control': 'extension="quoted, \\"value\\"", no-store', 'X-Lifespace-Adventure-Model': 'goal-categories-1' }, json: linkedReceipt(route, '已创建目标') })
   })
   await page.goto('/adventure')
   await putPending(page, owner, legacyEnvelope)
@@ -53,7 +57,7 @@ test('新页面保留旧目标封套，只在只读回执确认后解除冻结',
   await expect(page.getByText(/有一项操作的结果尚未确认/)).toBeVisible()
   await expect(page.getByRole('button', { name: '新建目标', exact: true })).toBeDisabled()
   await page.getByRole('button', { name: '确认上次操作结果' }).click()
-  await expect.poll(() => lookups).toEqual([legacyEnvelope])
+  await expect.poll(() => lookups).toEqual([{ ...legacyEnvelope, nonce: expect.stringMatching(/^[0-9a-f]{64}$/) }])
   expect(fixture.envelopes).toEqual([])
   await expect.poll(() => getPending(page, owner)).toBeUndefined()
 })
@@ -69,7 +73,7 @@ for (const scenario of ['missing', 'conflict', 'unsafe', 'bad-model', 'missing-m
     await context.route('**/api/adventure/receipts/lookup', route => {
       lookups++
       if (scenario === 'missing' || scenario === 'conflict' || scenario === 'unsafe') return route.fulfill({ status: scenario === 'missing' ? 404 : 409, json: { error: { code: scenario === 'missing' ? 'RECEIPT_UNKNOWN' : scenario === 'conflict' ? 'REQUEST_ID_REUSED' : 'REPLAY_UNAVAILABLE', message: '无法确认' } } })
-      return route.fulfill({ headers: { ...(scenario === 'missing-cache' ? {} : { 'Cache-Control': scenario === 'bad-cache' ? 'x-no-store' : scenario === 'incomplete-cache' ? 'no-store, extension=' : 'no-store' }), ...(scenario === 'missing-model' ? {} : { 'X-Lifespace-Adventure-Model': scenario === 'bad-model' ? 'legacy' : 'goal-categories-1' }) }, json: scenario === 'invalid-receipt' ? { version: 3, result: {} } : { version: 3, result: { entityId: goal, message: '已创建目标' } } })
+      return route.fulfill({ headers: { ...(scenario === 'missing-cache' ? {} : { 'Cache-Control': scenario === 'bad-cache' ? 'x-no-store' : scenario === 'incomplete-cache' ? 'no-store, extension=' : 'no-store' }), ...(scenario === 'missing-model' ? {} : { 'X-Lifespace-Adventure-Model': scenario === 'bad-model' ? 'legacy' : 'goal-categories-1' }) }, json: scenario === 'invalid-receipt' ? { version: 3, result: {} } : linkedReceipt(route, '已创建目标') })
     })
     await page.goto('/adventure')
     await putPending(page, owner, legacyEnvelope)
@@ -83,6 +87,50 @@ for (const scenario of ['missing', 'conflict', 'unsafe', 'bad-model', 'missing-m
     await expect(page.getByRole('button', { name: '新建目标', exact: true })).toBeDisabled()
   })
 }
+
+for (const mismatch of ['requestId', 'nonce', 'previous-response'] as const) {
+  test(`回执关联 ${mismatch} 不匹配时保留封套，重试使用新 nonce`, async ({ page, context }) => {
+    const fixture = await planningFixture(context)
+    const nonces: string[] = []
+    let previous: ReturnType<typeof linkedReceipt> | undefined
+    await context.route('**/api/adventure/compatibility', route => route.fulfill({ headers: { 'Cache-Control': 'no-store' }, json: { model: 'goal-categories', version: 1, receiptLookup: true, legacyRetry: false } }))
+    await context.route('**/api/adventure/receipts/lookup', route => {
+      const current = linkedReceipt(route)
+      nonces.push(current.nonce)
+      const value = mismatch === 'requestId' ? { ...current, requestId: 'another-request' } : mismatch === 'nonce' ? { ...current, nonce: '0'.repeat(64) } : previous ?? { ...current, nonce: '0'.repeat(64) }
+      previous = current
+      return route.fulfill({ headers: { 'Cache-Control': 'no-store', 'X-Lifespace-Adventure-Model': 'goal-categories-1' }, json: value })
+    })
+    await page.goto('/adventure')
+    await putPending(page, owner, legacyEnvelope)
+    await page.reload()
+    for (let attempt = 0; attempt < 2; attempt++) {
+      await page.getByRole('button', { name: '确认上次操作结果' }).click()
+      await expect.poll(() => nonces.length).toBe(attempt + 1)
+      await expect(page.getByText(/操作结果尚未确认，请稍后再次确认/)).toBeVisible()
+      expect(await getPending(page, owner)).toEqual(legacyEnvelope)
+    }
+    expect(nonces).toHaveLength(2)
+    expect(nonces[0]).not.toBe(nonces[1])
+    expect(fixture.envelopes).toEqual([])
+    await expect(page.getByRole('button', { name: '新建目标', exact: true })).toBeDisabled()
+  })
+}
+
+test('安全随机数不可用时保留封套并不查询', async ({ page, context }) => {
+  await planningFixture(context)
+  let lookups = 0
+  await context.route('**/api/adventure/compatibility', route => route.fulfill({ headers: { 'Cache-Control': 'no-store' }, json: { model: 'goal-categories', version: 1, receiptLookup: true, legacyRetry: false } }))
+  await context.route('**/api/adventure/receipts/lookup', route => { lookups++; return route.abort() })
+  await page.goto('/adventure')
+  await putPending(page, owner, legacyEnvelope)
+  await page.reload()
+  await page.evaluate(() => { crypto.getRandomValues = () => { throw new Error('unavailable') } })
+  await page.getByRole('button', { name: '确认上次操作结果' }).click()
+  await expect(page.getByText(/操作结果尚未确认，请稍后再次确认/)).toBeVisible()
+  expect(await getPending(page, owner)).toEqual(legacyEnvelope)
+  expect(lookups).toBe(0)
+})
 
 test('其他账户记录不展示、不删除且不阻止本人操作', async ({ page, context }) => {
   await planningFixture(context)
@@ -119,7 +167,7 @@ test('浏览器存储不可用时停止操作而非假定没有待决记录', as
 test('回执已确认但删除本地封套失败时仍保持冻结', async ({ page, context }) => {
   const fixture = await planningFixture(context)
   await context.route('**/api/adventure/compatibility', route => route.fulfill({ headers: { 'Cache-Control': 'no-store' }, json: { model: 'goal-categories', version: 1, receiptLookup: true, legacyRetry: false } }))
-  await context.route('**/api/adventure/receipts/lookup', route => route.fulfill({ headers: { 'Cache-Control': 'no-store', 'X-Lifespace-Adventure-Model': 'goal-categories-1' }, json: { version: 3, result: { entityId: goal, message: '已保存' } } }))
+  await context.route('**/api/adventure/receipts/lookup', route => route.fulfill({ headers: { 'Cache-Control': 'no-store', 'X-Lifespace-Adventure-Model': 'goal-categories-1' }, json: linkedReceipt(route) }))
   await page.addInitScript(() => {
     const original = IDBObjectStore.prototype.delete
     IDBObjectStore.prototype.delete = function (key) {
@@ -150,13 +198,13 @@ for (const command of [
     await context.route('**/api/adventure/compatibility', route => route.fulfill({ headers: { 'Cache-Control': 'no-store' }, json: { model: 'goal-categories', version: 1, receiptLookup: true, legacyRetry: false } }))
     await context.route('**/api/adventure/receipts/lookup', route => {
       seen.push(route.request().postDataJSON())
-      return route.fulfill({ headers: { 'Cache-Control': 'no-store', 'X-Lifespace-Adventure-Model': 'goal-categories-1' }, json: { version: 4, result: { entityId: goal, message: '已保存' } } })
+      return route.fulfill({ headers: { 'Cache-Control': 'no-store', 'X-Lifespace-Adventure-Model': 'goal-categories-1' }, json: linkedReceipt(route) })
     })
     await page.goto('/adventure')
     await putPending(page, owner, envelope)
     await page.reload()
     await page.getByRole('button', { name: '确认上次操作结果' }).click()
-    await expect.poll(() => seen).toEqual([envelope])
+    await expect.poll(() => seen).toEqual([{ ...envelope, nonce: expect.stringMatching(/^[0-9a-f]{64}$/) }])
     await expect.poll(() => getPending(page, owner)).toBeUndefined()
     expect(fixture.envelopes).toEqual([])
   })

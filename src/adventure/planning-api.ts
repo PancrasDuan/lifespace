@@ -56,9 +56,12 @@ export const planningApi = {
       const model: unknown = await compatibility.json().catch(() => null)
       const supported = z.strictObject({ model: z.literal('goal-categories'), version: z.literal(1), receiptLookup: z.literal(true), legacyRetry: z.literal(false) }).safeParse(model).success
       if (!compatibility.ok || !noStore(compatibility) || !supported) throw uncertain()
-      const response = await authorizedMutation('/api/adventure/receipts/lookup', JSON.stringify(envelope), signal, owner)
+      const nonce = Array.from(crypto.getRandomValues(new Uint8Array(32)), byte => byte.toString(16).padStart(2, '0')).join('')
+      const response = await authorizedMutation('/api/adventure/receipts/lookup', JSON.stringify({ ...envelope, nonce }), signal, owner)
       if (!response.ok || response.headers.get('X-Lifespace-Adventure-Model') !== adventureClientVersion || !noStore(response)) throw uncertain()
-      return await read(response, planningReceiptSchema, true)
+      const result = await read(response, z.strictObject({ requestId: z.string(), nonce: z.string(), receipt: planningReceiptSchema }), true)
+      if (result.requestId !== envelope.requestId || result.nonce !== nonce) throw uncertain()
+      return result.receipt
     } catch { throw uncertain() }
   },
   async taskList(owner: string, filters: TaskListInput, signal: AbortSignal) {

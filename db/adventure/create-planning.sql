@@ -201,10 +201,10 @@ exception when others then
     when 'TASK_NOT_PENDING' then '仅待完成任务可以执行此操作'
     when 'DATE_LOCKED' then '仅能完成今天的安排或取消今天的完成'
     when 'COMPLETION_CHANGED' then '这次完成已变化，请重新读取'
-    when 'HISTORY_LOCKED' then '任务已有完成或历史安排，不能按误建删除'
+    when 'HISTORY_LOCKED' then '任务已有完成或历史安排，此操作不可用'
     when 'RESCHEDULE_PAST' then '只能改到今天或未来'
     when 'SAME_DATE' then '无需改到相同日期'
-    when 'DATE_STARTED' then '执行日已到，不能按误建删除；不再执行可选择结束'
+    when 'DATE_STARTED' then '执行日已到，此操作不可用'
     else '当前不可操作，请重新读取' end);
 end $$;
 
@@ -695,7 +695,7 @@ begin
   perform public.adventure_lifecycle_check(p_owner,p_command,p_today); return '{"allowed":true}'::jsonb;
 exception when others then return jsonb_build_object('allowed',false,'reason',case sqlerrm
   when 'READ_ONLY' then '目标已进入终态，只能查看' when 'NOT_FOUND' then '目标不存在或不属于当前账户'
-  when 'PENDING_TASKS' then '请先删除未完成任务，或在编辑任务中移到其他在用目标／独立任务' else '当前不可结束，请重新读取' end);
+  when 'PENDING_TASKS' then '请先删除未完成任务，或在编辑任务中移到其他进行中目标／独立任务' else '当前不可结束，请重新读取' end);
 end $$;
 
 create or replace function public.adventure_lifecycle_apply(p_owner uuid,p_request_id text,p_revision bigint,p_command jsonb,p_now timestamptz)
