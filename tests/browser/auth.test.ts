@@ -250,6 +250,14 @@ test('刷新时显示首页骨架屏，准入完成前不请求或展示业务�
     expect(businessRequests).toBe(readyRequests)
     for (const width of [1440, 390]) {
       await page.setViewportSize({ width, height: 954 })
+      const horoscope = (await page.locator('.auth-home-skeleton .panel-horoscope').boundingBox())!
+      const calendar = (await page.locator('.auth-home-skeleton .panel-calendar').boundingBox())!
+      if (width === 1440) {
+        expect(horoscope.y).toBe(calendar.y)
+        expect(horoscope.x + horoscope.width).toBeLessThan(calendar.x)
+      } else {
+        expect(horoscope.y + horoscope.height).toBeLessThan(calendar.y)
+      }
       const avatar = page.locator('.sidebar .auth-avatar')
       await expect(avatar).toBeDisabled()
       await expect(page.locator('.auth-avatar')).toHaveCount(1)
