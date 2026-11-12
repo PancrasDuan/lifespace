@@ -1,6 +1,6 @@
-# 目标页原型
+# 目标页原型 C 决策
 
-状态：2026-11-11 用户确认采用方案 C「目标控制台」。可丢弃原型，不进入生产构建。
+状态：2026-11-11 用户确认采用方案 C「目标控制台」。本文记录原型决策，原型演示代码不进入生产构建。
 
 ## 问题
 
@@ -14,6 +14,7 @@
 
 ## 选定：C「目标控制台」
 
+- 原型用于目标栏、相关目标操作和关系卡；页面标题、上方新建区域、经验概览、页签及导航保留原有页面。
 - 列表只展示目标名称、分类标签、任务进度、任务数、状态和操作。
 - 初始列表不展示完成标准。
 - 分类标签不分组、不排序、不筛选；多个目标可同名，改名互不影响。
@@ -28,12 +29,6 @@
 - 点击弹卡外部只关闭弹卡；背景页面锁定，不会触发其他目标。
 - 尺寸按紧凑内容收紧；桌面约 540 × 408，手机视口下方展开。
 
-## 文件与运行
+## 原型基准
 
-- 入口：`src/adventure/goals-prototype/index.html`
-- 样式：`src/adventure/goals-prototype/prototype.css`
-- 交互：`src/adventure/goals-prototype/prototype.js`
-- 启动：`npm run prototype:adventure-goals`
-- 预览参数：`?variant=C`
-
-静态预览位于 `docs/adventure/previews/prototype-goals-c-*.png`、`prototype-goals-target-dialog*.png` 和 `prototype-goals-target-tasks*.png`。
+[原型基准](goal-prototype-baseline.md)列出桌面、手机和关系卡两面截图及摘要。截图中的演示工具栏和示例数据仅用于说明，不属于产品界面。一次性演示代码不包含在本次交付中。

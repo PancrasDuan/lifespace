@@ -1,12 +1,13 @@
-import type { LifecyclePreview } from '../shared/adventure-planning'
+import type { LifecyclePreview, PlanningGoal } from '../shared/adventure-planning'
 import type { PlanningConfirmation } from './usePlanning'
+import { GoalConfirmationFacts } from './GoalConfirmationFacts'
 
 export const lifecycleTitles: Record<LifecyclePreview['operation'], string> = {
   endGoal: '确认结束目标', deleteTask: '删除任务',
 }
 
-export function PlanningLifecycle({ preview: current, confirmation, saved, cancel }: {
-  preview: LifecyclePreview; confirmation: PlanningConfirmation; saved: () => void; cancel: () => void
+export function PlanningLifecycle({ preview: current, goal, confirmation, saved, cancel }: {
+  preview: LifecyclePreview; goal?: PlanningGoal; confirmation: PlanningConfirmation; saved: () => void; cancel: () => void
 }) {
   const { blocked, stale } = confirmation
   if (current.operation === 'deleteTask') return <>
@@ -19,17 +20,14 @@ export function PlanningLifecycle({ preview: current, confirmation, saved, cance
   return <form onSubmit={event => {
     event.preventDefault()
     void confirmation.confirm({ type: current.operation, id: current.entityId }, saved)
-  }}><fieldset disabled={blocked}>
-    <h3>{current.title}</h3>
-    <p>{current.message}</p>
-    <h4>将停止的目标（{current.stoppingGoals.length}）</h4>
-    {current.stoppingGoals.length ? <ul>{current.stoppingGoals.map(goal => <li key={goal.id}>{goal.title}</li>)}</ul> : <p>没有待停止的目标。</p>}
-    <h4>将停止的任务（{current.stoppingTasks.length}）</h4>
-    {current.stoppingTasks.length ? <ul>{current.stoppingTasks.map(task => <li key={task.id}>{task.title} · {task.plannedOn}</li>)}</ul> : <p>没有待停止的任务。</p>}
-    <p>已有完成记录 {current.preservedCompletedTasks} 项、达成目标 {current.preservedAchievedGoals} 个，本次操作不会扣减经验或抹去历史。</p>
+  }} className="goal-confirmation-form"><fieldset disabled={blocked}>
+    <GoalConfirmationFacts title={current.title} goal={goal} />
+    <p className="goal-confirmation-warning">结束后目标只读保留，不能恢复或再变更；已完成任务和已入账奖励不会被抹去。</p>
+    {current.stoppingTasks.length > 0 && <p className="goal-confirmation-warning">{current.message}</p>}
+    {(current.preservedCompletedTasks > 0 || current.preservedAchievedGoals > 0) && <p className="goal-confirmation-note">已有完成记录 {current.preservedCompletedTasks} 项、达成目标 {current.preservedAchievedGoals} 个，本次操作不会扣减经验或抹去历史。</p>}
     {stale && <p role="status">数据已变化，请重新预览操作影响。</p>}
     <div className="adventure-form-footer"><button type="button" onClick={cancel}>取消</button>
-      <button type="button" onClick={() => { void confirmation.refresh() }}>重新预览</button>
-      <button className="adventure-primary" type="submit" disabled={blocked || stale}>{lifecycleTitles[current.operation]}</button></div>
+      {stale && <button type="button" onClick={() => { void confirmation.refresh() }}>重新预览</button>}
+      <button className="adventure-primary goal-end-confirm" type="submit" aria-label={lifecycleTitles[current.operation]} disabled={blocked || stale}>确认结束</button></div>
   </fieldset></form>
 }

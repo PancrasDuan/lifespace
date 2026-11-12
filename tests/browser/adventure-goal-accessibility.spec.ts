@@ -6,7 +6,7 @@ for (const width of [1440, 390]) test(`${width}px 目标表格保留列标题和
   await page.setViewportSize({ width, height: 844 })
   await page.goto('/adventure?view=planning')
   const table = page.getByRole('table', { name: '目标列表' })
-  for (const name of ['目标', '分类标签', '任务进度', '任务数', '状态', '操作'])
+  for (const name of ['目标', '分类标签', '任务进度', '任务', '状态', '操作'])
     await expect(table.getByRole('columnheader', { name, exact: true })).toBeAttached()
   const row = table.locator('.goal-console-row').filter({ hasText: '五公里' })
   await expect(row.locator('..')).toHaveAttribute('role', 'rowgroup')

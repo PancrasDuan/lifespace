@@ -11,7 +11,7 @@ for (const width of [390, 1440]) test(`${width}px 目标更多操作可普通点
   await page.goto('/adventure?view=planning')
   const card = page.getByRole('row', { name: /五公里/ })
   await page.screenshot({ path: `.cache/goal-actions-${width}.png`, fullPage: true })
-  await card.getByRole('button', { name: '结束', exact: true }).click({ timeout: 5000 })
+  await card.getByRole('button', { name: '结束目标', exact: true }).click({ timeout: 5000 })
   await expect(page.getByRole('dialog', { name: '确认结束目标', exact: true })).toBeVisible()
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width)
   expect(server.previews).toHaveLength(1)

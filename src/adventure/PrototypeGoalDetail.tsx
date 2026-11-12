@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { Check, ChevronLeft, ChevronRight, Circle } from 'lucide-react'
+import { Check, ChevronLeft, ChevronRight, Circle, Info } from 'lucide-react'
 import type { PlanningGoal, PlanningPage } from '../shared/adventure-planning'
 import { Progress } from './PrototypeRecord'
 
@@ -9,9 +9,18 @@ export function PrototypeGoalDetail({ goal, detail, pageSize, blocked, changePag
 }) {
   const [face, setFace] = useState<'goal' | 'tasks'>('goal')
   const taskButton = useRef<HTMLButtonElement>(null)
+  const returnButton = useRef<HTMLButtonElement>(null)
   const status = goal.status === 'active' ? '进行中' : goal.status === 'achieved' ? '已达成' : '已结束'
-  return <div className="goal-relation">
-    {face === 'goal' ? <>
+  const pending = Math.max(0, goal.progress.total - goal.progress.completed)
+  const blockedReasons = [goal.capabilities.achieve, goal.capabilities.end]
+    .filter(capability => capability && !capability.allowed && capability.reason)
+    .map(capability => capability!.reason!)
+  const hint = goal.status !== 'active' ? '目标已进入终态，只读保留。'
+    : pending > 0 && blockedReasons.length ? `还有 ${pending} 项未完成任务，处理后才能达成或结束。`
+    : [...new Set(blockedReasons)].join('；')
+  return <div className={`goal-relation${face === 'tasks' ? ' is-tasks' : ''}`}>
+    <div className="goal-relation-turn">
+    <section className="goal-relation-face goal-relation-front" aria-hidden={face !== 'goal'} inert={face !== 'goal'}>
       <div className="goal-relation-content">
         <div className="goal-relation-identity"><div>
           {goal.categoryLabel && <span className="goal-console-category">{goal.categoryLabel}</span>}
@@ -20,12 +29,11 @@ export function PrototypeGoalDetail({ goal, detail, pageSize, blocked, changePag
         </div><span className={`goal-status goal-status-${goal.status}`}>{status}</span></div>
         {goal.progress.ratio === null ? <p className="goal-relation-no-progress">暂无可统计任务</p> : <div className="goal-relation-progress"><Progress value={goal.progress.ratio} label={`目标 ${goal.title} 任务进度`} /><span>{goal.progress.completed} / {goal.progress.total}</span></div>}
         <section className="goal-relation-standards"><h4>完成标准</h4><ul>{goal.standards.map((standard, index) => <li key={index}>{standard}</li>)}</ul></section>
-        {goal.status === 'active' && !goal.capabilities.achieve?.allowed && <p className="goal-relation-hint">{goal.capabilities.achieve?.reason}</p>}
-        {goal.status === 'active' && !goal.capabilities.end?.allowed && goal.capabilities.end?.reason && goal.capabilities.end.reason !== goal.capabilities.achieve?.reason && <p className="goal-relation-hint">{goal.capabilities.end.reason}</p>}
-        {goal.status !== 'active' && <p className="goal-relation-hint">目标已进入终态，只读保留。</p>}
+        {hint && <p className="goal-relation-hint"><Info size={14} aria-hidden="true" /><span>{hint}</span></p>}
       </div>
-      <footer className="goal-relation-footer"><small>{status} · {goal.progress.total} 项任务</small><button ref={taskButton} type="button" onClick={() => setFace('tasks')}>相关任务 <ChevronRight size={14} aria-hidden="true" /></button></footer>
-    </> : <>
+      <footer className="goal-relation-footer"><small>{status} · {goal.progress.total} 项任务</small><button ref={taskButton} type="button" onClick={() => { setFace('tasks'); requestAnimationFrame(() => returnButton.current?.focus()) }}>相关任务 <ChevronRight size={14} aria-hidden="true" /></button></footer>
+    </section>
+    <section className="goal-relation-face goal-relation-back" aria-hidden={face !== 'tasks'} inert={face !== 'tasks'}>
       <div className="goal-relation-content">
         <div className="goal-relation-task-heading"><div><span className="goal-relation-task-kicker" aria-hidden="true">RELATED TASKS</span><h3>相关任务</h3><p>只展示任务名称、计划时间和完成时间。</p></div>{detail && <span className="goal-count">{detail.totalRelatedTasks}</span>}</div>
         {!detail ? <p role="status">正在读取相关任务…</p> : <>
@@ -40,7 +48,8 @@ export function PrototypeGoalDetail({ goal, detail, pageSize, blocked, changePag
           </div></div>}
         </>}
       </div>
-      <footer className="goal-relation-footer"><small>{detail ? `共 ${detail.totalRelatedTasks} 项` : '正在读取…'}</small><button type="button" autoFocus onClick={() => { setFace('goal'); requestAnimationFrame(() => taskButton.current?.focus()) }}><ChevronLeft size={14} aria-hidden="true" />返回目标详情</button></footer>
-    </>}
+      <footer className="goal-relation-footer"><small>{detail ? `共 ${detail.totalRelatedTasks} 项` : '正在读取…'}</small><button ref={returnButton} type="button" onClick={() => { setFace('goal'); requestAnimationFrame(() => taskButton.current?.focus()) }}><ChevronLeft size={14} aria-hidden="true" />返回目标详情</button></footer>
+    </section>
+    </div>
   </div>
 }
