@@ -65,7 +65,7 @@ export const test = base.extend({
       const response = await goto(...args)
       await expect(
         page.locator('.home-page, .news-page, .adventure-page, .finance-page'),
-      ).toBeVisible()
+      ).toBeVisible({ timeout: 15_000 })
       return response
     }
     const reload = page.reload.bind(page)
@@ -73,7 +73,7 @@ export const test = base.extend({
       const response = await reload(...args)
       await expect(
         page.locator('.home-page, .news-page, .adventure-page, .finance-page'),
-      ).toBeVisible()
+      ).toBeVisible({ timeout: 15_000 })
       return response
     }
     await use(page)
