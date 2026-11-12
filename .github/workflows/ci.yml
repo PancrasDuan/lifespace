@@ -82,19 +82,11 @@ jobs:
     steps:
       - name: Require every job to succeed
         env:
-          SECRETS_RESULT: ${{ needs.secrets.result }}
-          API_RESULT: ${{ needs.api.result }}
-          SECURITY_RESULT: ${{ needs.security.result }}
-          BUILD_RESULT: ${{ needs.build.result }}
-          BROWSER_1_RESULT: ${{ needs.browser_1.result }}
-          BROWSER_2_RESULT: ${{ needs.browser_2.result }}
-          BROWSER_3_RESULT: ${{ needs.browser_3.result }}
-          BROWSER_4_RESULT: ${{ needs.browser_4.result }}
+          NEEDS: ${{ toJSON(needs) }}
         run: |
-          for result in "$SECRETS_RESULT" "$API_RESULT" "$SECURITY_RESULT" "$BUILD_RESULT" \
-            "$BROWSER_1_RESULT" "$BROWSER_2_RESULT" "$BROWSER_3_RESULT" "$BROWSER_4_RESULT"; do
-            if [ "$result" != success ]; then
-              echo "A required CI job did not succeed: $result"
-              exit 1
-            fi
-          done
+          node -e '
+            const jobs = Object.entries(JSON.parse(process.env.NEEDS))
+            const failed = jobs.filter(([, job]) => job.result !== "success")
+            for (const [name, job] of failed) console.error(`${name}: ${job.result}`)
+            if (jobs.length === 0 || failed.length) process.exit(1)
+          '
