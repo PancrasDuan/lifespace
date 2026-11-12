@@ -1,5 +1,6 @@
 import { afterEach, expect, it, vi } from 'vitest'
 import app from '../../worker/index'
+import { adventureClientVersion, adventureClientVersionHeader } from '../../src/shared/adventure-client-version'
 import { goalRewardSchema, planningCommandSchema } from '../../src/shared/adventure-planning'
 
 const owner = '00000000-0000-4000-8000-000000000054'
@@ -11,7 +12,7 @@ const env = {
 }
 const encode = (value: unknown) => btoa(JSON.stringify(value)).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_')
 const token = `${encode({ alg: 'HS256' })}.${encode({ sub: owner, session_id: owner, exp: 4102444800 })}.test-signature`
-const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
+const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', [adventureClientVersionHeader]: adventureClientVersion }
 
 afterEach(() => vi.unstubAllGlobals())
 
@@ -33,7 +34,7 @@ it('页面查询通过账户隔离 RPC 返回空规划，不调用旧单表或�
   const response = await app.request('/api/adventure', { headers }, env)
   expect(response.status).toBe(200)
   expect(await response.json()).toMatchObject({ version: 0, goals: [], growth: { level: 1, totalXp: 0 } })
-  expect(calls).toEqual([{ path: '/rest/v1/rpc/adventure_workspace_read', body: { p_owner: owner, p_page: 1, p_page_size: 20, p_task_range: 'today', p_task_page: 1, p_task_scope: 'all', p_search: '', p_goal_id: null, p_goal_task_page: 1, p_include_terminal: false, p_mainline_id: null, p_goal_scope: 'all' } }])
+  expect(calls).toEqual([{ path: '/rest/v1/rpc/adventure_workspace_read', body: { p_owner: owner, p_page: 1, p_page_size: 20, p_task_range: 'today', p_task_page: 1, p_task_scope: 'all', p_search: '', p_goal_id: null, p_goal_task_page: 1, p_include_terminal: false } }])
 })
 
 it('命令只返回稳定回执；分页页面通过下一次查询读取', async () => {
@@ -46,35 +47,35 @@ it('命令只返回稳定回执；分页页面通过下一次查询读取', asyn
   })
   const response = await app.request('/api/adventure/commands', {
     method: 'POST', headers,
-    body: JSON.stringify({ requestId: 'planning-create-1', expectedVersion: 0, command: { type: 'createMainline', name: '健康' } }),
+    body: JSON.stringify({ requestId: 'planning-create-1', expectedVersion: 0, command: { type: 'createGoal', title: '健康', standards: ['标准'] } }),
   }, env)
   expect(response.status).toBe(200)
   expect(await response.json()).toEqual({ version: 1, result: { entityId: owner, message: '已创建' } })
   expect(calls).toEqual([{ path: '/rest/v1/rpc/adventure_planning_command', body: {
     p_owner: owner, p_request_id: 'planning-create-1', p_expected_version: 0,
-    p_command: { type: 'createMainline', name: '健康' },
+    p_command: { type: 'createGoal', title: '健康', standards: ['标准'] },
   } }])
 })
 
 it('严格拒绝客户端身份、日期、经验、额外字段和本票未交付命令', async () => {
   const upstream = vi.fn(async () => Response.json({ id: owner, email: 'planning@example.com', email_confirmed_at: '2026-10-20', is_anonymous: false }))
   vi.stubGlobal('fetch', upstream)
-  const base = { requestId: 'invalid-create-1', expectedVersion: 0, command: { type: 'createMainline', name: '健康' } }
+  const base = { requestId: 'invalid-create-1', expectedVersion: 0, command: { type: 'createGoal', title: '健康', standards: ['标准'] } }
   for (const payload of [
     { ...base, owner }, { ...base, today: '2030-01-01' }, { ...base, state: {} },
     { ...base, command: { ...base.command, xp: 500 } },
     { ...base, command: { type: 'refresh' } },
-    { ...base, command: { type: 'createGoal', title: '目标', standards: ['标准'] } },
-    { ...base, command: { type: 'createMainline', name: '   ' } },
-    { ...base, command: { type: 'createMainline', name: '字'.repeat(201) } },
-    { ...base, command: { type: 'createGoal', destination: '', title: '目标', standards: ['字'.repeat(4001)] } },
+    { ...base, command: { type: 'createGoal', title: '目标', standards: [] } },
+    { ...base, command: { type: 'createGoal', title: '   ', standards: ['标准'] } },
+    { ...base, command: { type: 'createGoal', title: '字'.repeat(201), standards: ['标准'] } },
+    { ...base, command: { type: 'createGoal', title: '目标', standards: ['字'.repeat(4001)] } },
   ]) {
     expect((await app.request('/api/adventure/commands', { method: 'POST', headers, body: JSON.stringify(payload) }, env)).status).toBe(400)
   }
   expect(upstream.mock.calls).toHaveLength(9)
 })
 
-it('创建目标允许归属留空并过滤空白标准；空标准与超过 50 项被拒绝', async () => {
+it('创建目标允许标签留空并过滤空白标准；空标准与超过 50 项被拒绝', async () => {
   const calls: { body: Record<string, any> }[] = []
   vi.stubGlobal('fetch', async (input: string | URL | Request, init: RequestInit = {}) => {
     if (new URL(input instanceof Request ? input.url : input).pathname === '/auth/v1/user')
@@ -82,7 +83,7 @@ it('创建目标允许归属留空并过滤空白标准；空标准与超过 50 
     calls.push({ body: JSON.parse(String(init.body)) })
     return Response.json({ version: 1, result: { entityId: owner, message: '已创建' } })
   })
-  const command = { type: 'createGoal', destination: '', title: '阅读', standards: ['读完一本', ' ', '写下笔记'] }
+  const command = { type: 'createGoal', title: '阅读', standards: ['读完一本', ' ', '写下笔记'] }
   const envelope = { requestId: 'goal-default-1', expectedVersion: 0, command }
   expect((await app.request('/api/adventure/commands', { method: 'POST', headers, body: JSON.stringify(envelope) }, env)).status).toBe(200)
   expect(calls[0].body.p_command).toEqual({ ...command, standards: ['读完一本', '写下笔记'] })
@@ -101,9 +102,9 @@ it('预览使用独立 RPC，传递版本但不创建成功请求回执', async 
     return Response.json({ version: 0, today: '2026-10-20', allowed: true, requiresConfirmation: false, message: '保存后更新规划' })
   })
   expect((await app.request('/api/adventure/preview', {
-    method: 'POST', headers, body: JSON.stringify({ expectedVersion: 0, command: { type: 'createMainline', name: '健康' } }),
+    method: 'POST', headers, body: JSON.stringify({ expectedVersion: 0, command: { type: 'createGoal', title: '健康', standards: ['标准'] } }),
   }, env)).status).toBe(200)
-  expect(calls).toEqual([{ path: '/rest/v1/rpc/adventure_planning_preview', body: { p_owner: owner, p_expected_version: 0, p_command: { type: 'createMainline', name: '健康' } } }])
+  expect(calls).toEqual([{ path: '/rest/v1/rpc/adventure_planning_preview', body: { p_owner: owner, p_expected_version: 0, p_command: { type: 'createGoal', title: '健康', standards: ['标准'] } } }])
 })
 
 it('数据库业务错误映射为稳定错误，内部详情与密钥不出现在响应中', async () => {
@@ -113,11 +114,11 @@ it('数据库业务错误映射为稳定错误，内部详情与密钥不出现�
       return Response.json({ id: owner, email: 'planning@example.com', email_confirmed_at: '2026-10-20', is_anonymous: false })
     return Response.json({ message, details: 'private database context', hint: env.SUPABASE_SECRET_KEY }, { status: 400 })
   })
-  for (const [code, status] of [['VERSION_CONFLICT', 409], ['REQUEST_ID_REUSED', 409], ['NOT_FOUND', 404], ['MAINLINE_LIMIT', 400], ['private exception', 503]] as const) {
+  for (const [code, status] of [['VERSION_CONFLICT', 409], ['REQUEST_ID_REUSED', 409], ['NOT_FOUND', 404], ['MAINLINE_LIMIT', 503], ['private exception', 503]] as const) {
     message = code
     const response = await app.request('/api/adventure', { headers }, env)
     expect(response.status).toBe(status)
-    expect(await response.text()).not.toMatch(/private|sb_secret|details|hint/)
+    expect(await response.text()).not.toMatch(/private|sb_secret|details|hint|mainline|主线/i)
   }
 })
 

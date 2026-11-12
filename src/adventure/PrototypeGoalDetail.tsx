@@ -1,32 +1,55 @@
-import { CircleCheck } from 'lucide-react'
+import { useRef, useState } from 'react'
+import { Check, ChevronLeft, ChevronRight, Circle, Info } from 'lucide-react'
 import type { PlanningGoal, PlanningPage } from '../shared/adventure-planning'
-import { MoreActions } from './PrototypeRecord'
-import { PlanningCompletionOrigin } from './PlanningCompletionOrigin'
-import { PlanningTaskHistory } from './PlanningReschedule'
+import { Progress } from './PrototypeRecord'
 
-export function PrototypeGoalDetail({ goal, history, pageSize, blocked, edit, addTask, focus, achieve, migrate, end, changePage, reorder }: {
-  goal: PlanningGoal; history: PlanningPage['goalDetail']; pageSize: number; blocked: boolean
-  edit: () => void; addTask: () => void; focus: () => void; achieve: () => void; migrate: () => void; end: () => void; changePage: (page: number) => void
-  reorder?: React.ReactNode
+export function PrototypeGoalDetail({ goal, detail, pageSize, blocked, changePage }: {
+  goal: PlanningGoal; detail: PlanningPage['goalDetail']; pageSize: number; blocked: boolean
+  changePage: (page: number) => void
 }) {
-  const active = goal.status === 'active'
-  return <>
-    <p className="muted">创建时间：{new Date(goal.createdAt).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })}</p>
-    <p>{goal.status === 'achieved' ? '已达成 · 结果已冻结' : goal.status === 'ended' ? '已结束 · 只读' : '进行中'}</p>{goal.terminatedAt && <p className="muted">终态时间：{new Date(goal.terminatedAt).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })}</p>}
-    <div className="details-columns"><section><h3>完成标准</h3><ul className="plain-list">{goal.standards.map((standard, index) => <li key={index}>{standard}</li>)}</ul></section>
-      <section><h3>当前进度</h3><p>{goal.progress.completed} 项完成，共 {goal.progress.total} 项行动。</p><p className="muted">任务全部完成不等于目标已经达成，由你确认实际结果。</p>
-        {goal.achievement && <><p>目标奖励 {goal.achievement.reward.amount} 点经验 · 计奖行动 {goal.achievement.reward.calculation.count} 次 · 系数 {goal.achievement.reward.calculation.coefficient}</p>{goal.achievement.reward.calculation.fallback && <p className="muted">无有效计奖行动，使用 1 点保底奖励。</p>}<p>达成感想：{goal.achievement.reflection || '未填写'}</p></>}
-      </section></div>
-    {active && !goal.capabilities.achieve?.allowed && <p className="adventure-hint">{goal.capabilities.achieve?.reason}</p>}
-    <div className="record-actions">
-      {active ? <><button type="button" className="action-primary" disabled={blocked || !goal.capabilities.achieve?.allowed} title={goal.capabilities.achieve?.reason} onClick={achieve}>确认达成</button>
-        <button disabled={blocked || !goal.capabilities.focus?.allowed} title={goal.capabilities.focus?.reason} onClick={focus}>{goal.focused ? '取消聚焦' : '聚焦'}</button>
-        <MoreActions><button disabled={blocked || !goal.capabilities.edit?.allowed} onClick={edit}>编辑目标</button><button disabled={blocked || !goal.capabilities.createTask?.allowed} title={goal.capabilities.createTask?.reason} onClick={addTask}>添加任务</button><button disabled={blocked || !goal.capabilities.migrate?.allowed} title={goal.capabilities.migrate?.reason} onClick={migrate}>迁移目标</button><button disabled={blocked || !goal.capabilities.end?.allowed} title={goal.capabilities.end?.reason} onClick={end}>结束目标</button></MoreActions>{reorder && <div className="goal-reorder-actions">{reorder}</div>}</>
-        : <span className="terminal-note"><CircleCheck size={14} />{goal.status === 'achieved' ? '结果已冻结，只剩历史可以查看' : '目标已结束，只剩历史可以查看'}</span>}
+  const [face, setFace] = useState<'goal' | 'tasks'>('goal')
+  const taskButton = useRef<HTMLButtonElement>(null)
+  const returnButton = useRef<HTMLButtonElement>(null)
+  const status = goal.status === 'active' ? '进行中' : goal.status === 'achieved' ? '已达成' : '已结束'
+  const pending = Math.max(0, goal.progress.total - goal.progress.completed)
+  const blockedReasons = [goal.capabilities.achieve, goal.capabilities.end]
+    .filter(capability => capability && !capability.allowed && capability.reason)
+    .map(capability => capability!.reason!)
+  const hint = goal.status !== 'active' ? '目标已进入终态，只读保留。'
+    : pending > 0 && blockedReasons.length ? `还有 ${pending} 项未完成任务，处理后才能达成或结束。`
+    : [...new Set(blockedReasons)].join('；')
+  return <div className={`goal-relation${face === 'tasks' ? ' is-tasks' : ''}`}>
+    <div className="goal-relation-turn">
+    <section className="goal-relation-face goal-relation-front" aria-hidden={face !== 'goal'} inert={face !== 'goal'}>
+      <div className="goal-relation-content">
+        <div className="goal-relation-identity"><div>
+          {goal.categoryLabel && <span className="goal-console-category">{goal.categoryLabel}</span>}
+          <h3>{goal.title}</h3>
+          <p>{status} · {goal.progress.completed} / {goal.progress.total} 项任务完成</p>
+        </div><span className={`goal-status goal-status-${goal.status}`}>{status}</span></div>
+        {goal.progress.ratio === null ? <p className="goal-relation-no-progress">暂无可统计任务</p> : <div className="goal-relation-progress"><Progress value={goal.progress.ratio} label={`目标 ${goal.title} 任务进度`} /><span>{goal.progress.completed} / {goal.progress.total}</span></div>}
+        <section className="goal-relation-standards"><h4>完成标准</h4><ul>{goal.standards.map((standard, index) => <li key={index}>{standard}</li>)}</ul></section>
+        {hint && <p className="goal-relation-hint"><Info size={14} aria-hidden="true" /><span>{hint}</span></p>}
+      </div>
+      <footer className="goal-relation-footer"><small>{status} · {goal.progress.total} 项任务</small><button ref={taskButton} type="button" onClick={() => { setFace('tasks'); requestAnimationFrame(() => returnButton.current?.focus()) }}>相关任务 <ChevronRight size={14} aria-hidden="true" /></button></footer>
+    </section>
+    <section className="goal-relation-face goal-relation-back" aria-hidden={face !== 'tasks'} inert={face !== 'tasks'}>
+      <div className="goal-relation-content">
+        <div className="goal-relation-task-heading"><div><span className="goal-relation-task-kicker" aria-hidden="true">RELATED TASKS</span><h3>相关任务</h3><p>只展示任务名称、计划时间和完成时间。</p></div>{detail && <span className="goal-count">{detail.totalRelatedTasks}</span>}</div>
+        {!detail ? <p role="status">正在读取相关任务…</p> : <>
+          {detail.relatedTasks.length ? <ul className="goal-relation-tasks">{detail.relatedTasks.map(task => <li key={task.id}>
+            <span className="goal-relation-task-icon" aria-hidden="true">{task.completedAt ? <Check size={13} /> : <Circle size={7} />}</span>
+            <span className="sr-only">{task.completedAt ? '已完成' : '待完成'}</span>
+            <div className="goal-relation-task-main"><span className={task.completedAt ? 'is-completed' : undefined}>{task.title}</span><div className="goal-relation-task-times"><span>计划 {task.plannedOn}</span><span>完成 {task.completedAt ? new Date(task.completedAt).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' }) : '—'}</span></div></div>
+          </li>)}</ul> : <p className="goal-relation-empty">暂无相关任务。</p>}
+          {detail.totalRelatedTasks > pageSize && <div className="planning-pagination"><small>第 {detail.taskPage} 页</small><div>
+            <button type="button" disabled={blocked || detail.taskPage <= 1} onClick={() => changePage(detail.taskPage - 1)}>上一页</button>
+            <button type="button" disabled={blocked || detail.taskPage * pageSize >= detail.totalRelatedTasks} onClick={() => changePage(detail.taskPage + 1)}>下一页</button>
+          </div></div>}
+        </>}
+      </div>
+      <footer className="goal-relation-footer"><small>{detail ? `共 ${detail.totalRelatedTasks} 项` : '正在读取…'}</small><button ref={returnButton} type="button" onClick={() => { setFace('goal'); requestAnimationFrame(() => taskButton.current?.focus()) }}><ChevronLeft size={14} aria-hidden="true" />返回目标详情</button></footer>
+    </section>
     </div>
-    {history && <section role="region" aria-label="目标任务历史"><h4>任务历史</h4>
-      {history.tasks.length ? <ul className="plain-list">{history.tasks.map(task => <li key={task.id}>{task.title} · {task.plannedOn} · {task.status === 'completed' ? '已完成' : task.status === 'ended' ? '已结束' : '待完成'}{task.reward ? ` · 冻结奖励 ${task.reward.amount} 点经验` : ''}{task.completionOrigin && <> · <PlanningCompletionOrigin origin={task.completionOrigin} /></>}{task.goalId !== goal.id ? ` · 当前已迁出至 ${task.goalTitle ?? '独立任务'}` : ''}<PlanningTaskHistory key={`${task.id}:${goal.id}:${history.taskPage}`} id={task.id} /></li>)}</ul> : <p>暂无任务历史。</p>}
-      {history.totalTasks > pageSize && <div className="planning-pagination"><small>共 {history.totalTasks} 项 · 第 {history.taskPage} 页</small><div><button disabled={blocked || history.taskPage <= 1} onClick={() => changePage(history.taskPage - 1)}>上一页历史</button><button disabled={blocked || history.taskPage * pageSize >= history.totalTasks} onClick={() => changePage(history.taskPage + 1)}>下一页历史</button></div></div>}
-    </section>}
-  </>
+  </div>
 }

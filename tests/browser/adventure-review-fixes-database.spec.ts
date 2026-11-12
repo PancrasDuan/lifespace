@@ -10,16 +10,15 @@ test.describe('今日聚焦评审修复的真实数据流程', () => {
   test.beforeEach(async ({ context }) => database.install(context))
   test.afterEach(() => database.restore())
 
-  for (const width of [1440, 390]) test(`${width}px 从目标详情新建仍默认今天和独立任务，编辑保留归属`, async ({ page }) => {
+  for (const width of [1440, 390]) test(`${width}px 在目标页新建行动仍默认今天和独立任务，编辑保留归属`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 })
     const today = (await database.snapshot()).today
-    const goal = (await database.write({ type: 'createGoal', title: '原目标', standards: ['标准'], destination: '' })).result.entityId
+    const goal = (await database.write({ type: 'createGoal', title: '原目标', standards: ['标准'] })).result.entityId
     await database.write({ type: 'createTask', title: '原归属任务', description: '原说明', plannedOn: today, destination: goal })
     await page.goto('/adventure')
-    await page.getByRole('button', { name: '主线与目标', exact: true }).click()
-    await page.getByRole('button', { name: '目标：原目标', exact: true }).click()
-    await openRecordActions(page.locator('.adventure-proto-goal').first())
-    await page.getByRole('button', { name: '添加任务', exact: true }).click()
+    await page.getByRole('button', { name: '目标', exact: true }).click()
+    await expect(page.locator('.goal-console-row').filter({ hasText: '原目标' })).toBeVisible()
+    await page.getByRole('button', { name: '新建行动', exact: true }).click()
     await expect(page.getByLabel('任务名称', { exact: true })).toHaveValue('')
     await expect(page.getByLabel('任务说明', { exact: true })).toHaveValue('')
     await expect(page.getByLabel('执行日期', { exact: true })).toHaveValue(today)

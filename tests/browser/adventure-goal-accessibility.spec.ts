@@ -1,0 +1,26 @@
+import { test, expect } from './authenticated-test'
+import { planningFixture, withGoal } from './adventure-fixture'
+
+for (const width of [1440, 390]) test(`${width}px 目标表格保留列标题和关系详情状态`, async ({ page, context }) => {
+  await planningFixture(context, { ...withGoal, goals: [{ ...withGoal.goals[0], progress: { completed: 1, total: 3, ratio: 1 / 3 } }] })
+  await page.setViewportSize({ width, height: 844 })
+  await page.goto('/adventure?view=planning')
+  const table = page.getByRole('table', { name: '目标列表' })
+  for (const name of ['目标', '分类标签', '任务进度', '任务', '状态', '操作'])
+    await expect(table.getByRole('columnheader', { name, exact: true })).toBeAttached()
+  const row = table.locator('.goal-console-row').filter({ hasText: '五公里' })
+  await expect(row.locator('..')).toHaveAttribute('role', 'rowgroup')
+  await expect(row.getByRole('cell').nth(3)).toHaveText('3 项')
+  const relation = row.getByRole('button', { name: '关系卡片' })
+  await expect(relation).toHaveAttribute('aria-expanded', 'false')
+  const target = await relation.getAttribute('aria-controls')
+  expect(target).toBeTruthy()
+  await relation.click()
+  await expect(relation).toHaveAttribute('aria-expanded', 'true')
+  await expect(page.locator(`[id="${target}"]`)).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(relation).toHaveAttribute('aria-expanded', 'false')
+  await expect(relation).toBeFocused()
+  const headersVisibleToAT = await table.getByRole('columnheader').count()
+  expect(headersVisibleToAT).toBe(6)
+})

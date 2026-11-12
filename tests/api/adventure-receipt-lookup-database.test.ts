@@ -1,0 +1,36 @@
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { localPlanningRpc, planningDatabase } from '../support/planning-database'
+
+const db = planningDatabase()
+describe.skipIf(!localPlanningRpc)('只读回执查询', () => {
+  beforeEach(() => db.install())
+  afterEach(() => db.restore())
+  it('只返回同账户摘要匹配的已有回执，缺失和冲突绝不执行', async () => {
+    const owner = crypto.randomUUID(), other = crypto.randomUUID()
+    const before = await db.read(owner)
+    const envelope = db.envelope(before.version, { type: 'createTask', title: '核对行动', description: '', plannedOn: before.today, destination: '' })
+    const lookupEnvelope = { ...envelope, nonce: 'a'.repeat(64) }
+    const missing = await db.request(owner, '/api/adventure/receipts/lookup', lookupEnvelope, null)
+    expect(missing.status).toBe(404)
+    expect(missing.headers.get('x-lifespace-adventure-model')).toBeNull()
+    expect(await missing.json()).toMatchObject({ error: { code: 'RECEIPT_UNKNOWN' } })
+    expect(await db.read(owner)).toEqual(before)
+    const written = await db.send(owner, envelope)
+    expect(written.status).toBe(200)
+    const receipt = await written.json()
+    const after = await db.read(owner)
+    const lookup = await db.request(owner, '/api/adventure/receipts/lookup', lookupEnvelope, null)
+    expect(lookup.status).toBe(200)
+    expect(lookup.headers.get('x-lifespace-adventure-model')).toBe('goal-categories-1')
+    expect(lookup.headers.get('cache-control')).toBe('no-store')
+    expect(await lookup.json()).toEqual({ requestId: envelope.requestId, nonce: lookupEnvelope.nonce, receipt })
+    const conflict = await db.request(owner, '/api/adventure/receipts/lookup', { ...lookupEnvelope, command: { ...envelope.command, title: '不同内容' } }, null)
+    expect(conflict.status).toBe(409)
+    expect(conflict.headers.get('x-lifespace-adventure-model')).toBeNull()
+    expect(await conflict.json()).toMatchObject({ error: { code: 'REQUEST_ID_REUSED' } })
+    const foreign = await db.request(other, '/api/adventure/receipts/lookup', lookupEnvelope, null)
+    expect(foreign.status).toBe(404)
+    expect(await foreign.json()).toMatchObject({ error: { code: 'RECEIPT_UNKNOWN' } })
+    expect(await db.read(owner)).toEqual(after)
+  })
+})

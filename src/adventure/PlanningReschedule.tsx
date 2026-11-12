@@ -6,7 +6,7 @@ import type { PlanningTask, TaskHistory } from '../shared/adventure-planning'
 function ArrangementItems({ items }: { items: TaskHistory['items'] }) {
   return <ol>{items.map(item => <li key={item.id}>
     {item.kind === 'task_created' ? `最初安排：${item.newPlannedOn}` : `${item.oldPlannedOn} → ${item.newPlannedOn}`}
-    <p>{item.title} · {item.description || '无说明'} · {item.mainlineName}{item.goalTitle ? ` / ${item.goalTitle}` : ' / 独立任务'}</p>
+    <p>{item.title} · {item.description || '无说明'} · {item.goalTitle ?? '独立任务'}</p>
     <small>{new Date(item.occurredAt).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })}</small>
   </li>)}</ol>
 }

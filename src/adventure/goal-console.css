@@ -1,0 +1,153 @@
+/* Goal console and its relationship dialog; shared page chrome stays unchanged. */
+.adventure-page.prototype-page .adventure-proto-map > .adventure-proto-goal-section {
+  padding: 0; overflow: hidden; border: 0; border-radius: 22px; background: rgba(255, 254, 249, .92);
+}
+.adventure-page.prototype-page .adventure-proto-map > .adventure-proto-goal-section > :not(.record-list) { margin-inline: 0; }
+.goal-console-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; padding: 22px 22px 16px; border-bottom: 1px solid rgba(65, 96, 73, .15); }
+.goal-console-kicker { display: block; margin-bottom: 6px; color: #687b67; font-size: 10px; font-weight: 600; letter-spacing: .1em; }
+.goal-console-heading h2 { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 0; color: #293f31; font: 500 22px/1.35 "Iowan Old Style", "Songti SC", serif; }
+.goal-console-heading p { max-width: 640px; margin: 6px 0 0; color: #61765f; font-size: 11px; line-height: 1.7; }
+.goal-count, .goal-status { display: inline-flex; align-items: center; border-radius: 999px; background: #e9f0e5; color: #4d674b; font-weight: 500; line-height: 1.4; }
+.goal-count { min-height: 20px; padding: 2px 7px; font-size: 10px; }
+.goal-status { padding: 3px 7px; font-size: 10px; white-space: nowrap; }
+.goal-status-achieved { color: #705827; background: #f6eedc; }
+.goal-status-ended { color: #605e59; background: #ecece7; }
+.goal-console-tools { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 8px; }
+.goal-console-tools .quiet-toggle { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; color: #52695a; font-size: 11px; }
+.goal-console-table { width: 100%; }
+.goal-console-head, .goal-console-row { display: grid; grid-template-columns: minmax(0, 1fr) 86px 104px 55px 62px 228px; gap: 11px; align-items: center; }
+.goal-console-head { padding: 9px 18px; color: #637563; background: rgba(245, 248, 241, .85); font-size: 10px; letter-spacing: .04em; }
+.goal-console-head > :first-child { padding-left: 23px; }
+.goal-console-head > :last-child { text-align: right; }
+.goal-console-row { min-height: 74px; padding: 10px 18px; border-top: 1px solid rgba(65, 96, 73, .1); background: rgba(255, 255, 255, .42); font-size: 12px; }
+.goal-console-row:hover { background: rgba(255, 255, 255, .8); }
+.goal-console-row strong, .goal-console-row [role="cell"] { min-width: 0; overflow-wrap: anywhere; }
+.goal-console-title { display: flex; align-items: center; gap: 8px; color: #30483a; font-size: 13px; font-weight: 600; }
+.goal-console-title svg { flex: none; color: #849681; }
+.adventure-page.prototype-page .goal-console-drag { display: inline-grid; flex: none; width: 15px; height: 25px; min-height: 0; padding: 0; place-items: center; border: 0; background: transparent; cursor: grab; }
+.adventure-page.prototype-page .goal-console-drag:hover:not(:disabled) { background: transparent; }
+.adventure-page.prototype-page .goal-console-title-button { min-width: 0; min-height: 0; padding: 0; border: 0; background: transparent; color: inherit; font: inherit; text-align: left; overflow-wrap: anywhere; }
+.adventure-page.prototype-page .goal-console-title-button:hover:not(:disabled) { background: transparent; text-decoration: underline; }
+.goal-console-category { display: inline-flex; max-width: 100%; padding: 3px 7px; border: 1px solid rgba(126, 142, 103, .25); border-radius: 999px; background: #f6f2e3; color: #5a6949; font-size: 10px; line-height: 1.4; overflow-wrap: anywhere; }
+.goal-console-progress { display: grid; gap: 5px; color: #60745e; font-size: 10px; }
+.adventure-page.prototype-page .goal-console-progress .adventure-proto-progress, .adventure-page.prototype-page .goal-relation-progress .adventure-proto-progress { width: 100%; height: 3px; background: #e1eadc; }
+.goal-console-progress > span { font-variant-numeric: tabular-nums; }
+.goal-console-task-count { color: #60745e; font-size: 10px; }
+.goal-console-actions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 4px; }
+.adventure-page.prototype-page .goal-console-actions button { min-height: 30px; padding: 4px 7px; border: 1px solid rgba(65, 96, 73, .25); border-radius: 9px; background: rgba(255, 255, 255, .8); color: #405d41; font-size: 11px; }
+.adventure-page.prototype-page .goal-console-actions .goal-relation-open { display: inline-flex; align-items: center; gap: 5px; background: #eff5ea; }
+.adventure-page.prototype-page .goal-console-actions .goal-console-end { color: #87675e; }
+.adventure-page.prototype-page .goal-console-actions button:disabled { opacity: .5; }
+.adventure-page.prototype-page .adventure-proto-goal-section > .adventure-empty { padding: 20px 22px 28px; }
+.adventure-page.prototype-page .adventure-proto-goal-section > .planning-pagination { margin: 0; padding: 16px 20px; border-top: 1px solid rgba(65, 96, 73, .1); }
+
+.adventure-dialog.goal-relation-dialog { display: flex; width: min(540px, 100%); max-height: calc(100dvh - 48px); flex-direction: column; overflow: hidden; padding: 0; border: 0; border-radius: 22px; background: #fffdf8; }
+.goal-relation-dialog > header { flex-shrink: 0; align-items: flex-start; margin: 0; padding: 18px 20px 14px; border-bottom: 1px solid rgba(65, 96, 73, .15); }
+.goal-relation-dialog > header > div { min-width: 0; }
+.goal-relation-dialog > header h2 { color: #2e4536; font: 500 23px/1.35 "Iowan Old Style", "Songti SC", serif; }
+.goal-relation-dialog > header p { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; margin: 6px 0 0; color: #65775f; font-size: 10px; overflow-wrap: anywhere; }
+.goal-relation-dialog > header button { display: grid; width: 32px; height: 32px; place-items: center; border: 1px solid rgba(65, 96, 73, .15); border-radius: 9px; color: #65775f; }
+.goal-relation { min-height: 0; height: min(320px, calc(100dvh - 170px)); perspective: 1200px; }
+.goal-relation-turn { position: relative; height: 100%; transform-style: preserve-3d; transition: transform 480ms cubic-bezier(.22, .7, .3, 1); }
+.goal-relation.is-tasks .goal-relation-turn { transform: rotateY(180deg); }
+.goal-relation-face { position: absolute; inset: 0; display: flex; flex-direction: column; overflow: hidden; backface-visibility: hidden; }
+.goal-relation-back { transform: rotateY(180deg); }
+.goal-relation-face[aria-hidden="true"] { pointer-events: none; }
+.goal-relation-content { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 18px 20px; scrollbar-width: none; }
+.goal-relation-content::-webkit-scrollbar, .goal-confirmation-dialog::-webkit-scrollbar { display: none; }
+.goal-relation-identity { display: flex; justify-content: space-between; align-items: flex-start; gap: 18px; }
+.goal-relation-identity > div { min-width: 0; }
+.goal-relation-identity h3, .goal-relation-task-heading h3 { margin: 8px 0 4px; color: #2d4635; font: 500 21px/1.35 "Iowan Old Style", "Songti SC", serif; overflow-wrap: anywhere; }
+.goal-relation-identity p, .goal-relation-task-heading p, .goal-relation-no-progress { margin: 0; color: #61745f; font-size: 11px; }
+.goal-relation-progress { display: flex; align-items: center; gap: 10px; max-width: 245px; margin-top: 12px; color: #61745f; font-size: 10px; }
+.goal-relation-progress .adventure-proto-progress { flex: 1; }
+.goal-relation-standards { margin-top: 14px; padding-top: 12px; border-top: 1px solid rgba(65, 96, 73, .1); }
+.goal-relation-standards h4 { margin: 0 0 8px; color: #4b6749; font-size: 12px; }
+.goal-relation-standards ul { display: grid; gap: 5px; margin: 0; padding: 0; list-style: none; color: #5c715a; font-size: 11px; line-height: 1.6; }
+.goal-relation-standards li { display: flex; gap: 6px; overflow-wrap: anywhere; }
+.goal-relation-standards li::before { content: '✓'; color: #708d6c; }
+.goal-relation-hint { display: flex; align-items: flex-start; gap: 6px; margin: 7px 0 0; color: #805c43; font-size: 11px; line-height: 1.55; overflow-wrap: anywhere; }
+.goal-relation-hint svg { flex: none; margin-top: 1px; }
+.goal-relation-footer { display: flex; flex-shrink: 0; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 18px; border-top: 1px solid rgba(65, 96, 73, .15); background: #f5f8f1; }
+.goal-relation-footer small { color: #60755e; font-size: 10px; }
+.goal-relation-footer button { display: inline-flex; min-height: 34px; align-items: center; justify-content: center; gap: 6px; padding: 7px 12px; border: 1px solid rgba(82, 118, 79, .3); border-radius: 999px; background: #eef5e8; color: #426742; font-size: 11px; white-space: nowrap; }
+.adventure-page.prototype-page .goal-relation-footer button { font-size: 11px; }
+.goal-relation-task-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding-bottom: 10px; border-bottom: 1px solid rgba(65, 96, 73, .1); }
+.goal-relation-task-kicker { display: block; margin-bottom: 6px; color: #899681; font-size: 9px; font-weight: 700; letter-spacing: .14em; }
+.goal-relation-task-heading h3 { margin: 0 0 5px; font-size: 19px; }
+.goal-relation-tasks { display: grid; margin: 10px 0 0; padding: 0; list-style: none; border-top: 1px solid rgba(65, 96, 73, .1); }
+.goal-relation-tasks li { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 8px; align-items: center; min-height: 46px; padding: 9px 2px; border-bottom: 1px solid rgba(65, 96, 73, .1); }
+.goal-relation-task-icon { display: grid; place-items: center; color: #708d6c; }
+.goal-relation-task-main { display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: 14px; color: #30483a; font-size: 11px; overflow-wrap: anywhere; }
+.goal-relation-tasks .goal-relation-task-main > span { color: #30483a; font-size: 11px; }
+.goal-relation-tasks .goal-relation-task-main > .is-completed { color: #627660; text-decoration: line-through; }
+.goal-relation-task-times { display: flex; flex-wrap: wrap; gap: 4px 12px; color: #61745f; font-size: 10px; font-variant-numeric: tabular-nums; }
+.goal-relation-tasks .goal-relation-task-times > span { color: #61745f; font-size: 10px; }
+.goal-relation-empty { color: #61745f; font-size: 12px; }
+@media (min-width: 821px) and (max-width: 1050px) {
+  .goal-console-head, .goal-console-row { grid-template-columns: minmax(0, 1fr) 70px 85px 45px 50px 200px; gap: 9px; }
+}
+@media (max-width: 820px) {
+  .goal-console-head { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .goal-console-row { grid-template-columns: minmax(0, 1fr) auto; gap: 7px 10px; align-items: start; padding: 14px 18px; }
+  .goal-console-title { grid-column: 1; grid-row: 1; }
+  .goal-console-category-cell { grid-column: 1; grid-row: 2; margin-left: 23px; }
+  .goal-console-progress { grid-column: 1; grid-row: 3; max-width: 210px; margin-left: 23px; }
+  .goal-console-task-count { grid-column: 2; grid-row: 2; text-align: right; }
+  .goal-console-status-cell { grid-column: 2; grid-row: 1; justify-self: end; }
+  .goal-console-actions { grid-column: 1 / -1; grid-row: 4; justify-content: flex-start; margin-left: 23px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .goal-relation-turn, .goal-relation.is-tasks .goal-relation-turn, .goal-relation-back { transform: none; transition: none; }
+  .goal-relation-face[aria-hidden="true"] { visibility: hidden; }
+}
+
+.adventure-dialog.goal-confirmation-dialog { width: min(560px, 100%); max-height: calc(100dvh - 48px); overflow-y: auto; padding: 0; border-radius: 22px; background: #fffdf8; scrollbar-width: none; }
+.goal-confirmation-dialog > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; margin: 0; padding: 22px 24px 16px; border-bottom: 1px solid rgba(65, 96, 73, .15); }
+.goal-confirmation-dialog > header h2 { color: #2e4536; font: 500 23px/1.35 "Iowan Old Style", "Songti SC", serif; }
+.goal-confirmation-dialog > header p { margin: 6px 0 0; color: #65775f; font-size: 10px; line-height: 1.6; }
+.goal-confirmation-dialog > header button { display: grid; width: 32px; height: 32px; min-height: 32px; padding: 0; place-items: center; border: 1px solid rgba(65, 96, 73, .15); border-radius: 9px; color: #65775f; }
+.goal-confirmation-form { padding: 21px 24px 24px; }
+.adventure-dialog .goal-confirmation-form > fieldset { display: grid; gap: 18px; margin: 0; padding: 0; border: 0; }
+.goal-confirmation-facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 0; }
+.goal-confirmation-facts div { min-width: 0; padding: 10px; border-radius: 10px; background: #f5f8f1; }
+.goal-confirmation-facts dt { color: #687b67; font-size: 10px; }
+.goal-confirmation-facts dd { margin: 5px 0 0; color: #415c43; font-size: 11px; font-weight: 600; overflow-wrap: anywhere; }
+.goal-confirmation-standards { display: grid; gap: 5px; margin: 0; padding: 12px; border-radius: 10px; background: #f5f8f1; color: #687b65; font-size: 11px; line-height: 1.65; list-style: none; }
+.goal-confirmation-standards li { display: flex; gap: 7px; }
+.goal-confirmation-standards li::before { color: #708d6c; content: "✓"; }
+.goal-confirmation-dialog .goal-coefficients { display: block; margin: 0; padding: 0; border: 0; }
+.goal-coefficients legend { margin-bottom: 7px; color: #4f684d; font-size: 11px; font-weight: 600; }
+.goal-coefficient-options { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px; }
+.adventure-dialog .goal-coefficient-options label { display: grid; gap: 3px; margin: 0; padding: 10px; border: 1px solid rgba(65, 96, 73, .15); border-radius: 10px; background: #fffefb; color: #5b7058; font-size: 10px; cursor: pointer; }
+.goal-coefficient-options label:has(input:checked) { border-color: #7f9878; background: #edf4e8; color: #3f6242; }
+.adventure-dialog .goal-coefficient-options input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.goal-coefficient-options label:has(input:focus-visible) { outline: 2px solid #52764f; outline-offset: 2px; }
+.goal-coefficient-options strong { font-size: 14px; }
+.goal-coefficient-options small { color: #687b67; font-size: 10px; font-weight: 400; }
+.adventure-dialog .goal-reflection { display: grid; gap: 7px; margin: 0; color: #4f684d; font-size: 11px; font-weight: 600; }
+.goal-reflection > span { display: flex; align-items: baseline; justify-content: space-between; gap: 14px; }
+.goal-reflection small { color: #687b67; font-size: 10px; font-weight: 400; }
+.goal-confirmation-dialog .goal-reflection textarea { min-height: 88px; resize: vertical; }
+.adventure-dialog .goal-confirmation-note, .adventure-dialog .goal-confirmation-warning { margin: 0; padding: 11px 12px; border-radius: 10px; color: #66755f; background: #f2f6ee; font-size: 11px; line-height: 1.7; }
+.adventure-dialog .goal-confirmation-note:has(svg) { display: flex; align-items: flex-start; gap: 8px; }
+.goal-confirmation-note svg { flex: none; margin-top: 2px; }
+.adventure-dialog .goal-confirmation-warning { color: #86634b; background: #f8eee7; }
+.goal-confirmation-dialog .adventure-form-footer { margin: 0; }
+.adventure-dialog.goal-confirmation-dialog .adventure-form-footer .adventure-primary { color: #fff; }
+.adventure-dialog.goal-confirmation-dialog .adventure-form-footer .goal-end-confirm { border-color: #9b695d; background: #9b695d; color: #fff; }
+@media (max-width: 620px) {
+  .goal-console-heading { flex-direction: column; gap: 12px; padding: 18px 16px 14px; }
+  .goal-console-tools { width: 100%; justify-content: flex-start; }
+  .goal-console-tools .quiet-toggle { margin-right: auto; }
+  .adventure-overlay:has(.goal-relation-dialog) { align-items: flex-end; padding: 10px; }
+  .adventure-dialog.goal-relation-dialog { width: 100%; max-height: calc(100dvh - 20px); border-radius: 20px 20px 14px 14px; }
+  .goal-relation { height: min(330px, calc(100dvh - 160px)); }
+  .goal-relation-content { padding: 16px; }
+  .goal-relation-task-main { align-items: flex-start; flex-direction: column; gap: 3px; }
+  .adventure-overlay:has(.goal-confirmation-dialog) { align-items: flex-end; padding: 10px; }
+  .adventure-dialog.goal-confirmation-dialog { width: 100%; max-height: calc(100dvh - 20px); border-radius: 20px 20px 14px 14px; }
+  .goal-confirmation-dialog > header { padding: 18px 18px 14px; }
+  .goal-confirmation-form { padding: 18px; }
+  .goal-confirmation-facts { grid-template-columns: 1fr; }
+}

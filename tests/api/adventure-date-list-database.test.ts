@@ -3,16 +3,32 @@ import { taskListSchema } from '../../src/shared/adventure-planning'
 import { localPlanningRpc, planningDatabase } from '../support/planning-database'
 
 const database = planningDatabase('date-list@example.invalid')
-const { request, read, command } = database
+const { request, readFourTable: read, commandFourTable: command } = database
 
 describe.skipIf(!localPlanningRpc)('今日聚焦独立日期列表经 Worker 读取真实数据库', () => {
   beforeEach(() => database.install())
   afterEach(() => database.restore())
 
+  it('日期列表的全部范围包含保留聚焦值、未聚焦目标及独立任务，不新增聚焦筛选', async () => {
+    const owner = crypto.randomUUID()
+    const focused = (await database.fixtureGoal(owner, 0, { type: 'createGoal', title: '保留聚焦', standards: ['标准'] })).result.entityId
+    const plain = (await database.fixtureGoal(owner, 1, { type: 'createGoal', title: '未聚焦', standards: ['标准'] })).result.entityId
+    await database.fixtureFocused(owner, focused)
+    const today = (await read(owner)).today
+    const ids = []
+    for (const destination of [focused, plain, '']) ids.push((await command(owner, { type: 'createTask', title: '今日行动', description: '', plannedOn: today, destination })).result.entityId)
+    const state = await read(owner)
+    const response = await request(owner, '/api/adventure/tasks/list', { date: today, today, scope: 'all', expectedVersion: state.version })
+    expect(response.status).toBe(200)
+    const list = taskListSchema.parse(await response.json())
+    expect(list.total).toBe(3)
+    expect(list.tasks.map(task => task.id)).toEqual(ids)
+  })
+
   it('今天含逾期和实际完成，过去按实际完成而未来按计划日读取', async () => {
     const owner = crypto.randomUUID()
     const today = (await read(owner)).today
-    const create = (title: string, plannedOn: string) => (plannedOn < today ? database.createHistoricalTask : command)(owner, { type: 'createTask', title, description: '', plannedOn, destination: '' })
+    const create = (title: string, plannedOn: string) => (plannedOn < today ? database.createHistoricalTaskFourTable : command)(owner, { type: 'createTask', title, description: '', plannedOn, destination: '' })
     const overdue = (await create('逾期待完成', '2020-01-01')).result.entityId
     const completed = (await create('逾期今天完成', '2020-01-02')).result.entityId
     await command(owner, { type: 'completeTask', id: completed })
@@ -63,8 +79,7 @@ describe.skipIf(!localPlanningRpc)('今日聚焦独立日期列表经 Worker 读
     const today = (await read(owner)).today
     const escaped = String.fromCharCode(1)
     const description = escaped.repeat(4000)
-    const mainline = (await command(owner, { type: 'createMainline', name: escaped.repeat(200) })).result.entityId
-    const goal = (await command(owner, { type: 'createGoal', title: escaped.repeat(200), standards: ['标准'], destination: mainline })).result.entityId
+    const goal = (await database.fixtureGoal(owner, (await read(owner)).version, { type: 'createGoal', title: escaped.repeat(200), standards: ['标准'], categoryLabel: escaped.repeat(200) })).result.entityId
     for (let index = 0; index < 10; index++) {
       const id = (await command(owner, { type: 'createTask', title: escaped.repeat(199) + index, description, plannedOn: today, destination: goal })).result.entityId
       await command(owner, { type: 'completeTask', id })

@@ -314,3 +314,36 @@
 
 .adventure-page.prototype-page button:active:not(:disabled) { transform: translateY(1px); }
 .adventure-page.prototype-page button:disabled { cursor: not-allowed; opacity: .6; color: var(--quiet); background: var(--adventure-soft); }
+
+.goal-console-table { width: auto; }
+.goal-console-head, .goal-console-row { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) minmax(0, 1fr) 4rem 4rem minmax(0, 20rem); gap: 12px; align-items: center; }
+.goal-console-head { padding: 10px 12px; color: #52685b; font-size: .78rem; }
+.goal-console-row { border-top: 1px solid #dde6dc; padding: 14px 12px; font-size: .88rem; }
+.goal-console-row strong, .goal-console-row [role="cell"] { min-width: 0; overflow-wrap: anywhere; }
+.goal-console-title { display: flex; gap: 5px; align-items: center; }
+.goal-console-title svg { flex: none; color: #738c79; }
+.goal-console-progress { min-width: 5rem; display: flex; align-items: center; gap: 6px; }
+.goal-console-progress .adventure-proto-progress { flex: 1; min-width: 2rem; }
+.goal-console-progress > span { flex: none; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.goal-console-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 5px; }
+.goal-console-actions button { padding: 5px 7px; }
+.adventure-dialog.goal-relation-dialog { width: 540px; }
+.goal-relation h3 { margin: 0 0 10px; overflow-wrap: anywhere; }
+.goal-relation h4 { margin: 22px 0 8px; }
+.goal-relation-category { color: #52685b; margin: 0 0 8px; overflow-wrap: anywhere; }
+.goal-relation ul { padding-left: 20px; overflow-wrap: anywhere; }
+.goal-relation > button { margin-top: 18px; }
+.goal-relation-tasks { list-style: none; padding: 0 !important; }
+.goal-relation-tasks li { display: grid; gap: 4px; padding: 12px 0; border-top: 1px solid #dde6dc; overflow-wrap: anywhere; }
+.goal-relation-tasks span { color: #52685b; font-size: .85rem; }
+@media (max-width: 600px) {
+  .adventure-overlay:has(.goal-relation-dialog) { align-items: flex-end; padding: 0; }
+  .adventure-dialog.goal-relation-dialog { width: 100%; max-height: 90dvh; border-radius: 15px 15px 0 0; }
+}
+@media (max-width: 700px) {
+  .goal-console-head { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .goal-console-row { grid-template-columns: minmax(0, 1fr) auto auto; gap: 8px 12px; }
+  .goal-console-row strong { grid-column: 1 / -1; }
+  .goal-console-progress { grid-column: 1; }
+  .goal-console-actions { grid-column: 1 / -1; justify-content: flex-start; }
+}

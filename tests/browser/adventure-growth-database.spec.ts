@@ -15,13 +15,11 @@ test.describe('真实成长记录的桌面与手机浏览器验收（受控身�
   }
 
   for (const width of [1440, 390]) test(`${width}px 七项实时成就、任务和目标流水、保底及终态冻结来源`, async ({ page }) => {
-    const main = (await write({ type: 'createMainline', name: '冻结主线' })).result.entityId
-    const goal = (await write({ type: 'createGoal', destination: main, title: '冻结成果', standards: ['发生时标准'] })).result.entityId
+    const goal = (await write({ type: 'createGoal', categoryLabel: '冻结分类', title: '冻结成果', standards: ['发生时标准'] })).result.entityId
     await complete('冻结任务', goal)
+    await write({ type: 'editGoal', id: goal, title: '冻结成果', standards: ['发生时标准'], categoryLabel: '新的分类' })
     await write({ type: 'achieveGoal', id: goal, coefficient: 3, reflection: '本次达成感想' })
-    await write({ type: 'renameMainline', id: main, name: '新的主线名称' })
-    await write({ type: 'endMainline', id: main })
-    const fallback = (await write({ type: 'createGoal', destination: '', title: '零行动成果', standards: ['标准'] })).result.entityId
+    const fallback = (await write({ type: 'createGoal', title: '零行动成果', standards: ['标准'] })).result.entityId
     await write({ type: 'achieveGoal', id: fallback, coefficient: 2 })
     await page.setViewportSize({ width, height: 1000 })
     await page.goto('/adventure')
@@ -39,7 +37,7 @@ test.describe('真实成长记录的桌面与手机浏览器验收（受控身�
     await expect(journal.getByRole('article', { name: '奖励：零行动成果', exact: true })).toContainText('零行动保底 · 固定 1 点')
     const goalReward = journal.getByRole('article', { name: '奖励：冻结成果', exact: true })
     await expect(goalReward).toContainText('1 次计奖行动 × 系数 3 = 3 点')
-    await expect(goalReward).toContainText('冻结主线 / 冻结成果')
+    await expect(goalReward).toContainText('新的分类 / 冻结成果')
     await goalReward.getByRole('button', { name: /^查看来源：/ }).click()
     const detail = page.getByRole('region', { name: '冻结成果的奖励来源', exact: true })
     await expect(detail).toContainText('发生时标准')
@@ -52,6 +50,7 @@ test.describe('真实成长记录的桌面与手机浏览器验收（受控身�
     await expect(detail).toHaveCount(0)
     const taskDetail = page.getByRole('region', { name: '冻结任务的奖励来源', exact: true })
     await expect(taskDetail).toContainText('冻结行动说明')
+    await expect(taskDetail).toContainText('冻结分类 / 冻结成果')
     await expect(taskDetail.getByRole('region', { name: '完整原安排链', exact: true })).toBeVisible()
     await expect(taskDetail.getByRole('link')).toHaveCount(0)
     await journal.getByRole('article', { name: '奖励：冻结任务', exact: true }).getByRole('button', { name: /^查看来源：/ }).click()
@@ -102,7 +101,7 @@ test.describe('真实成长记录的桌面与手机浏览器验收（受控身�
   })
 
   test('分页与来源独立重试；版本变化拒绝拼页，重新读取后全量统计正确', async ({ page, context }) => {
-    const goal = (await write({ type: 'createGoal', title: '多页成果', destination: '', standards: ['标准'] })).result.entityId
+    const goal = (await write({ type: 'createGoal', title: '多页成果', standards: ['标准'] })).result.entityId
     for (let i = 0; i < 12; i++) await complete(`多页行动 ${i}`, goal)
     await write({ type: 'achieveGoal', id: goal, coefficient: 2 })
     await page.goto('/adventure?view=growth')
@@ -155,7 +154,7 @@ test.describe('真实成长记录的桌面与手机浏览器验收（受控身�
     await page.goto('/adventure?view=growth')
     await expect(page.getByRole('region', { name: '经验概览', exact: true })).toContainText('累计经验0')
     expect(paths).toEqual(['/api/adventure/growth'])
-    for (const name of ['新建主线', '新建目标', '新建行动'])
+    for (const name of ['新建目标', '新建行动'])
       await expect(page.getByRole('button', { name, exact: true })).toBeEnabled()
     expect(await growth()).toMatchObject({ version: 0, total: 0, items: [] })
   })
@@ -185,7 +184,7 @@ test.describe('真实成长记录的桌面与手机浏览器验收（受控身�
     let last: Awaited<ReturnType<typeof complete>> | undefined
     for (let i = 0; i < 100; i++) last = await complete(`百次验收 ${i}`)
     for (let i = 0; i < 10; i++) {
-      const goal = (await write({ type: 'createGoal', title: `十项成果 ${i}`, destination: '', standards: ['标准'] })).result.entityId
+      const goal = (await write({ type: 'createGoal', title: `十项成果 ${i}`, standards: ['标准'] })).result.entityId
       await write({ type: 'achieveGoal', id: goal })
     }
     await page.goto('/adventure?view=growth')

@@ -4,7 +4,7 @@ import type { PlanningPage, PlanningTask } from '../../src/shared/adventure-plan
 
 const task = (id: string, title: string): PlanningTask => ({
   id, title, description: '', plannedOn: withGoal.today, rescheduleMin: withGoal.today,
-  independent: true, goalId: null, goalTitle: null, mainlineName: '独立区', status: 'pending', completedOn: null, completionId: null,
+  independent: true, goalId: null, goalTitle: null, status: 'pending', completedOn: null, completionId: null,
   completionOrigin: null, reward: null, overdue: false, progress: { completed: 0, total: 1, ratio: 0 }, arrangements: [], totalArrangements: 0,
   capabilities: { complete: allowed, edit: allowed, migrate: allowed, reschedule: allowed, end: allowed, delete: allowed },
 })

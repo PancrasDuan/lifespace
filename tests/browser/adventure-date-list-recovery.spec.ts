@@ -7,7 +7,7 @@ const tomorrow = '2026-10-21'
 const task = (index: number, title = `任务 ${index}`): PlanningTask => ({
   id: `00000000-0000-4000-8000-${String(index).padStart(12, '0')}`, title, description: '可读说明', plannedOn: today,
   status: 'pending', completedOn: null, completionId: null, completionOrigin: null, reward: null,
-  goalId: null, goalTitle: null, mainlineName: '独立区', independent: true, overdue: false, arrangements: [], totalArrangements: 0,
+  goalId: null, goalTitle: null, independent: true, overdue: false, arrangements: [], totalArrangements: 0,
   progress: { completed: 0, total: 1, ratio: 0 }, capabilities: { complete: allowed, edit: allowed },
 })
 const workspace = { ...emptyPlanning, capabilities: { ...emptyPlanning.capabilities, createTask: allowed } }

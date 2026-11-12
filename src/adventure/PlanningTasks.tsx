@@ -11,28 +11,26 @@ import { PlanningProgress } from './PlanningProgress'
 import { PlanningRecord, PlanningMore } from './PlanningRecord'
 
 type Action = (command: PlanningCommand, expectedVersion?: number) => Promise<boolean>
-export function TaskForm({ task, data: workspace, action, busy, close, changeGoalPage, remove, deleteConfirmation }: {
+export function TaskForm({ task, data: workspace, action, busy, close, remove, deleteConfirmation }: {
   task?: PlanningTask; data: PlanningPage; action: Action; busy: boolean; close: () => void; changeGoalPage: (page: number) => void; remove?: () => void; deleteConfirmation?: ReactNode
 }) {
   const identity = useVerifiedIdentity()
-  const [separateCandidates] = useState(workspace.goalScope === 'focus' || !!workspace.mainlineDetail)
   const [candidates, setCandidates] = useState<PlanningPage>()
   const [candidatePage, setCandidatePage] = useState(1)
   const [candidateError, setCandidateError] = useState(false)
   const [candidateRetry, setCandidateRetry] = useState(0)
   useEffect(() => {
-    if (!separateCandidates) return
     const controller = new AbortController()
     setCandidateError(false)
     setCandidates(undefined)
-    void planningApi.load(identity.ownerId, { page: candidatePage, goalScope: 'all', taskRange: 'today', taskPage: 1, taskScope: 'all', search: '', goalTaskPage: 1, includeTerminal: false }, AbortSignal.any([controller.signal, identity.signal, AbortSignal.timeout(15_000)]))
+    void planningApi.load(identity.ownerId, { page: candidatePage, taskRange: 'today', taskPage: 1, taskScope: 'all', search: '', goalTaskPage: 1, includeTerminal: false }, AbortSignal.any([controller.signal, identity.signal, AbortSignal.timeout(15_000)]))
       .then(value => { if (!controller.signal.aborted) setCandidates(value) })
       .catch(() => { if (!controller.signal.aborted) setCandidateError(true) })
     return () => controller.abort()
-  }, [separateCandidates, candidatePage, candidateRetry, identity.ownerId, identity.signal])
-  const data = separateCandidates ? candidates ?? { ...workspace, goals: [], totalGoals: 0 } : workspace
-  const candidateBusy = separateCandidates && !candidates
-  const changeCandidates = separateCandidates ? setCandidatePage : changeGoalPage
+  }, [candidatePage, candidateRetry, identity.ownerId, identity.signal])
+  const data = candidates ?? { ...workspace, goals: [], totalGoals: 0 }
+  const candidateBusy = !candidates
+  const changeCandidates = setCandidatePage
   const [title, setTitle] = useState(task?.title ?? '')
   const [description, setDescription] = useState(task?.description ?? '')
   const [plannedOn, setPlannedOn] = useState(task?.plannedOn ?? workspace.today)
@@ -54,7 +52,7 @@ export function TaskForm({ task, data: workspace, action, busy, close, changeGoa
       <label>任务归属<select aria-label="任务归属" className={destination ? undefined : 'planning-destination-placeholder'} value={destination} onChange={event => { setDestination(event.target.value); setSelectedLabel(event.target.selectedOptions[0].text) }}>
         <option value="">默认独立任务</option>
         {destination && !data.goals.some(goal => goal.id === destination) && <option value={destination}>{selectedLabel}</option>}
-        {data.goals.filter(goal => goal.capabilities.createTask?.allowed).map(goal => <option key={goal.id} value={goal.id}>{goal.independent ? '独立目标' : goal.mainlineName} / {goal.title}</option>)}
+        {data.goals.filter(goal => goal.capabilities.createTask?.allowed).map(goal => <option key={goal.id} value={goal.id}>{goal.title}</option>)}
       </select></label>
       {candidateBusy && <p role="status">{candidateError ? '暂时无法读取任务归属，请重试。' : '正在读取任务归属…'}</p>}
       {candidateError && <button type="button" onClick={() => setCandidateRetry(value => value + 1)}>重试任务归属</button>}
@@ -91,7 +89,7 @@ export function PlanningTasks({ data, blocked, changeRange, changePage, changeSc
     {data.tasks.length === 0 ? <p className="adventure-empty">这个日期范围暂无任务。</p> : <div className="planning-task-list">{data.tasks.map(task => <article key={task.id} aria-label={`任务：${task.title}`} className={task.status === 'completed' ? 'planning-task completed' : 'planning-task'}>
       <PlanningRecord label={`任务详情：${task.title}`} open={expanded === task.id} disabled={blocked} toggle={() => setExpanded(expanded === task.id ? undefined : task.id)} summary={<>
         <span className="planning-record-mark">{task.status === 'completed' ? <Check size={18} /> : <span className="planning-task-circle" />}</span>
-        <span className="planning-record-copy"><small>{task.independent ? '独立任务' : `${task.mainlineName} / ${task.goalTitle}`}</small><strong>{task.title}</strong><small>{task.plannedOn} · {task.overdue ? '逾期，仍待完成' : task.status === 'completed' ? '已完成' : task.status === 'ended' ? '已结束' : '待完成'}</small></span>
+        <span className="planning-record-copy"><small>{task.independent ? '独立任务' : task.goalTitle}</small><strong>{task.title}</strong><small>{task.plannedOn} · {task.overdue ? '逾期，仍待完成' : task.status === 'completed' ? '已完成' : task.status === 'ended' ? '已结束' : '待完成'}</small></span>
         <span className="planning-record-meta">{task.reward ? `+${task.reward.amount} 经验` : task.status === 'ended' ? '已结束' : '待完成'}</span>
       </>}>
         {task.description && <p>{task.description}</p>}

@@ -6,8 +6,8 @@ import { planningApi, PlanningError } from './planning-api'
 import { PlanningTaskHistory } from './PlanningReschedule'
 import { PlanningToast } from './PlanningToast'
 
-function Attribution({ entry }: { entry: Pick<RewardEntry, 'mainlineKind' | 'mainlineName' | 'goalId' | 'goalTitle'> }) {
-  return <>{entry.mainlineKind === 'normal' ? `${entry.mainlineName} / ${entry.goalTitle}` : entry.goalId ? `独立目标 / ${entry.goalTitle}` : '独立任务'}</>
+function Attribution({ entry }: { entry: Pick<RewardEntry, 'categoryLabel' | 'goalId' | 'goalTitle'> }) {
+  return <>{entry.goalId ? [entry.categoryLabel, entry.goalTitle].filter(Boolean).join(' / ') : '独立任务'}</>
 }
 function Calculation({ entry }: { entry: RewardEntry }) {
   const calculation = entry.calculation

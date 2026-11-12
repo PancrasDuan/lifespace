@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { localPlanningRpc, planningDatabase } from '../support/planning-database'
 
 const database = planningDatabase('overdue@example.invalid')
-const { read, command, envelope, send } = database
+const { readFourTable: read, commandFourTable: command, envelope, send } = database
 
 describe.skipIf(!localPlanningRpc)('逾期行动经 Worker 和真实数据库完成与撤销', () => {
   beforeEach(() => database.install())
@@ -10,7 +10,7 @@ describe.skipIf(!localPlanningRpc)('逾期行动经 Worker 和真实数据库完
 
   it('今天直接完成逾期任务并保留原计划，撤销后仍为逾期待完成', async () => {
     const owner = crypto.randomUUID()
-    const task = (await database.createHistoricalTask(owner, { type: 'createTask', title: '补做行动', description: '保留原安排', plannedOn: '2020-01-01', destination: '' })).result.entityId
+    const task = (await database.createHistoricalTaskFourTable(owner, { type: 'createTask', title: '补做行动', description: '保留原安排', plannedOn: '2020-01-01', destination: '' })).result.entityId
     const before = await read(owner, '?taskRange=past')
     expect(before.tasks[0]).toMatchObject({ id: task, plannedOn: '2020-01-01', overdue: true, capabilities: { complete: { allowed: true } } })
     const finish = envelope(before.version, { type: 'completeTask', id: task })
@@ -31,8 +31,8 @@ describe.skipIf(!localPlanningRpc)('逾期行动经 Worker 和真实数据库完
   })
   it('未来和其他账户不能完成，竞争逾期完成只计奖一次，目标详情保留服务端日期', async () => {
     const owner = crypto.randomUUID(), other = crypto.randomUUID()
-    const goal = (await command(owner, { type: 'createGoal', title: '补做成果', standards: ['完成标准'], destination: '' })).result.entityId
-    const overdue = (await database.createHistoricalTask(owner, { type: 'createTask', title: '逾期目标行动', description: '', plannedOn: '2020-01-01', destination: goal })).result.entityId
+    const goal = (await database.fixtureGoal(owner, (await read(owner)).version, { type: 'createGoal', title: '补做成果', standards: ['完成标准'] })).result.entityId
+    const overdue = (await database.createHistoricalTaskFourTable(owner, { type: 'createTask', title: '逾期目标行动', description: '', plannedOn: '2020-01-01', destination: goal })).result.entityId
     const future = (await command(owner, { type: 'createTask', title: '未来行动', description: '', plannedOn: '2099-01-01', destination: '' })).result.entityId
     const before = await read(owner)
     expect((await send(owner, envelope(before.version, { type: 'completeTask', id: future }))).status).toBe(400)

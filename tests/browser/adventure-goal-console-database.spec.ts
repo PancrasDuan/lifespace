@@ -1,0 +1,67 @@
+import { test, expect } from './authenticated-test'
+import { localPlanningRpc, planningDatabaseBrowser } from '../support/planning-database-browser'
+
+const db = planningDatabaseBrowser()
+test.describe('目标控制台真实数据库', () => {
+  test.describe.configure({ timeout: 45000 })
+  test.skip(!localPlanningRpc, '需要隔离数据库')
+  test.beforeEach(async ({ context }) => { await db.install(context) })
+  test.afterEach(() => db.restore())
+  test('含任务目标在真实 workspace 中展示进度，任务表单可选择目标', async ({ page }) => {
+    const goal = (await db.write({ type: 'createGoal', title: '含任务目标', standards: ['标准'], categoryLabel: '学习' })).result.entityId
+    const today = (await db.snapshot()).today
+    const task = (await db.write({ type: 'createTask', title: '关联任务', description: '', plannedOn: today, destination: goal })).result.entityId
+    await page.goto('/adventure?view=planning')
+    const row = page.locator('.goal-console-row').filter({ hasText: '含任务目标' })
+    await expect(row).toContainText('1 项')
+    await page.getByRole('button', { name: '变更目标 含任务目标' }).click()
+    await page.getByLabel('分类标签').fill('生活')
+    await page.getByRole('button', { name: '保存目标' }).click()
+    await expect(row).toContainText('生活')
+    const after = await db.snapshot(`?goalId=${goal}`)
+    expect(after.goalDetail).toMatchObject({ goal: { id: goal, categoryLabel: '生活', progress: { total: 1 } }, tasks: [{ id: task, goalId: goal }] })
+    await page.getByRole('button', { name: '新建行动' }).click()
+    await expect(page.getByLabel('任务归属').getByRole('option', { name: '含任务目标', exact: true })).toHaveAttribute('value', goal)
+    await page.getByLabel('任务归属').selectOption(goal)
+    await expect(page.getByLabel('任务归属')).toHaveValue(goal)
+  })
+  for (const width of [1440, 390]) test(`${width}px 创建、编辑、排序和刷新`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 })
+    await page.goto('/adventure?view=planning')
+    await page.getByRole('button', { name: '新建目标' }).click()
+    await page.getByLabel('目标名称').fill('阅读')
+    await page.getByLabel('完成标准 1', { exact: true }).fill('读完一本书')
+    await page.getByLabel('分类标签').fill('学习')
+    await page.getByRole('button', { name: '创建目标', exact: true }).click()
+    await expect(page.getByRole('row', { name: /阅读/ })).toContainText('学习')
+    await page.getByRole('button', { name: '新建目标' }).click()
+    await page.getByLabel('目标名称').fill('运动')
+    await page.getByLabel('完成标准 1', { exact: true }).fill('跑步')
+    await page.getByRole('button', { name: '创建目标', exact: true }).click()
+    await page.getByRole('button', { name: '调整目标 运动 的顺序，使用上下方向键' }).focus()
+    await page.keyboard.press('ArrowUp')
+    await expect(page.locator('.goal-console-row').first()).toContainText('运动')
+    await page.getByRole('button', { name: '变更目标 阅读' }).click()
+    await page.getByLabel('分类标签').fill('生活')
+    await page.getByRole('button', { name: '保存目标' }).click()
+    await page.reload()
+    await expect(page.locator('.goal-console-row').first()).toContainText('运动')
+    await expect(page.getByRole('row', { name: /阅读/ })).toContainText('生活')
+    await expect(page.getByRole('row', { name: /阅读/ })).not.toContainText('读完一本书')
+    const bounds = await page.locator('.goal-console-row').first().evaluate(row => {
+      const rect = row.getBoundingClientRect(), panel = row.closest('section')!.getBoundingClientRect()
+      return { rowRight: rect.right, panelRight: panel.right }
+    })
+    expect(bounds.rowRight).toBeLessThanOrEqual(bounds.panelRight)
+    await page.screenshot({ path: `.cache/goal-console-${width}.png`, fullPage: true })
+    const goal = (await db.snapshot()).goals.find(item => item.title === '阅读')!
+    await db.write({ type: 'endGoal', id: goal.id })
+    await page.reload()
+    await expect(page.getByRole('row', { name: /阅读/ })).toHaveCount(0)
+    await page.getByLabel('显示已达成／已结束').check()
+    await expect(page.getByRole('row', { name: /阅读/ })).toContainText('已结束')
+    await page.reload()
+    await expect(page.getByLabel('显示已达成／已结束')).toBeChecked()
+    await expect(page.getByRole('row', { name: /阅读/ })).toContainText('已结束')
+  })
+})

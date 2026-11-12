@@ -7,7 +7,7 @@ const id = '00000000-0000-4000-8000-000000000061'
 const initial: PlanningPage = { ...withGoal, capabilities: { ...withGoal.capabilities, createTask: allowed }, totalTasks: 1,
   tasks: [{ id, title: '统一编辑恢复', description: '原说明', plannedOn: withGoal.today, rescheduleMin: withGoal.today, arrangements: [], totalArrangements: 0,
     status: 'pending', completedOn: null, completionId: null, reward: null, completionOrigin: null,
-    goalId: null, goalTitle: null, mainlineName: '独立区', independent: true, overdue: false,
+    goalId: null, goalTitle: null, independent: true, overdue: false,
     progress: { completed: 0, total: 1, ratio: 0 }, capabilities: { edit: allowed, delete: allowed } }] }
 const open = async (page: import('@playwright/test').Page) => {
   await page.goto('/adventure')

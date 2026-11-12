@@ -1,14 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useVerifiedIdentity } from '../auth/identity'
-import type { PlanningCommand, PlanningEnvelope, PlanningPage, PlanningPreview, PlanningQuery } from '../shared/adventure-planning'
+import { planningEnvelopeSchema, type PlanningCommand, type PlanningEnvelope, type PlanningPage, type PlanningPreview, type PlanningQuery } from '../shared/adventure-planning'
+import type { StoredPlanningEnvelope } from '../shared/adventure-recovery'
 import { planningApi, PlanningError } from './planning-api'
 import { readTerminalPreference } from './planning-preferences'
+import { clearPending, PendingBusyError, readPending, savePending, watchPending, withPendingLock } from './pending-command'
 
 const initialQuery = (includeTerminal = false): PlanningQuery => ({ page: 1, taskRange: 'today', taskPage: 1, taskScope: 'all', search: '', goalTaskPage: 1,
   goalId: new URLSearchParams(window.location.search).get('goalId') ?? undefined,
   includeTerminal })
 
-type ConfirmationCommand = Extract<PlanningCommand, { type: 'endGoal' | 'endMainline' | 'endTask' | 'deleteTask' | 'achieveGoal' | 'rescheduleTask' | 'cancelTaskCompletion' }>
+type ConfirmationCommand = Extract<PlanningCommand, { type: 'endGoal' | 'deleteTask' | 'achieveGoal' | 'rescheduleTask' | 'cancelTaskCompletion' }>
 type ConfirmationPreview = { command: ConfirmationCommand; value: PlanningPreview }
 export type PlanningConfirmation = {
   preview?: PlanningPreview; stale: boolean; blocked: boolean;
@@ -35,11 +37,17 @@ export function usePlanning(enabled = true) {
   const [notice, setNotice] = useState<{ id: string; message: string }>()
   const clearNotice = useCallback(() => setNotice(undefined), [])
   const [uncertain, setUncertain] = useState(false)
+  const [storageReady, setStorageReady] = useState(false)
   const [readRequired, setReadRequired] = useState(true)
   const lifecycle = useRef(new AbortController())
   const active = useRef(false)
+  const submitting = useRef(false)
   const current = useRef<PlanningPage | undefined>(undefined)
-  const pending = useRef<PlanningEnvelope | undefined>(undefined)
+  const pending = useRef<StoredPlanningEnvelope | undefined>(undefined)
+  // Only this mounted page's own new command can use the normal retry path.
+  // A record loaded from storage always uses the read-only lookup.
+  const pendingIsCurrent = useRef(false)
+  const syncStorage = useRef<() => Promise<void>>(async () => {})
   // A retry keeps its original UI origin even if that view has since closed.
   const pendingOrigin = useRef(0)
   const confirmationGeneration = useRef(0)
@@ -88,8 +96,12 @@ export function usePlanning(enabled = true) {
       const receipt = await planningApi.send(identity.ownerId, envelope, requestSignal)
       epoch.signal.throwIfAborted()
       identity.signal.throwIfAborted()
+      await clearPending(identity.ownerId, envelope, AbortSignal.any([identity.signal, epoch.signal]))
+      epoch.signal.throwIfAborted()
+      identity.signal.throwIfAborted()
       minimumVersion.current = Math.max(minimumVersion.current, receipt.version)
       pending.current = undefined
+      pendingIsCurrent.current = false
       if (envelope.command.type === 'achieveGoal') setLastAchievement(receipt.result.entityId)
       setUncertain(false)
       setNotice({ id: envelope.requestId, message: receipt.result.message })
@@ -103,7 +115,8 @@ export function usePlanning(enabled = true) {
       setUncertain(fault.uncertain)
       setError(fault.message)
       if (!fault.uncertain) {
-        pending.current = undefined
+        try { await clearPending(identity.ownerId, envelope, AbortSignal.any([identity.signal, epoch.signal])); pending.current = undefined; pendingIsCurrent.current = false }
+        catch { setUncertain(true); setError('无法确认本地保存状态，请保留此页面并稍后重试。'); return false }
         if (fault.status === 409) {
           try { await refresh(requestSignal); setError('数据已更新，请检查最新内容后再次确认原操作。') }
           catch { setReadRequired(true); setError('数据已更新，但重新读取失败，请先重新读取。') }
@@ -116,12 +129,29 @@ export function usePlanning(enabled = true) {
   }, [identity.ownerId, identity.signal, refresh])
 
   const command = useCallback(async (command: PlanningCommand, expectedVersion?: number) => {
-    if (active.current || pending.current || !current.current || current.current.version < minimumVersion.current) return false
-    const envelope = { requestId: crypto.randomUUID(), expectedVersion: expectedVersion ?? current.current.version, command }
-    pendingOrigin.current = confirmationGeneration.current
-    pending.current = envelope
-    return send(envelope)
-  }, [send])
+    if (active.current || submitting.current || pending.current || !storageReady || readRequired || !current.current || current.current.version < minimumVersion.current) return false
+    const parsed = planningEnvelopeSchema.safeParse({ requestId: crypto.randomUUID(), expectedVersion: expectedVersion ?? current.current.version, command })
+    if (!parsed.success) { setError('提交内容无效，请检查后重试。'); return false }
+    const envelope = parsed.data
+    submitting.current = true
+    try {
+      return await withPendingLock(identity.ownerId, async () => {
+        identity.signal.throwIfAborted()
+        const prior = await readPending(identity.ownerId)
+        if (prior) { pending.current = prior; pendingIsCurrent.current = false; setUncertain(true); setError('有一项操作的结果尚未确认，请先确认结果；如果仍无法确认，请联系管理员核对。'); return false }
+        await savePending(identity.ownerId, envelope, AbortSignal.any([identity.signal, lifecycle.current.signal]))
+        pendingOrigin.current = confirmationGeneration.current
+        pending.current = envelope
+        pendingIsCurrent.current = true
+        return send(envelope)
+      }, true)
+    } catch (error) {
+      if (identity.signal.aborted) return false
+      if (error instanceof PendingBusyError) { setReadRequired(true); setError('另一页面正在处理操作，请稍后重新读取。') }
+      else { setStorageReady(false); setUncertain(true); setError('浏览器无法安全保存操作，请检查浏览器存储后重试。') }
+      return false
+    } finally { submitting.current = false }
+  }, [send, identity.ownerId, identity.signal, storageReady, readRequired])
 
   const preview = useCallback(async (command = currentPreview.current?.command, ready?: () => void) => {
     if (!command) return
@@ -168,20 +198,61 @@ export function usePlanning(enabled = true) {
   }, [command, readRequired, finishConfirmation])
 
   const recover = async (saved: () => void) => {
+    if (active.current || submitting.current) return
+    if (!storageReady) { await syncStorage.current(); return }
     if (!pending.current) { await load(); return }
     const generation = pendingOrigin.current
     const envelope = pending.current
-    const success = await send(envelope)
+    let success = false
+    submitting.current = true
+    try {
+      success = await withPendingLock(identity.ownerId, async () => {
+        identity.signal.throwIfAborted()
+        const stored = await readPending(identity.ownerId)
+        if (!stored || JSON.stringify(stored) !== JSON.stringify(envelope)) throw new Error('Pending command changed')
+        if (pendingIsCurrent.current) {
+          const parsed = planningEnvelopeSchema.safeParse(stored)
+          if (!parsed.success) throw new Error('Invalid current command')
+          return send(parsed.data)
+        }
+        const epoch = lifecycle.current
+        if (active.current) return false
+        active.current = true; setBusy(true); setError('')
+        try {
+          const receipt = await planningApi.lookupReceipt(identity.ownerId, stored, signal())
+          epoch.signal.throwIfAborted(); identity.signal.throwIfAborted()
+          await clearPending(identity.ownerId, stored, AbortSignal.any([identity.signal, epoch.signal]))
+          epoch.signal.throwIfAborted(); identity.signal.throwIfAborted()
+          minimumVersion.current = Math.max(minimumVersion.current, receipt.version)
+          pending.current = undefined; pendingIsCurrent.current = false; setUncertain(false)
+          if (stored.command.type === 'achieveGoal') setLastAchievement(receipt.result.entityId)
+          setNotice({ id: stored.requestId, message: receipt.result.message }); setReadRequired(true)
+          try { await refresh(signal()) }
+          catch { if (!epoch.signal.aborted && !identity.signal.aborted) setError('操作已成功，页面更新失败。请重新读取。') }
+          return true
+        } catch (failure) {
+          if (!epoch.signal.aborted && !identity.signal.aborted) { setUncertain(true); setError(failure instanceof PlanningError ? failure.message : '无法确认本地保存状态，请保留此页面并稍后重试。') }
+          return false
+        } finally {
+          if (lifecycle.current === epoch && !epoch.signal.aborted && !identity.signal.aborted) { active.current = false; setBusy(false) }
+        }
+      }, true)
+    } catch (error) {
+      if (!identity.signal.aborted) {
+        setUncertain(true)
+        setError(error instanceof PendingBusyError ? '另一页面正在处理操作，请稍后再次确认。' : '浏览器无法安全读取操作，请检查浏览器存储后重试。')
+      }
+    } finally { submitting.current = false }
     finishConfirmation(success, generation, saved)
     if (success) return envelope.command.type
   }
 
   useEffect(() => {
-    if (!enabled) return
     const controller = new AbortController()
     lifecycle.current = controller
     current.current = undefined
     pending.current = undefined
+    pendingIsCurrent.current = false
     invalidateConfirmation()
     minimumVersion.current = 0
     query.current = initialQuery(readTerminalPreference(identity.ownerId))
@@ -191,18 +262,38 @@ export function usePlanning(enabled = true) {
     setError('')
     setNotice(undefined)
     setUncertain(false)
+    setStorageReady(false)
     setReadRequired(true)
-    void load()
-    return () => controller.abort()
+    const sync = async () => {
+      try {
+        const stored = await withPendingLock(identity.ownerId, () => readPending(identity.ownerId))
+        if (controller.signal.aborted || identity.signal.aborted) return
+        const prior = pending.current
+        if (!prior || !stored || JSON.stringify(prior) !== JSON.stringify(stored)) pendingIsCurrent.current = false
+        pending.current = stored
+        setUncertain(Boolean(stored)); setStorageReady(true)
+        if (stored) setError('有一项操作的结果尚未确认，请先确认结果；如果仍无法确认，请联系管理员核对。')
+        else if (enabled && !current.current) void load()
+        else if (prior) { setReadRequired(true); setError('操作已在另一页面处理，请重新读取。') }
+      } catch {
+        if (!controller.signal.aborted && !identity.signal.aborted) { setStorageReady(false); setUncertain(true); setReadRequired(true); setError('浏览器无法安全读取操作，请检查浏览器存储后重试。') }
+      }
+    }
+    syncStorage.current = sync
+    let stop = () => {}
+    try { stop = watchPending(() => { setReadRequired(true); void sync() }) } catch { /* sync reports unavailable storage */ }
+    void sync()
+    return () => { controller.abort(); stop() }
   }, [load, enabled, invalidateConfirmation])
 
-  const clearGoal = useCallback(() => { query.current = { ...query.current, goalId: undefined, mainlineId: undefined, goalTaskPage: 1, page: 1 } }, [])
+  const clearGoal = useCallback(() => { query.current = { ...query.current, goalId: undefined, goalTaskPage: 1, page: 1 } }, [])
+  const canLoad = useCallback(() => !active.current && !pending.current, [])
 
-  const blocked = busy || uncertain || readRequired
+  const blocked = busy || uncertain || readRequired || !storageReady
   const confirmation: PlanningConfirmation = {
     preview: confirmationPreview?.value,
     stale: !confirmationPreview || confirmationPreview.value.version !== data?.version,
     blocked, refresh: preview, confirm, invalidate: invalidateConfirmation,
   }
-  return { lastAchievement, clearGoal, data, busy, blocked, error, clearError, notice, clearNotice, uncertain, readRequired, command, load, confirmation, recover }
+  return { lastAchievement, clearGoal, canLoad, data, busy, blocked, storageReady, recoveryLabel: pendingIsCurrent.current ? '安全重试同一次操作' : '确认上次操作结果', error, clearError, notice, clearNotice, uncertain, readRequired, command, load, confirmation, recover }
 }

@@ -9,7 +9,7 @@ test.describe('统一任务编辑的真实浏览器流程', () => {
   test.afterEach(() => database.restore())
   for (const width of [1440, 390]) test(`${width}px 编辑预填四字段，日期可取消且一次保存`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 })
-    const goal = (await database.write({ type: 'createGoal', title: '目的目标', standards: ['标准'], destination: '' })).result.entityId
+    const goal = (await database.write({ type: 'createGoal', title: '目的目标', standards: ['标准'] })).result.entityId
     const today = (await database.snapshot()).today
     await database.write({ type: 'createTask', title: '原任务', description: '原说明', plannedOn: today, destination: goal })
     await page.goto('/adventure')
