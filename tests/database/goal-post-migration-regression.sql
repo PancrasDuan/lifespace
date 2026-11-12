@@ -156,7 +156,13 @@ begin
     then raise exception 'achievement preview ignored frozen historical attribution'; end if;
   achieved:=public.adventure_planning_command(o,'history-achieve-a',6,jsonb_build_object('type','achieveGoal','id',ga,'coefficient',3,'reflection','保留'));
   detail:=public.adventure_workspace_read(o,1,20,'today',1,'all','',ga,1,true);
-  if detail->'goalDetail'->>'totalTasks'<>'1' or detail->'goalDetail'->'tasks'->0->>'id'<>tb::text
+  if detail->'goalDetail'->>'totalTasks'<>'2'
+    or not (detail->'goalDetail'->'tasks' @> jsonb_build_array(jsonb_build_object('id',ta,'goalId',gb,
+      'completionId',ea,'reward',jsonb_build_object('amount',1),
+      'completionOrigin',jsonb_build_object('goalId',ga,'title','甲时完成','description','原说明'))))
+    or not (detail->'goalDetail'->'tasks' @> jsonb_build_array(jsonb_build_object('id',tb)))
+    or detail->'goalDetail'->>'totalRelatedTasks'<>'1'
+    or detail->'goalDetail'->'relatedTasks'->0->>'id'<>tb::text
     or not exists(select 1 from public.adventure_goals where owner_id=o and id=ga and attainment_action_ids=array[ta]
       and attainment_snapshot->'actionSources'->0->>'completionId'=ea::text)
     or (select total_xp from public.adventure_accounts where owner_id=o)<>5
@@ -167,5 +173,29 @@ begin
   exception when others then if sqlerrm<>'READ_ONLY' then raise; end if; end;
   if public.adventure_planning_command(o,'history-achieve-a',0,jsonb_build_object('type','achieveGoal','id',ga,'coefficient',3,'reflection','保留'))<>achieved
     then raise exception 'achievement receipt changed'; end if;
+end $$;
+-- Exercise current-relationship exclusions and pagination with historical
+-- ended/deleted fixtures; all rows remain inside this rolled-back transaction.
+do $$
+declare o uuid:=gen_random_uuid(); other_owner uuid:=gen_random_uuid(); today date:=(clock_timestamp() at time zone 'Asia/Shanghai')::date;
+  g uuid; pending_id uuid; completed_id uuid; r jsonb; first_page jsonb; second_page jsonb;
+begin
+  r:=public.adventure_planning_command(o,'relations-goal',0,'{"type":"createGoal","title":"关系","standards":["标准"]}'); g:=(r->'result'->>'entityId')::uuid;
+  r:=public.adventure_planning_command(o,'relations-pending',1,jsonb_build_object('type','createTask','title','待完成','description','','destination',g,'plannedOn',today)); pending_id:=(r->'result'->>'entityId')::uuid;
+  r:=public.adventure_planning_command(o,'relations-completed',2,jsonb_build_object('type','createTask','title','已完成','description','','destination',g,'plannedOn',today)); completed_id:=(r->'result'->>'entityId')::uuid;
+  perform public.adventure_planning_command(o,'relations-done',3,jsonb_build_object('type','completeTask','id',completed_id));
+  insert into public.adventure_tasks(owner_id,goal_id,title,planned_on,status,ended_at,end_cause)
+    values(o,g,'历史已结束',today,'ended',now(),'historical_ended');
+  insert into public.adventure_tasks(owner_id,goal_id,title,planned_on,deleted_at)
+    values(o,g,'已删除',today,now());
+  first_page:=public.adventure_workspace_read(o,1,1,'today',1,'all','',g,1,true);
+  second_page:=public.adventure_workspace_read(o,1,1,'today',1,'all','',g,2,true);
+  if first_page->'goalDetail'->>'totalRelatedTasks'<>'2' or second_page->'goalDetail'->>'totalRelatedTasks'<>'2'
+    or jsonb_array_length(first_page->'goalDetail'->'relatedTasks')<>1 or jsonb_array_length(second_page->'goalDetail'->'relatedTasks')<>1
+    or not ((first_page->'goalDetail'->'relatedTasks'||second_page->'goalDetail'->'relatedTasks') @> jsonb_build_array(jsonb_build_object('id',pending_id,'completedAt',null)))
+    or not ((first_page->'goalDetail'->'relatedTasks'||second_page->'goalDetail'->'relatedTasks') @> jsonb_build_array(jsonb_build_object('id',completed_id)))
+    then raise exception 'current relationship exclusions or pagination incorrect'; end if;
+  begin perform public.adventure_workspace_read(other_owner,1,1,'today',1,'all','',g,1,true); raise exception 'other owner saw goal';
+  exception when others then if sqlerrm<>'NOT_FOUND' then raise; end if; end;
 end $$;
 rollback;
