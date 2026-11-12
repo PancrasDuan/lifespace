@@ -8,6 +8,7 @@ export function Modal({
   restoreFocus,
   className = '',
   id,
+  subtitle,
 }: {
   title: string
   close: () => void
@@ -15,6 +16,7 @@ export function Modal({
   restoreFocus?: HTMLElement
   className?: string
   id?: string
+  subtitle?: string
 }) {
   const dialog = useRef<HTMLDivElement>(null)
   const closeRef = useRef(close)
@@ -102,7 +104,7 @@ export function Modal({
         className={`adventure-dialog${className ? ` ${className}` : ''}`}
       >
         <header>
-          <h2>{title}</h2>
+          {subtitle ? <div><h2>{title}</h2><p>{subtitle}</p></div> : <h2>{title}</h2>}
           <button type="button" aria-label="关闭弹窗" onClick={close}>
             <X size={20} />
           </button>

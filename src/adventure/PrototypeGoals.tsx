@@ -1,5 +1,5 @@
 import { useRef } from 'react'
-import { GripVertical } from 'lucide-react'
+import { ArrowDown, ArrowUp, GripVertical, List } from 'lucide-react'
 import type { PlanningCommand, PlanningGoal } from '../shared/adventure-planning'
 import { Progress } from './PrototypeRecord'
 
@@ -20,15 +20,16 @@ export function PrototypeGoals({ goals, blocked, action, openGoal, toggleGoal, e
         onDragEnd={() => { dragged.current = undefined }}
         onDragOver={event => { if (!blocked && dragged.current?.status === 'active' && goal.status === 'active' && dragged.current.id !== goal.id) event.preventDefault() }}
         onDrop={event => { event.preventDefault(); const source = dragged.current; dragged.current = undefined; if (!blocked && source && source.id !== goal.id && source.status === 'active' && goal.status === 'active') move(source, source.sortOrder < goal.sortOrder ? 'down' : 'up', goal.id) }}>
-        <strong role="cell" className="goal-console-title">{goal.status === 'active' && <GripVertical size={15} aria-hidden="true" />}{goal.title}</strong><span role="cell">{goal.categoryLabel || '—'}</span>
-        <span role="cell" className="goal-console-progress">{goal.progress.ratio === null ? '暂无任务' : <><Progress value={goal.progress.ratio} label={`目标 ${goal.title} 任务进度`} /><span>{goal.progress.completed} / {goal.progress.total}</span></>}</span>
-        <span role="cell">{goal.progress.total} 项</span><span role="cell">{goal.status === 'active' ? '进行中' : goal.status === 'achieved' ? '已达成' : '已结束'}</span>
+        <strong role="cell" className="goal-console-title">{goal.status === 'active' && <GripVertical size={15} aria-hidden="true" />}{goal.title}</strong>
+        <span role="cell" className="goal-console-category-cell">{goal.categoryLabel ? <span className="goal-console-category">{goal.categoryLabel}</span> : '—'}</span>
+        <span role="cell" className="goal-console-progress">{goal.progress.ratio === null ? '暂无可统计任务' : <><Progress value={goal.progress.ratio} label={`目标 ${goal.title} 任务进度`} /><span>{goal.progress.completed} / {goal.progress.total}</span></>}</span>
+        <span role="cell" className="goal-console-task-count">{goal.progress.total} 项</span><span role="cell" className="goal-console-status-cell"><span className={`goal-status goal-status-${goal.status}`}>{goal.status === 'active' ? '进行中' : goal.status === 'achieved' ? '已达成' : '已结束'}</span></span>
         <div role="cell" className="goal-console-actions">
-          <button type="button" disabled={blocked} aria-expanded={openGoal === goal.id} aria-controls={`goal-detail-${goal.id}`} onClick={() => toggleGoal(goal.id)}>关系卡片</button>
+          <button className="goal-relation-open" type="button" disabled={blocked} aria-expanded={openGoal === goal.id} aria-controls={`goal-detail-${goal.id}`} onClick={() => toggleGoal(goal.id)}><List size={14} aria-hidden="true" />关系卡片</button>
           {goal.status === 'active' && <><button type="button" disabled={blocked || !goal.capabilities.achieve?.allowed} title={goal.capabilities.achieve?.reason} onClick={() => achieve(goal)}>达成</button>
             <button type="button" aria-label={`变更目标 ${goal.title}`} disabled={blocked || !goal.capabilities.edit?.allowed} onClick={() => edit(goal)}>变更</button>
             <button type="button" disabled={blocked || !goal.capabilities.end?.allowed} title={goal.capabilities.end?.reason} onClick={() => end(goal)}>结束</button>
-            {(['up', 'down'] as const).map(direction => <button key={direction} type="button" aria-label={`${direction === 'up' ? '上移' : '下移'}目标 ${goal.title}`} disabled={blocked || !goal.capabilities[direction === 'up' ? 'moveUp' : 'moveDown']?.allowed} onClick={() => move(goal, direction)}>{direction === 'up' ? '↑' : '↓'}</button>)}</>}
+            {(['up', 'down'] as const).map(direction => <button key={direction} type="button" aria-label={`${direction === 'up' ? '上移' : '下移'}目标 ${goal.title}`} disabled={blocked || !goal.capabilities[direction === 'up' ? 'moveUp' : 'moveDown']?.allowed} onClick={() => move(goal, direction)}>{direction === 'up' ? <ArrowUp size={13} /> : <ArrowDown size={13} />}</button>)}</>}
         </div>
       </div>
     </div>)}

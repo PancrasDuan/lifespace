@@ -1,0 +1,129 @@
+/* The goal view follows the confirmed console layout without changing other tabs. */
+.goal-mobile-navigation { display: none; }
+.goal-view.theme-light::before { display: none; }
+.goal-view .adventure-page.prototype-page .page-heading {
+  display: flex; align-items: end; justify-content: space-between; gap: 20px;
+  padding: 45px 0 30px; text-align: left;
+}
+.goal-view .adventure-page.prototype-page .page-heading h1 {
+  margin: 13px 0 7px; font: 500 clamp(34px, 4vw, 46px)/1.18 "Iowan Old Style", "Songti SC", serif; letter-spacing: .02em;
+}
+.goal-view .adventure-growth-bar[hidden] { display: none; }
+.goal-heading-level { position: relative; padding-bottom: 5px; color: #4d704b; }
+.goal-heading-level .goal-level-toggle { display: flex; align-items: baseline; gap: 8px; padding: 0; border: 0; background: transparent; color: inherit; cursor: pointer; white-space: nowrap; }
+.goal-heading-level span { font: 500 18px/1 Georgia, "Songti SC", serif; }
+.goal-heading-level small { color: #61745f; font-size: 10px; }
+.goal-heading-growth { width: min(290px, calc(100vw - 28px)); margin-top: 10px; padding: 14px; border: 1px solid rgba(65, 96, 73, .2); border-radius: 12px; background: #fffdf8; box-shadow: 0 12px 30px rgba(50, 78, 47, .12); color: #385b3d; }
+.goal-heading-growth[hidden] { display: none; }
+.goal-heading-growth p { margin: 0 0 10px; font-size: 11px; line-height: 1.5; }
+.goal-view .adventure-page.prototype-page .goal-heading-growth .adventure-proto-progress { height: 4px; margin-bottom: 10px; }
+.goal-heading-growth dl { display: flex; flex-wrap: wrap; gap: 12px; margin: 0; font-size: 11px; }
+.goal-heading-growth dl div { display: flex; gap: 4px; }
+.goal-heading-growth dd { margin: 0; font-variant-numeric: tabular-nums; }
+.goal-view .adventure-page.prototype-page .view-tabs { gap: 32px; }
+.goal-view .adventure-page.prototype-page .view-tabs button { min-height: 46px; padding: 9px 0 13px; font-size: 14px; }
+.goal-view .adventure-page.prototype-page .adventure-proto-workspace { padding-top: 24px; }
+.goal-view .adventure-page.prototype-page .adventure-proto-map > .adventure-proto-goal-section {
+  padding: 0; overflow: hidden; border: 0; border-radius: 22px; background: rgba(255, 254, 249, .92);
+}
+.goal-view .adventure-page.prototype-page .adventure-proto-map > .adventure-proto-goal-section > :not(.record-list) { margin-inline: 0; }
+.goal-console-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; padding: 22px 22px 16px; border-bottom: 1px solid rgba(65, 96, 73, .15); }
+.goal-console-kicker { display: block; margin-bottom: 6px; color: #687b67; font-size: 10px; font-weight: 600; letter-spacing: .1em; }
+.goal-console-heading h2 { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 0; color: #293f31; font: 500 22px/1.35 "Iowan Old Style", "Songti SC", serif; }
+.goal-console-heading p { max-width: 640px; margin: 6px 0 0; color: #61765f; font-size: 11px; line-height: 1.7; }
+.goal-count, .goal-status { display: inline-flex; align-items: center; border-radius: 999px; background: #e9f0e5; color: #4d674b; font-weight: 500; line-height: 1.4; }
+.goal-count { min-height: 20px; padding: 2px 7px; font-size: 10px; }
+.goal-status { padding: 3px 7px; font-size: 10px; white-space: nowrap; }
+.goal-status-achieved { color: #705827; background: #f6eedc; }
+.goal-status-ended { color: #605e59; background: #ecece7; }
+.goal-console-tools { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 8px; }
+.goal-console-tools .quiet-toggle { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; color: #52695a; font-size: 11px; }
+.goal-view .adventure-page.prototype-page .goal-console-tools .new-button { min-height: 36px; padding: 7px 10px; border-radius: 10px; font-size: 11px; }
+.goal-view .adventure-page.prototype-page .goal-console-tools .goal-create { color: white; border-color: #52764f; background: #52764f; }
+.goal-view .adventure-page.prototype-page .goal-console-tools .create-action-primary { color: #385b3d; background: #fff; border-color: rgba(65, 96, 73, .28); }
+.goal-console-table { width: 100%; }
+.goal-console-head, .goal-console-row { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(70px, .4fr) minmax(90px, .5fr) 55px 62px minmax(260px, auto); gap: 11px; align-items: center; }
+.goal-console-head { padding: 9px 18px; color: #637563; background: rgba(245, 248, 241, .85); font-size: 10px; letter-spacing: .04em; }
+.goal-console-row { min-height: 74px; padding: 10px 18px; border-top: 1px solid rgba(65, 96, 73, .1); background: rgba(255, 255, 255, .42); font-size: 12px; }
+.goal-console-row:hover { background: rgba(255, 255, 255, .8); }
+.goal-console-row strong, .goal-console-row [role="cell"] { min-width: 0; overflow-wrap: anywhere; }
+.goal-console-title { display: flex; align-items: center; gap: 8px; color: #30483a; font-size: 13px; font-weight: 600; }
+.goal-console-title svg { flex: none; color: #849681; }
+.goal-console-category { display: inline-flex; max-width: 100%; padding: 3px 7px; border: 1px solid rgba(126, 142, 103, .25); border-radius: 999px; background: #f6f2e3; color: #5a6949; font-size: 10px; line-height: 1.4; overflow-wrap: anywhere; }
+.goal-console-progress { display: grid; gap: 5px; color: #60745e; font-size: 10px; }
+.goal-view .adventure-page.prototype-page .goal-console-progress .adventure-proto-progress, .goal-view .adventure-page.prototype-page .goal-relation-progress .adventure-proto-progress { width: 100%; height: 3px; background: #e1eadc; }
+.goal-console-progress > span { font-variant-numeric: tabular-nums; }
+.goal-console-task-count { color: #60745e; font-size: 10px; }
+.goal-console-actions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 4px; }
+.goal-view .adventure-page.prototype-page .goal-console-actions button { min-height: 30px; padding: 4px 7px; border: 1px solid rgba(65, 96, 73, .25); border-radius: 9px; background: rgba(255, 255, 255, .8); color: #405d41; font-size: 11px; }
+.goal-view .adventure-page.prototype-page .goal-console-actions .goal-relation-open { display: inline-flex; align-items: center; gap: 5px; background: #eff5ea; }
+.goal-view .adventure-page.prototype-page .goal-console-actions button:disabled { opacity: .5; }
+.goal-view .adventure-page.prototype-page .adventure-proto-goal-section > .adventure-empty { padding: 20px 22px 28px; }
+.goal-view .adventure-page.prototype-page .adventure-proto-goal-section > .planning-pagination { margin: 0; padding: 16px 20px; border-top: 1px solid rgba(65, 96, 73, .1); }
+
+.goal-view .adventure-dialog.goal-relation-dialog { display: flex; width: min(540px, 100%); max-height: calc(100dvh - 48px); flex-direction: column; overflow: hidden; padding: 0; border: 0; border-radius: 22px; background: #fffdf8; }
+.goal-view .goal-relation-dialog > header { flex-shrink: 0; align-items: flex-start; margin: 0; padding: 18px 20px 14px; border-bottom: 1px solid rgba(65, 96, 73, .15); }
+.goal-view .goal-relation-dialog > header > div { min-width: 0; }
+.goal-view .goal-relation-dialog > header h2 { color: #2e4536; font: 500 23px/1.35 "Iowan Old Style", "Songti SC", serif; }
+.goal-view .goal-relation-dialog > header p { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; margin: 6px 0 0; color: #65775f; font-size: 10px; overflow-wrap: anywhere; }
+.goal-view .goal-relation-dialog > header button { display: grid; width: 32px; height: 32px; place-items: center; border: 1px solid rgba(65, 96, 73, .15); border-radius: 9px; color: #65775f; }
+.goal-relation { display: flex; min-height: 0; height: min(320px, calc(100dvh - 170px)); flex-direction: column; }
+.goal-relation-content { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 18px 20px; }
+.goal-relation-identity { display: flex; justify-content: space-between; align-items: flex-start; gap: 18px; }
+.goal-relation-identity > div { min-width: 0; }
+.goal-relation-identity h3, .goal-relation-task-heading h3 { margin: 8px 0 4px; color: #2d4635; font: 500 21px/1.35 "Iowan Old Style", "Songti SC", serif; overflow-wrap: anywhere; }
+.goal-relation-identity p, .goal-relation-task-heading p, .goal-relation-no-progress { margin: 0; color: #61745f; font-size: 11px; }
+.goal-relation-progress { display: flex; align-items: center; gap: 10px; max-width: 245px; margin-top: 12px; color: #61745f; font-size: 10px; }
+.goal-relation-progress .adventure-proto-progress { flex: 1; }
+.goal-relation-standards { margin-top: 14px; padding-top: 12px; border-top: 1px solid rgba(65, 96, 73, .1); }
+.goal-relation-standards h4 { margin: 0 0 8px; color: #4b6749; font-size: 12px; }
+.goal-relation-standards ul { display: grid; gap: 5px; margin: 0; padding: 0; list-style: none; color: #5c715a; font-size: 11px; line-height: 1.6; }
+.goal-relation-standards li { display: flex; gap: 6px; overflow-wrap: anywhere; }
+.goal-relation-standards li::before { content: '✓'; color: #708d6c; }
+.goal-relation-hint { margin: 7px 0 0; color: #805c43; font-size: 11px; line-height: 1.55; overflow-wrap: anywhere; }
+.goal-relation-footer { display: flex; flex-shrink: 0; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 18px; border-top: 1px solid rgba(65, 96, 73, .15); background: #f5f8f1; }
+.goal-relation-footer small { color: #60755e; font-size: 10px; }
+.goal-relation-footer button { display: inline-flex; min-height: 34px; align-items: center; justify-content: center; gap: 6px; padding: 7px 12px; border: 1px solid rgba(82, 118, 79, .3); border-radius: 999px; background: #eef5e8; color: #426742; font-size: 11px; white-space: nowrap; }
+.goal-view .adventure-page.prototype-page .goal-relation-footer button { font-size: 11px; }
+.goal-relation-task-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding-bottom: 10px; border-bottom: 1px solid rgba(65, 96, 73, .1); }
+.goal-relation-task-heading h3 { margin: 0 0 5px; font-size: 19px; }
+.goal-relation-tasks { display: grid; margin: 10px 0 0; padding: 0; list-style: none; border-top: 1px solid rgba(65, 96, 73, .1); }
+.goal-relation-tasks li { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 8px; align-items: center; min-height: 46px; padding: 9px 2px; border-bottom: 1px solid rgba(65, 96, 73, .1); }
+.goal-relation-task-icon { display: grid; place-items: center; color: #708d6c; }
+.goal-relation-task-main { display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: 14px; color: #30483a; font-size: 11px; overflow-wrap: anywhere; }
+.goal-relation-task-main .is-completed { color: #627660; text-decoration: line-through; }
+.goal-relation-task-times { display: flex; flex-wrap: wrap; gap: 4px 12px; color: #61745f; font-size: 10px; font-variant-numeric: tabular-nums; }
+.goal-relation-empty { color: #61745f; font-size: 12px; }
+@media (max-width: 1050px) {
+  .goal-console-head { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .goal-console-row { grid-template-columns: minmax(0, 1fr) auto; gap: 7px 10px; align-items: start; padding: 14px 18px; }
+  .goal-console-title { grid-column: 1; grid-row: 1; }
+  .goal-console-category-cell { grid-column: 1; grid-row: 2; margin-left: 23px; }
+  .goal-console-progress { grid-column: 1; grid-row: 3; max-width: 210px; margin-left: 23px; }
+  .goal-console-task-count { grid-column: 2; grid-row: 2; text-align: right; }
+  .goal-console-status-cell { grid-column: 2; grid-row: 1; justify-self: end; }
+  .goal-console-actions { grid-column: 1 / -1; grid-row: 4; justify-content: flex-start; margin-left: 23px; }
+}
+@media (max-width: 620px) {
+  .goal-view .goal-mobile-navigation { position: fixed; z-index: 12; top: 14px; right: 14px; display: grid; width: 38px; height: 38px; place-items: center; border: 1px solid rgba(65, 96, 73, .2); border-radius: 10px; background: #f7faf4; color: #385b3d; }
+  .goal-view .sidebar { display: none; }
+  .goal-view.navigation-open .sidebar { display: flex; z-index: 11; }
+  .goal-view.lifespace-app main { margin-left: 0; padding: 0 14px 105px; }
+  .goal-view .adventure-page.prototype-page .page-heading { padding: 30px 0 22px; }
+  .goal-view .adventure-page.prototype-page .page-heading h1 { font-size: 34px; }
+  .goal-heading-level { align-self: flex-end; }
+  .goal-heading-level span { font-size: 14px; }
+  .goal-view .adventure-page.prototype-page .page-heading:has(.goal-level-toggle[aria-expanded="true"]) { flex-wrap: wrap; }
+  .goal-heading-level:has(.goal-level-toggle[aria-expanded="true"]) { width: 100%; }
+  .goal-view .adventure-page.prototype-page .view-tabs { gap: 22px; }
+  .goal-view .adventure-page.prototype-page .view-tabs button { font-size: 12px; }
+  .goal-view .adventure-page.prototype-page .adventure-proto-workspace { padding-top: 20px; }
+  .goal-console-heading { flex-direction: column; gap: 12px; padding: 18px 16px 14px; }
+  .goal-console-tools { width: 100%; justify-content: flex-start; }
+  .goal-console-tools .quiet-toggle { margin-right: auto; }
+  .goal-view .adventure-overlay:has(.goal-relation-dialog) { align-items: flex-end; padding: 10px; }
+  .goal-view .adventure-dialog.goal-relation-dialog { width: 100%; max-height: calc(100dvh - 20px); border-radius: 20px 20px 14px 14px; }
+  .goal-relation { height: min(330px, calc(100dvh - 160px)); }
+  .goal-relation-content { padding: 16px; }
+  .goal-relation-task-main { align-items: flex-start; flex-direction: column; gap: 3px; }
+}

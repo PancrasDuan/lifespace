@@ -13,7 +13,7 @@ const state: PlanningPage = {
 }
 const growth = { version: state.version + 1, growth: { ...state.growth, totalXp: 28, achievements }, items: [], total: 0, pageSize: 10, nextCursor: null }
 
-for (const fail of [false, true]) test(`三个标签共享顶部区域：成长数据${fail ? '读取失败' : '延迟更新'}时保持位置`, async ({ page, context }) => {
+for (const fail of [false, true]) test(`目标页保留紧凑经验概览，成长数据${fail ? '读取失败' : '延迟更新'}时其他页保持位置`, async ({ page, context }) => {
   await planningFixture(context, state)
   let release!: () => void
   let started!: () => void
@@ -33,7 +33,12 @@ for (const fail of [false, true]) test(`三个标签共享顶部区域：成长�
   await summary.evaluate(element => { (window as Window & { sharedSummary?: Element }).sharedSummary = element })
   const top = (await tabs.boundingBox())!.y
   await tabs.getByRole('button', { name: '目标', exact: true }).click()
-  expect((await tabs.boundingBox())!.y).toBeCloseTo(top, 0)
+  await expect(summary).toBeVisible()
+  await summary.getByRole('button', { name: '查看经验概览' }).click()
+  await expect(summary).toContainText('累计经验26')
+  await expect(summary.getByText('真实行动')).toBeVisible()
+  await expect(summary.getByRole('progressbar', { name: '当前等级经验' })).toBeVisible()
+  expect((await tabs.boundingBox())!.y).toBeLessThan(top)
   await tabs.getByRole('button', { name: '成长记录', exact: true }).click()
   await requested
   try {
