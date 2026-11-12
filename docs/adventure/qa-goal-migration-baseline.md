@@ -36,7 +36,7 @@ npm run test:goal-migration-baseline -- --migration db/adventure/migrations/2026
 
 ## 原五表数据库回归的清点
 
-`npm run test:database` 当前仍以新初始化执行旧五表测试。它在 `tests/database/adventure-planning.sql` 的第一条预览请求中传入旧目标 `destination`，新数据库按退役契约返回 `INVALID_COMMAND`，测试运行器随即停止；后面的旧 SQL、旧升级测试及 HTTP 测试尚未运行，不能将该命令报告为通过。
+历史基线：原 `npm run test:database` 曾在四表库执行旧五表测试，并在旧 `destination` 预览处中止。#173 已调整入口，让旧回归运行于独立五表库，再分别执行四表、升级与迁移安全检查；合并后的实际结果见 [集成验收](qa-goal-integration.md)。
 
 | 旧测试 | 已退役或待集成的契约 | 新数据库回归继续验证的行为 |
 | --- | --- | --- |
@@ -49,4 +49,4 @@ npm run test:goal-migration-baseline -- --migration db/adventure/migrations/2026
 | `adventure-growth.sql` | 含主线字段的旧投影 | 有效冻结奖励、成长和来源、已取消记录、经验一致性、函数权限 |
 | `adventure-today-upgrade-before.sql`／`after.sql` | 在新四表库上再次运行旧五表升级 | 旧五表固定夹具、旧规则 RPC 历史及 #170 非空升级由本基线独立验证 |
 
-`tests/database/goal-post-migration-regression.sql` 对新库与升级库分别运行相同合成 RPC 回归，所有测试行及故障触发器在事务结束时回滚。本分支集成目标控制台及关系卡片后，真实 HTTP 与浏览器检查的当前结果见 [集成验收](qa-goal-integration.md)；#173 数据库入口及任务／成长浏览器回归仍待最终集成。
+`tests/database/goal-post-migration-regression.sql` 对新库与升级库分别运行相同合成 RPC 回归，所有测试行及故障触发器在事务结束时回滚。本分支集成目标控制台及关系卡片后，真实 HTTP 与浏览器检查的当前结果见 [集成验收](qa-goal-integration.md)；#173 已并入本分支，最终验证结果以集成验收记录为准。

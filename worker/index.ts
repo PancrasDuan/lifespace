@@ -1,6 +1,7 @@
 import { Hono } from 'hono'
 import { listLedger, detailLedger, createLedger, createLedgerEntry, createLedgerRefund, createLedgerTransfer, refundLedger, previewLedgerDelete, deleteLedger, listLedgerAccounts, readLedgerAccounts, createLedgerAccount, updateLedgerAccount } from './ledger'
-import { readTaskList, readRewardSource, readGrowth, readTaskHistory, readMigrationOptions, readPlanning, previewPlanning, commandPlanning, lookupPlanningReceipt } from './adventure/planning'
+import { readTaskList, readRewardSource, readGrowth, readTaskHistory, readMigrationOptions, readPlanning, previewPlanning, commandPlanning, lookupPlanningReceipt, oldClientUnavailable } from './adventure/planning'
+import { adventureClientVersion, adventureClientVersionHeader } from '../src/shared/adventure-client-version'
 import { readHoroscope } from './horoscope'
 import { readTasks } from './tasks'
 import { ApiError, apiErrorBody } from './upstream'
@@ -29,6 +30,13 @@ app.post('/api/auth/hooks/before-user-created', async c => {
     traceErrorCode(error instanceof ApiError ? error.code : 'INTERNAL_ERROR', c.req.path, c)
     return c.json({ error: { http_code: 503, message: '注册服务暂时不可用' } }, 503)
   }
+})
+// A fixed failure before authentication keeps an old client's unknown envelope
+// pending. No request body, identity, receipt or business data is accessed.
+app.use('/api/*', async (c, next) => {
+  if (c.req.method === 'POST' && c.req.path === '/api/adventure/commands'
+    && c.req.header(adventureClientVersionHeader) !== adventureClientVersion) throw oldClientUnavailable()
+  await next()
 })
 app.use('/api/*', async (c, next) => {
   if (c.req.path === '/api/agent/mcp') {
@@ -67,7 +75,7 @@ app.get('/api/adventure/task-history', readTaskHistory)
 app.get('/api/adventure/growth', readGrowth)
 app.get('/api/adventure/reward-source', readRewardSource)
 app.get('/api/adventure/compatibility', c => c.json({ model: 'goal-categories', version: 1, receiptLookup: true, legacyRetry: false }))
-app.post('/api/adventure/legacy-retry', () => { throw new ApiError('CLIENT_UPDATE_REQUIRED', '旧页面操作结果可能未知，请不要刷新或重新提交，请联系维护人员核对。', 503) })
+app.post('/api/adventure/legacy-retry', () => { throw oldClientUnavailable() })
 app.post('/api/adventure/preview', previewPlanning)
 app.post('/api/adventure/receipts/lookup', lookupPlanningReceipt)
 app.post('/api/adventure/commands', commandPlanning)

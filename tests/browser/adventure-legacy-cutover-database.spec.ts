@@ -5,6 +5,7 @@ import { openCutoverDatabase } from '../support/old-cutover-pg.mjs'
 import { test, expect } from './authenticated-test'
 import { planningDatabase } from '../support/planning-database'
 import { planningReceiptSchema } from '../../src/shared/adventure-planning'
+import newWorker from '../../worker/index'
 
 const oldRoot = process.env.OLD_ADVENTURE_DIST
 const port = Number(process.env.OLD_CUTOVER_PG_PORT)
@@ -22,6 +23,16 @@ test('真实旧构建跨切换保留未知封套并由受控人员核对', async
   const database = planningDatabase('legacy@example.invalid')
   const nativeFetch = globalThis.fetch
   database.install({ browserOwner: owner })
+  const installedFetch = globalThis.fetch
+  let denyIdentity = false, identityChecks = 0, retryAuthorization = 'Bearer expired'
+  globalThis.fetch = async (input, init = {}) => {
+    const url = new URL(input instanceof Request ? input.url : input)
+    if (denyIdentity && url.pathname === '/auth/v1/user') {
+      identityChecks++
+      return Response.json({ id: owner, email: 'revoked@example.invalid', email_confirmed_at: '2026-10-20', is_anonymous: false })
+    }
+    return installedFetch(input, init)
+  }
   const sql = await openCutoverDatabase(port)
   const marker = await sql.query('select id from cutover_test.marker')
   if (marker.rows.length !== 1 || marker.rows[0].id !== process.env.OLD_CUTOVER_MARKER) throw new Error('isolated cluster marker mismatch')
@@ -50,7 +61,7 @@ test('真实旧构建跨切换保留未知封套并由受控人员核对', async
         return route.fulfill({ status: 503, json: { error: { code: 'MAINTENANCE', message: '切换中，结果可能未知，请不要刷新或重新提交，请联系维护人员核对。' } } })
       }
       const response = phase === 'new'
-        ? await database.request(owner, url.pathname + url.search, body, null)
+        ? await newWorker.request(url.pathname + url.search, { method: req.method(), headers: { Authorization: retryAuthorization, 'Content-Type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) }, env)
         : await oldWorker.request(url.pathname + url.search, { method: req.method(), headers: { Authorization: authorization, 'Content-Type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) }, env)
       if (phase === 'old' && url.pathname === '/api/adventure/commands' && dropFirst) {
         expect(response.status).toBe(200)
@@ -86,6 +97,16 @@ test('真实旧构建跨切换保留未知封套并由受控人员核对', async
     await expect(page.getByText('旧页面操作结果可能未知，请不要刷新或重新提交，请联系维护人员核对。')).toBeVisible()
     await expect(page.getByRole('button', { name: '安全重试同一次操作' })).toBeVisible()
     expect(envelopes[2]).toEqual(original)
+    retryAuthorization = authorization
+    denyIdentity = true
+    await page.getByRole('button', { name: '安全重试同一次操作' }).click()
+    await expect(page.getByText('旧页面操作结果可能未知，请不要刷新或重新提交，请联系维护人员核对。')).toBeVisible()
+    expect(envelopes[3]).toEqual(original)
+    expect(identityChecks).toBe(0)
+    const currentDenied = await newWorker.request('/api/adventure/commands', { method: 'POST', headers: { Authorization: authorization, 'Content-Type': 'application/json', 'X-Adventure-Client-Version': 'goal-categories-1' }, body: JSON.stringify(original) }, env)
+    expect(currentDenied.status).toBe(403)
+    expect(identityChecks).toBe(1)
+    denyIdentity = false
     // Operator lookup is owner + requestId + the original PostgreSQL digest;
     // this query is read-only and never executes an absent command.
     const saved = await sql.query(`select command_hash=encode(sha256(convert_to($3::jsonb::text,'UTF8')),'hex') matches
@@ -147,6 +168,13 @@ test('真实旧构建跨切换保留未知封套并由受控人员核对', async
       await sql.query('commit')
     } catch (error) { await sql.query('rollback'); throw error }
     expect((await database.request(owner, '/api/adventure/receipts/lookup', inFlight, null)).status).toBe(200)
+    // An unrelated authentication revalidation can still unmount the old UI
+    // and discard its in-memory pending envelope; the 503 gate cannot stop it.
+    await context.route('**/api/auth/me', route => route.fulfill({ status: 403, json: { error: { code: 'AUTH_DENIED', message: '无权访问' } } }))
+    await page.evaluate(() => window.dispatchEvent(new Event('focus')))
+    await expect(page.locator('.adventure-page')).toHaveCount(0)
+    await expect(page.getByRole('button', { name: '安全重试同一次操作' })).toHaveCount(0)
+    await context.route('**/api/auth/me', route => route.fulfill({ json: { user: { id: '00000000-0000-4000-8000-000000000001', email: 'demo@example.com' } } }))
     // The legacy page itself masks GET failures; this remains a release blocker.
     await page.reload()
     await expect(page.getByText('暂时无法读取人生冒险，请检查连接后重新读取。')).toBeVisible()

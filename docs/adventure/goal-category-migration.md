@@ -8,7 +8,7 @@
 
 目标和任务保留稳定 ID 与关联；有效奖励总和、账户 revision 和 total_xp 不变。旧主线结束后的完成限制保存在完成事件的中性 `historical_lock` 中，旧完成／达成快照不会补写分类。非纯主线成功回执保留摘要并先于版本检查重放清理后的结果；纯主线事件及其回执被删除，旧主线命令不能新执行。调用方不能把旧 requestId 复用于其他命令。
 
-新 Worker 的写命令要求请求头 `X-Adventure-Client-Version: goal-categories-1`；缺失或过期时返回 `CLIENT_UPDATE_REQUIRED`／503，提示不要刷新或重新提交、联系维护人员，且不调用数据库。503 避免旧客户端把此前未知结果当作确定失败；它不能解决已丢失封套或旧读取提示。成功封套仍须以同一 requestId 和内容重试；该版本头不是认证，也不保护旧 Worker、数据库直连或部署窗口，外层冻结及旧地址封闭要求见 [维护窗口](qa-goal-integration.md)。
+新 Worker 的写命令要求请求头 `X-Adventure-Client-Version: goal-categories-1`；缺失或过期时，精确 POST 命令入口在认证前返回固定 `CLIENT_UPDATE_REQUIRED`／503，提示不要刷新或重新提交、联系维护人员；不解析封套、不查询身份或数据库，也不返回业务数据。其他路径、方法及携带当前版本的请求仍正常鉴权。503 避免旧客户端把此前未知结果当作确定失败；它不能解决已丢失封套或旧读取提示。成功封套仍须以同一 requestId 和内容重试；该版本头不是认证，也不保护旧 Worker、数据库直连或部署窗口，外层冻结及旧地址封闭要求见 [维护窗口](qa-goal-integration.md)。
 
 数据库接口变更：`adventure_planning_read(uuid,integer,integer,boolean)` 取代旧的六参数版本；`adventure_workspace_read(uuid,integer,integer,text,integer,text,text,uuid,integer,boolean)` 取代旧的十二参数版本；旧主线参数、主线命令和目标迁移候选不再支持。目标列表按账户内进行中目标顺序分页，再按终态时间倒序和 ID 显示终态；任务与成长投影不再包含主线字段。其余 RPC 的现有签名保留，调用方仍须按 #171–#173 更新响应类型和请求规则。
 

@@ -13,6 +13,7 @@ import {
 
 type PlanningContext = Context<{ Bindings: AuthEnv; Variables: { identity: Identity } }>
 const unavailable = () => new ApiError('ADVENTURE_UNAVAILABLE', '暂时无法读取人生冒险，请稍后重试', 503)
+export const oldClientUnavailable = () => new ApiError('CLIENT_UPDATE_REQUIRED', '旧页面操作结果可能未知，请不要刷新或重新提交，请联系维护人员核对。', 503)
 const errors = {
   PENDING_TASKS: [400, '请先删除未完成任务，或在编辑任务中移到其他在用目标／独立任务'],
   VERSION_CONFLICT: [409, '数据已更新，请重新读取后确认操作'],
@@ -127,7 +128,7 @@ export async function previewPlanning(c: PlanningContext) {
 
 export async function commandPlanning(c: PlanningContext) {
   if (c.req.header(adventureClientVersionHeader) !== adventureClientVersion)
-    throw new ApiError('CLIENT_UPDATE_REQUIRED', '旧页面操作结果可能未知，请不要刷新或重新提交，请联系维护人员核对。', 503)
+    throw oldClientUnavailable()
   const value = await input(c, z.union([planningEnvelopeSchema, legacyGoalEnvelope]))
   return c.json(await rpc(c, 'adventure_planning_command', {
     p_request_id: value.requestId, p_expected_version: value.expectedVersion, p_command: value.command,
