@@ -300,7 +300,7 @@ end $$;
 -- Fail closed on unknown structured receipt fields while preserving user text.
 create or replace function public.adventure_receipt_safe(j jsonb, shape text)
 returns boolean language plpgsql immutable security invoker set search_path='' as $$
-declare k text; v jsonb; allowed text[]; child text;
+declare k text; v jsonb; allowed text[]; child text; expected_type text;
 begin
   if jsonb_typeof(j) is distinct from 'object' then return false; end if;
   allowed:=case shape
@@ -312,6 +312,12 @@ begin
     when 'growth' then array['level','totalXp','progress','needed','remaining','actions','achievedGoals','achievements']
     when 'achievement' then array['id','label','threshold','count','remaining','unlocked']
     else array[]::text[] end;
+  if (shape='result' and not (j ?& array['entityId','message']))
+    or (shape='reward' and not (j ?& array['amount','calculation']))
+    or (shape='calculation' and not (j ?& array['type','count','coefficient']))
+    or (shape='change' and not (j ?& array['xpDelta','before','after','unlocked','lost']))
+    or (shape='growth' and not (j ?& array['level','totalXp','progress','needed','remaining','actions','achievedGoals']))
+    or (shape='achievement' and not (j ?& array['id','label','threshold','count','unlocked'])) then return false; end if;
   for k,v in select key,value from jsonb_each(j) loop
     if not (k=any(allowed)) then return false; end if;
     child:=case when shape='result' and k='reward' then 'reward'
@@ -330,10 +336,47 @@ begin
     elsif (shape='calculation' and k='actionIds') or (shape='change' and k in ('unlocked','lost')) then
       if jsonb_typeof(v) is distinct from 'array' then return false; end if;
       if exists(select 1 from jsonb_array_elements(v) a where jsonb_typeof(a) is distinct from 'string') then return false; end if;
-    elsif jsonb_typeof(v) not in ('string','number','boolean','null') then return false;
+      if shape='calculation' and exists(select 1 from jsonb_array_elements_text(v) a where a !~* '^([0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$') then return false; end if;
+    else
+      expected_type:=case
+        when shape='result' and k in ('entityId','message','completionId','achievementId') then 'string'
+        when shape='source' then 'string'
+        when shape='reward' and k='amount' then 'number'
+        when shape='calculation' and k in ('type','completionId') then 'string'
+        when shape='calculation' and k in ('count','coefficient') then 'number'
+        when shape='calculation' and k='fallback' then 'boolean'
+        when shape='change' and k='xpDelta' then 'number'
+        when shape='growth' then 'number'
+        when shape='achievement' and k in ('id','label') then 'string'
+        when shape='achievement' and k in ('threshold','count','remaining') then 'number'
+        when shape='achievement' and k='unlocked' then 'boolean' end;
+      if expected_type is null then return false; end if;
+      if v='null'::jsonb and ((shape='result' and k='completionId') or (shape='source' and k in ('goalId','goalTitle','categoryLabel'))) then continue; end if;
+      if jsonb_typeof(v) is distinct from expected_type then return false; end if;
+      if expected_type='number' and (v::text::numeric <> trunc(v::text::numeric) or abs(v::text::numeric)>9007199254740991 or (v::text::numeric<0 and not (shape='change' and k='xpDelta'))) then return false; end if;
+      if (shape='result' and k in ('entityId','completionId','achievementId')) or (shape='source' and k='goalId') or (shape='calculation' and k='completionId') then
+        if (v #>> '{}') !~* '^([0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$' then return false; end if;
+      elsif shape='source' and k in ('plannedOn','occurredOn') then
+        if (v #>> '{}') !~ '^\d{4}-\d{2}-\d{2}$' or to_char((v #>> '{}')::date,'YYYY-MM-DD')<>(v #>> '{}') then return false; end if;
+      end if;
     end if;
   end loop;
+  if shape='reward' and (j->>'amount')::numeric <= 0 then return false; end if;
+  if shape='growth' and j ? 'achievements' and jsonb_array_length(j->'achievements')>7 then return false; end if;
+  if shape='calculation' then
+    if j->>'type'='fixed_task' then
+      if j-array['type','completionId','count','coefficient']<>'{}'::jsonb
+        or not (j ? 'completionId') or (j->>'count')::numeric<=0 or (j->>'coefficient')::numeric<=0 then return false; end if;
+    elsif j->>'type'='goal_actions' then
+      if j-array['type','actionIds','count','coefficient','fallback']<>'{}'::jsonb
+        or not (j ?& array['actionIds','fallback']) or (j->>'coefficient')::numeric not between 1 and 3
+        or (j->>'count')::numeric<>jsonb_array_length(j->'actionIds')
+        or (j->>'fallback')::boolean<>(jsonb_array_length(j->'actionIds')=0)
+        or (select count(distinct value) from jsonb_array_elements_text(j->'actionIds'))<>jsonb_array_length(j->'actionIds') then return false; end if;
+    else return false; end if;
+  end if;
   return true;
+exception when invalid_datetime_format or datetime_field_overflow or invalid_text_representation or numeric_value_out_of_range then return false;
 end $$;
 revoke execute on function public.adventure_receipt_safe(jsonb,text) from public,anon,authenticated;
 grant execute on function public.adventure_receipt_safe(jsonb,text) to service_role;

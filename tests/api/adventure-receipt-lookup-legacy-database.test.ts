@@ -37,4 +37,19 @@ describe.skipIf(!localPlanningRpc || !fixture)('迁移后的只读历史回执',
     expect(await removed.json()).toMatchObject({ error: { code: 'RECEIPT_UNKNOWN' } })
     expect(await (await db.request(row.owner_id, '/api/adventure/growth')).json()).toEqual(before)
   })
+
+  it('已知字段类型错误时两个入口均明确拒绝且不修改账户', async () => {
+    const row = fixture!.receipts.find(item => item.request_id === 'unsafe-source-type')!
+    const envelope = { requestId: row.request_id, expectedVersion: 0, command: row.command }
+    const before = await (await db.request(row.owner_id, '/api/adventure/growth')).json()
+    for (const [path, body] of [
+      ['/api/adventure/receipts/lookup', { ...envelope, nonce: 'a'.repeat(64) }],
+      ['/api/adventure/commands', envelope],
+    ] as const) {
+      const response = await db.request(row.owner_id, path, body, path.endsWith('/lookup') ? null : undefined)
+      expect(response.status).toBe(409)
+      expect(await response.json()).toMatchObject({ error: { code: 'REPLAY_UNAVAILABLE' } })
+    }
+    expect(await (await db.request(row.owner_id, '/api/adventure/growth')).json()).toEqual(before)
+  })
 })

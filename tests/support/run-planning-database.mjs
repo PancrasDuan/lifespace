@@ -184,13 +184,14 @@ try {
       r:=public.adventure_planning_command(o,'replay-focus',2,c); insert into goal_fixture_receipts values(o,'replay-focus',c,r);
       c:=jsonb_build_object('type','migrateGoal','id',g,'destination','');
       r:=public.adventure_planning_command(o,'replay-goal-migrate',3,c); insert into goal_fixture_receipts values(o,'replay-goal-migrate',c,r);
-      for i in 0..1 loop
+      for i in 0..2 loop
         c:=jsonb_build_object('type','createTask','title','旧回执任务 '||i,'description','','plannedOn',today,'destination','');
-        r:=public.adventure_planning_command(u,case i when 0 then 'unsafe-cn-receipt' else 'unsafe-en-receipt' end,i,c);
-        insert into goal_fixture_receipts values(u,case i when 0 then 'unsafe-cn-receipt' else 'unsafe-en-receipt' end,c,r);
+        r:=public.adventure_planning_command(u,case i when 0 then 'unsafe-cn-receipt' when 1 then 'unsafe-en-receipt' else 'unsafe-source-type' end,i,c);
+        insert into goal_fixture_receipts values(u,case i when 0 then 'unsafe-cn-receipt' when 1 then 'unsafe-en-receipt' else 'unsafe-source-type' end,c,r);
       end loop;
     end $$;
     update public.adventure_events set snapshot=jsonb_set(snapshot,'{result}',snapshot->'result' || jsonb_build_object('unknownSource',jsonb_build_object('alias','retired'))) where request_id in ('unsafe-cn-receipt','unsafe-en-receipt');
+    update public.adventure_events set snapshot=jsonb_set(snapshot,'{result}',snapshot->'result' || '{"source":{"goalTitle":true}}'::jsonb) where request_id='unsafe-source-type';
     update goal_fixture_receipts set receipt=jsonb_set(receipt,'{result,message}',to_jsonb(case request_id when 'unsafe-cn-receipt' then '旧主线已保存' else 'Old MainLine saved' end)) where request_id in ('unsafe-cn-receipt','unsafe-en-receipt');`)
     // Put old structured attribution inside a genuine success receipt; retain
     // the original envelope so HTTP replay can be checked after migration.

@@ -78,6 +78,35 @@ begin
   r:=public.adventure_planning_command(o,'rpc-achieve-goal',9,c); insert into goal_fixture_receipts values(o,'rpc-achieve-goal',c,r);
 end $$;
 
+-- Exercise every retained result family with genuine five-table RPC writes.
+do $$
+declare o uuid:='00000000-0000-4000-8000-000000000007'; m uuid; g uuid; second_goal uuid; t uuid;
+  today date:=(clock_timestamp() at time zone 'Asia/Shanghai')::date; r jsonb; c jsonb;
+begin
+  r:=public.adventure_planning_command(o,'matrix-mainline',0,'{"type":"createMainline","name":"方向"}'); m:=(r->'result'->>'entityId')::uuid;
+  c:=jsonb_build_object('type','createGoal','destination',m,'title','目标','standards',jsonb_build_array('完成'));
+  r:=public.adventure_planning_command(o,'matrix-create-goal',1,c); g:=(r->'result'->>'entityId')::uuid; insert into goal_fixture_receipts values(o,'matrix-create-goal',c,r);
+  c:=jsonb_build_object('type','editGoal','id',g,'destination',m,'title','目标更新','standards',jsonb_build_array('完成'));
+  r:=public.adventure_planning_command(o,'matrix-edit-goal',2,c); insert into goal_fixture_receipts values(o,'matrix-edit-goal',c,r);
+  c:=jsonb_build_object('type','focusGoal','id',g,'focused',true);
+  r:=public.adventure_planning_command(o,'matrix-focus-on',3,c); insert into goal_fixture_receipts values(o,'matrix-focus-on',c,r);
+  c:=jsonb_build_object('type','focusGoal','id',g,'focused',false);
+  r:=public.adventure_planning_command(o,'matrix-focus-off',4,c); insert into goal_fixture_receipts values(o,'matrix-focus-off',c,r);
+  r:=public.adventure_planning_command(o,'matrix-second-goal',5,jsonb_build_object('type','createGoal','destination',m,'title','另一目标','standards',jsonb_build_array('完成'))); second_goal:=(r->'result'->>'entityId')::uuid;
+  c:=jsonb_build_object('type','reorderGoals','mainlineId',m,'id',second_goal,'direction','up');
+  r:=public.adventure_planning_command(o,'matrix-reorder',6,c); insert into goal_fixture_receipts values(o,'matrix-reorder',c,r);
+  c:=jsonb_build_object('type','createTask','destination',g,'title','保留主线文字','description','历史自由文本','plannedOn',today);
+  r:=public.adventure_planning_command(o,'matrix-create-task',7,c); t:=(r->'result'->>'entityId')::uuid; insert into goal_fixture_receipts values(o,'matrix-create-task',c,r);
+  c:=jsonb_build_object('type','editTask','id',t,'destination',g,'title','保留主线文字','description','历史自由文本','plannedOn',today);
+  r:=public.adventure_planning_command(o,'matrix-edit-task',8,c); insert into goal_fixture_receipts values(o,'matrix-edit-task',c,r);
+  c:=jsonb_build_object('type','deleteTask','id',t);
+  r:=public.adventure_planning_command(o,'matrix-delete-task',9,c); insert into goal_fixture_receipts values(o,'matrix-delete-task',c,r);
+  c:=jsonb_build_object('type','endGoal','id',g);
+  r:=public.adventure_planning_command(o,'matrix-end-goal',10,c); insert into goal_fixture_receipts values(o,'matrix-end-goal',c,r);
+  c:=jsonb_build_object('type','achieveGoal','id',second_goal,'coefficient',2,'reflection','无行动的成果');
+  r:=public.adventure_planning_command(o,'matrix-achieve-empty',11,c); insert into goal_fixture_receipts values(o,'matrix-achieve-empty',c,r);
+end $$;
+
 -- A completion remains locked if its former mainline ends after its goal moved.
 -- The current goal and task stay active/completed, so their state alone is not
 -- enough to reconstruct this legacy cancellation rule.

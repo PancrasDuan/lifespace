@@ -46,9 +46,9 @@
 
 ### 过渡客户端的只读协作契约
 
-迁移完成、PostgREST schema 已刷新并经验证后，获准访问的新服务提供 `POST /api/adventure/receipts/lookup`。调用者必须使用原账户的有效会话、提交原始 `requestId`、`expectedVersion` 和 `command`；Worker 不接受客户端指定 owner，并按原命令规则规范化后调用仅 service_role 可执行的只读 RPC。该接口不需要新写入版本头，不创建账户，不执行命令、不发奖、不修改版本。跨账户相同编号按本账户查询；Worker 身份隔离不意味着数据库 service_role 自身受账户限制。
+迁移完成、PostgREST schema 已刷新并经验证后，获准访问的新服务提供 `POST /api/adventure/receipts/lookup`。调用者必须使用原账户的有效会话，提交 `{requestId, expectedVersion, command, nonce}`：前三项来自持久化的原封套，`nonce` 是每次查询使用 `crypto.getRandomValues` 生成的 32 字节、64 位小写十六进制值，不持久化。Worker 校验格式，不接受客户端指定 owner，并按原命令规则规范化后调用仅 service_role 可执行的只读 RPC。该接口不需要新写入版本头，不创建账户，不执行命令、不发奖、不修改版本。跨账户相同编号按本账户查询；Worker 身份隔离不意味着数据库 service_role 自身受账户限制。
 
-- 同账户的编号和规范化命令摘要相同，且结果可安全返回：200，返回清理后的原成功回执，并携带 `X-Lifespace-Adventure-Model: goal-categories-1` 和 `Cache-Control: no-store`；过渡客户端必须核对两个响应头并严格验证回执结构，缺失或不匹配保持未知。该标识不是认证。该摘要不含 `expectedVersion`，接口不会证明原版本字段与第一次请求相同；调用方仍应保留原完整封套。
+- 同账户的编号和规范化命令摘要相同，且结果可安全返回：200，返回 `{requestId, nonce, receipt: {version, result}}`，`receipt` 是清理后的原成功回执，并携带 `X-Lifespace-Adventure-Model: goal-categories-1` 和 `Cache-Control: no-store`。客户端必须核对响应中的 requestId 与原持久封套一致、nonce 与本次查询一致，验证两个响应头及回执结构，缺失、错位或过期均保持未知。结果可包含已识别的可选 `result.source`，其非主线来源字段按实际回执保留；未知或无法安全识别的结构不重放。模型标识不是认证；nonce 仅用于关联查询与响应，不能抵御可主动篡改请求和响应的恶意代理。历史回执不保存 `expectedVersion`，该字段不参与摘要，接口不会证明它与第一次请求相同；调用方仍应保留原完整封套。
 - 同账户编号存在但摘要不同：409 `REQUEST_ID_REUSED`，停止并核对，不能更换编号重新执行。
 - 未发现可用回执，包括其他账户或被删除的纯主线历史：404 `RECEIPT_UNKNOWN`；这不是未提交证明，尤其在事务尚未提交、日志丢失或纯主线回执已清除时。不要自动调用普通命令接口或用新编号重做。
 - 旧结果无法安全返回：409 `REPLAY_UNAVAILABLE`，不得泄露主线信息或执行新动作；其他错误、网络中断及 schema 未就绪同样保持未知，直至人工核对。查询事务未看到仍在途的写入时会返回未知，维护窗口必须先阻断并排空所有写事务。
@@ -59,11 +59,11 @@
 
 过渡客户端先经本人认证调用 `GET /api/adventure/compatibility`，不得根据旧服务对查询接口的 404 推断模型；响应必须为 `Cache-Control: no-store`。新 Worker 明确返回 `{ "model": "goal-categories", "version": 1, "receiptLookup": true, "legacyRetry": false }`，表示 Worker 接口能力而非数据库迁移、schema 刷新或维护门禁已经就绪。过渡旧 Worker 的拟议对应响应为 `{ "model": "legacy", "version": 1, "receiptLookup": false, "legacyRetry": true }`；该旧服务尚未完成集成部署，最终值需双方验证。缺少字段、未知版本、认证失败、网络错误或不明确响应时继续保留待决封套。
 
-过渡客户端仅在收到旧模型明确握手时，使用 `POST /api/adventure/legacy-retry` 携带原账户的原封套，在旧模型上按原 requestId 安全重试；如果旧模型握手后在发送重试前发生切换，新 Worker 的同一路由经过认证后无条件返回 503、禁止缓存、提示不要刷新且不读取或写数据库，不解析封套，也不降级调用普通命令。保留封套后重新握手；只有新模型明确支持查询时使用上述只读接口，任何未知结果继续待决。外层必须阻断并排空旧 Worker，关闭绕行地址，不能依赖此握手替代部署隔离。真实旧构建没有过渡能力；本机演练中的旧模型握手是测试代理模拟，不能当作旧过渡 Worker 已验证。
+过渡客户端仅在收到旧模型明确握手时，使用 `POST /api/adventure/legacy-retry` 携带原账户的原封套及每次新生成的 nonce，在旧模型上按原 requestId 安全重试；成功响应同样为 `{requestId, nonce, receipt}`，须核对两者、回执与 `X-Lifespace-Legacy-Retry: five-table-1`、完整 `no-store` 指令。如果旧模型握手后在发送重试前发生切换，新 Worker 的同一路由经过认证后无条件返回 503、禁止缓存、提示不要刷新且不读取或写数据库，不解析封套，也不降级调用普通命令。保留封套后重新握手；只有新模型明确支持查询时使用上述只读接口，任何未知结果继续待决。外层必须阻断并排空旧 Worker，关闭绕行地址，不能依赖此握手替代部署隔离。真实旧构建没有过渡能力；本机演练中的旧模型握手是测试代理模拟，不能当作旧过渡 Worker 已验证。
 
 ### 新客户端接续与隐私边界
 
-新客户端与过渡客户端共用按账户隔离的 IndexedDB、Web Lock 和广播协议。加载已有封套时冻结新写入，仅在同账户握手确认新模型后使用只读回执查询；404、冲突、不可安全重放、认证或网络失败、异常响应、损坏数据、存储或删除失败均保持冻结，不能改用普通命令。完整 `Cache-Control` 指令列表须合法且包含无参数 `no-store`；模型标识和回执结构须匹配，任何不满足条件的成功响应仍不解除冻结。当前页面自己发起的新命令仍可按相同 requestId 安全重试；重载后已存储封套只做查询。
+新客户端与过渡客户端共用按账户隔离的 IndexedDB、Web Lock 和广播协议。加载已有封套时冻结新写入，仅在同账户握手确认新模型后使用只读回执查询；404、冲突、不可安全重放、认证或网络失败、异常响应、损坏数据、存储或删除失败均保持冻结，不能改用普通命令。完整 `Cache-Control` 指令列表须合法且包含无参数 `no-store`；模型标识、回执结构、原封套的 requestId 和本次随机 nonce 须匹配，安全随机数不可用时也保持封套。当前页面自己发起的新命令仍可按相同 requestId 安全重试；重载后已存储封套只做查询。
 
 IndexedDB 在浏览器配置中以明文保留完整命令，可能被共享设备的同一浏览器用户、扩展或本地访问者读取；清除站点数据、使用其他浏览器配置、浏览器故障或设备丢失会丢失封套。部署前须向用户解释该风险并安排数据保留、设备访问与丢失后的人工核对，不可将该存储视为服务器备份。未升级的旧页面和离线标签仍无法保证保全未知封套，仍是上线阻断。
 
@@ -78,3 +78,23 @@ IndexedDB 在浏览器配置中以明文保留完整命令，可能被共享设�
 后续固定检查点 `820b578728424dc1b6cccc1b236ca7fd7c5d0a1e` 重跑：四表真实数据库浏览器回归 40 项通过、无跳过。将临时目录移到工作区内独立的非 `.cache` 目录、避开其他测试并在沙箱外执行后，串行的 `node --test --test-concurrency=1 tests/security/temp-directory.test.mjs tests/security/cleanup.test.mjs` 和标准 `npm run test:security:portable` 均为 4 项通过；负例实际验证持续晚写及虚构凭据均阻断检查。先前 fixture 位于 Vite `fs.deny` 覆盖的 `.cache` 目录，其 Worker 路径加载失败；超时的单一原因尚未证实，不把此次成功归因于某一个因素。所有结果仍仅覆盖本地合成资源。
 
 标准接力入口 `node tests/support/run-old-client-cutover.mjs --handoff` 默认依次运行 task、goal、edit、reorder，每种新建独立旧库；四种均通过。执行时需设置 `OLD_ADVENTURE_DIST` 指向独立构建的过渡版、`POSTGRES_BIN`、`POSTGREST_BIN`、数据库动态库及 Chromium 路径；设置 `OLD_CUTOVER_SCENARIO` 只运行单个场景，不代表矩阵通过。本次过渡构建为 `eebe9ea596ed30d6f03aa075ee379da8faf18119`，新构建为上述提交加本次测试修正；真实身份、外层路由、已打开的原始旧页面及生产运行条件仍不在此证据范围。
+
+### 固定检查点 `b8b120e` 的本地证据
+
+固定新端 `b8b120ee8b63f723447b923958e4fdf3b1a5bfd7`、集成基线 `568bff8b18dc1953bd7b3bce04527f0936076eb3`，使用用户级 Node 24 和隔离资源：
+
+- 创建目标的原始浏览器测试在本机 Chromium 连续 5 次出现 CI 同一 `command` 读取异常；等待已保存目标行后保留封套及刷新回读断言，重复 10 次通过。目标列表及关系卡片在 1440／390px 的浏览器回归与截图自验通过；不是用户验收。
+- `npm run build` 通过，`npm run test:api` 为 323 通过、167 跳过；`npm run test:browser -- tests/browser/adventure-goal-relations.spec.ts tests/browser/adventure.spec.ts` 为 7 通过。待决恢复套件一次为 25 通过、1 页面加载超时，失败项单独复跑通过；关系卡片手机焦点一次失败，单独复跑及之后 7 项回归通过，保留这些失败记录，不将首次运行称为全通过。
+- `node tests/support/run-goal-migration-baseline.mjs --migration db/adventure/migrations/20261111000000_goal_categories.sql` 的隔离 PostgreSQL 全部迁移／回滚／对账／权限回归通过；新库、迁移旧库和旧目标回执专项 HTTP 分别 6、6、1 项通过。未知结构的回执在查询与命令重放入口拒绝且不执行；非零终态和 inbox 顺序保留。以上不证明生产历史全部形状。
+- 独立构建过渡端 `6b97401bec1b141603ee089cf991895343616cbc` 与该新端，`node tests/support/run-old-client-cutover.mjs --handoff` 的 task、goal、edit、reorder 四个独立旧库场景通过。身份及外层维护故障仍由本地代理模拟，过渡端未部署。
+- `npm run test:security:portable` 在 `/dev/shm` 专属真实短临时目录通过 4 项；此前使用工作区长真实路径两次超时或加载失败，不能作为通过证据。`npm run test:secrets` 和 `npm run check:secrets` 通过；扫描不证明不存在任何敏感信息。
+
+该检查点已完成增量规范和需求两轴复审，契约文档与历史回执兼容面仍需按复审结果处理；最终集成 SHA、最终必需 CI、最终双轴复审及用户桌面／手机验收均尚未完成，后续集成者应针对最终提交补充证据。真实身份、生产入口封闭、备份恢复及生产迁移／发布授权仍待处理，不能用本地测试代替。
+
+### 五表成功回执兼容范围
+
+本地审阅五表初始化的提交历史 `8a80f3f`、`0d2061c`、`71d718a`、`ccfbf92`、`413799e`、`93d9e57`，以及五表升级脚本 `20261106200055_adventure_today_task_rules.sql` 和保留的五表 SQL。所见成功结果分三类：目标创建、编辑、聚焦、排序、迁移及结束的 `entityId`／`message`；任务操作额外带可空 `completionId`、可空 `reward` 和 `growthChange`；目标达成带 `achievementId`、奖励及成长变化。奖励包含固定任务计算或目标行动数、行动 ID、系数及无行动回退；成长变化含前后统计、解锁和失去的成就。纯主线创建、改名、结束事件及其回执按 #168 删除，不承诺重放。
+
+隔离旧库直接通过五表 RPC 生成上述回执，迁移后覆盖目标创建／编辑／聚焦／排序／结束、任务创建／编辑／删除、带行动和不带行动的目标达成；另一组保留完成、取消完成、目标迁移，以及旧 helper 生成的改期、迁移和结束任务。HTTP 测试对新增矩阵逐项核对原成功结果、查询与命令重放、跨账户拒绝及账户成长不变；旧目标归属与排序封套也单独测试。`result.source` 的旧归属清理由合成嵌套数据验证，它不是上述旧 RPC 实际生成字段的证据。未知结构、类型不匹配或不完整结果必须失败关闭；具体安全识别范围由服务端约束和测试确定，不能以关键词修改或删除用户自由文字。
+
+这些检查覆盖本仓库所审阅的旧实现及列出的合成数据，不能证明从未见过的部署版本、手工修改、损坏数据或真实生产历史均可安全识别；部署前仍需在获授权的隔离副本中盘点并核对，无法确认的回执保持待决。

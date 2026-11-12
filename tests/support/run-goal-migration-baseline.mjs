@@ -426,9 +426,24 @@ try {
       const result = await client.query('select public.adventure_receipt_lookup($1,$2,$3) receipt', [savedForSafety.owner_id, savedForSafety.request_id, savedForSafety.command])
       assert.equal(result.rows[0].receipt.result.message, '我的主线文字')
     } finally { await client.query('rollback') }
+    for (const goalId of ['00000000-0000-0000-0000-000000000000', 'ffffffff-ffff-ffff-ffff-ffffffffffff']) {
+      await client.query('begin')
+      try {
+        await client.query("update public.adventure_events set snapshot=jsonb_set(snapshot,'{result}',snapshot->'result' || jsonb_build_object('source',jsonb_build_object('goalId',$3::text))) where owner_id=$1 and request_id=$2", [savedForSafety.owner_id, savedForSafety.request_id, goalId])
+        const result = await client.query('select public.adventure_receipt_lookup($1,$2,$3) receipt', [savedForSafety.owner_id, savedForSafety.request_id, savedForSafety.command])
+        assert.equal(result.rows[0].receipt.result.source.goalId, goalId)
+      } finally { await client.query('rollback') }
+    }
     for (const extra of [
       { source: { mainlineAlias: 'retired' } },
       { reward: { amount: 1, calculation: { type: 'fixed_task', completionId: lock.completion_id, count: 1, coefficient: 1, origin: { mainlineName: 'retired' } } } },
+      { source: { goalTitle: true } },
+      { reward: { amount: '1', calculation: { type: 'fixed_task', completionId: lock.completion_id, count: 1, coefficient: 1 } } },
+      { growthChange: { xpDelta: 0, before: {}, after: {}, unlocked: [], lost: [] } },
+      { source: { goalId: 'not-a-uuid' } },
+      { source: { plannedOn: '2026-02-31' } },
+      { reward: { amount: 1, calculation: { type: 'goal_actions', actionIds: [], count: 2, coefficient: 1, fallback: true } } },
+      { reward: { amount: 1, calculation: { type: 'fixed_task', completionId: lock.completion_id, count: 1, coefficient: 1, actionIds: [] } } },
     ]) {
       for (const fn of ['adventure_receipt_lookup', 'adventure_planning_command']) {
         await client.query('begin')

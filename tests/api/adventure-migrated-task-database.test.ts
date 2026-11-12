@@ -14,6 +14,30 @@ describe.skipIf(!localPlanningRpc || !fixture)('旧库迁移后的真实 Worker 
   beforeEach(() => api.install())
   afterEach(() => api.restore())
 
+  it('旧 RPC 的目标和任务成功回执经两个入口原样重放，不重复写入', async () => {
+    const ids = ['matrix-create-goal', 'matrix-edit-goal', 'matrix-focus-on', 'matrix-focus-off', 'matrix-reorder', 'matrix-create-task', 'matrix-edit-task', 'matrix-delete-task', 'matrix-end-goal', 'matrix-achieve-empty']
+    const rows = ids.map(id => {
+      const row = fixture!.receipts.find(item => item.request_id === id)
+      expect(row, `missing legacy RPC fixture ${id}`).toBeDefined()
+      return row!
+    })
+    const owner = rows[0].owner_id
+    expect(rows.at(-1)!.receipt).toMatchObject({ result: { reward: { amount: 1, calculation: { type: 'goal_actions', count: 0, coefficient: 2, fallback: true, actionIds: [] } } } })
+    const before = await (await api.request(owner, '/api/adventure/growth')).json()
+    for (const row of rows) {
+      const envelope = { requestId: row.request_id, expectedVersion: 0, command: row.command }
+      const lookup = await api.request(owner, '/api/adventure/receipts/lookup', { ...envelope, nonce: 'a'.repeat(64) }, null)
+      expect(lookup.status, row.request_id).toBe(200)
+      expect(await lookup.json(), row.request_id).toEqual({ requestId: row.request_id, nonce: 'a'.repeat(64), receipt: row.receipt })
+      const replay = await api.request(owner, '/api/adventure/commands', envelope)
+      expect(replay.status, row.request_id).toBe(200)
+      expect(await replay.json(), row.request_id).toEqual(row.receipt)
+      const foreign = await api.request(crypto.randomUUID(), '/api/adventure/receipts/lookup', { ...envelope, nonce: 'a'.repeat(64) }, null)
+      expect(foreign.status, row.request_id).toBe(404)
+    }
+    expect(await (await api.request(owner, '/api/adventure/growth')).json()).toEqual(before)
+  })
+
   it('有效及已失效的旧完成和旧任务命令安全重放，摘要冲突不能重新执行', async () => {
     for (const id of ['rpc-move-task', 'rpc-complete-task', 'rpc-complete-cancel', 'rpc-cancel-task', 'legacy-reschedule', 'legacy-migrate-task', 'legacy-end-task']) {
       const row = fixture!.receipts.find(item => item.request_id === id)!

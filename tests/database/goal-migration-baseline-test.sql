@@ -2,7 +2,7 @@
 do $$
 declare ids uuid[]; receipt jsonb; original jsonb; saved record; source jsonb; achievement jsonb; goal_source jsonb;
 begin
-  if (select count(*) from public.adventure_accounts) <> 4 then raise exception 'expected four owners including RPC history'; end if;
+  if (select count(*) from public.adventure_accounts) <> 5 then raise exception 'expected five owners including RPC history and receipt matrix'; end if;
   if (select count(*) from public.adventure_mainlines where kind='normal') < 3 then raise exception 'missing ordinary mainlines'; end if;
   if (select count(*) from public.adventure_goals where kind='real') < 6 then raise exception 'missing goals'; end if;
   if not exists(select from public.adventure_events where kind='task_completed' and invalidated_at is not null) then raise exception 'missing cancelled completion'; end if;

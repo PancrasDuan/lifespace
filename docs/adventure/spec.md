@@ -78,9 +78,11 @@
 ## 服务端与数据边界
 
 - 账户、目标、任务、事件四张表按账户隔离；inbox 按首次独立操作创建且不作为真实目标，读取不预建。Worker 验证身份及准入，浏览器无直接表或 RPC 权限；业务写入通过 service_role 专用事务。
-- 事务锁定账户，先检查历史成功回执，再核对 expectedVersion；同 requestId 同封套重放清理后结果，异摘要冲突，旧停用命令不得新执行。纯主线操作及回执删除，客户端不得跨命令复用旧 requestId；无法安全重放的旧结果明确拒绝。
+- 事务锁定账户，先检查历史成功回执，再核对 expectedVersion；同账户、同 requestId 和规范化命令摘要重放清理后结果，异摘要冲突，旧停用命令不得新执行。历史回执不保存 expectedVersion，重放不能证明该字段与原请求相同。纯主线操作及回执删除，客户端不得跨命令复用旧 requestId；无法安全重放的旧结果明确拒绝。
 - 保留账户 revision、total_xp、账户中已有的时区字段、目标与任务身份、奖励和非主线历史；total_xp 等于有效冻结奖励之和。日期边界仍使用规划时区。旧主线结束原因中性化，历史锁定保留，不以当前数据重算历史。
 - 严格拒绝旧主线参数及退役命令；公开接口、共享类型和数据库不包含主线结构。客户端与 Worker／数据库须协调切换，维护窗口方案及其限制见 [集成验收](qa-goal-integration.md)。
+
+只读接续接口 `POST /api/adventure/receipts/lookup` 使用原账户有效会话，接收原封套的 `requestId`、`expectedVersion`、`command` 和每次查询新生成的 `nonce`（32 字节安全随机数的小写 64 位十六进制，不持久化）。服务端按认证账户、requestId 和规范化命令摘要查询，成功返回 `{requestId, nonce, receipt: {version, result}}`，附模型标识和 `Cache-Control: no-store`。`result.source` 可选，保留已识别的非主线来源字段；未知或无法安全重放的结构返回 `REPLAY_UNAVAILABLE`。客户端须核对原封套 requestId、本次 nonce、响应头及回执结构后才可清除封套；失败或安全随机数不可用时保持待确认。此关联可发现响应错位，但不能抵御能够篡改请求和响应的恶意代理；它不验证旧 expectedVersion，也不执行命令。详细错误和切换边界见[集成验收](qa-goal-integration.md)。
 - 旧版 [数据库设计](backend-database.md)、[业务逻辑](backend-business-logic.md) 和 [接口契约](planning-api.md) 保留为 PR #146 历史；涉及主线的内容不适用于本分支，当前变更以 #168、迁移文档和代码为准。
 
 ## 验收与交付
