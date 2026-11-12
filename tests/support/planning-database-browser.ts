@@ -15,13 +15,14 @@ export function planningDatabaseBrowser() {
   return {
     request, snapshot,
     createHistoricalTask: (command: Parameters<typeof database.createHistoricalTask>[1], completedOn?: string) => database.createHistoricalTask(owner, command, completedOn),
-    async install(context: BrowserContext) {
+    async install(context: BrowserContext, options?: { afterCommand?: () => Promise<void> }) {
       owner = crypto.randomUUID()
       database.install({ browserOwner: owner })
       await context.route('**/api/adventure**', async route => {
         const input = route.request(), url = new URL(input.url())
         const response = await database.request(owner, url.pathname + url.search, input.method() === 'GET' ? undefined : input.postDataJSON(), input.headers()[adventureClientVersionHeader.toLowerCase()] ?? null)
-        await route.fulfill({ status: response.status, contentType: 'application/json', body: await response.text() })
+        if (url.pathname === '/api/adventure/commands') await options?.afterCommand?.()
+        await route.fulfill({ status: response.status, headers: Object.fromEntries(response.headers), body: await response.text() })
       })
     },
     restore: database.restore,

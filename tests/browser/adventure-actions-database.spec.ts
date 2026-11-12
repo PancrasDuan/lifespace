@@ -140,6 +140,8 @@ test.describe('真实任务事务的桌面与手机浏览器验收（受控身�
     await page.getByRole('button', { name: '变更目标 保留目标' }).click()
     await page.getByLabel('分类标签').fill('新标签')
     await page.getByRole('button', { name: '保存目标' }).click()
+    await expect(page.getByRole('dialog', { name: '编辑目标' })).toBeHidden()
+    await expect(page.locator('.goal-console-row').filter({ hasText: '保留目标' })).toContainText('新标签')
     await page.reload()
     expect((await snapshot()).tasks[0]).toMatchObject({ id: task, goalId: goal, reward: frozen.reward, completionOrigin: { goalId: goal, categoryLabel: '旧标签' } })
     await overview(page)

@@ -122,14 +122,26 @@ function Workspace() {
   }
   const inlineOrigin = useRef<HTMLElement | undefined>(undefined)
   const returnFocus = useRef<HTMLElement | undefined>(undefined)
+  const delayedFocus = useRef<HTMLElement | undefined>(undefined)
   const close = useCallback((focusTarget?: HTMLElement) => {
     const origin = inlineOrigin.current
     inlineOrigin.current = undefined
     const opener = focusTarget ?? returnFocus.current
     returnFocus.current = undefined
+    if (dialog?.kind === 'detail' && busy) delayedFocus.current = opener ?? origin
     if (dialog?.kind === 'detail') requestAnimationFrame(() => { if (opener?.isConnected) opener.focus(); else if (origin?.isConnected) origin.focus() })
     setOpenRecord(undefined); openDialog(undefined); model.clearGoal(); if (tab !== 'growth') window.history.replaceState(null, '', tab === 'planning' ? '/adventure?view=planning' : '/adventure')
-  }, [model.clearGoal, openDialog, dialog, tab])
+  }, [model.clearGoal, openDialog, dialog, tab, busy])
+  useEffect(() => {
+    if (dialog) { delayedFocus.current = undefined; return }
+    if (busy || !delayedFocus.current) return
+    const target = delayedFocus.current
+    delayedFocus.current = undefined
+    // Do not interrupt a user who moved focus while the read was in flight.
+    if (document.activeElement !== document.body) return
+    if (target.isConnected && !target.matches(':disabled')) target.focus()
+    else document.querySelector<HTMLButtonElement>('.view-tabs button[aria-current="page"]')?.focus()
+  }, [busy, dialog])
   const blocked = model.blocked
   const createCapability = (kind: 'goal' | 'task') => data?.capabilities[kind === 'goal' ? 'createGoal' : 'createTask']
   const launchCreate = (kind: 'goal' | 'task') => {
