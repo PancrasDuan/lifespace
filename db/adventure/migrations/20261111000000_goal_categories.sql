@@ -886,6 +886,27 @@ end $$;
 revoke execute on function public.adventure_workspace_read(uuid,integer,integer,text,integer,text,text,uuid,integer,boolean) from public,anon,authenticated;
 grant execute on function public.adventure_workspace_read(uuid,integer,integer,text,integer,text,text,uuid,integer,boolean) to service_role;
 
+-- Read an existing receipt only; absence never executes the command or creates an account.
+create or replace function public.adventure_receipt_lookup(p_owner uuid,p_request_id text,p_command jsonb)
+returns jsonb language plpgsql stable security invoker set search_path='' as $$
+declare v_prior public.adventure_events; v_hash text;
+begin
+  if p_owner is null or p_request_id is null or p_request_id !~ '^[A-Za-z0-9_-]{8,128}$'
+    or p_command is null or jsonb_typeof(p_command) is distinct from 'object' then raise exception 'INVALID_COMMAND'; end if;
+  v_hash:=encode(sha256(convert_to(p_command::text,'UTF8')),'hex');
+  select * into v_prior from public.adventure_events where owner_id=p_owner and request_id=p_request_id;
+  if not found then raise exception 'RECEIPT_UNKNOWN'; end if;
+  if v_prior.command_hash<>v_hash then raise exception 'REQUEST_ID_REUSED'; end if;
+  if jsonb_typeof(v_prior.snapshot->'result') is distinct from 'object'
+    or jsonb_typeof(v_prior.snapshot->'result'->'entityId') is distinct from 'string'
+    or jsonb_typeof(v_prior.snapshot->'result'->'message') is distinct from 'string'
+    or lower(v_prior.snapshot->'result'->>'message') like '%'||('main'||'line')||'%'
+    or v_prior.snapshot->'result'->>'message' like '%'||chr(20027)||chr(32447)||'%' then raise exception 'REPLAY_UNAVAILABLE'; end if;
+  return jsonb_build_object('version',v_prior.applied_revision,'result',v_prior.snapshot->'result');
+end $$;
+revoke execute on function public.adventure_receipt_lookup(uuid,text,jsonb) from public,anon,authenticated;
+grant execute on function public.adventure_receipt_lookup(uuid,text,jsonb) to service_role;
+
 create or replace function public.adventure_planning_capability(p_owner uuid,p_command jsonb)
 returns jsonb language plpgsql security invoker set search_path='' as $$
 begin

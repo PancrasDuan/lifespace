@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import { listLedger, detailLedger, createLedger, createLedgerEntry, createLedgerRefund, createLedgerTransfer, refundLedger, previewLedgerDelete, deleteLedger, listLedgerAccounts, readLedgerAccounts, createLedgerAccount, updateLedgerAccount } from './ledger'
-import { readTaskList, readRewardSource, readGrowth, readTaskHistory, readMigrationOptions, readPlanning, previewPlanning, commandPlanning } from './adventure/planning'
+import { readTaskList, readRewardSource, readGrowth, readTaskHistory, readMigrationOptions, readPlanning, previewPlanning, commandPlanning, lookupPlanningReceipt } from './adventure/planning'
 import { readHoroscope } from './horoscope'
 import { readTasks } from './tasks'
 import { ApiError, apiErrorBody } from './upstream'
@@ -66,7 +66,10 @@ app.get('/api/adventure/migration-options', readMigrationOptions)
 app.get('/api/adventure/task-history', readTaskHistory)
 app.get('/api/adventure/growth', readGrowth)
 app.get('/api/adventure/reward-source', readRewardSource)
+app.get('/api/adventure/compatibility', c => c.json({ model: 'goal-categories', version: 1, receiptLookup: true, legacyRetry: false }))
+app.post('/api/adventure/legacy-retry', () => { throw new ApiError('CLIENT_UPDATE_REQUIRED', '旧页面操作结果可能未知，请不要刷新或重新提交，请联系维护人员核对。', 503) })
 app.post('/api/adventure/preview', previewPlanning)
+app.post('/api/adventure/receipts/lookup', lookupPlanningReceipt)
 app.post('/api/adventure/commands', commandPlanning)
 app.get('/api/tasks/today', async c => c.json(await readTasks(c.env, c.req.query('timeZone'))))
 app.get('/api/domains', async c => c.json(await readDomainCard(c.env)))

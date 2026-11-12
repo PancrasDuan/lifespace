@@ -19,7 +19,7 @@ test.describe('客户端版本切换', () => {
     await page.getByLabel('目标名称').fill('切换验收')
     await page.getByLabel('完成标准 1', { exact: true }).fill('完成')
     await page.getByRole('button', { name: '创建目标', exact: true }).click()
-    await expect(page.getByText('页面版本已过期，请刷新页面后重新操作')).toBeVisible()
+    await expect(page.getByText('旧页面操作结果可能未知，请不要刷新或重新提交，请联系维护人员核对。')).toBeVisible()
     expect(await db.snapshot()).toEqual(before)
     await page.unroute(path)
     await page.reload()

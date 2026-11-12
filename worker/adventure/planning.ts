@@ -17,6 +17,7 @@ const errors = {
   PENDING_TASKS: [400, '请先删除未完成任务，或在编辑任务中移到其他在用目标／独立任务'],
   VERSION_CONFLICT: [409, '数据已更新，请重新读取后确认操作'],
   REQUEST_ID_REUSED: [409, '请求编号已用于其他操作，请重新确认'],
+  RECEIPT_UNKNOWN: [404, '无法确认历史结果，请勿重新提交并联系维护人员'],
   REPLAY_UNAVAILABLE: [409, '历史结果无法安全重放，请重新读取后确认'],
   SAME_DESTINATION: [400, '当前归属无需迁移'],
   NOT_FOUND: [404, '内容不存在或不属于当前账户'],
@@ -126,11 +127,21 @@ export async function previewPlanning(c: PlanningContext) {
 
 export async function commandPlanning(c: PlanningContext) {
   if (c.req.header(adventureClientVersionHeader) !== adventureClientVersion)
-    throw new ApiError('CLIENT_UPDATE_REQUIRED', '页面版本已过期，请刷新页面后重新操作', 426)
+    throw new ApiError('CLIENT_UPDATE_REQUIRED', '旧页面操作结果可能未知，请不要刷新或重新提交，请联系维护人员核对。', 503)
   const value = await input(c, z.union([planningEnvelopeSchema, legacyGoalEnvelope]))
   return c.json(await rpc(c, 'adventure_planning_command', {
     p_request_id: value.requestId, p_expected_version: value.expectedVersion, p_command: value.command,
   }, planningReceiptSchema))
+}
+
+// This is a read-only lookup: it must never fall through to a command when a receipt is absent.
+export async function lookupPlanningReceipt(c: PlanningContext) {
+  const value = await input(c, z.union([planningEnvelopeSchema, legacyGoalEnvelope]))
+  const receipt = await rpc(c, 'adventure_receipt_lookup', {
+    p_request_id: value.requestId, p_command: value.command,
+  }, planningReceiptSchema)
+  c.header('X-Lifespace-Adventure-Model', adventureClientVersion)
+  return c.json(receipt)
 }
 
 export async function readMigrationOptions(c: PlanningContext) {
