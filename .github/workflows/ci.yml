@@ -14,8 +14,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  validate:
-    name: validate
+  secrets:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -26,12 +25,68 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version-file: .node-version
-          cache: npm
       - name: Scan secrets first
         run: npm run check:secrets
       - run: npm run test:secrets
+
+  checks:
+    needs: secrets
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        command: [test:api, 'test:security:portable', build]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version-file: .node-version
+          cache: npm
       - run: npm ci
-      - run: npm run build:ci
+      - run: npm run ${{ matrix.command }}
+
+  browser:
+    needs: secrets
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version-file: .node-version
+          cache: npm
+      - run: npm ci
       - name: Install Chromium
         run: PLAYWRIGHT_BROWSERS_PATH=.cache/playwright npx playwright install --with-deps chromium
-      - run: npm run test:browser
+      - run: npm run test:browser -- --shard=${{ matrix.shard }}/4
+
+  # Keep the branch protection check stable and fail closed for every dependency,
+  # including skipped or cancelled jobs. Matrix results cover every shard.
+  validate:
+    name: validate
+    if: ${{ always() }}
+    needs: [secrets, checks, browser]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require every job to succeed
+        env:
+          SECRETS_RESULT: ${{ needs.secrets.result }}
+          CHECKS_RESULT: ${{ needs.checks.result }}
+          BROWSER_RESULT: ${{ needs.browser.result }}
+        run: |
+          for result in "$SECRETS_RESULT" "$CHECKS_RESULT" "$BROWSER_RESULT"; do
+            if [ "$result" != success ]; then
+              echo "A required CI job did not succeed: $result"
+              exit 1
+            fi
+          done
