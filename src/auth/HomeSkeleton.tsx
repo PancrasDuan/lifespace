@@ -5,8 +5,8 @@ import './home-skeleton.css'
 const cards = [
   { kind: 'time', title: '世界时间', icon: Clock3 },
   { kind: 'weather', title: '今日天气', icon: CloudSun },
-  { kind: 'calendar', title: '日期与黄历', icon: CalendarDays },
   { kind: 'horoscope', title: '星座运势', icon: Sparkles },
+  { kind: 'calendar', title: '日期与黄历', icon: CalendarDays },
   { kind: 'domains', title: 'DNSHE 域名', icon: Globe },
   { kind: 'ai', title: 'AI 服务状态', icon: Activity },
 ]
