@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { localPlanningRpc, planningDatabase } from '../support/planning-database'
-import { planningPageSchema, type PlanningCommand } from '../../src/shared/adventure-planning'
+import { planningPageSchema, planningReceiptSchema, type PlanningCommand } from '../../src/shared/adventure-planning'
 
 const db = planningDatabase()
 const nativeFetch = globalThis.fetch
@@ -67,10 +67,22 @@ describe.skipIf(!localPlanningRpc)('关系卡片 Worker HTTP 与隔离数据库'
     const today = (await db.read(owner)).today
     const task = (await db.command(owner, { type: 'createTask', title: '历史行动', description: '', plannedOn: today, destination: source })).result.entityId
     await db.command(owner, { type: 'completeTask', id: task })
+    const requestId = crypto.randomUUID()
+    const version = (await db.read(owner)).version
+    const command = { type: 'migrateTask', id: task, destination: target }
     const fixture = await nativeFetch(new URL('/rpc/adventure_test_move_completed', localPlanningRpc!), {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ p_owner: owner, p_task: task, p_goal: target }),
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ p_owner: owner, p_task: task, p_goal: target, p_request_id: requestId }),
     })
-    expect(fixture.status).toBe(204)
+    expect(fixture.status).toBe(200)
+    const receipt = planningReceiptSchema.parse(await fixture.json())
+    expect(receipt).toMatchObject({ version: version + 1, result: { entityId: task, message: '已迁移任务' } })
+    const replay = await db.request(owner, '/api/adventure/commands', { requestId, expectedVersion: version, command })
+    expect(replay.status).toBe(200)
+    expect(await replay.json()).toEqual(receipt)
+    const conflict = await db.request(owner, '/api/adventure/commands', { requestId, expectedVersion: version, command: { ...command, destination: source } })
+    expect(conflict.status).toBe(409)
+    expect(await conflict.json()).toMatchObject({ error: { code: 'REQUEST_ID_REUSED' } })
+    expect((await db.read(owner)).version).toBe(receipt.version)
     const old = await db.read(owner, `?goalId=${source}`)
     expect(old.goalDetail?.relatedTasks).toEqual([])
     expect(old.goalDetail?.tasks).toMatchObject([{ id: task, goalId: target }])
