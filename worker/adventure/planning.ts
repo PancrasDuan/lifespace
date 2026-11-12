@@ -6,8 +6,9 @@ import { readBoundedBody, BodyLimitError } from '../read-body'
 import { ApiError } from '../upstream'
 import { traceUpstreamFailure, traceUpstreamStatus, upstreamFailureType } from '../trace'
 import { adventureClientVersion, adventureClientVersionHeader } from '../../src/shared/adventure-client-version'
+import { storedPlanningEnvelopeSchema } from '../../src/shared/adventure-recovery'
 import {
-  taskListInputSchema, taskListSchema, taskHistorySchema, migrationOptionsSchema, planningEnvelopeSchema, planningPageSchema, planningReceiptSchema, taskRangeSchema, taskScopeSchema, planningSearchSchema,
+  taskListInputSchema, taskListSchema, taskHistorySchema, migrationOptionsSchema, planningPageSchema, planningReceiptSchema, taskRangeSchema, taskScopeSchema, planningSearchSchema,
   planningPreviewInputSchema, planningPreviewSchema,
 } from '../../src/shared/adventure-planning'
 
@@ -89,22 +90,6 @@ async function input<T>(c: PlanningContext, schema: z.ZodType<T>): Promise<T> {
   }
 }
 
-// Old goal envelopes must reach the transaction unchanged after the same
-// normalization as the retired Worker, so its receipt lookup can replay them.
-// Fresh requests still fail the database's current strict command validation.
-const legacyGoalName = z.string().trim().min(1).max(200)
-const legacyGoalStandards = z.array(z.string().trim().max(4000)).min(1).max(50)
-  .transform(values => values.filter(Boolean)).pipe(z.array(z.string().min(1)).min(1).max(50))
-const legacyGoalDestination = z.union([z.literal(''), z.literal('independent'), z.uuid()])
-const legacyGoalEnvelope = z.strictObject({
-  requestId: z.string().regex(/^[A-Za-z0-9_-]{8,128}$/), expectedVersion: z.number().int().nonnegative().safe(),
-  command: z.union([
-    z.strictObject({ type: z.literal('createGoal'), destination: legacyGoalDestination, title: legacyGoalName, standards: legacyGoalStandards }),
-    z.strictObject({ type: z.literal('editGoal'), id: z.uuid(), destination: legacyGoalDestination, title: legacyGoalName, standards: legacyGoalStandards }),
-    z.strictObject({ type: z.literal('reorderGoals'), mainlineId: z.uuid(), id: z.uuid(), direction: z.enum(['up', 'down']), targetId: z.uuid().optional() }),
-  ]),
-})
-
 export async function readPlanning(c: PlanningContext) {
   const parsed = z.object({
     page: z.coerce.number().int().min(1).max(1_000_000).default(1),
@@ -129,7 +114,7 @@ export async function previewPlanning(c: PlanningContext) {
 export async function commandPlanning(c: PlanningContext) {
   if (c.req.header(adventureClientVersionHeader) !== adventureClientVersion)
     throw oldClientUnavailable()
-  const value = await input(c, z.union([planningEnvelopeSchema, legacyGoalEnvelope]))
+  const value = await input(c, storedPlanningEnvelopeSchema)
   return c.json(await rpc(c, 'adventure_planning_command', {
     p_request_id: value.requestId, p_expected_version: value.expectedVersion, p_command: value.command,
   }, planningReceiptSchema))
@@ -137,7 +122,7 @@ export async function commandPlanning(c: PlanningContext) {
 
 // This is a read-only lookup: it must never fall through to a command when a receipt is absent.
 export async function lookupPlanningReceipt(c: PlanningContext) {
-  const value = await input(c, z.union([planningEnvelopeSchema, legacyGoalEnvelope]))
+  const value = await input(c, storedPlanningEnvelopeSchema)
   const receipt = await rpc(c, 'adventure_receipt_lookup', {
     p_request_id: value.requestId, p_command: value.command,
   }, planningReceiptSchema)

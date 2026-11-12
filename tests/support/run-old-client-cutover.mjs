@@ -43,7 +43,8 @@ try {
     await new Promise(resolve => setTimeout(resolve, 100))
   }
   if (!ready) throw new Error('isolated PostgREST not ready')
-  const child = spawn(process.execPath, ['node_modules/@playwright/test/cli.js', 'test', 'tests/browser/adventure-legacy-cutover-database.spec.ts'], { cwd: root, env: { ...env, OLD_ADVENTURE_DIST: oldDist, OLD_CUTOVER_PG_PORT: String(port), OLD_CUTOVER_MARKER: marker, ADVENTURE_LOCAL_RPC_URL: `http://127.0.0.1:${rpcPort}` }, stdio: 'inherit' })
+  const spec = process.argv.includes('--handoff') ? 'tests/browser/adventure-transition-handoff-database.spec.ts' : 'tests/browser/adventure-legacy-cutover-database.spec.ts'
+  const child = spawn(process.execPath, ['node_modules/@playwright/test/cli.js', 'test', spec], { cwd: root, env: { ...env, OLD_ADVENTURE_DIST: oldDist, OLD_CUTOVER_PG_PORT: String(port), OLD_CUTOVER_MARKER: marker, ADVENTURE_LOCAL_RPC_URL: `http://127.0.0.1:${rpcPort}` }, stdio: 'inherit' })
   const [code] = await once(child, 'exit')
   if (code !== 0) throw new Error(`legacy browser exited ${code}`)
 } finally {

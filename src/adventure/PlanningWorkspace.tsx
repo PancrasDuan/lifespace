@@ -159,7 +159,7 @@ function Workspace() {
     void model.recover(close).then(type => {
       if (type === 'createGoal') selectTab('planning')
     })
-  }}>{uncertain ? '安全重试同一次操作' : '重新读取'}</button> : null
+  }}>{uncertain ? model.recoveryLabel : '重新读取'}</button> : null
   const cancelTask = async (task: PlanningTask) => {
     if (!task.completionId) return
     await model.command({ type: 'cancelTaskCompletion', completionId: task.completionId })
@@ -215,8 +215,8 @@ function Workspace() {
       <div className="create-intro"><strong>新建</strong><span>从目标或行动开始</span></div>
       <div className="heading-actions" role="group" aria-label="新建">
         {model.lastAchievement && <button type="button" className="new-button" disabled={blocked} onClick={() => openGoal(model.lastAchievement!)}>查看达成结果</button>}
-        <button type="button" className="new-button" disabled={busy || uncertain || !!pendingCreate || (data ? blocked || !createCapability('goal')?.allowed : tab !== 'growth')} title={createCapability('goal')?.reason} onClick={() => { inlineOrigin.current = document.activeElement instanceof HTMLElement ? document.activeElement : undefined; launchCreate('goal') }}><Sprout size={15} /><span>新建目标</span></button>
-        <button type="button" className="new-button create-action-primary" disabled={busy || uncertain || !!pendingCreate || (data ? blocked || !createCapability('task')?.allowed : tab !== 'growth')} title={createCapability('task')?.reason} onClick={() => { inlineOrigin.current = document.activeElement instanceof HTMLElement ? document.activeElement : undefined; launchCreate('task') }}><Plus size={15} /><span>新建行动</span></button>
+        <button type="button" className="new-button" disabled={!model.storageReady || busy || uncertain || !!pendingCreate || (data ? blocked || !createCapability('goal')?.allowed : tab !== 'growth')} title={createCapability('goal')?.reason} onClick={() => { inlineOrigin.current = document.activeElement instanceof HTMLElement ? document.activeElement : undefined; launchCreate('goal') }}><Sprout size={15} /><span>新建目标</span></button>
+        <button type="button" className="new-button create-action-primary" disabled={!model.storageReady || busy || uncertain || !!pendingCreate || (data ? blocked || !createCapability('task')?.allowed : tab !== 'growth')} title={createCapability('task')?.reason} onClick={() => { inlineOrigin.current = document.activeElement instanceof HTMLElement ? document.activeElement : undefined; launchCreate('task') }}><Plus size={15} /><span>新建行动</span></button>
       </div>
     </div>
     {legacyLink && <p role="alert" className="adventure-hint">{legacyLink}，请从目标列表查看。 <button type="button" onClick={() => { setLegacyLink(''); selectTab('planning') }}>查看目标</button></p>}
