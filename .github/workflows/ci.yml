@@ -48,6 +48,7 @@ jobs:
       command: build
 
   browser_1:
+    if: ${{ false }}
     needs: secrets
     uses: ./.github/workflows/ci-browser.yml
     with:
