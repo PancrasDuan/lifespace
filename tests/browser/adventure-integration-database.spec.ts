@@ -11,9 +11,8 @@ test.describe('跨功能交付与真实提交恢复验收（受控身份）', ()
   test.beforeEach(async ({ context }) => { await database.install(context) })
   test.afterEach(() => database.restore())
 
-  for (const width of [1440, 390]) test(`${width}px 真实提交后丢失响应、查询失败、撤销并发冲突与迁移达成来源联动`, async ({ page, context }) => {
-    const main = (await write({ type: 'createMainline', name: '联动主线' })).result.entityId
-    const goal = (await write({ type: 'createGoal', title: '联动成果', standards: ['结果确已达成'], destination: main })).result.entityId
+  for (const width of [1440, 390]) test(`${width}px 真实提交后丢失响应、查询失败、撤销并发冲突与目标达成来源联动`, async ({ page, context }) => {
+    const goal = (await write({ type: 'createGoal', title: '联动成果', standards: ['结果确已达成'], categoryLabel: '联动分类' })).result.entityId
     const task = (await database.createHistoricalTask({ type: 'createTask', title: '联动行动', description: '原行动说明', plannedOn: '2020-01-01', destination: goal })).result.entityId
     await page.setViewportSize({ width, height: 1000 })
     await page.goto('/adventure')
@@ -62,7 +61,7 @@ test.describe('跨功能交付与真实提交恢复验收（受控身份）', ()
 
     // A concurrent write makes the current row stale; direct cancellation must
     // reject it, reload, and wait for another explicit click.
-    await write({ type: 'createGoal', title: '另一会话的新目标', standards: ['标准'], destination: '' })
+    await write({ type: 'createGoal', title: '另一会话的新目标', standards: ['标准'] })
     await card.getByRole('button', { name: '取消完成', exact: true }).click()
     await expect(page.getByRole('alert')).toContainText('数据已更新')
     expect((await snapshot()).tasks[0].completionId).toBe(completion)
@@ -78,13 +77,11 @@ test.describe('跨功能交付与真实提交恢复验收（受控身份）', ()
     await openRecordActions(card)
     await expect(card.getByRole('button', { name: '编辑任务', exact: true })).toHaveCount(0)
     await expect(card.getByRole('button', { name: '迁移任务', exact: true })).toHaveCount(0)
-    await page.getByRole('button', { name: '主线与目标', exact: true }).click()
-    await page.getByRole('button', { name: '目标：联动成果', exact: true }).click()
-    await page.getByRole('button', { name: '确认达成', exact: true }).click()
+    await page.getByRole('button', { name: '目标', exact: true }).click()
+    await page.locator('.goal-console-row').filter({ hasText: '联动成果' }).getByRole('button', { name: '达成', exact: true }).click()
     await page.getByLabel('成就感评价', { exact: true }).selectOption('3')
     await page.getByRole('button', { name: '确认达成并入账', exact: true }).click()
-    await expect(page.getByRole('region', { name: '目标详情', exact: true })).toContainText('目标奖励 3 点经验')
-    await page.keyboard.press('Escape')
+    await expect(page.getByRole('dialog')).toBeHidden()
     await page.getByRole('navigation', { name: '冒险页面' }).getByRole('button', { name: '今日聚焦', exact: true }).click()
     await openRecordActions(card)
     await expect(card.getByRole('button', { name: '取消完成', exact: true })).toBeDisabled()

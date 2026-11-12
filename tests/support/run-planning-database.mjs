@@ -15,6 +15,12 @@ const ledgerOnly = process.argv.includes('--ledger')
 const goalsOnly = process.argv.includes('--goals-only')
 const goalModel = process.argv.includes('--goal-model')
 const legacyModel = process.argv.includes('--legacy-model')
+const legacyRegression = process.argv.includes('--legacy-regression')
+const fullAdventure = !ledgerOnly && !goalsOnly && !goalModel && !legacyModel && !legacyRegression
+const legacySchema = ['tests/database/legacy-goal-migration/create-planning.sql', 'tests/database/legacy-goal-migration/list-tasks.sql']
+const legacyChecks = ['tests/database/adventure-history-seed.sql', 'tests/database/adventure-planning.sql',
+  'tests/database/adventure-actions.sql', 'tests/database/adventure-goals.sql', 'tests/database/adventure-migrations.sql',
+  'tests/database/adventure-lifecycle.sql', 'tests/database/adventure-reschedule.sql', 'tests/database/adventure-growth.sql']
 const work = await mkdtemp(join(tmpdir(), 'lifespace-actions-db-'))
 const binary = name => process.env.POSTGRES_BIN ? join(process.env.POSTGRES_BIN, name) : name
 const cleanEnv = Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('PG') && key !== 'ADVENTURE_MIGRATED_FIXTURE' && key !== 'ADVENTURE_LOCAL_RPC_URL'))
@@ -54,6 +60,18 @@ const run = async (command, args, { input, env = cleanEnv, quiet = false, interr
 }
 let rest, client, result = 1, goalReplayFixture
 try {
+  if (fullAdventure) {
+    // Preserve the old SQL contract and its original upgrade checks in their
+    // own legacy database, then exercise the new schema, migrated receipts,
+    // goal Worker and exhaustive migration/security probes independently.
+    for (const mode of ['--legacy-regression', '--goal-model', '--legacy-model', '--goals-only']) {
+      await run(process.execPath, [fileURLToPath(import.meta.url), mode, ...(mode === '--goal-model' ? process.argv.slice(2) : [])])
+    }
+    await run(process.execPath, ['--test', 'tests/database/goal-migration-reconcile.test.mjs'])
+    await run(process.execPath, ['tests/support/run-goal-migration-baseline.mjs', '--migration', 'db/adventure/migrations/20261111000000_goal_categories.sql'])
+    console.log('通过：旧库保护、四表 HTTP、历史回执、目标契约与完整迁移安全验收')
+    result = 0
+  } else {
   await mkdir(join(root, '.cache'), { recursive: true })
   const port = await freePort()
   await run(binary('initdb'), ['-D', work, '-U', 'postgres', '-A', 'trust', '--no-locale', '--encoding=UTF8'], { quiet: true, interruptible: false })
@@ -68,7 +86,13 @@ try {
   }
   await sql('create role anon; create role authenticated; create role service_role bypassrls; grant usage on schema public to service_role;')
   if (ledgerOnly) await sql('create schema auth; create table auth.users (id uuid primary key);')
-  for (const path of ledgerOnly ? ['db/ledger/create-ledger.sql', 'db/ledger/list-ledger.sql', 'db/ledger/refunds.sql', 'db/ledger/delete.sql', 'db/ledger/accounts.sql', 'db/ledger/account-entries.sql', 'db/ledger/transfers.sql', 'db/ledger/migrations/20261105002135_remove_legacy_ledger_account_name_v1.sql', 'db/ledger/migrations/20261106000000_ledger_account_filter.sql', 'db/agent/migrations/20261106031343_agent_access_bindings.sql', 'tests/database/ledger.sql', 'tests/database/ledger-accounts.sql', 'tests/database/ledger-transfers.sql', 'tests/database/agent-bindings.sql'] : goalsOnly ? ['tests/database/legacy-goal-migration/create-planning.sql', 'tests/database/legacy-goal-migration/list-tasks.sql'] : legacyModel ? ['tests/database/legacy-goal-migration/create-planning.sql', 'tests/database/legacy-goal-migration/list-tasks.sql', 'tests/database/goal-migration-fixture.sql'] : goalModel ? ['db/adventure/create-planning.sql', 'db/adventure/list-tasks.sql', 'tests/database/adventure-goal-model-history-seed.sql'] : ['db/adventure/create-planning.sql', 'db/adventure/list-tasks.sql', 'tests/database/adventure-history-seed.sql', 'tests/database/adventure-planning.sql', 'tests/database/adventure-actions.sql', 'tests/database/adventure-goals.sql', 'tests/database/adventure-migrations.sql', 'tests/database/adventure-lifecycle.sql', 'tests/database/adventure-reschedule.sql', 'tests/database/adventure-growth.sql']) await sql(await readFile(join(root, path), 'utf8'))
+  const setup = ledgerOnly ? ['db/ledger/create-ledger.sql', 'db/ledger/list-ledger.sql', 'db/ledger/refunds.sql', 'db/ledger/delete.sql', 'db/ledger/accounts.sql', 'db/ledger/account-entries.sql', 'db/ledger/transfers.sql', 'db/ledger/migrations/20261105002135_remove_legacy_ledger_account_name_v1.sql', 'db/ledger/migrations/20261106000000_ledger_account_filter.sql', 'db/agent/migrations/20261106031343_agent_access_bindings.sql', 'tests/database/ledger.sql', 'tests/database/ledger-accounts.sql', 'tests/database/ledger-transfers.sql', 'tests/database/agent-bindings.sql']
+    : goalsOnly ? legacySchema
+    : legacyModel ? [...legacySchema, 'tests/database/goal-migration-fixture.sql']
+    : legacyRegression ? [...legacySchema, ...legacyChecks]
+    : ['db/adventure/create-planning.sql', 'db/adventure/list-tasks.sql', 'tests/database/adventure-goal-model-transaction.sql', 'tests/database/adventure-goal-model-history-seed.sql']
+  for (const path of setup) await sql(await readFile(join(root, path), 'utf8'))
+  if (legacyRegression) console.log(`通过：旧五表 SQL 回归（${legacyChecks.length} 个脚本）`)
   let migratedFixture
   if (goalsOnly) {
     const owner = '00000000-0000-4000-8000-000000000171'
@@ -127,12 +151,13 @@ try {
     await sql(migration)
     await sql(migration)
     await sql(await readFile(join(root, 'tests/database/adventure-today-upgrade-after.sql'), 'utf8'))
+    if (legacyRegression) await sql(await readFile(join(root, 'tests/database/adventure-actions-audit.sql'), 'utf8'))
     console.log('通过：非空五表函数升级可重复执行，旧结束任务、完成奖励与成功回执均保留')
   }
   if (ledgerOnly) await sql(`insert into auth.users (id) values ('00000000-0000-4000-8000-000000000007');
     insert into public.agent_identity_bindings (client_id, owner_id, enabled)
       values ('synthetic-http-active.access', '00000000-0000-4000-8000-000000000007', true);`)
-  if (!ledgerOnly && !legacyModel && !goalsOnly) await sql(`create function pg_temp.fail_reschedule_http() returns trigger language plpgsql as $$
+  if (!ledgerOnly && !legacyModel && !goalsOnly && !legacyRegression) await sql(`create function pg_temp.fail_reschedule_http() returns trigger language plpgsql as $$
     begin
       if new.kind='task_rescheduled' and new.snapshot->>'title'='reschedule-http-failpoint' then raise exception 'RESCHEDULE_HTTP_FAILPOINT'; end if;
       return new;
@@ -166,6 +191,7 @@ try {
     end $$;
     create trigger ledger_transfer_test_failpoint before insert on public.ledger_entries
       for each row execute function pg_temp.ledger_transfer_failpoint();`)
+  if (!legacyRegression) {
   console.log(ledgerOnly ? '通过：隔离账单基线与账户结构升级（四表）' : goalsOnly ? '通过：目标控制台旧库升级至四表' : legacyModel ? '通过：合成旧库升级至四表' : goalModel ? '通过：四表空库初始化' : '通过：空库初始化、规划／任务事务、回滚、历史锁定和权限探针')
   const rpcPort = await freePort()
   const ledgerJwtSecret = ledgerOnly ? crypto.randomUUID() + crypto.randomUUID() : undefined
@@ -211,7 +237,9 @@ try {
   if (goalModel) await sql(await readFile(join(root, 'tests/database/adventure-goal-model-audit.sql'), 'utf8'))
   if (!ledgerOnly && !goalModel && !legacyModel && !goalsOnly) await sql(await readFile(join(root, 'tests/database/adventure-actions-audit.sql'), 'utf8'))
   console.log(ledgerOnly ? '通过：真实账单数据库验收，临时环境将清理' : goalModel || legacyModel || goalsOnly ? '通过：所选四表 HTTP／浏览器测试，临时环境将清理' : '通过：HTTP／浏览器操作后的任务、冻结奖励、取消关联、账户经验、请求数与版本全量核对')
+  }
   result = 0
+  }
 } catch (error) {
   console.error(error instanceof Error ? error.message : '隔离数据库验收失败')
 } finally {
