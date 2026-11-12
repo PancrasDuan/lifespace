@@ -5,6 +5,7 @@ import { test, expect } from './authenticated-test'
 import { planningDatabase } from '../support/planning-database'
 import { openCutoverDatabase } from '../support/old-cutover-pg.mjs'
 import { openRecordActions } from './adventure-record-helpers'
+import { planningReceiptSchema } from '../../src/shared/adventure-planning'
 
 const oldRoot = process.env.OLD_ADVENTURE_DIST
 const port = Number(process.env.OLD_CUTOVER_PG_PORT)
@@ -42,7 +43,8 @@ test('过渡版持久封套跨关闭与迁移由新构建只读接续，并隔�
   const marker = await sql.query('select id from cutover_test.marker')
   if (marker.rows.length !== 1 || marker.rows[0].id !== process.env.OLD_CUTOVER_MARKER) throw new Error('isolated cluster marker mismatch')
   let phase: 'legacy' | 'maintenance' | 'current' = 'legacy', activeOwner = firstOwner, lose = true
-  let lookupFault: 'unknown' | 'conflict' | 'unsafe' | 'bad-cache' | 'auth' | undefined
+  let lookupFault: 'unknown' | 'conflict' | 'unsafe' | 'bad-cache' | 'auth' | 'delay' | undefined
+  let resumeLookup = () => {}
   const oldEnvelopes: unknown[] = [], newCommands: unknown[] = [], lookups: unknown[] = []
   try {
     if (scenario === 'edit' || scenario === 'reorder') {
@@ -50,7 +52,7 @@ test('过渡版持久封套跨关闭与迁移由新构建只读接续，并隔�
       const seed = async (command: object) => {
         const result = await sql.query('select public.adventure_planning_command($1,$2,$3,$4::jsonb) result', [firstOwner, `seed-command-${version}`, version, JSON.stringify(command)])
         version++
-        return result.rows[0].result.result.entityId as string
+        return planningReceiptSchema.parse(result.rows[0].result).result.entityId
       }
       const destination = scenario === 'reorder' ? await seed({ type: 'createMainline', name: '接续主线' }) : ''
       await seed({ type: 'createGoal', destination, title: '待编辑目标', standards: ['完成'] })
@@ -74,6 +76,11 @@ test('过渡版持久封套跨关闭与迁移由新构建只读接续，并隔�
       if (phase === 'current' && url.pathname === '/api/adventure/commands') newCommands.push(body)
       if (phase === 'current' && url.pathname === '/api/adventure/receipts/lookup') lookups.push(body)
       if (phase === 'current' && url.pathname === '/api/adventure/receipts/lookup' && lookupFault) {
+        if (lookupFault === 'delay') {
+          await new Promise<void>(resolve => { resumeLookup = resolve })
+          try { await route.fulfill({ headers: { 'Cache-Control': 'no-store', 'X-Lifespace-Adventure-Model': 'goal-categories-1' }, json: { version: 1, result: { entityId: firstOwner, message: '延迟响应' } } }) } catch { /* browser aborted the old identity's request */ }
+          return
+        }
         if (lookupFault === 'bad-cache') return route.fulfill({ headers: { 'Cache-Control': 'no-store, extension=', 'X-Lifespace-Adventure-Model': 'goal-categories-1' }, json: { version: 1, result: { entityId: firstOwner, message: '合成响应' } } })
         return route.fulfill({ status: lookupFault === 'unknown' ? 404 : lookupFault === 'auth' ? 403 : 409, json: { error: { code: lookupFault === 'unknown' ? 'RECEIPT_UNKNOWN' : lookupFault === 'unsafe' ? 'REPLAY_UNAVAILABLE' : lookupFault === 'auth' ? 'AUTH_DENIED' : 'REQUEST_ID_REUSED', message: '合成故障' } } })
       }
@@ -98,7 +105,7 @@ test('过渡版持久封套跨关闭与迁移由新构建只读接续，并隔�
     } else if (scenario === 'edit') {
       await page.getByRole('button', { name: '目标：待编辑目标', exact: true }).click()
       await openRecordActions(page.locator('.adventure-proto-goal').first())
-      await page.getByRole('region', { name: '目标详情', exact: true }).getByRole('button', { name: '编辑目标' }).click()
+      await page.getByRole('region', { name: '目标详情', exact: true }).getByRole('button', { name: '编辑目标', exact: true }).click()
       await page.getByLabel('目标名称').fill('跨版本已编辑目标')
       await page.getByRole('button', { name: '保存目标', exact: true }).click()
     } else if (scenario === 'reorder') {
@@ -131,6 +138,45 @@ test('过渡版持久封套跨关闭与迁移由新构建只读接续，并隔�
     await current.goto('/adventure')
     await expect(current.getByText(/有一项操作的结果尚未确认/)).toBeVisible()
     await expect(current.getByRole('button', { name: '新建目标', exact: true })).toBeDisabled()
+    const contender = await context.newPage()
+    await contender.goto('/adventure')
+    await expect(contender.getByRole('button', { name: '确认上次操作结果' })).toBeVisible()
+    await contender.evaluate(owner => {
+      const state = window as Window & { lockHeld?: boolean; releaseLock?: () => void }
+      void navigator.locks.request(`lifespace-adventure-command:${owner}`, async () => {
+        state.lockHeld = true
+        await new Promise<void>(resolve => { state.releaseLock = resolve })
+      })
+    }, firstOwner)
+    await expect.poll(() => contender.evaluate(() => (window as Window & { lockHeld?: boolean }).lockHeld)).toBe(true)
+    await current.getByRole('button', { name: '确认上次操作结果' }).click()
+    await expect(current.getByText(/另一页面正在处理操作/)).toBeVisible()
+    expect(lookups).toEqual([])
+    expect(await pending(current, firstOwner)).toEqual(oldEnvelopes[0])
+    await contender.evaluate(() => (window as Window & { releaseLock?: () => void }).releaseLock?.())
+    await contender.close()
+    lookupFault = 'delay'
+    await current.getByRole('button', { name: '确认上次操作结果' }).click()
+    await expect.poll(() => lookups.length).toBe(1)
+    activeOwner = secondOwner
+    await current.evaluate(owner => {
+      localStorage.setItem('test-auth-owner', owner)
+      window.dispatchEvent(new Event('lifespace-auth-session-changed'))
+    }, secondOwner)
+    await expect(current.locator('.adventure-page')).toHaveCount(0)
+    resumeLookup()
+    expect(await pending(current, firstOwner)).toEqual(oldEnvelopes[0])
+    expect(newCommands).toEqual([])
+    await current.close()
+    current = await context.newPage()
+    await current.goto('/adventure')
+    await expect(current.getByRole('button', { name: '新建目标', exact: true })).toBeEnabled()
+    expect(await pending(current, firstOwner)).toEqual(oldEnvelopes[0])
+    await current.evaluate(owner => localStorage.setItem('test-auth-owner', owner), firstOwner)
+    await current.close(); activeOwner = firstOwner
+    current = await context.newPage()
+    await current.goto('/adventure')
+    await expect(current.getByRole('button', { name: '确认上次操作结果' })).toBeVisible()
     // Inject response failures at the synthetic proxy; none is evidence about
     // production routes or the real identity provider.
     for (const fault of ['unknown', 'conflict', 'unsafe', 'bad-cache', 'auth'] as const) {
@@ -154,8 +200,8 @@ test('过渡版持久封套跨关闭与迁移由新构建只读接续，并隔�
     lookupFault = undefined
     // Only the authentic Worker and isolated database can resolve the receipt.
     await current.getByRole('button', { name: '确认上次操作结果' }).click()
-    await expect.poll(async () => lookups.length).toBe(6)
-    expect(lookups.every(value => JSON.stringify(value) === JSON.stringify(oldEnvelopes[0]))).toBe(true)
+    await expect.poll(async () => lookups.length).toBe(7)
+    for (const lookup of lookups) expect(lookup).toEqual(oldEnvelopes[0])
     await expect.poll(() => pending(current, firstOwner)).toBeUndefined()
     expect(newCommands).toEqual([])
     expect((await sql.query('select revision,total_xp from public.adventure_accounts where owner_id=$1', [firstOwner])).rows).toEqual(before.rows)

@@ -10,6 +10,23 @@ import pg from 'pg'
 const root = resolve(import.meta.dirname, '../..')
 const oldDist = process.env.OLD_ADVENTURE_DIST
 if (!oldDist) throw new Error('OLD_ADVENTURE_DIST must point to a separately built legacy client')
+// Each handoff migrates its database, so every scenario needs a fresh cluster.
+// The standard entry point must cover all four; an explicit scenario is useful
+// for diagnosis but is not evidence that the complete matrix passed.
+const scenarios = ['task', 'goal', 'edit', 'reorder']
+if (process.argv.includes('--handoff') && !process.env.OLD_CUTOVER_SCENARIO) {
+  for (const scenario of scenarios) {
+    console.log(`Handoff scenario: ${scenario}`)
+    const result = spawnSync(process.execPath, [import.meta.filename, ...process.argv.slice(2)], {
+      cwd: root, env: { ...process.env, OLD_CUTOVER_SCENARIO: scenario }, stdio: 'inherit',
+    })
+    if (result.error || result.status !== 0) throw result.error ?? new Error(`handoff ${scenario} exited ${result.status}`)
+  }
+  process.exit(0)
+}
+if (process.argv.includes('--handoff') && !scenarios.includes(process.env.OLD_CUTOVER_SCENARIO)) {
+  throw new Error('Unknown OLD_CUTOVER_SCENARIO')
+}
 const dir = await mkdtemp(join(tmpdir(), 'lifespace-old-cutover-'))
 const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('PG')))
 const bin = name => process.env.POSTGRES_BIN ? join(process.env.POSTGRES_BIN, name) : name
