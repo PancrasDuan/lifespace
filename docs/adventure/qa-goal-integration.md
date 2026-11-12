@@ -73,6 +73,8 @@ IndexedDB 在浏览器配置中以明文保留完整命令，可能被共享设�
 
 ### 复核后复跑（2026-11-12）
 
-基于 `6d2115539442dc1f1226fa783aeafd77492b40b4` 和本次待提交的接力测试修正，`npm run build` 通过；`npm run test:api` 为 322 通过、167 跳过。无参数 `npm run test:database` 完整通过（四表 HTTP 72、迁移旧回执 5、目标契约 5 项均执行且无跳过，以及旧五表和迁移安全基线）；`npm run test:database:runner` 10 项通过。合成旧库的备份、恢复、逐行核对及再次迁移清理通过；完整密钥扫描通过。portable 安全检查沙箱外再次失败：90 秒超时及隔离 fixture 的 Worker 路径解析错误，仍是未通过项。
+基于 `6d2115539442dc1f1226fa783aeafd77492b40b4` 和本次待提交的接力测试修正，`npm run build` 通过；`npm run test:api` 为 322 通过、167 跳过。无参数 `npm run test:database` 完整通过（四表 HTTP 72、迁移旧回执 5、目标契约 5 项均执行且无跳过，以及旧五表和迁移安全基线）；`npm run test:database:runner` 10 项通过。合成旧库的备份、恢复、逐行核对及再次迁移清理通过；完整密钥扫描通过。portable 安全检查沙箱外曾再次失败：90 秒超时及隔离 fixture 的 Worker 路径解析错误，当时不能计为通过。
+
+后续固定检查点 `820b578728424dc1b6cccc1b236ca7fd7c5d0a1e` 重跑：四表真实数据库浏览器回归 40 项通过、无跳过。将临时目录移到工作区内独立的非 `.cache` 目录、避开其他测试并在沙箱外执行后，串行的 `node --test --test-concurrency=1 tests/security/temp-directory.test.mjs tests/security/cleanup.test.mjs` 和标准 `npm run test:security:portable` 均为 4 项通过；负例实际验证持续晚写及虚构凭据均阻断检查。先前 fixture 位于 Vite `fs.deny` 覆盖的 `.cache` 目录，其 Worker 路径加载失败；超时的单一原因尚未证实，不把此次成功归因于某一个因素。所有结果仍仅覆盖本地合成资源。
 
 标准接力入口 `node tests/support/run-old-client-cutover.mjs --handoff` 默认依次运行 task、goal、edit、reorder，每种新建独立旧库；四种均通过。执行时需设置 `OLD_ADVENTURE_DIST` 指向独立构建的过渡版、`POSTGRES_BIN`、`POSTGREST_BIN`、数据库动态库及 Chromium 路径；设置 `OLD_CUTOVER_SCENARIO` 只运行单个场景，不代表矩阵通过。本次过渡构建为 `eebe9ea596ed30d6f03aa075ee379da8faf18119`，新构建为上述提交加本次测试修正；真实身份、外层路由、已打开的原始旧页面及生产运行条件仍不在此证据范围。
