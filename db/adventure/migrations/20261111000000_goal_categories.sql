@@ -300,7 +300,7 @@ end $$;
 -- Fail closed on unknown structured receipt fields while preserving user text.
 create or replace function public.adventure_receipt_safe(j jsonb, shape text)
 returns boolean language plpgsql immutable security invoker set search_path='' as $$
-declare k text; v jsonb; allowed text[]; child text; expected_type text;
+declare k text; v jsonb; allowed text[]; child text; expected_type text; date_year integer; date_month integer; date_day integer; days_in_month integer;
 begin
   if jsonb_typeof(j) is distinct from 'object' then return false; end if;
   allowed:=case shape
@@ -357,7 +357,15 @@ begin
       if (shape='result' and k in ('entityId','completionId','achievementId')) or (shape='source' and k='goalId') or (shape='calculation' and k='completionId') then
         if (v #>> '{}') !~* '^([0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$' then return false; end if;
       elsif shape='source' and k in ('plannedOn','occurredOn') then
-        if (v #>> '{}') !~ '^\d{4}-\d{2}-\d{2}$' or to_char((v #>> '{}')::date,'YYYY-MM-DD')<>(v #>> '{}') then return false; end if;
+        -- ISO 8601 includes year 0000; PostgreSQL date casts do not.
+        if (v #>> '{}') !~ '^\d{4}-\d{2}-\d{2}$' then return false; end if;
+        date_year:=substring(v #>> '{}' from 1 for 4)::integer;
+        date_month:=substring(v #>> '{}' from 6 for 2)::integer;
+        date_day:=substring(v #>> '{}' from 9 for 2)::integer;
+        if date_month not between 1 and 12 then return false; end if;
+        days_in_month:=case when date_month=2 then case when date_year%400=0 or (date_year%4=0 and date_year%100<>0) then 29 else 28 end
+          when date_month in (4,6,9,11) then 30 else 31 end;
+        if date_day not between 1 and days_in_month then return false; end if;
       end if;
     end if;
   end loop;
@@ -372,7 +380,7 @@ begin
         or not (j ?& array['actionIds','fallback']) or (j->>'coefficient')::numeric not between 1 and 3
         or (j->>'count')::numeric<>jsonb_array_length(j->'actionIds')
         or (j->>'fallback')::boolean<>(jsonb_array_length(j->'actionIds')=0)
-        or (select count(distinct value) from jsonb_array_elements_text(j->'actionIds'))<>jsonb_array_length(j->'actionIds') then return false; end if;
+        or (select count(distinct lower(value)) from jsonb_array_elements_text(j->'actionIds'))<>jsonb_array_length(j->'actionIds') then return false; end if;
     else return false; end if;
   end if;
   return true;

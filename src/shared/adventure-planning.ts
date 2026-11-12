@@ -106,11 +106,16 @@ export const planningPageSchema = z.object({
 })
 export type PlanningPage = z.infer<typeof planningPageSchema>
 export type PlanningGoal = PlanningPage['goals'][number]
+// PostgreSQL UUIDs are case-insensitive; Zod accepts uppercase UUIDs except
+// the all-F max value. Normalize that value only, preserving other text.
+const receiptUuid = z.string().transform(value => value.toLowerCase() === 'ffffffff-ffff-ffff-ffff-ffffffffffff' ? value.toLowerCase() : value).pipe(z.uuid())
+const receiptTaskReward = taskRewardSchema.extend({ calculation: taskRewardSchema.shape.calculation.extend({ completionId: receiptUuid }) })
+const receiptGoalReward = goalRewardSchema.extend({ calculation: goalRewardSchema.shape.calculation.safeExtend({ actionIds: z.array(receiptUuid) }) })
 export const planningReceiptSchema = z.object({
   version,
-  result: z.object({ entityId: z.uuid(), message: z.string(),
-    completionId: z.uuid().nullable().optional(), reward: z.union([taskRewardSchema, goalRewardSchema]).nullable().optional(), achievementId: z.uuid().optional(),
-    source: z.object({ goalId: z.uuid().nullable().optional(), goalTitle: z.string().nullable().optional(), title: z.string().optional(), description: z.string().optional(), plannedOn: z.iso.date().optional(), occurredOn: z.iso.date().optional(), categoryLabel: z.string().nullable().optional() }).optional(),
+  result: z.object({ entityId: receiptUuid, message: z.string(),
+    completionId: receiptUuid.nullable().optional(), reward: z.union([receiptTaskReward, receiptGoalReward]).nullable().optional(), achievementId: receiptUuid.optional(),
+    source: z.object({ goalId: receiptUuid.nullable().optional(), goalTitle: z.string().nullable().optional(), title: z.string().optional(), description: z.string().optional(), plannedOn: z.iso.date().optional(), occurredOn: z.iso.date().optional(), categoryLabel: z.string().nullable().optional() }).optional(),
     growthChange: z.object({ xpDelta: z.number().int().min(-Number.MAX_SAFE_INTEGER).max(Number.MAX_SAFE_INTEGER), before: growthSchema, after: growthSchema, unlocked: z.array(z.string()), lost: z.array(z.string()) }).optional(),
   }),
 })

@@ -172,8 +172,14 @@ try {
     console.log('通过：隔离旧库创建目标与编辑回执并迁移到四表')
   }
   if (legacyModel) {
-    // Additional genuine legacy non-mainline receipts, plus two unsafe message
-    // variants, exist only in this disposable migration fixture.
+    // Genuine legacy receipts and explicitly synthetic unsafe/boundary variants
+    // exist only in this disposable migration fixture.
+    const uuidForm = (await sql("select jsonb_build_object('id','FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF'::uuid)->>'id' as id")).rows[0].id
+    if (uuidForm !== 'ffffffff-ffff-ffff-ffff-ffffffffffff') throw new Error('unexpected PostgreSQL UUID serialization')
+    await sql(`do $$ begin
+      begin perform '0000-01-01'::date; raise exception 'year zero unexpectedly accepted';
+      exception when datetime_field_overflow then null; end;
+    end $$;`)
     await sql(`do $$
     declare o uuid:='00000000-0000-4000-8000-000000000005'; u uuid:='00000000-0000-4000-8000-000000000006';
       m uuid; g uuid; r jsonb; c jsonb; today date:=(clock_timestamp() at time zone 'Asia/Shanghai')::date;
@@ -189,9 +195,33 @@ try {
         r:=public.adventure_planning_command(u,case i when 0 then 'unsafe-cn-receipt' when 1 then 'unsafe-en-receipt' else 'unsafe-source-type' end,i,c);
         insert into goal_fixture_receipts values(u,case i when 0 then 'unsafe-cn-receipt' when 1 then 'unsafe-en-receipt' else 'unsafe-source-type' end,c,r);
       end loop;
+      for i in 0..17 loop
+        c:=jsonb_build_object('type','createTask','title','边界回执 '||i,'description','','plannedOn',today,'destination','');
+        r:=public.adventure_planning_command(u,'boundary-receipt-'||i,i+3,c);
+        insert into goal_fixture_receipts values(u,'boundary-receipt-'||i,c,r);
+      end loop;
     end $$;
     update public.adventure_events set snapshot=jsonb_set(snapshot,'{result}',snapshot->'result' || jsonb_build_object('unknownSource',jsonb_build_object('alias','retired'))) where request_id in ('unsafe-cn-receipt','unsafe-en-receipt');
     update public.adventure_events set snapshot=jsonb_set(snapshot,'{result}',snapshot->'result' || '{"source":{"goalTitle":true}}'::jsonb) where request_id='unsafe-source-type';
+    update public.adventure_events set snapshot=jsonb_set(snapshot,'{result}',snapshot->'result' || jsonb_build_object('source',case request_id
+      when 'boundary-receipt-0' then jsonb_build_object('goalId','FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF')
+      when 'boundary-receipt-1' then jsonb_build_object('goalId','AAAAAAAA-AAAA-4AAA-AAAA-AAAAAAAAAAAA')
+      when 'boundary-receipt-2' then jsonb_build_object('goalId','aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa')
+      when 'boundary-receipt-3' then jsonb_build_object('goalId','00000000-0000-0000-0000-000000000000')
+      when 'boundary-receipt-4' then jsonb_build_object('goalId','ffffffff-ffff-ffff-ffff-ffffffffffff')
+      when 'boundary-receipt-5' then jsonb_build_object('plannedOn','0000-01-01')
+      when 'boundary-receipt-6' then jsonb_build_object('plannedOn','0001-01-01')
+      when 'boundary-receipt-7' then jsonb_build_object('occurredOn','9999-12-31')
+      when 'boundary-receipt-8' then jsonb_build_object('plannedOn','0000-02-30')
+      when 'boundary-receipt-9' then jsonb_build_object('goalId','not-a-uuid')
+      when 'boundary-receipt-10' then jsonb_build_object('plannedOn','0000-02-29')
+      when 'boundary-receipt-11' then jsonb_build_object('plannedOn','1900-02-29')
+      when 'boundary-receipt-12' then jsonb_build_object('plannedOn','2000-02-29')
+      else jsonb_build_object('plannedOn','0000-13-01') end)) where request_id like 'boundary-receipt-%' and split_part(request_id,'-',3)::integer < 14;
+    update public.adventure_events set snapshot=jsonb_set(snapshot,'{result,entityId}',to_jsonb('FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF'::text)) where request_id='boundary-receipt-14';
+    update public.adventure_events set snapshot=jsonb_set(snapshot,'{result,reward}','{"amount":1,"calculation":{"type":"fixed_task","completionId":"FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF","count":1,"coefficient":1}}'::jsonb) where request_id='boundary-receipt-15';
+    update public.adventure_events set snapshot=jsonb_set(snapshot,'{result,reward}','{"amount":1,"calculation":{"type":"goal_actions","actionIds":["FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF"],"count":1,"coefficient":1,"fallback":false}}'::jsonb) where request_id='boundary-receipt-16';
+    update public.adventure_events set snapshot=jsonb_set(snapshot,'{result,reward}','{"amount":2,"calculation":{"type":"goal_actions","actionIds":["FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF","ffffffff-ffff-ffff-ffff-ffffffffffff"],"count":2,"coefficient":1,"fallback":false}}'::jsonb) where request_id='boundary-receipt-17';
     update goal_fixture_receipts set receipt=jsonb_set(receipt,'{result,message}',to_jsonb(case request_id when 'unsafe-cn-receipt' then '旧主线已保存' else 'Old MainLine saved' end)) where request_id in ('unsafe-cn-receipt','unsafe-en-receipt');`)
     // Put old structured attribution inside a genuine success receipt; retain
     // the original envelope so HTTP replay can be checked after migration.
@@ -229,6 +259,20 @@ try {
         new.snapshot := new.snapshot - 'result';
       elsif new.kind='task_created' and new.snapshot->>'title' in ('unsafe-cn-fixture','unsafe-en-fixture') and new.snapshot ? 'result' then
         new.snapshot := jsonb_set(new.snapshot,'{result}',new.snapshot->'result' || '{"unknownSource":{"alias":"retired"}}'::jsonb);
+      elsif new.kind='task_created' and new.snapshot->>'title' like 'boundary-fresh-%' and new.snapshot ? 'result' then
+        new.snapshot := jsonb_set(new.snapshot,'{result}',new.snapshot->'result' || jsonb_build_object('source',case new.snapshot->>'title'
+          when 'boundary-fresh-0' then jsonb_build_object('goalId','FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF')
+          when 'boundary-fresh-1' then jsonb_build_object('goalId','AAAAAAAA-AAAA-4AAA-AAAA-AAAAAAAAAAAA')
+          when 'boundary-fresh-2' then jsonb_build_object('goalId','aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa')
+          when 'boundary-fresh-3' then jsonb_build_object('goalId','00000000-0000-0000-0000-000000000000')
+          when 'boundary-fresh-4' then jsonb_build_object('goalId','ffffffff-ffff-ffff-ffff-ffffffffffff')
+          when 'boundary-fresh-5' then jsonb_build_object('plannedOn','0000-01-01')
+          when 'boundary-fresh-6' then jsonb_build_object('plannedOn','0001-01-01')
+          when 'boundary-fresh-7' then jsonb_build_object('occurredOn','9999-12-31')
+          when 'boundary-fresh-8' then jsonb_build_object('plannedOn','0000-02-29')
+          when 'boundary-fresh-9' then jsonb_build_object('plannedOn','1900-02-29')
+          when 'boundary-fresh-10' then jsonb_build_object('plannedOn','2000-02-29')
+          else jsonb_build_object('goalId','not-a-uuid') end));
       end if;
       return new;
     end $$;
