@@ -403,6 +403,47 @@ begin
   return public.adventure_planning_command(p_owner,p_request_id,p_revision,p_command);
 end $$;
 
+-- Fail closed on unknown structured receipt fields while preserving user text.
+create or replace function public.adventure_receipt_safe(j jsonb, shape text)
+returns boolean language plpgsql immutable security invoker set search_path='' as $$
+declare k text; v jsonb; allowed text[]; child text;
+begin
+  if jsonb_typeof(j) is distinct from 'object' then return false; end if;
+  allowed:=case shape
+    when 'result' then array['entityId','message','completionId','achievementId','reward','growthChange','source']
+    when 'source' then array['goalId','goalTitle','title','description','plannedOn','occurredOn','categoryLabel']
+    when 'reward' then array['amount','calculation']
+    when 'calculation' then array['type','completionId','count','coefficient','actionIds','fallback']
+    when 'change' then array['xpDelta','before','after','unlocked','lost']
+    when 'growth' then array['level','totalXp','progress','needed','remaining','actions','achievedGoals','achievements']
+    when 'achievement' then array['id','label','threshold','count','remaining','unlocked']
+    else array[]::text[] end;
+  for k,v in select key,value from jsonb_each(j) loop
+    if not (k=any(allowed)) then return false; end if;
+    child:=case when shape='result' and k='reward' then 'reward'
+      when shape='result' and k='growthChange' then 'change'
+      when shape='result' and k='source' then 'source'
+      when shape='reward' and k='calculation' then 'calculation'
+      when shape='change' and k in ('before','after') then 'growth' end;
+    if child is not null then
+      if shape='result' and k='reward' and v='null'::jsonb then continue; end if;
+      if not public.adventure_receipt_safe(v,child) then return false; end if;
+    elsif shape='growth' and k='achievements' then
+      if jsonb_typeof(v) is distinct from 'array' then return false; end if;
+      for v in select value from jsonb_array_elements(v) loop
+        if not public.adventure_receipt_safe(v,'achievement') then return false; end if;
+      end loop;
+    elsif (shape='calculation' and k='actionIds') or (shape='change' and k in ('unlocked','lost')) then
+      if jsonb_typeof(v) is distinct from 'array' then return false; end if;
+      if exists(select 1 from jsonb_array_elements(v) a where jsonb_typeof(a) is distinct from 'string') then return false; end if;
+    elsif jsonb_typeof(v) not in ('string','number','boolean','null') then return false;
+    end if;
+  end loop;
+  return true;
+end $$;
+revoke execute on function public.adventure_receipt_safe(jsonb,text) from public,anon,authenticated;
+grant execute on function public.adventure_receipt_safe(jsonb,text) to service_role;
+
 create or replace function public.adventure_planning_command(p_owner uuid,p_request_id text,p_expected_version bigint,p_command jsonb)
 returns jsonb language plpgsql security invoker set search_path='' set lock_timeout='3s' as $$
 declare
@@ -421,8 +462,7 @@ begin
     if jsonb_typeof(v_prior.snapshot->'result') is distinct from 'object'
       or jsonb_typeof(v_prior.snapshot->'result'->'entityId') is distinct from 'string'
       or jsonb_typeof(v_prior.snapshot->'result'->'message') is distinct from 'string'
-      or lower(v_prior.snapshot->'result'->>'message') like '%'||('main'||'line')||'%'
-      or v_prior.snapshot->'result'->>'message' like '%'||chr(20027)||chr(32447)||'%' then raise exception 'REPLAY_UNAVAILABLE'; end if;
+      or not public.adventure_receipt_safe(v_prior.snapshot->'result','result') then raise exception 'REPLAY_UNAVAILABLE'; end if;
     return jsonb_build_object('version',v_prior.applied_revision,'result',v_prior.snapshot->'result');
   end if;
   if v_type is null or v_type not in ('createGoal','editGoal','reorderGoals','endGoal','achieveGoal','createTask','editTask','completeTask','cancelTaskCompletion','deleteTask') then raise exception 'INVALID_COMMAND'; end if;
@@ -1024,8 +1064,7 @@ begin
   if jsonb_typeof(v_prior.snapshot->'result') is distinct from 'object'
     or jsonb_typeof(v_prior.snapshot->'result'->'entityId') is distinct from 'string'
     or jsonb_typeof(v_prior.snapshot->'result'->'message') is distinct from 'string'
-    or lower(v_prior.snapshot->'result'->>'message') like '%'||('main'||'line')||'%'
-    or v_prior.snapshot->'result'->>'message' like '%'||chr(20027)||chr(32447)||'%' then raise exception 'REPLAY_UNAVAILABLE'; end if;
+    or not public.adventure_receipt_safe(v_prior.snapshot->'result','result') then raise exception 'REPLAY_UNAVAILABLE'; end if;
   return jsonb_build_object('version',v_prior.applied_revision,'result',v_prior.snapshot->'result');
 end $$;
 revoke execute on function public.adventure_receipt_lookup(uuid,text,jsonb) from public,anon,authenticated;

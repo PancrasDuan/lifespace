@@ -93,6 +93,24 @@ create index adventure_goals_owner_order on public.adventure_goals(owner_id,kind
     or exists(select to_jsonb(t) from public.adventure_events t except all select row from pg_temp.goal_migration_expected_events) then
     raise exception 'GOAL_MIGRATION_RECONCILIATION_FAILED table=events'; end if;
 end $$;
+create or replace function public.adventure_task_capability(p_owner uuid,p_command jsonb,p_today date)
+returns jsonb language plpgsql security invoker set search_path = '' as $$
+begin
+  perform public.adventure_task_check(p_owner,p_command,p_today);
+  return jsonb_build_object('allowed',true);
+exception when others then
+  return jsonb_build_object('allowed',false,'reason',case sqlerrm
+    when 'READ_ONLY' then '任务或相关规划已进入终态，只能查看'
+    when 'TASK_NOT_PENDING' then '仅待完成任务可以执行此操作'
+    when 'DATE_LOCKED' then '仅能完成今天的安排或取消今天的完成'
+    when 'COMPLETION_CHANGED' then '这次完成已变化，请重新读取'
+    when 'HISTORY_LOCKED' then '任务已有完成或历史安排，此操作不可用'
+    when 'RESCHEDULE_PAST' then '只能改到今天或未来'
+    when 'SAME_DATE' then '无需改到相同日期'
+    when 'DATE_STARTED' then '执行日已到，此操作不可用'
+    else '当前不可操作，请重新读取' end);
+end $$;
+
 -- Transactional commands and projections for the four-table goal model.
 create or replace function public.adventure_task_impact(p_owner uuid,p_command jsonb,p_today date)
 returns jsonb language plpgsql security invoker set search_path='' as $$
@@ -279,6 +297,47 @@ begin
   return public.adventure_planning_command(p_owner,p_request_id,p_revision,p_command);
 end $$;
 
+-- Fail closed on unknown structured receipt fields while preserving user text.
+create or replace function public.adventure_receipt_safe(j jsonb, shape text)
+returns boolean language plpgsql immutable security invoker set search_path='' as $$
+declare k text; v jsonb; allowed text[]; child text;
+begin
+  if jsonb_typeof(j) is distinct from 'object' then return false; end if;
+  allowed:=case shape
+    when 'result' then array['entityId','message','completionId','achievementId','reward','growthChange','source']
+    when 'source' then array['goalId','goalTitle','title','description','plannedOn','occurredOn','categoryLabel']
+    when 'reward' then array['amount','calculation']
+    when 'calculation' then array['type','completionId','count','coefficient','actionIds','fallback']
+    when 'change' then array['xpDelta','before','after','unlocked','lost']
+    when 'growth' then array['level','totalXp','progress','needed','remaining','actions','achievedGoals','achievements']
+    when 'achievement' then array['id','label','threshold','count','remaining','unlocked']
+    else array[]::text[] end;
+  for k,v in select key,value from jsonb_each(j) loop
+    if not (k=any(allowed)) then return false; end if;
+    child:=case when shape='result' and k='reward' then 'reward'
+      when shape='result' and k='growthChange' then 'change'
+      when shape='result' and k='source' then 'source'
+      when shape='reward' and k='calculation' then 'calculation'
+      when shape='change' and k in ('before','after') then 'growth' end;
+    if child is not null then
+      if shape='result' and k='reward' and v='null'::jsonb then continue; end if;
+      if not public.adventure_receipt_safe(v,child) then return false; end if;
+    elsif shape='growth' and k='achievements' then
+      if jsonb_typeof(v) is distinct from 'array' then return false; end if;
+      for v in select value from jsonb_array_elements(v) loop
+        if not public.adventure_receipt_safe(v,'achievement') then return false; end if;
+      end loop;
+    elsif (shape='calculation' and k='actionIds') or (shape='change' and k in ('unlocked','lost')) then
+      if jsonb_typeof(v) is distinct from 'array' then return false; end if;
+      if exists(select 1 from jsonb_array_elements(v) a where jsonb_typeof(a) is distinct from 'string') then return false; end if;
+    elsif jsonb_typeof(v) not in ('string','number','boolean','null') then return false;
+    end if;
+  end loop;
+  return true;
+end $$;
+revoke execute on function public.adventure_receipt_safe(jsonb,text) from public,anon,authenticated;
+grant execute on function public.adventure_receipt_safe(jsonb,text) to service_role;
+
 create or replace function public.adventure_planning_command(p_owner uuid,p_request_id text,p_expected_version bigint,p_command jsonb)
 returns jsonb language plpgsql security invoker set search_path='' set lock_timeout='3s' as $$
 declare
@@ -297,8 +356,7 @@ begin
     if jsonb_typeof(v_prior.snapshot->'result') is distinct from 'object'
       or jsonb_typeof(v_prior.snapshot->'result'->'entityId') is distinct from 'string'
       or jsonb_typeof(v_prior.snapshot->'result'->'message') is distinct from 'string'
-      or lower(v_prior.snapshot->'result'->>'message') like '%'||('main'||'line')||'%'
-      or v_prior.snapshot->'result'->>'message' like '%'||chr(20027)||chr(32447)||'%' then raise exception 'REPLAY_UNAVAILABLE'; end if;
+      or not public.adventure_receipt_safe(v_prior.snapshot->'result','result') then raise exception 'REPLAY_UNAVAILABLE'; end if;
     return jsonb_build_object('version',v_prior.applied_revision,'result',v_prior.snapshot->'result');
   end if;
   if v_type is null or v_type not in ('createGoal','editGoal','reorderGoals','endGoal','achieveGoal','createTask','editTask','completeTask','cancelTaskCompletion','deleteTask') then raise exception 'INVALID_COMMAND'; end if;
@@ -900,8 +958,7 @@ begin
   if jsonb_typeof(v_prior.snapshot->'result') is distinct from 'object'
     or jsonb_typeof(v_prior.snapshot->'result'->'entityId') is distinct from 'string'
     or jsonb_typeof(v_prior.snapshot->'result'->'message') is distinct from 'string'
-    or lower(v_prior.snapshot->'result'->>'message') like '%'||('main'||'line')||'%'
-    or v_prior.snapshot->'result'->>'message' like '%'||chr(20027)||chr(32447)||'%' then raise exception 'REPLAY_UNAVAILABLE'; end if;
+    or not public.adventure_receipt_safe(v_prior.snapshot->'result','result') then raise exception 'REPLAY_UNAVAILABLE'; end if;
   return jsonb_build_object('version',v_prior.applied_revision,'result',v_prior.snapshot->'result');
 end $$;
 revoke execute on function public.adventure_receipt_lookup(uuid,text,jsonb) from public,anon,authenticated;

@@ -322,7 +322,9 @@
 .goal-console-row strong, .goal-console-row [role="cell"] { min-width: 0; overflow-wrap: anywhere; }
 .goal-console-title { display: flex; gap: 5px; align-items: center; }
 .goal-console-title svg { flex: none; color: #738c79; }
-.goal-console-progress { min-width: 5rem; }
+.goal-console-progress { min-width: 5rem; display: flex; align-items: center; gap: 6px; }
+.goal-console-progress .adventure-proto-progress { flex: 1; min-width: 2rem; }
+.goal-console-progress > span { flex: none; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .goal-console-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 5px; }
 .goal-console-actions button { padding: 5px 7px; }
 .adventure-dialog.goal-relation-dialog { width: 540px; }

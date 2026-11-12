@@ -24,6 +24,11 @@ insert into public.adventure_goals(id,owner_id,mainline_id,kind,title,standards,
  ('20000000-0000-4000-8000-000000000010','00000000-0000-4000-8000-000000000001','10000000-0000-4000-8000-000000000001','real','未聚焦同组','["标准"]','active',false,0,'2020-01-05','2020-01-05',null,null,null,null,null,null,null,null,null),
  ('20000000-0000-4000-8000-000000000011','00000000-0000-4000-8000-000000000001','10000000-0000-4000-8000-000000000002','real','手动结束','["标准"]','ended',false,0,'2020-01-05','2020-01-06','2020-01-06','ended',null,null,null,null,null,null,null);
 
+-- Non-active rows must retain their original order keys during migration.
+update public.adventure_goals set sort_order=37 where id='20000000-0000-4000-8000-000000000005';
+update public.adventure_goals set sort_order=42 where id='20000000-0000-4000-8000-000000000006';
+update public.adventure_goals set sort_order=51 where id='20000000-0000-4000-8000-000000000007';
+
 insert into public.adventure_tasks(id,owner_id,goal_id,title,description,planned_on,status,completed_at,completed_on,ended_at,end_cause,deleted_at,created_at,updated_at) values
  ('30000000-0000-4000-8000-000000000001','00000000-0000-4000-8000-000000000001','20000000-0000-4000-8000-000000000007','迁入后的完成','同名','2020-01-05','completed','2020-01-06','2020-01-06',null,null,null,'2020-01-05','2020-01-06'),
  ('30000000-0000-4000-8000-000000000002','00000000-0000-4000-8000-000000000001','20000000-0000-4000-8000-000000000001','取消完成','保留','2020-01-05','pending',null,null,null,null,null,'2020-01-05','2020-01-06'),

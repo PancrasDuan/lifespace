@@ -1,6 +1,19 @@
 import { test, expect } from './authenticated-test'
 import { planningFixture, withGoal } from './adventure-fixture'
 
+for (const width of [1440, 390]) test(`${width}px 目标进度展示完成数与任务总数`, async ({ page, context }) => {
+  const goal = { ...withGoal.goals[0], progress: { completed: 1, total: 3, ratio: 1 / 3 } }
+  await planningFixture(context, { ...withGoal, goals: [goal], goalDetail: { goal, tasks: [], taskPage: 1, totalTasks: 3, relatedTasks: [], totalRelatedTasks: 3 } })
+  await page.setViewportSize({ width, height: 844 })
+  await page.goto('/adventure?view=planning')
+  const row = page.getByRole('row', { name: /五公里/ })
+  await expect(row.getByRole('progressbar', { name: '目标 五公里 任务进度' })).toBeVisible()
+  await expect(row).toContainText('1 / 3')
+  await row.getByRole('button', { name: '关系卡片' }).click()
+  await expect(page.getByRole('dialog', { name: '目标详情' })).toContainText('进行中')
+  await expect(page.getByRole('dialog', { name: '目标详情' })).toContainText('1 / 3 项任务完成')
+})
+
 for (const width of [1440, 390]) test(`${width}px 关系卡片锁定背景并可返回详情`, async ({ page, context }) => {
   await planningFixture(context, { ...withGoal, goalDetail: { goal: withGoal.goals[0], tasks: [], taskPage: 1, totalTasks: 0, relatedTasks: [], totalRelatedTasks: 0 } })
   await page.setViewportSize({ width, height: 844 })

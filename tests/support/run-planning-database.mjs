@@ -190,7 +190,7 @@ try {
         insert into goal_fixture_receipts values(u,case i when 0 then 'unsafe-cn-receipt' else 'unsafe-en-receipt' end,c,r);
       end loop;
     end $$;
-    update public.adventure_events set snapshot=jsonb_set(snapshot,'{result,message}',to_jsonb(case request_id when 'unsafe-cn-receipt' then '旧主线已保存' else 'Old MainLine saved' end)) where request_id in ('unsafe-cn-receipt','unsafe-en-receipt');
+    update public.adventure_events set snapshot=jsonb_set(snapshot,'{result}',snapshot->'result' || jsonb_build_object('unknownSource',jsonb_build_object('alias','retired'))) where request_id in ('unsafe-cn-receipt','unsafe-en-receipt');
     update goal_fixture_receipts set receipt=jsonb_set(receipt,'{result,message}',to_jsonb(case request_id when 'unsafe-cn-receipt' then '旧主线已保存' else 'Old MainLine saved' end)) where request_id in ('unsafe-cn-receipt','unsafe-en-receipt');`)
     // Put old structured attribution inside a genuine success receipt; retain
     // the original envelope so HTTP replay can be checked after migration.
@@ -227,7 +227,7 @@ try {
       if new.kind='task_created' and new.snapshot->>'title'='unsafe-receipt-fixture' and new.snapshot ? 'result' then
         new.snapshot := new.snapshot - 'result';
       elsif new.kind='task_created' and new.snapshot->>'title' in ('unsafe-cn-fixture','unsafe-en-fixture') and new.snapshot ? 'result' then
-        new.snapshot := jsonb_set(new.snapshot,'{result,message}',to_jsonb(case new.snapshot->>'title' when 'unsafe-cn-fixture' then '旧主线已保存' else 'Old MainLine saved' end));
+        new.snapshot := jsonb_set(new.snapshot,'{result}',new.snapshot->'result' || '{"unknownSource":{"alias":"retired"}}'::jsonb);
       end if;
       return new;
     end $$;

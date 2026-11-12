@@ -21,7 +21,7 @@ export function PrototypeGoals({ goals, blocked, action, openGoal, toggleGoal, e
         onDragOver={event => { if (!blocked && dragged.current?.status === 'active' && goal.status === 'active' && dragged.current.id !== goal.id) event.preventDefault() }}
         onDrop={event => { event.preventDefault(); const source = dragged.current; dragged.current = undefined; if (!blocked && source && source.id !== goal.id && source.status === 'active' && goal.status === 'active') move(source, source.sortOrder < goal.sortOrder ? 'down' : 'up', goal.id) }}>
         <strong role="cell" className="goal-console-title">{goal.status === 'active' && <GripVertical size={15} aria-hidden="true" />}{goal.title}</strong><span role="cell">{goal.categoryLabel || '—'}</span>
-        <span role="cell" className="goal-console-progress">{goal.progress.ratio === null ? '暂无任务' : <Progress value={goal.progress.ratio} label={`目标 ${goal.title} 任务进度`} />}</span>
+        <span role="cell" className="goal-console-progress">{goal.progress.ratio === null ? '暂无任务' : <><Progress value={goal.progress.ratio} label={`目标 ${goal.title} 任务进度`} /><span>{goal.progress.completed} / {goal.progress.total}</span></>}</span>
         <span role="cell">{goal.progress.total} 项</span><span role="cell">{goal.status === 'active' ? '进行中' : goal.status === 'achieved' ? '已达成' : '已结束'}</span>
         <div role="cell" className="goal-console-actions">
           <button type="button" disabled={blocked} aria-expanded={openGoal === goal.id} aria-controls={`goal-detail-${goal.id}`} onClick={() => toggleGoal(goal.id)}>关系卡片</button>

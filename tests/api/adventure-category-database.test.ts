@@ -44,7 +44,7 @@ describe.skipIf(!localPlanningRpc)('无主线任务的真实数据库 API', () =
     expect(await list.json()).toMatchObject({ version: 1, total: 1 })
   })
 
-  it('四表初始化下含退役名称的回执拒绝重放且摘要冲突优先', async () => {
+  it('四表初始化下未知结构回执拒绝重放且摘要冲突优先', async () => {
     for (const suffix of ['cn', 'en']) {
       const other = crypto.randomUUID()
       const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Shanghai' })

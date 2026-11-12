@@ -66,7 +66,7 @@ describe.skipIf(!localPlanningRpc || !fixture)('旧库迁移后的真实 Worker 
     }
   })
 
-  it('旧回执的中英文退役名称不可安全重放，摘要冲突优先且不重新执行', async () => {
+  it('未知结构的旧回执不可安全重放，摘要冲突优先且不重新执行', async () => {
     for (const id of ['unsafe-cn-receipt', 'unsafe-en-receipt']) {
       const row = fixture!.receipts.find(item => item.request_id === id)!
       const old = planningReceiptSchema.parse(row.receipt)

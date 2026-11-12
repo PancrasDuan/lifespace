@@ -419,6 +419,27 @@ try {
       [lock.owner_id, 'lock-cancel', lock.expected_version, lock.cancel_command]),
     error => error.message === 'READ_ONLY', '历史完成的锁定被绕过')
     const receipts = (await client.query('select owner_id,request_id,command,pg_temp.goal_fixture_clean(receipt) receipt from goal_fixture_receipts')).rows
+    const savedForSafety = receipts.find(receipt => receipt.request_id === 'rpc-complete-task')
+    await client.query('begin')
+    try {
+      await client.query("update public.adventure_events set snapshot=jsonb_set(snapshot,'{result,message}',to_jsonb('我的主线文字'::text)) where owner_id=$1 and request_id=$2", [savedForSafety.owner_id, savedForSafety.request_id])
+      const result = await client.query('select public.adventure_receipt_lookup($1,$2,$3) receipt', [savedForSafety.owner_id, savedForSafety.request_id, savedForSafety.command])
+      assert.equal(result.rows[0].receipt.result.message, '我的主线文字')
+    } finally { await client.query('rollback') }
+    for (const extra of [
+      { source: { mainlineAlias: 'retired' } },
+      { reward: { amount: 1, calculation: { type: 'fixed_task', completionId: lock.completion_id, count: 1, coefficient: 1, origin: { mainlineName: 'retired' } } } },
+    ]) {
+      for (const fn of ['adventure_receipt_lookup', 'adventure_planning_command']) {
+        await client.query('begin')
+        try {
+          await client.query("update public.adventure_events set snapshot=jsonb_set(snapshot,'{result}',snapshot->'result' || $3::jsonb) where owner_id=$1 and request_id=$2", [savedForSafety.owner_id, savedForSafety.request_id, JSON.stringify(extra)])
+          const args = fn === 'adventure_receipt_lookup' ? [savedForSafety.owner_id, savedForSafety.request_id, savedForSafety.command] : [savedForSafety.owner_id, savedForSafety.request_id, 0, savedForSafety.command]
+          const placeholders = args.map((_, index) => `$${index + 1}`).join(',')
+          await assert.rejects(client.query(`select public.${fn}(${placeholders})`, args), error => error.message === 'REPLAY_UNAVAILABLE', `${fn} accepted unknown nested receipt`)
+        } finally { await client.query('rollback') }
+      }
+    }
     await client.query('set role service_role')
     try {
       for (const saved of receipts) {
@@ -491,6 +512,9 @@ try {
       await client.query('rollback')
     }
     const owner = '00000000-0000-4000-8000-000000000001'
+    for (const [id, order] of [['20000000-0000-4000-8000-000000000005', 37], ['20000000-0000-4000-8000-000000000006', 42], ['20000000-0000-4000-8000-000000000007', 51]]) {
+      assert.equal(after.goals.find(goal => goal.id === id).sort_order, order, `non-active goal ${id} order changed`)
+    }
     const expectedActive = after.goals.filter(goal => goal.owner_id === owner && goal.kind === 'real' && goal.status === 'active')
       .sort((a, b) => a.sort_order - b.sort_order || a.id.localeCompare(b.id)).map(goal => goal.id)
     const expectedTerminal = after.goals.filter(goal => goal.owner_id === owner && goal.kind === 'real' && goal.status !== 'active')
