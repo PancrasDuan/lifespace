@@ -8,33 +8,47 @@ describe.skipIf(!localPlanningRpc)('无主线任务的真实数据库 API', () =
   beforeEach(() => api.install())
   afterEach(() => api.restore())
 
-  it('新库两条重放入口一致处理回执 UUID 和 ISO 日期边界', async () => {
-    const sources = [
-      { goalId: 'ffffffff-ffff-ffff-ffff-ffffffffffff' }, { goalId: 'AAAAAAAA-AAAA-4AAA-AAAA-AAAAAAAAAAAA' },
-      { goalId: 'aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa' }, { goalId: '00000000-0000-0000-0000-000000000000' },
-      { goalId: 'ffffffff-ffff-ffff-ffff-ffffffffffff' }, { plannedOn: '0000-01-01' },
-      { plannedOn: '0001-01-01' }, { occurredOn: '9999-12-31' }, { plannedOn: '0000-02-29' },
-      null, { plannedOn: '2000-02-29' }, null,
-    ]
-    const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Shanghai' })
-    for (const [index, source] of sources.entries()) {
+  for (const [index, name, expected] of [
+    [0, '大写 max', { goalId: 'ffffffff-ffff-ffff-ffff-ffffffffffff' }],
+    [1, '大写 UUID', { goalId: 'AAAAAAAA-AAAA-4AAA-AAAA-AAAAAAAAAAAA' }],
+    [2, '小写 UUID', { goalId: 'aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa' }],
+    [3, 'nil UUID', { goalId: '00000000-0000-0000-0000-000000000000' }],
+    [4, '小写 max', { goalId: 'ffffffff-ffff-ffff-ffff-ffffffffffff' }],
+    [5, '零年', { plannedOn: '0000-01-01' }],
+    [6, '第一年', { plannedOn: '0001-01-01' }],
+    [7, '末年', { occurredOn: '9999-12-31' }],
+    [8, '零年闰日', { plannedOn: '0000-02-29' }],
+    [9, '非法日期', null],
+    [10, '有效闰日', { plannedOn: '2000-02-29' }],
+    [11, '非法 UUID', null],
+  ] as const) {
+    it(`新库合成回执 ${name} 在两个 Worker 入口安全处理且账户不变`, async () => {
+      const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Shanghai' })
       const currentOwner = crypto.randomUUID()
       const envelope = { requestId: `fresh-boundary-${index}`, expectedVersion: 0, command: { type: 'createTask', title: `boundary-fresh-${index}`, description: '', plannedOn: today, destination: '' } }
       expect((await api.request(currentOwner, '/api/adventure/commands', envelope)).status).toBe(200)
       const before = await (await api.request(currentOwner, '/api/adventure/growth')).json()
+      const observed: Array<{ path: string; status: number; body: unknown }> = []
       for (const [path, body] of [
         ['/api/adventure/receipts/lookup', { ...envelope, nonce: 'a'.repeat(64) }],
         ['/api/adventure/commands', envelope],
       ] as const) {
         const response = await api.request(currentOwner, path, body, path.endsWith('/lookup') ? null : undefined)
-        expect(response.status, `case ${index} ${path}`).toBe(source ? 200 : 409)
-        const value = await response.json() as { receipt?: { result: { source: unknown } }; result?: { source: unknown }; error?: unknown }
-        if (source) expect(path.endsWith('/lookup') ? value.receipt?.result.source : value.result?.source).toEqual(source)
-        else expect(value).toMatchObject({ error: { code: 'REPLAY_UNAVAILABLE' } })
+        observed.push({ path, status: response.status, body: await response.json() })
       }
       expect(await (await api.request(currentOwner, '/api/adventure/growth')).json()).toEqual(before)
-    }
-  })
+      if (expected === null) {
+        expect(observed.map(result => result.status)).toEqual([409, 409])
+        for (const result of observed) expect(result.body, result.path).toMatchObject({ error: { code: 'REPLAY_UNAVAILABLE' } })
+      } else {
+        expect(observed.map(result => result.status)).toEqual([200, 200])
+        for (const result of observed) {
+          const value = result.body as { receipt?: { result: { source: unknown } }; result?: { source: unknown } }
+          expect(result.path.endsWith('/lookup') ? value.receipt?.result.source : value.result?.source, result.path).toEqual(expected)
+        }
+      }
+    })
+  }
 
   it('独立任务完成、取消及旧回执重试保持奖励和账户隔离', async () => {
     const send = async (requestId: string, expectedVersion: number, command: unknown) => api.request(owner, '/api/adventure/commands', { requestId, expectedVersion, command })

@@ -99,4 +99,4 @@ IndexedDB 在浏览器配置中以明文保留完整命令，可能被共享设�
 
 这些检查覆盖本仓库所审阅的旧实现及列出的合成数据，不能证明从未见过的部署版本、手工修改、损坏数据或真实生产历史均可安全识别；部署前仍需在获授权的隔离副本中盘点并核对，无法确认的回执保持待决。
 
-增量复审发现数据库 UUID 校验和 Worker 回执解析存在边界差异。项目实际 Zod 接受普通大写 UUID、nil 和小写 max；全大写 max 原先在数据库通过后被 Worker 拒绝，两条入口均返回 503。ISO 日期 `0000-01-01` 原先被数据库拒绝，两入口均返回 409，虽然 Zod 接受。隔离旧库确认 PostgreSQL 的 UUID 类型序列化为小写，数据库日期类型不接受零年；仓库旧 RPC 的 `result.source` 并非原生生成，上述边界通过合成结构测试，不作为真实生产历史的证据。现在只将大写 max 规范化为同一 UUID 的小写形式；日期按 ISO 公历校验，零年和有效闰日保留原文本，非法日期及同一 UUID 大小写重复的行动来源拒绝重放。最终集成者须在固定最终提交重新记录相应验证结果。
+增量复审发现数据库 UUID 校验和 Worker 回执解析存在边界差异。项目实际 Zod 接受普通大写 UUID、nil 和小写 max；全大写 max 原先在数据库通过后被 Worker 拒绝，两条入口均返回 503。ISO 日期 `0000-01-01` 原先被数据库拒绝，两入口均返回 409，虽然 Zod 接受。隔离旧库确认 PostgreSQL 的 UUID 类型序列化为小写，数据库日期类型不接受零年；仓库旧 RPC 的 `result.source` 并非原生生成，上述边界通过合成结构测试，不作为真实生产历史的证据。现在回执的 `result.entityId`、`result.completionId`、`result.achievementId`、`result.source.goalId`、`result.reward.calculation.completionId` 和 `result.reward.calculation.actionIds` 中，大小写混合或大写的 max UUID 会规范化为同一 UUID 的小写形式；其他 UUID 保持原有大小写，用户自由文字不作此变换。日期按 ISO 公历校验，零年和有效闰日保留原文本，非法日期及同一 UUID 大小写重复的行动来源拒绝重放。最终集成者须在固定最终提交重新记录相应验证结果。

@@ -82,12 +82,15 @@ describe.skipIf(!localPlanningRpc || !fixture)('迁移后的只读历史回执',
         observed.push({ path, status: response.status, body: await response.json() })
       }
       expect(await (await db.request(row.owner_id, '/api/adventure/growth')).json()).toEqual(before)
-      expect(observed.map(result => result.status), JSON.stringify(source)).toEqual([expected ? 200 : 409, expected ? 200 : 409])
-      for (const result of observed) {
-        if (expected) {
+      if (expected === null) {
+        expect(observed.map(result => result.status), JSON.stringify(source)).toEqual([409, 409])
+        for (const result of observed) expect(result.body, result.path).toMatchObject({ error: { code: 'REPLAY_UNAVAILABLE' } })
+      } else {
+        expect(observed.map(result => result.status), JSON.stringify(source)).toEqual([200, 200])
+        for (const result of observed) {
           const value = result.body as { receipt?: { result: { source: unknown } }; result?: { source: unknown } }
           expect(result.path.endsWith('/lookup') ? value.receipt?.result.source : value.result?.source).toEqual(expected)
-        } else expect(result.body).toMatchObject({ error: { code: 'REPLAY_UNAVAILABLE' } })
+        }
       }
     })
   }
