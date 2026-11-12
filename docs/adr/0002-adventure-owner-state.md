@@ -2,6 +2,8 @@
 
 状态：2026-10-21 已采纳；2026-11-07 按 PR #146 当前实现校准初始化与升级入口，五表及事务事件决策不变。
 
+> 历史决策：主线表、独立主线及纯主线操作事件的要求已被 [ADR 0010](0010-goal-category-label-no-mainline.md) 取代；账户事务及其余数据规则继续适用。迁移和最终结构见 [目标分类迁移](../adventure/goal-category-migration.md)。
+
 ## 决定
 
 人生冒险使用五张 public.adventure_ 物理表：

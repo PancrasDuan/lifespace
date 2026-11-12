@@ -2,6 +2,7 @@ import { expect, type BrowserContext } from '@playwright/test'
 import { planningReceiptSchema } from '../../src/shared/adventure-planning'
 import { growthPageSchema } from '../../src/shared/adventure-growth'
 import { localPlanningRpc, planningDatabase } from './planning-database'
+import { adventureClientVersionHeader } from '../../src/shared/adventure-client-version'
 
 export { localPlanningRpc }
 
@@ -19,7 +20,7 @@ export function planningDatabaseBrowser() {
       database.install({ browserOwner: owner })
       await context.route('**/api/adventure**', async route => {
         const input = route.request(), url = new URL(input.url())
-        const response = await request(url.pathname + url.search, input.method() === 'GET' ? undefined : input.postDataJSON())
+        const response = await database.request(owner, url.pathname + url.search, input.method() === 'GET' ? undefined : input.postDataJSON(), input.headers()[adventureClientVersionHeader.toLowerCase()] ?? null)
         await route.fulfill({ status: response.status, contentType: 'application/json', body: await response.text() })
       })
     },

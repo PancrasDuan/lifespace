@@ -104,6 +104,7 @@ export async function authorizedMutation(
   signal: AbortSignal,
   expectedOwner: string,
   method: 'POST' | 'PATCH' = 'POST',
+  extraHeaders: Record<string, string> = {},
 ): Promise<Response> {
   const { data, error } = await currentSession()
   signal.throwIfAborted()
@@ -121,6 +122,7 @@ export async function authorizedMutation(
   const response = await fetch(path, {
     method,
     headers: {
+      ...extraHeaders,
       Authorization: `Bearer ${data.session.access_token}`,
       'Content-Type': 'application/json',
     },

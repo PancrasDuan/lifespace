@@ -1,12 +1,14 @@
 # 目标分类迁移（#170）
 
-`db/adventure/migrations/20261111000000_goal_categories.sql` 升级现有五表人生冒险库；新库使用 `db/adventure/create-planning.sql` 和 `db/adventure/list-tasks.sql`。迁移与新数据库函数是一次协调切换的一部分：现有 Worker 和客户端仍使用旧接口，必须先完成 #171、#172、#173 的适配与集成验收，不能单独部署数据库变更。生产迁移、备份恢复、合并和发布均需另行取得明确授权。
+`db/adventure/migrations/20261111000000_goal_categories.sql` 升级现有五表人生冒险库；新库使用 `db/adventure/create-planning.sql` 和 `db/adventure/list-tasks.sql`。迁移与新数据库函数是一次协调切换的一部分：本分支已有新 Worker 和客户端适配，最终集成及兼容门禁仍待验证，不能单独部署数据库变更。生产迁移、备份恢复、合并和发布均需另行取得明确授权。
 
 迁移持有五表写锁，在一个事务内校验旧引用、主线状态及标签，冻结逐账户逐 ID 的预期事实，迁移标签、顺序、事件与快照，替换结构和函数，检查保留事实及安全属性，最后提交并通知 PostgREST 刷新 schema。空白标签、孤立引用、经验不一致、含其他事实的主线事件、异常外键或索引和不安全权限均会中止事务；错误中的 owner、goal 或 event 标识用于定位异常，不包含自由文本。重复执行会检查最终结构和权限；测试中的失败注入均使用合成数据和全新隔离 PostgreSQL。
 
 新库初始化和升级都核验 PUBLIC、`anon`、`authenticated`、`service_role` 及其可切换的角色继承链。服务角色只允许表上的 `SELECT`、`INSERT`、`UPDATE`，不允许 `DELETE`、`TRUNCATE`、`REFERENCES`、`TRIGGER`、PostgreSQL 17 的 `MAINTAIN` 或转授权；浏览器角色及 PUBLIC 不得持有表或列权限，也不得执行业务函数或创建 public schema 对象。异常直接授权、默认授权或继承授权导致 `GOAL_MIGRATION_UNSAFE_SECURITY` 并回滚；检查按角色成员关系保守处理，即使某条成员关系当前不能切换也可能拒绝。函数的服务角色转授权与可切换父角色的权限同样会被拒绝。
 
 目标和任务保留稳定 ID 与关联；有效奖励总和、账户 revision 和 total_xp 不变。旧主线结束后的完成限制保存在完成事件的中性 `historical_lock` 中，旧完成／达成快照不会补写分类。非纯主线成功回执保留摘要并先于版本检查重放清理后的结果；纯主线事件及其回执被删除，旧主线命令不能新执行。调用方不能把旧 requestId 复用于其他命令。
+
+新 Worker 的写命令要求请求头 `X-Adventure-Client-Version: goal-categories-1`；缺失或过期时返回 `CLIENT_UPDATE_REQUIRED`／426，提示刷新且不调用数据库。成功封套仍须以同一 requestId 和内容重试；该版本头不是认证，也不保护旧 Worker、数据库直连或部署窗口，外层冻结及旧地址封闭要求见 [维护窗口](qa-goal-integration.md)。
 
 数据库接口变更：`adventure_planning_read(uuid,integer,integer,boolean)` 取代旧的六参数版本；`adventure_workspace_read(uuid,integer,integer,text,integer,text,text,uuid,integer,boolean)` 取代旧的十二参数版本；旧主线参数、主线命令和目标迁移候选不再支持。目标列表按账户内进行中目标顺序分页，再按终态时间倒序和 ID 显示终态；任务与成长投影不再包含主线字段。其余 RPC 的现有签名保留，调用方仍须按 #171–#173 更新响应类型和请求规则。
 

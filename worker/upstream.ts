@@ -3,7 +3,7 @@ import { BodyLimitError, readBoundedBody } from './read-body'
 import { traceUpstreamFailure, traceUpstreamStatus, upstreamFailureType } from './trace'
 
 export class ApiError extends Error {
-  constructor(readonly code: string, message: string, readonly status: 400 | 401 | 403 | 404 | 409 | 429 | 502 | 503 | 504) { super(message) }
+  constructor(readonly code: string, message: string, readonly status: 400 | 401 | 403 | 404 | 409 | 426 | 429 | 502 | 503 | 504) { super(message) }
 }
 
 export function apiErrorBody(error: unknown) {

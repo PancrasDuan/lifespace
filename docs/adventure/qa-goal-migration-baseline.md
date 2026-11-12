@@ -49,4 +49,4 @@ npm run test:goal-migration-baseline -- --migration db/adventure/migrations/2026
 | `adventure-growth.sql` | 含主线字段的旧投影 | 有效冻结奖励、成长和来源、已取消记录、经验一致性、函数权限 |
 | `adventure-today-upgrade-before.sql`／`after.sql` | 在新四表库上再次运行旧五表升级 | 旧五表固定夹具、旧规则 RPC 历史及 #170 非空升级由本基线独立验证 |
 
-`tests/database/goal-post-migration-regression.sql` 对新库与升级库分别运行相同合成 RPC 回归，所有测试行及故障触发器在事务结束时回滚。目标控制台、关系弹卡、任务和成长 API 的真实 HTTP 与浏览器回归仍需 #171、#172、#173 在新契约及客户端完成后改写并运行；目前旧 Worker 与新数据库不兼容。
+`tests/database/goal-post-migration-regression.sql` 对新库与升级库分别运行相同合成 RPC 回归，所有测试行及故障触发器在事务结束时回滚。本分支集成目标控制台及关系卡片后，真实 HTTP 与浏览器检查的当前结果见 [集成验收](qa-goal-integration.md)；#173 数据库入口及任务／成长浏览器回归仍待最终集成。

@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { growthPageSchema, rewardSourceSchema } from '../shared/adventure-growth'
 import { authorizedFetch, authorizedMutation } from '../auth/request'
+import { adventureClientVersion, adventureClientVersionHeader } from '../shared/adventure-client-version'
 import { taskListSchema, type TaskListInput, taskHistorySchema, migrationOptionsSchema, planningPageSchema, planningReceiptSchema, planningPreviewSchema, type PlanningEnvelope, type PlanningCommand, type PlanningQuery } from '../shared/adventure-planning'
 
 export class PlanningError extends Error {
@@ -47,7 +48,7 @@ export const planningApi = {
   },
   async send(owner: string, envelope: PlanningEnvelope, signal: AbortSignal) {
     try {
-      return await read(await authorizedMutation('/api/adventure/commands', JSON.stringify(envelope), signal, owner), planningReceiptSchema, true)
+      return await read(await authorizedMutation('/api/adventure/commands', JSON.stringify(envelope), signal, owner, 'POST', { [adventureClientVersionHeader]: adventureClientVersion }), planningReceiptSchema, true)
     } catch (error) {
       if (error instanceof PlanningError) throw error
       throw new PlanningError('连接中断，尚不能确认是否保存。请安全重试同一次操作。', 0, true)

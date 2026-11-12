@@ -2,6 +2,7 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { z } from 'zod'
 import app from '../../worker/index'
 import { planningPageSchema, planningReceiptSchema, type PlanningCommand } from '../../src/shared/adventure-planning'
+import { adventureClientVersion, adventureClientVersionHeader } from '../../src/shared/adventure-client-version'
 
 export const liveEnabled = process.env.ADVENTURE_LIVE_TEST === '1'
 type User = { id: string; email: string; token: string; session: Record<string, unknown> }
@@ -45,7 +46,7 @@ export async function livePlanning() {
   const env = { SUPABASE_URL: url, SUPABASE_SECRET_KEY: secret, SUPABASE_PUBLISHABLE_KEY: publishable, AUTH_ALLOWED_EMAILS: users.map(user => user.email).join(',') }
   const request = (index = 0, path = '/api/adventure', body?: unknown) => app.request(path, {
     method: body === undefined ? 'GET' : 'POST',
-    headers: { Authorization: `Bearer ${users[index].token}`, 'Content-Type': 'application/json' },
+    headers: { Authorization: `Bearer ${users[index].token}`, 'Content-Type': 'application/json', [adventureClientVersionHeader]: adventureClientVersion },
     body: body === undefined ? undefined : JSON.stringify(body),
   }, env)
   const read = async (index = 0, page = 1, pageSize = 20) => {

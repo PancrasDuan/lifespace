@@ -1,6 +1,7 @@
 import { strict as assert } from 'node:assert'
 import app from '../../worker/index'
 import { planningPageSchema, planningReceiptSchema, type PlanningCommand } from '../../src/shared/adventure-planning'
+import { adventureClientVersion, adventureClientVersionHeader } from '../../src/shared/adventure-client-version'
 
 export const localPlanningRpc = process.env.ADVENTURE_LOCAL_RPC_URL
 const encode = (value: unknown) => btoa(JSON.stringify(value)).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_')
@@ -12,9 +13,9 @@ export function planningDatabase(email = 'lifecycle@example.invalid') {
     SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_local-test-only', AUTH_ALLOWED_EMAILS: email,
   }
   let previousFetch: typeof fetch | undefined
-  const request = (owner: string, path = '/api/adventure', body?: unknown) => app.request(path, {
+  const request = (owner: string, path = '/api/adventure', body?: unknown, clientVersion: string | null = adventureClientVersion) => app.request(path, {
     method: body === undefined ? 'GET' : 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${encode({ alg: 'HS256' })}.${encode({ sub: owner, session_id: owner, exp: 4102444800 })}.local-test` },
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${encode({ alg: 'HS256' })}.${encode({ sub: owner, session_id: owner, exp: 4102444800 })}.local-test`, ...(clientVersion === null ? {} : { [adventureClientVersionHeader]: clientVersion }) },
     body: body === undefined ? undefined : JSON.stringify(body),
   }, env)
   const read = async (owner: string, query = '') => {

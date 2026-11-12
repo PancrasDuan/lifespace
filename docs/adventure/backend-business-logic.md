@@ -1,5 +1,7 @@
 # 后端业务逻辑设计
 
+> 历史文档：以下描述 PR #146 的五表契约，已被 #168／ADR 0010 取代。当前规则见 [规格](spec.md)、[目标分类迁移](goal-category-migration.md) 和 [目标关系卡片](qa-goal-relations.md)；切换及验证状态见 [集成验收](qa-goal-integration.md)。
+
 状态：2026-11-07，以下为 PR #146 的已实现规则，包含 #140／#141 任务操作和日期列表变更。隔离数据库验证、最新界面确认及交付边界见 [本轮验收](qa-today.md)，生产升级与发布尚未执行。依据 [规格](spec.md)、[成长与奖励](growth-rewards.md)、[前端设计](decisions-frontend.md) 与 [数据库设计](backend-database.md)。任务表保存当前执行日期，改期历史与奖励存入事件；账户保存汇总经验，等级和成就实时计算。
 
 ## 模块职责

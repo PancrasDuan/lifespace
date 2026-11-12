@@ -5,6 +5,7 @@ import type { AuthEnv, Identity } from '../auth'
 import { readBoundedBody, BodyLimitError } from '../read-body'
 import { ApiError } from '../upstream'
 import { traceUpstreamFailure, traceUpstreamStatus, upstreamFailureType } from '../trace'
+import { adventureClientVersion, adventureClientVersionHeader } from '../../src/shared/adventure-client-version'
 import {
   taskListInputSchema, taskListSchema, taskHistorySchema, migrationOptionsSchema, planningEnvelopeSchema, planningPageSchema, planningReceiptSchema, taskRangeSchema, taskScopeSchema, planningSearchSchema,
   planningPreviewInputSchema, planningPreviewSchema,
@@ -124,6 +125,8 @@ export async function previewPlanning(c: PlanningContext) {
 }
 
 export async function commandPlanning(c: PlanningContext) {
+  if (c.req.header(adventureClientVersionHeader) !== adventureClientVersion)
+    throw new ApiError('CLIENT_UPDATE_REQUIRED', '页面版本已过期，请刷新页面后重新操作', 426)
   const value = await input(c, z.union([planningEnvelopeSchema, legacyGoalEnvelope]))
   return c.json(await rpc(c, 'adventure_planning_command', {
     p_request_id: value.requestId, p_expected_version: value.expectedVersion, p_command: value.command,

@@ -1,5 +1,7 @@
 # 后端数据库设计
 
+> 历史文档：以下描述 PR #146 的五表契约，已被 #168／ADR 0010 取代。当前规则见 [规格](spec.md)、[目标分类迁移](goal-category-migration.md) 和 [目标关系卡片](qa-goal-relations.md)；切换及验证状态见 [集成验收](qa-goal-integration.md)。
+
 状态：2026-11-07，以下为 PR #146 的五表实现，包含 #140／#141 任务规则和日期列表变更。当前接口见 [规划与任务接口](planning-api.md) 和 [日期列表契约](task-list-api.md)，隔离验证与交付状态见 [本轮验收](qa-today.md)。本轮文档校准不操作数据库；生产升级与发布尚未执行。
 
 空库依次执行 `db/adventure/create-planning.sql`、`db/adventure/list-tasks.sql`；已有五表数据库使用 `db/adventure/migrations/20261106200055_adventure_today_task_rules.sql`。增量迁移在同一事务替换函数、补充列表索引／RPC与权限并通知 PostgREST 刷新 schema，不删除或改写业务行；不能对非空库重复初始化。隔离非空库重复升级和逐行快照验证见本轮验收，旧已结束任务先核实再按已授权范围处理。
