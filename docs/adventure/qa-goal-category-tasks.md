@@ -14,4 +14,4 @@ npm run test:adventure-task-database
 
 上述数据库入口不替代 `npm run test:database -- --goal-model --browser` 的真实浏览器回归或生产迁移验收。
 
-`--browser-only` 必须同时指定 `--browser`；`--api` 和浏览器筛选参数会在结果中列出实际范围，不能视为无参数的完整验收。`npm run test:database:runner` 使用隔离数据库和本地浏览器自动验证参数、范围报告以及无参数全量入口，运行它需要数据库和浏览器测试的本机依赖。
+`--browser-only` 必须同时指定 `--browser`；`--api` 和浏览器筛选参数会在结果中列出实际范围，不能视为无参数的完整验收。HTTP 和浏览器阶段读取结构化测试报告，列出执行、通过和跳过数量，并在零通过时失败；报告器由入口固定，不能通过参数覆盖。`npm run test:database:runner` 使用隔离数据库和本地浏览器自动验证参数、范围报告、全部跳过负例以及无参数全量入口，运行它需要数据库和浏览器测试的本机依赖。
