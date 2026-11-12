@@ -9,4 +9,6 @@ jobs:
   browser:
     runs-on: ubuntu-latest
     steps:
-      - run: 'true'
+      - env:
+          SHARD: ${{ inputs.shard }}
+        run: if [ "$SHARD" = 1 ]; then exit 1; fi
