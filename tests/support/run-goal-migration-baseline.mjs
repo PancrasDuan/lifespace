@@ -397,6 +397,39 @@ try {
     }
     console.log('通过：异常映射与故障注入后的旧数据和结构回滚')
     await client.query(migration)
+    // 已确认无旧备份重放需求，对已迁移库执行删除 historical_lock 与死错误码的迁移；
+    // 本分支的 20261111000000 已不再创建该列，因此该迁移必须对当前库幂等。
+    const cleanup = await readFile(join(root, 'db/adventure/migrations/20261113000000_drop_historical_lock.sql'), 'utf8')
+    await client.query(cleanup)
+    assert.equal((await client.query(`select count(*)::int n from pg_attribute a join pg_class c on c.oid=a.attrelid
+      where c.relnamespace='public'::regnamespace and c.relname='adventure_events' and a.attname='historical_lock' and not a.attisdropped`)).rows[0].n, 0,
+      '后续迁移后不应存在 historical_lock 列')
+    await client.query(cleanup)
+    // 直接构造带列与约束的旧四表状态，验证后续迁移确实删除列、约束和死错误码引用。
+    await client.query(`create database goal_historical_lock_cleanup`)
+    const cleanupProbe = new pg.Client({ host: '127.0.0.1', port, user: 'postgres', database: 'goal_historical_lock_cleanup', password: '', ssl: false })
+    try {
+      await cleanupProbe.connect()
+      await cleanupProbe.query(await readFile(join(root, 'db/adventure/create-planning.sql'), 'utf8'))
+      await cleanupProbe.query(`alter table public.adventure_events add column historical_lock boolean not null default false;
+        alter table public.adventure_events add constraint adventure_events_historical_lock_check check (not historical_lock or kind='task_completed');`)
+      assert.equal((await cleanupProbe.query(`select count(*)::int n from pg_attribute a join pg_class c on c.oid=a.attrelid
+        where c.relnamespace='public'::regnamespace and c.relname='adventure_events' and a.attname='historical_lock' and not a.attisdropped`)).rows[0].n, 1)
+      await cleanupProbe.query(cleanup)
+      assert.equal((await cleanupProbe.query(`select count(*)::int n from pg_attribute a join pg_class c on c.oid=a.attrelid
+        where c.relnamespace='public'::regnamespace and c.relname='adventure_events' and a.attname='historical_lock' and not a.attisdropped`)).rows[0].n, 0,
+        '后续迁移未删除已存在的 historical_lock 列')
+      assert.equal((await cleanupProbe.query(`select count(*)::int n from pg_constraint k join pg_class c on c.oid=k.conrelid
+        where c.relnamespace='public'::regnamespace and k.conname='adventure_events_historical_lock_check'`)).rows[0].n, 0,
+        '后续迁移未删除 historical_lock CHECK 约束')
+      assert.equal((await cleanupProbe.query(`select count(*)::int n from pg_proc p where p.pronamespace='public'::regnamespace
+        and p.proname like 'adventure\_%' escape '\' and pg_get_functiondef(p.oid) ~* 'historical_lock|HISTORY_LOCKED'`)).rows[0].n, 0,
+        '后续迁移后函数仍引用 historical_lock 或 HISTORY_LOCKED')
+      await cleanupProbe.query(cleanup)
+    } finally {
+      await cleanupProbe.end()
+      await client.query('drop database goal_historical_lock_cleanup')
+    }
     const after = await capture(client)
     const afterSchema = await schemaSnapshot(client)
     assert.deepEqual(reconcile(before, after, { taskEndCause }), [], '升级后的逐账户逐 ID 对账失败')
@@ -572,12 +605,12 @@ try {
     const achievedEvent = after.events.find(event => event.owner_id === projectionOwner && event.kind === 'goal_achieved')
     const doneEvent = after.events.find(event => event.owner_id === projectionOwner && event.kind === 'task_completed' && event.invalidated_at === null)
     const today = (await client.query("select (clock_timestamp() at time zone 'Asia/Shanghai')::date::text today")).rows[0].today
-    const lockedTask = after.events.find(event => event.id === legacy.completion_id).task_id
-    const unlockedTask = after.events.find(event => event.id === legacy.unlocked_completion_id).task_id
-    const lockedView = (await client.query('select public.adventure_task_view($1,$2,$3) result', [legacy.owner_id, lockedTask, today])).rows[0].result
-    const unlockedView = (await client.query('select public.adventure_task_view($1,$2,$3) result', [legacy.owner_id, unlockedTask, today])).rows[0].result
-    assert.equal(lockedView.capabilities.cancel.allowed, true, '旧主线完成的冻结保护未被移除')
-    assert.equal(unlockedView.capabilities.cancel.allowed, true)
+    const formerLockedTask = after.events.find(event => event.id === legacy.completion_id).task_id
+    const otherTask = after.events.find(event => event.id === legacy.unlocked_completion_id).task_id
+    const formerLockedView = (await client.query('select public.adventure_task_view($1,$2,$3) result', [legacy.owner_id, formerLockedTask, today])).rows[0].result
+    const otherView = (await client.query('select public.adventure_task_view($1,$2,$3) result', [legacy.owner_id, otherTask, today])).rows[0].result
+    assert.equal(formerLockedView.capabilities.cancel.allowed, true, '旧主线完成的冻结保护未被移除')
+    assert.equal(otherView.capabilities.cancel.allowed, true)
     const projections = [workspace]
     let options
     for (const [query, params] of [
@@ -636,6 +669,7 @@ try {
     assert.equal((await client.query("select rolbypassrls from pg_roles where rolname='service_role'")).rows[0].rolbypassrls, true)
     assert.equal((await client.query("select to_regclass('public.adventure_mainlines') as relation")).rows[0].relation, null)
     await client.query(migration)
+    await client.query(cleanup)
     assert.deepEqual(await capture(client), after, '重复执行改变了持久化事实')
     assertSchemaUnchanged(afterSchema, await schemaSnapshot(client), '重复执行改变了结构或安全属性')
     for (const unsafeCase of ['default_table', 'default_function', 'service_schema', 'role_bypass']) {
@@ -779,7 +813,7 @@ try {
       assert.equal(parallel.filter(result => result instanceof Error && result.message === 'VERSION_CONFLICT').length, 1)
       assert.equal(parallel.filter(result => !(result instanceof Error) && result.version === 1).length, 1)
       // Distinct exposed apply helpers race on the same account version.  Both
-      // must use the same legacy and only one may publish an event/reward.
+      // must use the same lock and only one may publish an event/reward.
       for (const [database, db] of [['postgres', client], ['goal_fresh', fresh]]) {
         const owner = '00000000-0000-4000-8000-000000000099'
         const create = async (request, version) => (await db.query('select public.adventure_planning_command($1,$2,$3,$4) result',

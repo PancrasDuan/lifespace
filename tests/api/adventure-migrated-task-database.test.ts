@@ -5,7 +5,7 @@ import { localPlanningRpc, planningDatabase } from '../support/planning-database
 
 const fixtureSchema = z.object({
   receipts: z.array(z.object({ owner_id: z.uuid(), request_id: z.string(), command: z.record(z.string(), z.unknown()), receipt: z.unknown() })),
-  legacyCompletions: z.array(z.object({ owner_id: z.uuid(), completion_id: z.uuid(), unlocked_completion_id: z.uuid(), invalidated_completion_id: z.uuid(), expected_version: z.coerce.number() })),
+  legacyCompletions: z.array(z.object({ owner_id: z.uuid(), completion_id: z.uuid(), expected_version: z.coerce.number() })),
 })
 const fixture = process.env.ADVENTURE_MIGRATED_FIXTURE ? fixtureSchema.parse(JSON.parse(process.env.ADVENTURE_MIGRATED_FIXTURE)) : undefined
 const api = planningDatabase('migrated-task@example.invalid')
