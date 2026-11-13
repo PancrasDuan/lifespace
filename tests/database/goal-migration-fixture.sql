@@ -107,10 +107,10 @@ begin
   r:=public.adventure_planning_command(o,'matrix-achieve-empty',11,c); insert into goal_fixture_receipts values(o,'matrix-achieve-empty',c,r);
 end $$;
 
--- A completion remains locked if its former mainline ends after its goal moved.
--- The current goal and task stay active/completed, so their state alone is not
--- enough to reconstruct this legacy cancellation rule.
-create temporary table goal_fixture_historical_lock(owner_id uuid, completion_id uuid, cancel_command jsonb, unlocked_completion_id uuid, invalidated_completion_id uuid, expected_version bigint);
+-- A completion whose former mainline ended after its goal moved. The legacy
+-- model protects it through the mainline status; the four-table model has no
+-- such state, so after migration it is cancellable like any other completion.
+create temporary table goal_fixture_legacy_completions(owner_id uuid, completion_id uuid, cancel_command jsonb, unlocked_completion_id uuid, invalidated_completion_id uuid, expected_version bigint);
 do $$
 declare o uuid:='00000000-0000-4000-8000-000000000004'; a uuid; b uuid; g uuid; t uuid; e uuid; unlocked uuid; cancelled uuid;
   today date:=(clock_timestamp() at time zone 'Asia/Shanghai')::date; r jsonb; c jsonb;
@@ -133,7 +133,7 @@ begin
   c:=jsonb_build_object('type','cancelTaskCompletion','completionId',e);
   begin
     perform public.adventure_planning_command(o,'lock-cancel',11,c);
-    raise exception 'historical lock missing before migration';
+    raise exception 'legacy mainline protection missing before migration';
   exception when others then
     if sqlerrm <> 'READ_ONLY' then raise; end if;
   end;
@@ -151,5 +151,5 @@ begin
   r:=public.adventure_task_apply(o,'legacy-migrate-task',15,c,clock_timestamp()); insert into goal_fixture_receipts values(o,'legacy-migrate-task',c,r);
   c:=jsonb_build_object('type','endTask','id',t);
   r:=public.adventure_task_apply(o,'legacy-end-task',16,c,clock_timestamp()); insert into goal_fixture_receipts values(o,'legacy-end-task',c,r);
-  insert into goal_fixture_historical_lock values(o,e,jsonb_build_object('type','cancelTaskCompletion','completionId',e),unlocked,cancelled,17);
+  insert into goal_fixture_legacy_completions values(o,e,jsonb_build_object('type','cancelTaskCompletion','completionId',e),unlocked,cancelled,17);
 end $$;

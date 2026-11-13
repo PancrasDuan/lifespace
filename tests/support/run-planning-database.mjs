@@ -228,11 +228,11 @@ try {
     await sql(`update public.adventure_events set snapshot=jsonb_set(snapshot,'{result}',snapshot->'result' || '{"mainlineName":"旧方向","source":{"mainlineId":"10000000-0000-4000-8000-000000000001","goalTitle":"保留的旧名称"}}'::jsonb) where request_id='rpc-complete-task';
       update goal_fixture_receipts set receipt=jsonb_set(receipt,'{result}',receipt->'result' || '{"mainlineName":"旧方向","source":{"mainlineId":"10000000-0000-4000-8000-000000000001","goalTitle":"保留的旧名称"}}'::jsonb) where request_id='rpc-complete-task';`)
     const receipts = (await sql('select * from goal_fixture_receipts')).rows
-    const locks = (await sql('select * from goal_fixture_historical_lock')).rows
+    const legacyCompletions = (await sql('select * from goal_fixture_legacy_completions')).rows
     await sql(await readFile(join(root, 'db/adventure/migrations/20261111000000_goal_categories.sql'), 'utf8'))
     const cleaned = (await sql("select snapshot->'result' result from public.adventure_events where request_id='rpc-complete-task'")).rows[0]?.result
     if (!cleaned || 'mainlineName' in cleaned || 'mainlineId' in cleaned.source || cleaned.source.goalTitle !== '保留的旧名称') throw new Error('旧回执结构化归属清理失败')
-    migratedFixture = JSON.stringify({ receipts, locks })
+    migratedFixture = JSON.stringify({ receipts, legacyCompletions })
   }
   if (!ledgerOnly && !goalModel && !legacyModel && !goalsOnly) {
     await sql(await readFile(join(root, 'tests/database/adventure-today-upgrade-before.sql'), 'utf8'))

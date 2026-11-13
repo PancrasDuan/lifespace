@@ -409,15 +409,18 @@ try {
     await assertRoleDenials(client)
     assert.deepEqual(await capture(client), after, '升级库业务回归未回滚合成数据')
     assertSchemaUnchanged(afterSchema, await schemaSnapshot(client), '升级库业务回归未回滚测试触发器')
-    const lock = (await client.query('select * from goal_fixture_historical_lock')).rows[0]
-    assert.equal(after.events.find(event => event.id === lock.completion_id).historical_lock, true)
-    assert.equal(after.events.find(event => event.id === lock.unlocked_completion_id).historical_lock, false)
-    const invalidated = after.events.find(event => event.id === lock.invalidated_completion_id)
-    assert.equal(invalidated.historical_lock, true)
+    const legacy = (await client.query('select * from goal_fixture_legacy_completions')).rows[0]
+    const invalidated = after.events.find(event => event.id === legacy.invalidated_completion_id)
     assert.notEqual(invalidated.invalidated_at, null)
-    await assert.rejects(client.query('select public.adventure_planning_command($1,$2,$3,$4)',
-      [lock.owner_id, 'lock-cancel', lock.expected_version, lock.cancel_command]),
-    error => error.message === 'READ_ONLY', '历史完成的锁定被绕过')
+    // 迁移后不再保留旧主线结束带来的完成冻结：该完成与其他完成一样可取消。
+    await client.query('begin')
+    try {
+      const cancelled = await client.query('select public.adventure_planning_command($1,$2,$3,$4) result',
+        [legacy.owner_id, 'legacy-cancel', legacy.expected_version, legacy.cancel_command])
+      assert.equal(cancelled.rows[0].result.version, Number(legacy.expected_version) + 1, '旧主线完成的冻结保护未被移除')
+    } finally {
+      await client.query('rollback')
+    }
     const receipts = (await client.query('select owner_id,request_id,command,pg_temp.goal_fixture_clean(receipt) receipt from goal_fixture_receipts')).rows
     const savedForSafety = receipts.find(receipt => receipt.request_id === 'rpc-complete-task')
     await client.query('begin')
@@ -436,14 +439,14 @@ try {
     }
     for (const extra of [
       { source: { mainlineAlias: 'retired' } },
-      { reward: { amount: 1, calculation: { type: 'fixed_task', completionId: lock.completion_id, count: 1, coefficient: 1, origin: { mainlineName: 'retired' } } } },
+      { reward: { amount: 1, calculation: { type: 'fixed_task', completionId: legacy.completion_id, count: 1, coefficient: 1, origin: { mainlineName: 'retired' } } } },
       { source: { goalTitle: true } },
-      { reward: { amount: '1', calculation: { type: 'fixed_task', completionId: lock.completion_id, count: 1, coefficient: 1 } } },
+      { reward: { amount: '1', calculation: { type: 'fixed_task', completionId: legacy.completion_id, count: 1, coefficient: 1 } } },
       { growthChange: { xpDelta: 0, before: {}, after: {}, unlocked: [], lost: [] } },
       { source: { goalId: 'not-a-uuid' } },
       { source: { plannedOn: '2026-02-31' } },
       { reward: { amount: 1, calculation: { type: 'goal_actions', actionIds: [], count: 2, coefficient: 1, fallback: true } } },
-      { reward: { amount: 1, calculation: { type: 'fixed_task', completionId: lock.completion_id, count: 1, coefficient: 1, actionIds: [] } } },
+      { reward: { amount: 1, calculation: { type: 'fixed_task', completionId: legacy.completion_id, count: 1, coefficient: 1, actionIds: [] } } },
     ]) {
       for (const fn of ['adventure_receipt_lookup', 'adventure_planning_command']) {
         await client.query('begin')
@@ -467,7 +470,7 @@ try {
         assert.deepEqual(replay.rows[0].receipt, saved.receipt, `辅助入口未重放迁移前的历史回执: ${request}`)
       }
       await assert.rejects(client.query('select public.adventure_planning_command($1,$2,0,$3)',
-        [lock.owner_id, 'legacy-end-task', { type: 'endTask', id: '30000000-0000-4000-8000-000000000001' }]),
+        [legacy.owner_id, 'legacy-end-task', { type: 'endTask', id: '30000000-0000-4000-8000-000000000001' }]),
       error => error.message === 'REQUEST_ID_REUSED', '停用命令的旧回执允许不同摘要复用')
     } finally {
       await client.query('reset role')
@@ -483,17 +486,17 @@ try {
       await reopened.end()
     }
     await assert.rejects(client.query('select public.adventure_planning_command($1,$2,0,$3)',
-      [lock.owner_id, 'lock-new-complete', { type: 'completeTask', id: '30000000-0000-4000-8000-000000000001' }]),
+      [legacy.owner_id, 'lock-new-complete', { type: 'completeTask', id: '30000000-0000-4000-8000-000000000001' }]),
     error => error.message === 'REQUEST_ID_REUSED', '不同摘要复用了旧回执')
     const other = before.accounts.find(account => account.owner_id === '00000000-0000-4000-8000-000000000003')
     await assert.rejects(client.query('select public.adventure_planning_command($1,$2,$3,$4)',
-      [other.owner_id, 'cross-lock-cancel', other.revision, lock.cancel_command]),
+      [other.owner_id, 'cross-lock-cancel', other.revision, legacy.cancel_command]),
     error => error.message === 'NOT_FOUND', '跨账户取消访问了历史完成')
     await client.query('begin')
     try {
       const cancel = await client.query('select public.adventure_planning_command($1,$2,$3,$4) as result',
-        [lock.owner_id, 'unlocked-cancel', lock.expected_version, { type: 'cancelTaskCompletion', completionId: lock.unlocked_completion_id }])
-      assert.equal(cancel.rows[0].result.version, Number(lock.expected_version) + 1, '原本允许的完成未能取消')
+        [legacy.owner_id, 'unlocked-cancel', legacy.expected_version, { type: 'cancelTaskCompletion', completionId: legacy.unlocked_completion_id }])
+      assert.equal(cancel.rows[0].result.version, Number(legacy.expected_version) + 1, '原本允许的完成未能取消')
     } finally {
       await client.query('rollback')
     }
@@ -501,27 +504,27 @@ try {
     await client.query('begin')
     try {
       const goalId = (await client.query('select goal_id from public.adventure_tasks where owner_id=$1 and id=(select task_id from public.adventure_events where owner_id=$1 and id=$2)',
-        [lock.owner_id, lock.unlocked_completion_id])).rows[0].goal_id
+        [legacy.owner_id, legacy.unlocked_completion_id])).rows[0].goal_id
       const today = (await client.query("select (clock_timestamp() at time zone 'Asia/Shanghai')::date::text as today")).rows[0].today
-      const create = (await client.query('select public.adventure_planning_command($1,$2,$3,$4) result', [lock.owner_id, 'freeze-create', lock.expected_version,
+      const create = (await client.query('select public.adventure_planning_command($1,$2,$3,$4) result', [legacy.owner_id, 'freeze-create', legacy.expected_version,
         { type: 'createTask', destination: goalId, title: '新行动', description: '', plannedOn: today }])).rows[0].result
-      const complete = (await client.query('select public.adventure_planning_command($1,$2,$3,$4) result', [lock.owner_id, 'freeze-complete', create.version,
+      const complete = (await client.query('select public.adventure_planning_command($1,$2,$3,$4) result', [legacy.owner_id, 'freeze-complete', create.version,
         { type: 'completeTask', id: create.result.entityId }])).rows[0].result
       const completionId = complete.result.completionId
-      assert.equal((await client.query('select snapshot->>\'categoryLabel\' as label from public.adventure_events where owner_id=$1 and id=$2', [lock.owner_id, completionId])).rows[0].label, '新方向')
-      const edited = (await client.query('select public.adventure_planning_command($1,$2,$3,$4) result', [lock.owner_id, 'freeze-edit', complete.version,
+      assert.equal((await client.query('select snapshot->>\'categoryLabel\' as label from public.adventure_events where owner_id=$1 and id=$2', [legacy.owner_id, completionId])).rows[0].label, '新方向')
+      const edited = (await client.query('select public.adventure_planning_command($1,$2,$3,$4) result', [legacy.owner_id, 'freeze-edit', complete.version,
         { type: 'editGoal', id: goalId, title: '转移的目标', standards: ['标准'], categoryLabel: '后来修改' }])).rows[0].result
-      assert.equal((await client.query('select snapshot->>\'categoryLabel\' as label from public.adventure_events where owner_id=$1 and id=$2', [lock.owner_id, completionId])).rows[0].label, '新方向')
-      const achieved = (await client.query('select public.adventure_planning_command($1,$2,$3,$4) result', [lock.owner_id, 'freeze-achieve', edited.version,
+      assert.equal((await client.query('select snapshot->>\'categoryLabel\' as label from public.adventure_events where owner_id=$1 and id=$2', [legacy.owner_id, completionId])).rows[0].label, '新方向')
+      const achieved = (await client.query('select public.adventure_planning_command($1,$2,$3,$4) result', [legacy.owner_id, 'freeze-achieve', edited.version,
         { type: 'achieveGoal', id: goalId, coefficient: 1, reflection: '' }])).rows[0].result
-      assert.equal((await client.query("select snapshot->>'categoryLabel' as label from public.adventure_events where owner_id=$1 and kind='goal_achieved' and goal_id=$2", [lock.owner_id, goalId])).rows[0].label, '后来修改')
-      assert.equal((await client.query('select snapshot->>\'categoryLabel\' as label from public.adventure_events where owner_id=$1 and id=$2', [lock.owner_id, completionId])).rows[0].label, '新方向')
+      assert.equal((await client.query("select snapshot->>'categoryLabel' as label from public.adventure_events where owner_id=$1 and kind='goal_achieved' and goal_id=$2", [legacy.owner_id, goalId])).rows[0].label, '后来修改')
+      assert.equal((await client.query('select snapshot->>\'categoryLabel\' as label from public.adventure_events where owner_id=$1 and id=$2', [legacy.owner_id, completionId])).rows[0].label, '新方向')
       assert.equal(achieved.version, edited.version + 1)
-      const newGoal = (await client.query('select public.adventure_planning_command($1,$2,$3,$4) result', [lock.owner_id, 'end-create-goal', achieved.version,
+      const newGoal = (await client.query('select public.adventure_planning_command($1,$2,$3,$4) result', [legacy.owner_id, 'end-create-goal', achieved.version,
         { type: 'createGoal', title: '可结束目标', standards: ['完成'], categoryLabel: ' 分类 ' }])).rows[0].result
-      const ended = (await client.query('select public.adventure_planning_command($1,$2,$3,$4) result', [lock.owner_id, 'end-goal-new', newGoal.version,
+      const ended = (await client.query('select public.adventure_planning_command($1,$2,$3,$4) result', [legacy.owner_id, 'end-goal-new', newGoal.version,
         { type: 'endGoal', id: newGoal.result.entityId }])).rows[0].result
-      await assert.rejects(client.query('select public.adventure_planning_command($1,$2,$3,$4)', [lock.owner_id, 'edit-ended-goal', ended.version,
+      await assert.rejects(client.query('select public.adventure_planning_command($1,$2,$3,$4)', [legacy.owner_id, 'edit-ended-goal', ended.version,
         { type: 'editGoal', id: newGoal.result.entityId, title: '不能编辑', standards: ['完成'] }]), error => error.message === 'READ_ONLY')
     } finally {
       await client.query('rollback')
@@ -569,11 +572,11 @@ try {
     const achievedEvent = after.events.find(event => event.owner_id === projectionOwner && event.kind === 'goal_achieved')
     const doneEvent = after.events.find(event => event.owner_id === projectionOwner && event.kind === 'task_completed' && event.invalidated_at === null)
     const today = (await client.query("select (clock_timestamp() at time zone 'Asia/Shanghai')::date::text today")).rows[0].today
-    const lockedTask = after.events.find(event => event.id === lock.completion_id).task_id
-    const unlockedTask = after.events.find(event => event.id === lock.unlocked_completion_id).task_id
-    const lockedView = (await client.query('select public.adventure_task_view($1,$2,$3) result', [lock.owner_id, lockedTask, today])).rows[0].result
-    const unlockedView = (await client.query('select public.adventure_task_view($1,$2,$3) result', [lock.owner_id, unlockedTask, today])).rows[0].result
-    assert.equal(lockedView.capabilities.cancel.allowed, false)
+    const lockedTask = after.events.find(event => event.id === legacy.completion_id).task_id
+    const unlockedTask = after.events.find(event => event.id === legacy.unlocked_completion_id).task_id
+    const lockedView = (await client.query('select public.adventure_task_view($1,$2,$3) result', [legacy.owner_id, lockedTask, today])).rows[0].result
+    const unlockedView = (await client.query('select public.adventure_task_view($1,$2,$3) result', [legacy.owner_id, unlockedTask, today])).rows[0].result
+    assert.equal(lockedView.capabilities.cancel.allowed, true, '旧主线完成的冻结保护未被移除')
     assert.equal(unlockedView.capabilities.cancel.allowed, true)
     const projections = [workspace]
     let options
@@ -582,8 +585,8 @@ try {
       ['select public.adventure_reward_source($1,$2,1,$3) result', [projectionOwner, achievedEvent.id, rpcAccount.revision]],
       ['select public.adventure_task_history($1,$2,1) result', [projectionOwner, doneEvent.task_id]],
       ["select public.adventure_task_list($1,$2,'all',$3,$2,1) result", [projectionOwner, today, rpcAccount.revision]],
-      ["select public.adventure_migration_options($1,'task',$2,1) result", [lock.owner_id,
-        after.events.find(event => event.owner_id === lock.owner_id && event.id === lock.unlocked_completion_id).task_id]],
+      ["select public.adventure_migration_options($1,'task',$2,1) result", [legacy.owner_id,
+        after.events.find(event => event.owner_id === legacy.owner_id && event.id === legacy.unlocked_completion_id).task_id]],
     ]) {
       const value = (await client.query(query, params)).rows[0].result
       if (query.includes('adventure_migration_options')) options = value
@@ -776,7 +779,7 @@ try {
       assert.equal(parallel.filter(result => result instanceof Error && result.message === 'VERSION_CONFLICT').length, 1)
       assert.equal(parallel.filter(result => !(result instanceof Error) && result.version === 1).length, 1)
       // Distinct exposed apply helpers race on the same account version.  Both
-      // must use the same lock and only one may publish an event/reward.
+      // must use the same legacy and only one may publish an event/reward.
       for (const [database, db] of [['postgres', client], ['goal_fresh', fresh]]) {
         const owner = '00000000-0000-4000-8000-000000000099'
         const create = async (request, version) => (await db.query('select public.adventure_planning_command($1,$2,$3,$4) result',
@@ -802,7 +805,7 @@ try {
         assert.equal(Number(state.events), 3)
         assert.equal(Number(state.total_xp), outcomes[0] instanceof Error ? 0 : 1)
       }
-      console.log('通过：新库和升级库业务回归、历史锁定与回执、权限及并发')
+      console.log('通过：新库和升级库业务回归、旧保护完成与回执、权限及并发')
     } finally {
       await fresh.end()
     }

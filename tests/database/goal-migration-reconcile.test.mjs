@@ -39,7 +39,7 @@ test('逐账户和 ID 对账会发现等行数但事实、奖励或归属变化'
     accounts: structuredClone(legacy.accounts),
     goals: [{ owner_id: 'a', id: 'g', kind: 'real', status: 'active', focused: true, sort_order: 0, title: '同名', attainment_snapshot: null, category_label: '同名' }],
     tasks: structuredClone(legacy.tasks),
-    events: [{ owner_id: 'a', id: 'e', kind: 'task_completed', amount: 1, invalidated_at: null, historical_lock: false, snapshot: { title: '同名', result: { reward: { amount: 1 } } }, calculation: { count: 1 } }],
+    events: [{ owner_id: 'a', id: 'e', kind: 'task_completed', amount: 1, invalidated_at: null, snapshot: { title: '同名', result: { reward: { amount: 1 } } }, calculation: { count: 1 } }],
   }
   assert.deepEqual(reconcile(legacy, migrated), [])
   for (const change of [
@@ -75,7 +75,7 @@ test('每个账户的进行中目标必须有合法排序键，即使只有一�
   }
 })
 
-test('完成发生时的旧主线后来结束时，逐 ID 对账要求保留中性历史锁定', () => {
+test('完成发生时的旧主线后来结束时，迁移不再写入历史锁定字段', () => {
   const before = {
     accounts: [{ owner_id: 'a', total_xp: 1 }],
     mainlines: [{ owner_id: 'a', id: 'old', kind: 'normal', name: '旧', status: 'ended', created_at: '2020-01-01' },
@@ -85,9 +85,9 @@ test('完成发生时的旧主线后来结束时，逐 ID 对账要求保留中�
     events: [{ owner_id: 'a', id: 'e', kind: 'task_completed', mainline_id: 'old', goal_id: 'g', task_id: 't', amount: 1, invalidated_at: null }],
   }
   const after = { accounts: before.accounts, goals: [{ owner_id: 'a', id: 'g', kind: 'real', status: 'active', focused: false, sort_order: 0, category_label: '新' }],
-    tasks: before.tasks, events: [{ owner_id: 'a', id: 'e', kind: 'task_completed', goal_id: 'g', task_id: 't', amount: 1, invalidated_at: null, historical_lock: true }] }
+    tasks: before.tasks, events: [{ owner_id: 'a', id: 'e', kind: 'task_completed', goal_id: 'g', task_id: 't', amount: 1, invalidated_at: null }] }
   assert.deepEqual(reconcile(before, after), [])
   const bad = structuredClone(after)
-  bad.events[0].historical_lock = false
-  assert.ok(reconcile(before, bad).some(error => error.includes('events a/e')))
+  bad.events[0].historical_lock = true
+  assert.ok(reconcile(before, bad).some(error => error.includes('events a/e')), '迁移后残留 historical_lock 应被对账拒绝')
 })

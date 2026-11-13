@@ -60,9 +60,6 @@ export function reconcile(before, after, { taskEndCause = 'historical_ended' } =
       value.category_label = row.kind === 'real' && mainline?.kind === 'normal' ? mainline.name.trim() : null
       if (row.status === 'active' && row.kind === 'real') delete value.sort_order
     }
-    if (table === 'events') {
-      value.historical_lock = row.kind === 'task_completed' && mainlines.get(`${row.owner_id}/${row.mainline_id}`)?.status === 'ended'
-    }
     return value
   }
   for (const table of ['accounts', 'goals', 'tasks', 'events']) {
