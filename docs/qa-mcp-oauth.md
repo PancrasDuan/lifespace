@@ -26,6 +26,8 @@
 
 本次是既有认证界面的新增状态，沿用 `AuthLayout`、字体、配色、控件和响应式规则，未改原登录、标题、导航及账单页面。架构 SVG 并非 UI 原型。没有新增视觉风格或修改 DESIGN.md；已有 PRODUCT.md 的历史账单描述不作为此次业务需求。截图由本分支 Playwright 用合成用户/客户端生成，桌面/手机授权页展示用户选择写入权限后的状态。
 
+用户随后要求移除页面上的示例客户端字样。预览与截图的合成客户端名称已改为 `Codex`，授权和管理页保持一致；正式组件继续显示请求中的客户端名称。对应现有授权浏览器 7 项重跑通过（正常退出），桌面/手机截图同步更新；名称调整不代表真实 Codex 互操作验收已完成。
+
 - [桌面授权页](design/mcp-oauth-consent-desktop.png)
 - [手机授权页](design/mcp-oauth-consent-mobile.png)
 - [手机授权管理撤销后](design/mcp-oauth-grants-mobile.png)

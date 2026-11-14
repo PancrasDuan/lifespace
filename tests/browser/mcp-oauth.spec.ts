@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test'
 import { mcpScopes } from '../../src/shared/mcp-oauth'
 
 const user = { id: '00000000-0000-4000-8000-000000000001', email: 'demo@example.com', aud: 'authenticated', role: 'authenticated', email_confirmed_at: '2026-10-11', app_metadata: {}, user_metadata: {}, created_at: '2026-10-11' }
-const details = { clientName: '示例 MCP 客户端', clientDomain: 'client.example.invalid', redirectHost: '127.0.0.1', redirectIsLoopback: true, scope: [mcpScopes[0]] }
+const details = { clientName: 'Codex', clientDomain: 'client.example.invalid', redirectHost: '127.0.0.1', redirectIsLoopback: true, scope: [mcpScopes[0]] }
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(({ user }) => localStorage.setItem('sb-auth-test-auth-token', JSON.stringify({ access_token: 'test-access-token', refresh_token: 'test-refresh-token', token_type: 'bearer', expires_at: 4102444800, user })), { user })
   await page.route('**/api/auth/config', route => route.fulfill({ json: { url: 'https://auth-test.supabase.co', publishableKey: 'sb_publishable_test-only' } }))
@@ -60,14 +60,14 @@ test('拒绝可独立提交；客户端名称按纯文本显示', async ({ page 
 
 test('授权管理展示独立连接，确认撤销并提供结果与在途边界', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 })
-  const grant = { id: '00000000-0000-4000-8000-000000000002', clientId: 'https://client.example.invalid/metadata.json', clientName: '示例 MCP 客户端', scopes: mcpScopes, createdAt: '2026-11-14T00:00:00Z', expiresAt: '2099-01-01T00:00:00Z', revokedAt: null }
+  const grant = { id: '00000000-0000-4000-8000-000000000002', clientId: 'https://client.example.invalid/metadata.json', clientName: 'Codex', scopes: mcpScopes, createdAt: '2026-11-14T00:00:00Z', expiresAt: '2099-01-01T00:00:00Z', revokedAt: null }
   const second = { ...grant, id: '00000000-0000-4000-8000-000000000003', clientName: '另一个 MCP 客户端' }
   await page.route('**/api/oauth/grants', route => route.fulfill({ json: { grants: [grant, second], nextCursor: null } }))
   let revoked = ''
   await page.route('**/api/oauth/grants/revoke', route => { revoked = route.request().postDataJSON().id; return route.fulfill({ json: { revoked: true } }) })
   await page.goto('/oauth/grants')
   await expect(page.getByRole('heading', { name: '已授权的客户端' })).toBeVisible()
-  const revokeFirst = page.getByRole('button', { name: /^撤销 示例 MCP 客户端 / })
+  const revokeFirst = page.getByRole('button', { name: /^撤销 Codex / })
   await revokeFirst.click()
   await expect(page.getByText('此连接需要重新征得你的同意', { exact: false })).toBeVisible()
   await expect(page.getByRole('button', { name: '确认撤销' })).toBeFocused()
@@ -96,7 +96,7 @@ test('授权管理空状态、加载失败和撤销失败均可恢复', async ({
   failed = false
   await page.getByRole('button', { name: '刷新授权' }).click()
   await expect(page.getByText('还没有授权客户端', { exact: false })).toBeVisible()
-  await page.route('**/api/oauth/grants', route => route.fulfill({ json: { grants: [{ id: '00000000-0000-4000-8000-000000000002', clientId: 'client-test', clientName: '示例客户端', scopes: [mcpScopes[0]], createdAt: '2026-11-14T00:00:00Z', expiresAt: '2099-01-01T00:00:00Z', revokedAt: null }], nextCursor: null } }))
+  await page.route('**/api/oauth/grants', route => route.fulfill({ json: { grants: [{ id: '00000000-0000-4000-8000-000000000002', clientId: 'client-test', clientName: 'Codex', scopes: [mcpScopes[0]], createdAt: '2026-11-14T00:00:00Z', expiresAt: '2099-01-01T00:00:00Z', revokedAt: null }], nextCursor: null } }))
   let revokeFails = true
   await page.route('**/api/oauth/grants/revoke', route => route.fulfill(revokeFails ? { status: 503, json: {} } : { json: { revoked: true } }))
   await page.reload()
