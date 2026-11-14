@@ -8,6 +8,25 @@
 
 授权码流程必须使用 PKCE S256。客户端完成 Supabase 登录、逐请求准入与明确同意后，只获得 MCP 授权码及专用 access/refresh token。网页登录的会话凭据不会出现在回调、MCP 配置或客户端响应里。同意页默认勾选客户端请求的权限；没有 scope 时默认只读，用户可选择其他三项已公布权限。拒绝通过经过验证的回调返回 `access_denied`、state 和 issuer。
 
+### WorkBuddy
+
+在 WorkBuddy 的 MCP JSON 配置中添加以下条目，然后点击连接并完成浏览器授权。采用 [WorkBuddy 官方远程 HTTP 配置格式](https://open.workbuddy.cn/docs/connector)，不添加静态 Bearer Token、Supabase 凭据或旧 Access 请求头：
+
+```json
+{
+  "mcpServers": {
+    "lifespace": {
+      "type": "streamableHttp",
+      "url": "https://lifespace.onepeace.cc.cd/api/agent/mcp"
+    }
+  }
+}
+```
+
+WorkBuddy 官方动态 OAuth 流程依赖 RFC 7591 客户端注册。生产配置为此显式启用 `MCP_OAUTH_DCR_ENABLED=true`，让 AS metadata 公布 `/oauth/register`。注册客户端不会授予账单权限，仍须通过用户登录、准入、PKCE 和明确同意。实际部署及 WorkBuddy 验收状态以 #193 和后续 PR 记录为准。
+
+若点击连接没有打开浏览器，先检查客户端错误详情：`Connect Timeout Error` 表示网络连接尚未建立，需检查 WorkBuddy 代理及网络规则；缺少 `registration_endpoint` 或注册返回 404 表示对应部署未启用 DCR。不要手动打开不带客户端授权参数的 `/oauth/authorize`，也不要自行填写示例 Client ID 或回调地址。DCR、PKCE 的模拟及隔离运行时验证不能代替真实 WorkBuddy 的浏览器回跳验收。
+
 | 工具 | 所需权限 |
 | --- | --- |
 | `list_ledger_accounts` | `ledger:accounts:read` |
@@ -25,7 +44,7 @@
 - `MCP_OAUTH_ISSUER`：固定规范 origin，生产为 `https://lifespace.onepeace.cc.cd`；只允许 HTTPS，显式 localhost/127.0.0.1/::1 开发环境可用 HTTP。resource 固定为 issuer + `/api/agent/mcp`。其他 Host 不得改变 issuer。
 - `OAUTH_KV`：专用 namespace，不能与旧测试、其他 issuer 或星座缓存混用。部署前显式绑定已核对的 namespace ID；不依赖部署工具自动创建未知资源。
 - `global_fetch_strictly_public`：CIMD 必需，配合官方库的 HTTPS、大小、超时及 redirect 校验防 SSRF；不加载客户端 logo 或任意脚本。
-- `MCP_OAUTH_DCR_ENABLED=true`：仅为已验证需要 DCR 的客户端开放 `/oauth/register`。默认关闭，不把 DCR 作为新客户端的首选。注册结果、scope 和回调仍由官方库及用户同意验证。
+- `MCP_OAUTH_DCR_ENABLED=true`：生产为 WorkBuddy 的动态 OAuth 接入显式开启 `/oauth/register`；其他环境未配置时仍关闭，预注册和 CIMD 继续可用。注册结果、scope 和回调仍由官方库及用户同意验证。
 - `MCP_ALLOWED_ORIGINS`：可选的精确 Origin 逗号列表，不含通配符；同源网页自动允许。其他带 Origin 的请求（含 OPTIONS）拒绝。metadata、token 与 MCP 的 CORS 仅回显已允许 Origin，不使用 `*`。非浏览器客户端可以不带 Origin。
 - `MCP_LEGACY_ENABLED=true`：按实际旧客户端需要开启 `/api/agent/legacy/mcp`；其 `CF_ACCESS_TEAM_DOMAIN`、`CF_ACCESS_AUD` 和绑定沿用 [旧通道管理](agent-access-bindings.md)，不自动创建或迁移真实绑定。
 
@@ -67,4 +86,4 @@ npm run test:database -- --ledger --api tests/api/mcp-oauth-database.test.ts tes
 PLAYWRIGHT_PORT=5193 PLAYWRIGHT_CHROMIUM_EXECUTABLE=/usr/bin/chromium npm run test:browser -- tests/browser/mcp-oauth.spec.ts tests/browser/auth.test.ts tests/browser/shared-shell-scope.spec.ts
 ```
 
-第二项在真实 workerd + KV + 一次性 PostgreSQL 中完成发现、同意、PKCE、刷新及撤销；Auth 身份服务为合成边界，不能称真实 Supabase Auth 或真实目标客户端验收。真实隔离账单测试覆盖原三个工具的 owner、余额、退款和幂等。最终证据见 [验收记录](qa-mcp-oauth.md)。
+第二项在真实 workerd + KV + 一次性 PostgreSQL 中，读取生产构建的 DCR 开关，按公布的注册入口完成动态注册、同意、PKCE、刷新及撤销；Auth 身份服务为合成边界，不能称真实 Supabase Auth 或真实目标客户端验收。真实隔离账单测试覆盖原三个工具的 owner、余额、退款和幂等。最终证据见 [验收记录](qa-mcp-oauth.md)。
