@@ -61,7 +61,7 @@
 
 - `npm run build`（含 typecheck）在最终手机 CSS 修复后退出 0；`git diff --check` 通过。密钥历史／当前文件扫描及提交钩子按仓库流程执行，最终结果见 PR。一次沙箱内当前文件扫描因 `git` 子进程 EPERM 中断，沙箱外相同扫描已完整通过，不将中断计为成功。
 - 相关浏览器回归 **128 passed、0 skipped，退出 0**，独立 `PLAYWRIGHT_PORT=5190`：page-loading、navigation、news、news-settings、news-order、auth、auth-startup、auth-logout、adventure-today-parity、adventure-goal-actions-layout、ledger-balance-visibility、ledger-time-keyboard、home、ai-status。128 项在最后两项手机专用 CSS 修复前完成；修复后完成构建、最终截图和下述真实触摸专项。最终完整 CI 结果另记 PR。
-- 固定 SHA 的需求评审发现认证页面缺少 skip link；已补齐 AuthLayout、认证各状态及 ResetPasswordForm 的标题目标，并把固定定位账户菜单的 DOM 放在主内容后，使首个 Tab 到达跳转入口，不改菜单行为。`auth.test.ts`补充桌面／手机认证四状态键盘与标题检查，并在有效重置会话用例核对首次 Tab 和目标焦点。认证修复后重新构建、捕获最终截图、测量网络量。认证／启动／退出／页面加载回归 **38 passed、0 skipped，退出 0**；[认证焦点记录](auth-skip/results.json)及[手机跳转入口](auth-skip/login-390.png)／[桌面重置跳转入口](auth-skip/reset-1440.png)另行保存。
+- 固定 SHA 的需求评审发现认证页面缺少 skip link；已补齐 AuthLayout、认证各状态及 ResetPasswordForm 的标题目标，并把固定定位账户菜单的 DOM 放在主内容后，使首个 Tab 到达跳转入口，不改菜单行为。`auth.test.ts`补充桌面／手机认证四状态键盘与标题检查，并在有效重置会话用例核对首次 Tab 和目标焦点。认证修复后重新构建、捕获最终截图、测量网络量。认证／启动／退出／页面加载回归首次日志 **38 passed、0 skipped**，但运行中编辑包装脚本导致退出记录缺失，不计完整通过；独立固定脚本重跑后 **38 passed、0 skipped，退出 0**。[认证焦点记录](auth-skip/results.json)及[手机跳转入口](auth-skip/login-390.png)／[桌面重置跳转入口](auth-skip/reset-1440.png)另行保存。
 - 独立共享区域回归 `shared-shell-scope.spec.ts`：**2 passed、0 skipped，退出 0**，1440／390px 三页签上方区域一致；无额外基线参数时只比较当前页签之间，不声称自动证明与旧原型逐像素一致。
 - 新增 `tests/browser/page-loading.spec.ts` 四项验证按需加载、延迟状态、失败恢复、其他页导航可用，以及桌面／手机四页 skip link 的实际键盘焦点和标题。既有导航回归覆盖直接访问与历史前进后退。
 - [手机专项](mobile-results.json)：320、390、720px 各六个业务状态，均通过。实际触摸刷新／设置、周历切换、创建任务输入关闭、关系卡、财务今天筛选／新流水输入关闭；核对相关 44px 尺寸、16px 字号、新闻列表内侧焦点及无溢出。检查曾发现任务名称字号被旧规则覆盖和“今天”按钮仅 30px 宽，均修复后重新完整通过。
