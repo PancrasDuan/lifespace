@@ -7,6 +7,9 @@
     "node": "^22.12.0 || >=24.0.0"
   },
   "scripts": {
+    "postinstall": "node scripts/patch-oauth-provider.mjs",
+    "prebuild": "node scripts/patch-oauth-provider.mjs",
+    "pretest:api": "node scripts/patch-oauth-provider.mjs",
     "dev": "WRANGLER_LOG_PATH=./.cache/wrangler.log CLOUDFLARE_DEV_REGISTRY_PATH=./.cache/registry vite --host 127.0.0.1 --port 5174 --strictPort",
     "prototype:ledger": "vite --config vite.ledger-prototype.config.ts",
     "types": "WRANGLER_LOG_PATH=./.cache/wrangler.log wrangler types --env-interface CloudflareEnv --include-runtime false --strict-vars false",
@@ -18,7 +21,7 @@
     "test:security": "WRANGLER_LOG_PATH=./.cache/wrangler-security.log CLOUDFLARE_DEV_REGISTRY_PATH=./.cache/security-registry node scripts/check-security.mjs",
     "test:security:portable": "WRANGLER_LOG_PATH=./.cache/wrangler-security.log CLOUDFLARE_DEV_REGISTRY_PATH=./.cache/security-registry node --test tests/security/temp-directory.test.mjs tests/security/cleanup.test.mjs",
     "test": "npm run test:api && npm run test:browser",
-    "deploy": "node scripts/strip-worker-dev-vars.mjs && WRANGLER_LOG_PATH=./.cache/wrangler.log wrangler deploy --config dist/lifespace/wrangler.json",
+    "deploy": "node scripts/check-mcp-oauth-config.mjs && node scripts/strip-worker-dev-vars.mjs && WRANGLER_LOG_PATH=./.cache/wrangler.log wrangler deploy --config dist/lifespace/wrangler.json",
     "setup:supabase": "bash scripts/configure-supabase.sh",
     "setup:dnshe": "bash scripts/configure-dnshe.sh",
     "setup:horoscope": "bash scripts/configure-horoscope.sh",
@@ -35,6 +38,7 @@
     "prototype:adventure-today": "vite --config vite.adventure-today-prototype.config.ts"
   },
   "dependencies": {
+    "@cloudflare/workers-oauth-provider": "1.2.4",
     "@dnd-kit/core": "6.3.1",
     "@dnd-kit/sortable": "10.0.0",
     "@dnd-kit/utilities": "3.2.2",

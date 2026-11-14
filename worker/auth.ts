@@ -5,7 +5,7 @@ import { BodyLimitError, readBoundedBody } from './read-body'
 import { traceIdentity, traceUpstreamFailure, traceUpstreamStatus, upstreamFailureType } from './trace'
 
 export type AuthEnv = Partial<CloudflareEnv>
-export type Identity = { id: string; email: string }
+export type Identity = { id: string; email: string; mcpScopes?: string[] }
 const unavailable = () => new ApiError('AUTH_UNAVAILABLE', '认证服务暂时不可用，请稍后重试', 503)
 const invalid = () => new ApiError('AUTH_INVALID', '登录已失效，请重新登录', 401)
 const email = z.email()

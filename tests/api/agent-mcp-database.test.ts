@@ -17,12 +17,12 @@ const signed = () => {
   const value = `${encode({ alg: 'RS256', kid: 'test-key' })}.${encode({ iss: team, aud: audience, exp: Math.floor(Date.now() / 1000) + 300, sub: '', common_name: clientId })}`
   return `${value}.${sign('RSA-SHA256', Buffer.from(value), pair.privateKey).toString('base64url')}`
 }
-const env = { ...ledgerEnv, CF_ACCESS_TEAM_DOMAIN: team, CF_ACCESS_AUD: audience }
+const env = { ...ledgerEnv, MCP_LEGACY_ENABLED: 'true', CF_ACCESS_TEAM_DOMAIN: team, CF_ACCESS_AUD: audience }
 const nativeFetch = globalThis.fetch
 let restore: () => void
 
 async function call(name: string, args: object) {
-  const response = await app.request('/api/agent/mcp', {
+  const response = await app.request('/api/agent/legacy/mcp', {
     method: 'POST', headers: { 'Cf-Access-Jwt-Assertion': signed(), 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream' },
     body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name, arguments: args } }),
   }, env)

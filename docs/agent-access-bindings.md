@@ -1,6 +1,6 @@
 # Agent 凭据与用户绑定
 
-此文描述 Issue #130 的数据库部分；不包含 Cloudflare 凭据的创建、发放或 Agent 入口部署。迁移为 [20261106031343_agent_access_bindings.sql](../db/agent/migrations/20261106031343_agent_access_bindings.sql)，由 Supabase CLI 生成文件名。正式数据库执行前须只读核对目标项目、现有结构、权限与交付授权。
+此文仅用于 #130 的旧 Service Token 通道（`MCP_LEGACY_ENABLED=true` 时的 `/api/agent/legacy/mcp`）。#193 标准 OAuth 的 `client_id` 是应用，可由多个用户授权，不使用本表解析 owner；新通道管理见 [OAuth 运维说明](mcp-oauth-operations.md)。此文描述旧通道的数据库部分；不包含 Cloudflare 凭据的创建、发放或 Agent 入口部署。迁移为 [20261106031343_agent_access_bindings.sql](../db/agent/migrations/20261106031343_agent_access_bindings.sql)，由 Supabase CLI 生成文件名。正式数据库执行前须只读核对目标项目、现有结构、权限与交付授权。
 
 ## 数据与权限
 

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { cp, mkdir, mkdtemp, readFile, readdir, realpath, rm, stat, symlink, writeFile } from 'node:fs/promises'
+import { cp, mkdir, mkdtemp, readFile, readdir, realpath, rm, symlink, writeFile } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { execFileSync, spawnSync } from 'node:child_process'
 import { resolve, dirname, basename } from 'node:path'
@@ -84,11 +84,8 @@ try {
   const publicDir = resolve(fixture, 'dist/lifespace', generated.assets.directory)
   assert.equal(publicDir, resolve(fixture, 'dist/client'), '发布目录必须只包含前端资源')
   const workerOutput = resolve(fixture, 'dist/lifespace')
-  for (const name of await readdir(workerOutput)) {
-    if (name.startsWith('.')) continue
-    const path = resolve(workerOutput, name)
-    if ((await stat(path)).isFile()) assertClean(await readFile(path), 'Worker 构建产物')
-  }
+  // OAuth is loaded lazily. Scan all Worker chunks and maps as well as index.js.
+  for (const path of await files(workerOutput)) assertClean(await readFile(path), 'Worker 构建产物')
   checks.push({ name: 'Worker 构建产物脱敏', passed: true })
   const publicFiles = await files(publicDir)
   for (const path of publicFiles) {
@@ -100,8 +97,9 @@ try {
   let newsCalls = 0
   let authCalls = 0
   let horoscopeCalls = 0
+  const workerModules = [resolve(workerOutput, 'index.js'), ...(await files(workerOutput)).filter(path => path.endsWith('.js') && path !== resolve(workerOutput, 'index.js'))]
   runtime = new Miniflare(convertV4MiniflareOptions({ workers: [{
-    name: generated.name, modules: true, scriptPath: resolve(fixture, 'dist/lifespace/index.js'),
+    name: generated.name, modules: workerModules.map(path => ({ type: 'ESModule', path })), modulesRoot: workerOutput,
     compatibilityDate: generated.compatibility_date, compatibilityFlags: generated.compatibility_flags,
     bindings: { ...generated.vars, ...markers, ...publicBindings },
     kvNamespaces: ['HOROSCOPE_KV'],

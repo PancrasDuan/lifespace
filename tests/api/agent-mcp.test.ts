@@ -7,6 +7,7 @@ const team = 'https://agent-test.cloudflareaccess.com'
 const audience = 'test-agent-audience'
 const clientId = 'agent-test-client.access'
 const env = {
+  MCP_LEGACY_ENABLED: 'true',
   CF_ACCESS_TEAM_DOMAIN: team, CF_ACCESS_AUD: audience,
   SUPABASE_URL: 'https://auth-test.supabase.co', SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_test-only',
   SUPABASE_SECRET_KEY: 'sb_secret_test-only', AUTH_ALLOWED_EMAILS: 'agent@example.invalid',
@@ -30,7 +31,7 @@ function upstream(extra?: (url: string, init?: RequestInit) => Response | undefi
   }))
 }
 function request(body: unknown, headers: HeadersInit = {}) {
-  return app.request('/api/agent/mcp', { method: 'POST', headers: { 'Cf-Access-Jwt-Assertion': assertion(), 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream', ...headers }, body: JSON.stringify(body) }, env)
+  return app.request('/api/agent/legacy/mcp', { method: 'POST', headers: { 'Cf-Access-Jwt-Assertion': assertion(), 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream', ...headers }, body: JSON.stringify(body) }, env)
 }
 function restRequest(path: string, body?: unknown) {
   const token = encode({ alg: 'HS256' }) + '.' + encode({ sub: owner, session_id: owner, exp: 4102444800 }) + '.synthetic'
@@ -302,7 +303,7 @@ test.each(['create_ledger_refund'])('%s 仍需 Agent 鉴权与在线准入，Age
   upstream()
   const headers = { 'Cf-Access-Jwt-Assertion': assertion(), 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream' }
   const body = JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name, arguments: refund } })
-  expect((await app.request('/api/agent/mcp', { method: 'POST', headers, body }, { ...env, AUTH_ALLOWED_EMAILS: 'removed@example.invalid' })).status).toBe(403)
-  expect((await app.request('/api/agent/mcp', { method: 'POST', headers: { ...headers, 'Cf-Access-Jwt-Assertion': '' }, body }, env)).status).toBe(401)
+  expect((await app.request('/api/agent/legacy/mcp', { method: 'POST', headers, body }, { ...env, AUTH_ALLOWED_EMAILS: 'removed@example.invalid' })).status).toBe(403)
+  expect((await app.request('/api/agent/legacy/mcp', { method: 'POST', headers: { ...headers, 'Cf-Access-Jwt-Assertion': '' }, body }, env)).status).toBe(401)
   expect((await app.request('/api/ledger/entries/' + refund.id + '/refunds', { method: 'POST', headers, body: JSON.stringify(refund) }, env)).status).toBe(401)
 })

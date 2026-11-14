@@ -1,0 +1,31 @@
+.mcp-authorization { overflow-wrap:anywhere; }
+.mcp-authorization p { line-height:1.75; }
+.mcp-note { color:#536a5c;font-size:.875rem; }
+.mcp-account { color:#536a5c;font-size:.875rem;margin-block:.75rem 2rem; }
+.mcp-permissions { border:0;padding:0;margin:0 0 1.25rem;min-inline-size:0; }
+.mcp-permissions legend { font-weight:600;margin-block-end:.75rem; }
+.mcp-permission { display:flex;align-items:center;gap:.875rem;min-block-size:5rem;border-block-end:1px solid #d9e3d2;padding-inline:.75rem; }
+.mcp-permission:has(input:checked) { background:#f0f5eb; }
+.mcp-permission:hover { background:#f5f8f1; }
+.mcp-permission input { flex:none;inline-size:1.15rem;block-size:1.15rem;accent-color:#52764f;margin:0; }
+.mcp-permission label { padding-block:.75rem;cursor:pointer;flex:1;min-block-size:3rem; }
+.mcp-permission label span { display:block;font-size:.875rem;color:#536a5c;line-height:1.6;margin-block-start:.25rem; }
+.mcp-permission label .mcp-permission-name { color:#263f34;font-size:1rem;font-weight:600;margin-block-start:0; }
+.mcp-permissions:disabled label { cursor:default;opacity:.65; }
+.mcp-selection { display:flex;flex-wrap:wrap;justify-content:space-between;gap:.5rem;color:#536a5c;font-size:.875rem;margin-block:0 1.25rem; }
+.mcp-deny { display:block;inline-size:100%;min-block-size:3rem;margin-block-start:.5rem;font-size:.875rem; }
+.mcp-grants { margin:0;padding:0;list-style:none; }
+.mcp-grants>li { padding-block:1.25rem;border-block-end:1px solid #d9e3d2; }
+.mcp-grants>li:first-child { padding-block-start:0; }
+.mcp-grant-header { display:flex;flex-wrap:wrap;justify-content:space-between;align-items:baseline;gap:.5rem; }
+.mcp-grant-state { color:#536a5c;font-size:.875rem;font-weight:600; }
+.mcp-grant-state.is-active { color:#456841; }
+.mcp-grant-scopes { padding-inline-start:1.25rem;margin-block:1rem; }
+.mcp-grant-scopes li { padding-block:.25rem;line-height:1.6; }
+.mcp-grant-scopes li::marker { color:#52764f; }
+.mcp-grant-result { color:#456841;font-size:.875rem;margin-block:0 1.25rem; }
+.mcp-grant-result:empty { margin:0; }
+.mcp-grants .auth-secondary { width:auto;min-block-size:3rem;margin-block-start:.5rem; }
+.mcp-revoke-confirm .auth-link { margin-inline-start:1rem;min-block-size:3rem; }
+.mcp-empty { padding-block:1.25rem; }
+@media (max-width:680px) { .mcp-authorization h1 { text-wrap:balance; } }

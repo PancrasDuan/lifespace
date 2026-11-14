@@ -1,4 +1,6 @@
 type AttributeValue = string | number | boolean
+// The OAuth library accepts WorkerEntrypoint handlers; these tests use fetch handlers.
+export class WorkerEntrypoint {}
 
 export type TestSpan = {
   attributes: Record<string, AttributeValue>
