@@ -1,0 +1,13 @@
+[
+  {
+    "antipattern": "bounce-easing",
+    "name": "Bounce or elastic easing",
+    "description": "Bounce and elastic easing feel dated and tacky. Real objects decelerate smoothly — use exponential easing (ease-out-quart/quint/expo) instead.",
+    "severity": "advisory",
+    "category": "slop",
+    "file": "/home/lighthouse/orca/workspaces/lifespace/188-modern-web-optimization/src/news/news.css",
+    "line": 46,
+    "snippet": "cubic-bezier(.2, .9, .25, 1.15)",
+    "advisory": true
+  }
+]

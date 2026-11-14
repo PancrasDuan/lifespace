@@ -63,6 +63,11 @@ html:has(.adventure-page.prototype-page)::-webkit-scrollbar { display: none; }
 .adventure-dialog .task-editor-footer .delete-task { margin-right: auto; color: #9a5550; }
 /* A task expansion must not make the browser anchor a following sidebar/footer. */
 .adventure-page.prototype-page { overflow-anchor: none; }
+@media (pointer: coarse) {
+  .adventure-page.prototype-page .today-calendar-head { flex-wrap: wrap; }
+  .adventure-page.prototype-page .today-calendar-actions button { min-width: 44px; min-height: 44px; }
+  .adventure-page.prototype-page .today-search input { font-size: max(1rem, 1em); }
+}
 @media (max-width: 720px) {
   .adventure-page.prototype-page .today-calendar { padding: 14px 12px; }
   .adventure-page.prototype-page .today-calendar-head > div:first-child { display: block; }

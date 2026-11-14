@@ -151,3 +151,8 @@
   .goal-confirmation-form { padding: 18px; }
   .goal-confirmation-facts { grid-template-columns: 1fr; }
 }
+
+@media (pointer: coarse) {
+  .goal-console-tools .quiet-toggle { min-height: 44px; }
+  .adventure-page.prototype-page .goal-console-actions button { min-height: 44px; }
+}

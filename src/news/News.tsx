@@ -48,7 +48,7 @@ export function News() {
   const refreshing = queries.some(query => query.isFetching)
   return <AppLayout page="news"><div className="news-page"><header className="masthead">
     <div className="page-kicker"><span className="live-dot" />LifeSpace · 每日阅读</div>
-    <h1>热点新闻</h1><p>把值得关注的消息放在一起</p>
+    <h1 id="page-title" tabIndex={-1}>热点新闻</h1><p>把值得关注的消息放在一起</p>
   </header>
     <div className="news-toolbar"><span>按来源浏览 · {sources.length} 个榜单</span>
       <div className="news-toolbar-actions"><button aria-label="刷新全部新闻" disabled={refreshing || !sources.length} onClick={() => { for (const query of queries) void query.refetch() }}><RotateCw size={15} className={refreshing ? 'spinning' : ''} />{refreshing ? '正在获取' : '全部刷新'}</button>

@@ -50,6 +50,10 @@
 }
 .lp-time-trigger:hover, .lp-time-trigger[aria-expanded="true"] { background: #f0f5eb; }
 .lp-time-control .lp-time-trigger:focus-visible { outline: 2px solid #557c53; outline-offset: -5px; }
+@media (pointer: coarse) {
+  .lp-time-control { min-height: 48px; }
+  .lp-time-control .lp-time-native { font-size: max(1rem,1em); }
+}
 
 .lp-time-popover[popover] {
   --lp-time-roller-height: 180px;

@@ -23,6 +23,7 @@
 .news-card-heading svg{color:var(--accent)}
 .news-card-heading button{padding:6px;border:0;background:transparent}
 .news-list{height:365px;overflow-y:auto;overscroll-behavior:contain;padding:0 18px;scrollbar-width:thin;scrollbar-color:#d8e3d3 transparent}
+.news-list:focus-visible{outline:2px solid var(--accent);outline-offset:-3px}
 .news-list ol{margin:0;padding:0;list-style:none}
 .news-list li{display:flex;align-items:flex-start;gap:10px;padding:11px 0;border-top:1px solid var(--line)}
 .news-list li:first-child{border-top:0}
@@ -64,3 +65,7 @@
 .news-order-settings .news-order-confirm-button{background:#52764f;color:white;border-color:#52764f}
 .news-source-settings>.news-order-error{margin:14px 0 0}
 @media(prefers-reduced-motion:reduce){.news-drag-handle,.news-drag-handle:before,.news-drag-handle span{transition:none}}
+@media(pointer:coarse){
+  .news-toolbar button,.news-card-heading button,.news-order-settings button{min-height:44px}
+  .news-card-heading button{min-width:44px}
+}

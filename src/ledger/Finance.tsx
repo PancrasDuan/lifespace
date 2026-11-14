@@ -115,7 +115,7 @@ export function Finance() {
   }
   return <AppLayout page="finance" className="finance-page lp-app lp-variant-a">
     <div className="lp-workspace">
-      <header className="lp-page-header"><div><h1>财务<span>人民币</span></h1><p>管理账户与每笔收支。</p></div><button className="lp-secondary lp-refresh" onClick={() => void queries.invalidateQueries({ queryKey: ['ledger', identity.ownerId] }, { cancelRefetch: false })}><RefreshCw size={14} />刷新数据</button></header>
+      <header className="lp-page-header"><div><h1 id="page-title" tabIndex={-1}>财务<span>人民币</span></h1><p>管理账户与每笔收支。</p></div><button className="lp-secondary lp-refresh" onClick={() => void queries.invalidateQueries({ queryKey: ['ledger', identity.ownerId] }, { cancelRefetch: false })}><RefreshCw size={14} />刷新数据</button></header>
       {submission.unconfirmed.map(item => <div role="alert" className="lp-unknown" key={item.key}><span>{item.message}</span><button className="lp-secondary" disabled={item.pending} onClick={() => void item.retry()}>{item.pending ? '正在重试…' : '重试原请求'}</button><button className="lp-secondary" onClick={() => void entries.refetch()}>查看最新流水</button></div>)}
       {unknownDeletes.filter(item => panel?.kind !== 'delete' || panel.session !== item.session).map(item => <div role="alert" className="lp-unknown" key={item.id}><span>{item.message}</span><button className="lp-secondary" disabled={item.pending} onClick={() => {
         if (item.code === 'DELETE_SCOPE_CHANGED') {

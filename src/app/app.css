@@ -1,4 +1,20 @@
 /* Shared navigation: page styles belong inside main. */
+.skip-link {
+  position: fixed;
+  z-index: 100;
+  top: 12px;
+  left: 88px;
+  padding: 12px 16px;
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  background: #fff;
+  color: #263f34;
+}
+.skip-link:not(:focus) { width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.page-feedback { padding-top: 80px; text-align: center; }
+.page-feedback h1 { font-size: 30px; font-weight: 500; }
+.page-feedback p { color: var(--quiet); }
+.page-feedback button { min-height: 44px; margin-top: 12px; padding: 10px 18px; border: 1px solid var(--line); border-radius: 10px; background: #fff; color: var(--accent); }
 .sidebar {
   --sidebar-width: 76px;
   width: var(--sidebar-width);
@@ -68,6 +84,7 @@
   overflow-y: auto;
 }
 @media (max-width: 720px) {
+  .skip-link { left: 66px; }
   .sidebar { --sidebar-width: 54px; padding: 18px 0; }
   .sidebar .brand-mark { width: 32px; height: 32px; margin: 0; }
   .sidebar nav { width: auto; margin-top: 37px; gap: 11px; }
@@ -83,4 +100,8 @@
   .sidebar { padding-top: 12px; padding-bottom: 12px; }
   .sidebar nav { margin-top: 16px; gap: 8px; }
   .sidebar .auth-account { padding-top: 12px; }
+}
+@media (pointer: coarse) {
+  .sidebar .auth-avatar { min-width: 44px; min-height: 44px; }
+  .sidebar .nav-item { min-width: 44px; }
 }

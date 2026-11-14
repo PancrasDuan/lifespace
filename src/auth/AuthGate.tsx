@@ -24,6 +24,7 @@ import { AccountMenu } from './AccountMenu'
 import { VerifiedIdentityContext } from './identity'
 import { ResetPasswordForm } from './ResetPasswordForm'
 import { HomeSkeleton } from './HomeSkeleton'
+import { usePageTitle } from '../app/usePageTitle'
 
 const identitySchema = z.object({
   user: z.object({ id: z.uuid(), email: z.email() }),
@@ -260,7 +261,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
     return (
       <>
         <AccountMenu email={accountEmail} />
-        <AuthLayout>
+        <AuthLayout title="重置密码">
           <ResetPasswordForm
             authorized={
               state.kind === 'allowed' && isRecoveryFlow(state.sessionId)
@@ -296,7 +297,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
   return (
     <>
       <AccountMenu email={accountEmail} />
-      <AuthLayout>
+      <AuthLayout title={state.kind === 'login' ? '登录' : state.kind === 'denied' ? '访问受限' : callbackMessage ? '邮箱验证' : '连接暂不可用'}>
         {state.kind === 'login' ? (
           <LoginForm />
         ) : (
@@ -342,7 +343,8 @@ export function AuthGate({ children }: { children: ReactNode }) {
   )
 }
 
-export function AuthLayout({ children }: { children: ReactNode }) {
+export function AuthLayout({ children, title = '登录' }: { children: ReactNode; title?: string }) {
+  usePageTitle(title)
   return (
     <main className="auth-screen">
       <div className="auth-columns">
@@ -426,6 +428,7 @@ function LoginForm() {
   const [view, setView] = useState<
     'login' | 'register' | 'verify' | 'forgot' | 'sent'
   >('login')
+  usePageTitle({ login: '登录', register: '注册', verify: '验证邮箱', forgot: '找回密码', sent: '查看重置邮件' }[view])
   const [registeredEmail, setRegisteredEmail] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')

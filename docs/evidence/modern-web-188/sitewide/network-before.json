@@ -1,0 +1,87 @@
+[
+  {
+    "name": "login",
+    "jsBytes": 1316057,
+    "gzipBytes": 399652,
+    "scripts": [
+      {
+        "name": "/assets/index-UDzJNFko.js",
+        "bytes": 2626,
+        "gzipBytes": 1355
+      },
+      {
+        "name": "/assets/main-DZI8uHKI.js",
+        "bytes": 1313431,
+        "gzipBytes": 398297
+      }
+    ]
+  },
+  {
+    "name": "home",
+    "jsBytes": 1316057,
+    "gzipBytes": 399652,
+    "scripts": [
+      {
+        "name": "/assets/index-UDzJNFko.js",
+        "bytes": 2626,
+        "gzipBytes": 1355
+      },
+      {
+        "name": "/assets/main-DZI8uHKI.js",
+        "bytes": 1313431,
+        "gzipBytes": 398297
+      }
+    ]
+  },
+  {
+    "name": "news",
+    "jsBytes": 1316057,
+    "gzipBytes": 399652,
+    "scripts": [
+      {
+        "name": "/assets/index-UDzJNFko.js",
+        "bytes": 2626,
+        "gzipBytes": 1355
+      },
+      {
+        "name": "/assets/main-DZI8uHKI.js",
+        "bytes": 1313431,
+        "gzipBytes": 398297
+      }
+    ]
+  },
+  {
+    "name": "adventure",
+    "jsBytes": 1316057,
+    "gzipBytes": 399652,
+    "scripts": [
+      {
+        "name": "/assets/index-UDzJNFko.js",
+        "bytes": 2626,
+        "gzipBytes": 1355
+      },
+      {
+        "name": "/assets/main-DZI8uHKI.js",
+        "bytes": 1313431,
+        "gzipBytes": 398297
+      }
+    ]
+  },
+  {
+    "name": "finance",
+    "jsBytes": 1316057,
+    "gzipBytes": 399652,
+    "scripts": [
+      {
+        "name": "/assets/index-UDzJNFko.js",
+        "bytes": 2626,
+        "gzipBytes": 1355
+      },
+      {
+        "name": "/assets/main-DZI8uHKI.js",
+        "bytes": 1313431,
+        "gzipBytes": 398297
+      }
+    ]
+  }
+]
