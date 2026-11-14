@@ -260,7 +260,6 @@ export function AuthGate({ children }: { children: ReactNode }) {
   if (window.location.pathname === '/auth/reset')
     return (
       <>
-        <AccountMenu email={accountEmail} />
         <AuthLayout title="重置密码">
           <ResetPasswordForm
             authorized={
@@ -270,6 +269,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
             accountId={state.kind === 'allowed' ? state.id : undefined}
           />
         </AuthLayout>
+        <AccountMenu email={accountEmail} />
       </>
     )
   if (
@@ -296,13 +296,12 @@ export function AuthGate({ children }: { children: ReactNode }) {
   const callbackMessage = callbackNeedsLogin || state.kind === 'callbackFailed'
   return (
     <>
-      <AccountMenu email={accountEmail} />
       <AuthLayout title={state.kind === 'login' ? '登录' : state.kind === 'denied' ? '访问受限' : callbackMessage ? '邮箱验证' : '连接暂不可用'}>
         {state.kind === 'login' ? (
           <LoginForm />
         ) : (
           <div className="auth-center">
-            <h1>
+            <h1 id="page-title" tabIndex={-1}>
               {state.kind === 'denied'
                 ? '暂时无法进入'
                 : callbackNeedsLogin
@@ -339,6 +338,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
           </div>
         )}
       </AuthLayout>
+      <AccountMenu email={accountEmail} />
     </>
   )
 }
@@ -347,6 +347,7 @@ export function AuthLayout({ children, title = '登录' }: { children: ReactNode
   usePageTitle(title)
   return (
     <main className="auth-screen">
+      <a className="skip-link" href="#page-title">跳到主要内容</a>
       <div className="auth-columns">
         <section className="auth-story">
           <div className="auth-wordmark">
@@ -536,7 +537,7 @@ function LoginForm() {
   if (view === 'verify')
     return (
       <div className="auth-center">
-        <h1>请验证你的邮箱</h1>
+        <h1 id="page-title" tabIndex={-1}>请验证你的邮箱</h1>
         <p>
           请打开 {registeredEmail}{' '}
           收到的验证邮件，点击链接完成验证。请在发起注册的浏览器打开链接。
@@ -567,7 +568,7 @@ function LoginForm() {
   if (view === 'sent')
     return (
       <div className="auth-center">
-        <h1>请查看你的邮箱</h1>
+        <h1 id="page-title" tabIndex={-1}>请查看你的邮箱</h1>
         <p>如果 {registeredEmail} 对应可用账户，你将收到密码重置邮件。</p>
         <button className="auth-primary" onClick={() => changeView('login')}>
           返回登录
@@ -596,7 +597,7 @@ function LoginForm() {
           </button>
         </div>
       )}
-      <h1>
+      <h1 id="page-title" tabIndex={-1}>
         {view === 'login'
           ? '欢迎回来'
           : view === 'forgot'

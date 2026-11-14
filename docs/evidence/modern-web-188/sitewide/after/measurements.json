@@ -1398,12 +1398,6 @@
     "overflow": false,
     "controls": [
       {
-        "label": "账户菜单",
-        "width": 38,
-        "height": 38,
-        "font": "16px"
-      },
-      {
         "label": "登录",
         "width": 236,
         "height": 46,
@@ -1444,6 +1438,12 @@
         "width": 486,
         "height": 48,
         "font": "16px"
+      },
+      {
+        "label": "账户菜单",
+        "width": 38,
+        "height": 38,
+        "font": "16px"
       }
     ]
   },
@@ -1453,12 +1453,6 @@
     "title": "注册 · LifeSpace",
     "overflow": false,
     "controls": [
-      {
-        "label": "账户菜单",
-        "width": 38,
-        "height": 38,
-        "font": "16px"
-      },
       {
         "label": "登录",
         "width": 236,
@@ -1506,6 +1500,12 @@
         "width": 486,
         "height": 48,
         "font": "16px"
+      },
+      {
+        "label": "账户菜单",
+        "width": 38,
+        "height": 38,
+        "font": "16px"
       }
     ]
   },
@@ -1515,12 +1515,6 @@
     "title": "找回密码 · LifeSpace",
     "overflow": false,
     "controls": [
-      {
-        "label": "账户菜单",
-        "width": 38,
-        "height": 38,
-        "font": "16px"
-      },
       {
         "label": "",
         "width": 486,
@@ -1538,6 +1532,12 @@
         "width": 48,
         "height": 17,
         "font": "12px"
+      },
+      {
+        "label": "账户菜单",
+        "width": 38,
+        "height": 38,
+        "font": "16px"
       }
     ]
   },
@@ -1548,15 +1548,15 @@
     "overflow": false,
     "controls": [
       {
-        "label": "账户菜单",
-        "width": 38,
-        "height": 38,
-        "font": "16px"
-      },
-      {
         "label": "返回登录",
         "width": 486,
         "height": 48,
+        "font": "16px"
+      },
+      {
+        "label": "账户菜单",
+        "width": 38,
+        "height": 38,
         "font": "16px"
       }
     ]
@@ -2960,12 +2960,6 @@
     "overflow": false,
     "controls": [
       {
-        "label": "账户菜单",
-        "width": 44,
-        "height": 44,
-        "font": "16px"
-      },
-      {
         "label": "登录",
         "width": 143,
         "height": 46,
@@ -3006,6 +3000,12 @@
         "width": 300,
         "height": 48,
         "font": "16px"
+      },
+      {
+        "label": "账户菜单",
+        "width": 44,
+        "height": 44,
+        "font": "16px"
       }
     ]
   },
@@ -3015,12 +3015,6 @@
     "title": "注册 · LifeSpace",
     "overflow": false,
     "controls": [
-      {
-        "label": "账户菜单",
-        "width": 44,
-        "height": 44,
-        "font": "16px"
-      },
       {
         "label": "登录",
         "width": 143,
@@ -3068,6 +3062,12 @@
         "width": 300,
         "height": 48,
         "font": "16px"
+      },
+      {
+        "label": "账户菜单",
+        "width": 44,
+        "height": 44,
+        "font": "16px"
       }
     ]
   },
@@ -3077,12 +3077,6 @@
     "title": "找回密码 · LifeSpace",
     "overflow": false,
     "controls": [
-      {
-        "label": "账户菜单",
-        "width": 44,
-        "height": 44,
-        "font": "16px"
-      },
       {
         "label": "",
         "width": 300,
@@ -3100,6 +3094,12 @@
         "width": 48,
         "height": 44,
         "font": "12px"
+      },
+      {
+        "label": "账户菜单",
+        "width": 44,
+        "height": 44,
+        "font": "16px"
       }
     ]
   },
@@ -3110,15 +3110,15 @@
     "overflow": false,
     "controls": [
       {
-        "label": "账户菜单",
-        "width": 44,
-        "height": 44,
-        "font": "16px"
-      },
-      {
         "label": "返回登录",
         "width": 300,
         "height": 48,
+        "font": "16px"
+      },
+      {
+        "label": "账户菜单",
+        "width": 44,
+        "height": 44,
         "font": "16px"
       }
     ]

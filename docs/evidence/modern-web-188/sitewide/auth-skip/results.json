@@ -1,0 +1,34 @@
+[
+  {
+    "width": 1440,
+    "path": "/",
+    "title": "登录 · LifeSpace",
+    "heading": "欢迎回来",
+    "firstTabSkipLink": true,
+    "targetFocused": true
+  },
+  {
+    "width": 1440,
+    "path": "/auth/reset",
+    "title": "重置密码 · LifeSpace",
+    "heading": "重置链接不可用",
+    "firstTabSkipLink": true,
+    "targetFocused": true
+  },
+  {
+    "width": 390,
+    "path": "/",
+    "title": "登录 · LifeSpace",
+    "heading": "欢迎回来",
+    "firstTabSkipLink": true,
+    "targetFocused": true
+  },
+  {
+    "width": 390,
+    "path": "/auth/reset",
+    "title": "重置密码 · LifeSpace",
+    "heading": "重置链接不可用",
+    "firstTabSkipLink": true,
+    "targetFocused": true
+  }
+]

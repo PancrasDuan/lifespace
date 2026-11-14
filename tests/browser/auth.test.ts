@@ -5,6 +5,36 @@ test.beforeEach(async ({ page }) => {
   await page.route('https://auth-test.supabase.co/**', route => route.fulfill({ status: 400, json: { error_code: 'invalid_credentials', msg: 'Invalid login credentials' } }))
 })
 
+for (const width of [1440, 390]) test(`${width}px 认证各页面的标题和键盘跳转指向当前表单`, async ({ page }) => {
+  await page.setViewportSize({ width, height: 844 })
+  await page.goto('/')
+  await expect(page.getByRole('heading', { name: '欢迎回来' })).toBeVisible()
+  const skip = page.getByRole('link', { name: '跳到主要内容' })
+  await page.keyboard.press('Tab')
+  await expect(skip).toBeFocused()
+  for (const view of ['登录', '注册', '找回密码', '重置密码']) {
+    if (view === '注册') await page.getByRole('button', { name: '注册', exact: true }).click()
+    if (view === '找回密码') {
+      await page.getByRole('button', { name: '登录', exact: true }).click()
+      await page.getByRole('button', { name: '忘记密码？', exact: true }).click()
+    }
+    if (view === '重置密码') {
+      await page.goto('/auth/reset')
+      await expect(page.getByRole('heading', { name: '重置链接不可用' })).toBeVisible()
+      await page.keyboard.press('Tab')
+      await expect(skip).toBeFocused()
+    }
+    await expect(page).toHaveTitle(`${view} · LifeSpace`)
+    await skip.focus()
+    await expect(skip).toBeInViewport()
+    await page.keyboard.press('Enter')
+    await expect(page.locator('h1#page-title')).toBeFocused()
+    await page.keyboard.press('Tab')
+    expect(await page.locator('.auth-story :focus').count()).toBe(0)
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+  }
+})
+
 test('未登录仅显示 B 登录页面，密码切换图标与内容同步', async ({ page }) => {
   let businessRequests = 0
   await page.route(/\/api\/(?!auth\/)/, route => { businessRequests++; return route.fulfill({ status: 503, json: {} }) })
@@ -385,6 +415,10 @@ test('恢复资格绑定会话，刷新重置页面仍可设置密码并打开�
   await expect(page.getByRole('heading', { name: '设置新密码' })).toBeVisible()
   await page.reload()
   await expect(page.getByRole('heading', { name: '设置新密码' })).toBeVisible()
+  await page.keyboard.press('Tab')
+  await expect(page.getByRole('link', { name: '跳到主要内容' })).toBeFocused()
+  await page.keyboard.press('Enter')
+  await expect(page.getByRole('heading', { name: '设置新密码' })).toBeFocused()
   await page.getByRole('button', { name: '账户菜单' }).click()
   await expect(page.getByRole('menuitem', { name: '退出登录' })).toBeEnabled()
   await expect(page.getByRole('menu', { name: '账户' })).toContainText(user.email)
