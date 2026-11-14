@@ -23,34 +23,39 @@ for (const width of [1440, 390]) {
     })
     await page.route('https://client.example.invalid/callback**', route => route.fulfill({ body: '已返回合成客户端' }))
     await page.goto('/oauth/authorize?client_id=synthetic')
-    await expect(page.getByRole('heading', { name: '授权客户端访问账单' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: '授权访问账单' })).toBeVisible()
     await expect(page).toHaveTitle('客户端授权 · LifeSpace')
-    await expect(page.getByText('client.example.invalid', { exact: true })).toBeVisible()
-    await expect(page.getByText('127.0.0.1', { exact: true })).toBeVisible()
+    const authorization = page.locator('.mcp-authorization')
+    await expect(authorization).not.toContainText('Codex')
+    await expect(authorization).not.toContainText('client.example.invalid')
+    await expect(authorization).not.toContainText('127.0.0.1')
+    await expect(authorization.locator('a')).toHaveCount(0)
+    await expect(page.getByText('已选 1 项权限', { exact: true })).toBeVisible()
     const read = page.getByRole('checkbox', { name: '读取交易账户' })
     await expect(read).toBeChecked()
     await read.focus()
     await page.keyboard.press('Space')
-    await page.getByRole('button', { name: '同意并返回客户端' }).click()
+    await expect(page.getByText('已选 0 项权限', { exact: true })).toBeVisible()
+    await page.getByRole('button', { name: '授权所选权限' }).click()
     await expect(page.getByRole('alert')).toContainText('至少选择一项权限')
     await expect(page.getByRole('alert')).toBeFocused()
     expect(submissions).toBe(0)
     await page.getByRole('checkbox', { name: '新建收支流水' }).check()
     await page.screenshot({ path: `.cache/mcp-consent-${width}.png`, fullPage: true })
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
-    await page.getByRole('button', { name: '同意并返回客户端' }).dblclick()
+    await page.getByRole('button', { name: '授权所选权限' }).dblclick()
     await expect(page).toHaveURL(/client\.example\.invalid\/callback/)
     expect(submitted).toMatchObject({ decision: 'approve', scopes: [mcpScopes[1]] })
     expect(submissions).toBe(1)
   })
 }
 
-test('拒绝可独立提交；客户端名称按纯文本显示', async ({ page }) => {
+test('拒绝可独立提交；客户端资料不出现在授权表单', async ({ page }) => {
   await page.route('**/api/oauth/consent/start', route => route.fulfill({ json: { handle: 'synthetic', details: { ...details, clientName: '<img src=x onerror=alert(1)>', clientDomain: undefined } } }))
   let decision = ''
   await page.route('**/api/oauth/consent/finish', route => { decision = route.request().postDataJSON().decision; return route.fulfill({ status: 400, json: { error: { message: '授权页面已失效，请从客户端重新连接' } } }) })
   await page.goto('/oauth/authorize')
-  await expect(page.getByRole('heading', { name: '<img src=x onerror=alert(1)>' })).toBeVisible()
+  await expect(page.locator('.mcp-authorization')).not.toContainText('<img src=x onerror=alert(1)>')
   await expect(page.locator('.mcp-authorization img')).toHaveCount(0)
   await page.getByRole('button', { name: '拒绝授权' }).click()
   await expect(page.getByRole('alert')).toContainText('授权页面已失效')
@@ -110,7 +115,7 @@ test('授权管理空状态、加载失败和撤销失败均可恢复', async ({
   await expect(page.getByRole('status')).toContainText('授权已撤销')
 })
 
-for (const decision of ['同意并返回客户端', '拒绝授权']) test(`手机异步${decision}失败后聚焦可见错误并允许重新操作`, async ({ page }) => {
+for (const decision of ['授权所选权限', '拒绝授权']) test(`手机异步${decision}失败后聚焦可见错误并允许重新操作`, async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 })
   await page.route('**/api/oauth/consent/finish', async route => {
     await new Promise(resolve => setTimeout(resolve, 100))

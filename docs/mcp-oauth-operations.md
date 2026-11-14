@@ -4,7 +4,7 @@
 
 ## 客户端与用户
 
-标准地址为 `https://lifespace.onepeace.cc.cd/api/agent/mcp`。无凭据请求返回 401，`WWW-Authenticate` 指向 `/.well-known/oauth-protected-resource/api/agent/mcp`；资源 metadata 指向同源 `/.well-known/oauth-authorization-server`。客户端应用已有预注册信息时优先使用；其次可通过 HTTPS Client ID Metadata Document 识别，文档 URL、redirect URI、客户端鉴权由官方库验证。客户端名称属于客户端声明；同意页显示 CIMD 域名和回调主机，本机回调另有提示。
+标准地址为 `https://lifespace.onepeace.cc.cd/api/agent/mcp`。无凭据请求返回 401，`WWW-Authenticate` 指向 `/.well-known/oauth-protected-resource/api/agent/mcp`；资源 metadata 指向同源 `/.well-known/oauth-authorization-server`。客户端应用已有预注册信息时优先使用；其次可通过 HTTPS Client ID Metadata Document 识别，文档 URL、redirect URI、客户端鉴权由官方库验证。按用户确认的界面范围，同意页聚焦当前账户、权限选择和授权/拒绝操作，移除客户端名称/域名区块、回调地址及其说明；服务端客户端识别和回调校验仍执行。授权管理以名称和授权时间区分连接，不显示原始客户端 URL。
 
 授权码流程必须使用 PKCE S256。客户端完成 Supabase 登录、逐请求准入与明确同意后，只获得 MCP 授权码及专用 access/refresh token。网页登录的会话凭据不会出现在回调、MCP 配置或客户端响应里。同意页默认勾选客户端请求的权限；没有 scope 时默认只读，用户可选择其他三项已公布权限。拒绝通过经过验证的回调返回 `access_denied`、state 和 issuer。
 

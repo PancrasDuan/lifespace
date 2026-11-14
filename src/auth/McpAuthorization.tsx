@@ -73,33 +73,28 @@ export function McpAuthorization() {
   function submit(event: FormEvent) { event.preventDefault(); void decide('approve') }
   return <AuthLayout title="客户端授权">
     <div className="mcp-authorization">
-      <h1 id="page-title" tabIndex={-1}>授权客户端访问账单</h1>
-      <p className="auth-subtitle">当前账户：{email}</p>
+      <h1 id="page-title" tabIndex={-1}>授权访问账单</h1>
+      <p className="mcp-account">{email}</p>
       {error && <p className="auth-banner" role="alert" tabIndex={-1} ref={errorElement}>{error}</p>}
-      {!consent && !error && <p>正在核对客户端信息…</p>}
+      {!consent && !error && <p>正在读取授权请求…</p>}
       {consent && <>
-        <h2>{consent.details.clientName}</h2>
-        <p className="mcp-client-source">{consent.details.clientDomain ? <>客户端域名：<strong>{consent.details.clientDomain}</strong></> : '此客户端的名称由其自行注册，请核对是否是你发起的连接。'}</p>
-        <p className="mcp-callback">授权将返回：<strong>{consent.details.redirectHost}</strong></p>
-        {consent.details.redirectIsLoopback && <p className="auth-banner">授权将交给本机应用。只有在你刚从该应用发起连接时才继续；客户端名称不能证明本机进程的身份。</p>}
         <form onSubmit={submit} action="/api/oauth/consent/finish" method="post">
           <fieldset disabled={busy} className="mcp-permissions">
             <legend>选择允许的操作</legend>
             {mcpScopes.map(scope => <div className="mcp-permission" key={scope}>
               <input id={`permission-${scope}`} type="checkbox" name="scope" value={scope} checked={selected.includes(scope)}
-                aria-describedby={`description-${scope}`} onChange={event => {
+                aria-labelledby={`name-${scope}`} aria-describedby={`description-${scope}`} onChange={event => {
                   setSelected(current => event.target.checked ? [...current, scope] : current.filter(value => value !== scope))
                   setError('')
                 }} />
-              <label htmlFor={`permission-${scope}`}>{mcpScopeLabels[scope].name}<span id={`description-${scope}`}>{mcpScopeLabels[scope].description}</span></label>
+              <label htmlFor={`permission-${scope}`}><span className="mcp-permission-name" id={`name-${scope}`}>{mcpScopeLabels[scope].name}</span><span id={`description-${scope}`}>{mcpScopeLabels[scope].description}</span></label>
             </div>)}
           </fieldset>
-          <p className="mcp-note">客户端可在授权有效期内保持连接，最长 30 天。新建流水和退款仍应先完整展示并取得你的确认。</p>
-          <button type="submit" className="auth-primary" disabled={busy}>{busy ? '正在处理…' : '同意并返回客户端'}</button>
-          <button type="button" className="auth-secondary" disabled={busy} onClick={() => void decide('deny')}>拒绝授权</button>
+          <div className="mcp-selection"><span>已选 {selected.length} 项权限</span><span>最长 30 天</span></div>
+          <button type="submit" className="auth-primary" disabled={busy}>{busy ? '正在处理…' : '授权所选权限'}</button>
+          <button type="button" className="auth-link mcp-deny" disabled={busy} onClick={() => void decide('deny')}>拒绝授权</button>
         </form>
       </>}
-      <p className="mcp-footer"><a href="/oauth/grants">管理已授权的客户端</a> · <a href="/">返回 LifeSpace</a></p>
     </div>
   </AuthLayout>
 }
@@ -176,7 +171,6 @@ export function McpGrants() {
         const active = !grant.revokedAt && Date.parse(grant.expiresAt) > Date.now()
         return <li key={grant.id}>
           <h2>{grant.clientName || '未命名客户端'}</h2>
-          <p className="mcp-client-source">{grant.clientId}</p>
           <p>{grant.scopes.map(scope => mcpScopeLabels[scope].name).join('、')}</p>
           <p className="mcp-note">{grant.revokedAt ? '已撤销' : !active ? '已到期' : '已授权'} · 授权于 {new Date(grant.createdAt).toLocaleString('zh-CN')}</p>
           {active && (confirming === grant.id ? <div className="mcp-revoke-confirm">
