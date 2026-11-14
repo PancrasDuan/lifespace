@@ -44,6 +44,7 @@
 - 相关浏览器回归 **87 passed、0 skipped**：home、calendar、weather、horoscope、service-status-settings、ai-status、city-picker、navigation、news-settings、shared-shell-scope；独立测试端口 5189，系统 Chromium 156。
 - Agent 另用匹配 Chromium 153 在 1440、720、390、320px 检查：无横向溢出；键盘打开设置和时间详情、Tab／Shift+Tab 不进入背景控件、Escape 关闭并返回触发按钮；搜索框与卡片焦点轮廓；按钮实际尺寸；触摸打开／关闭设置及点击刷新区域边缘后收到天气请求。
 - 自验最初把原生 dialog 焦点进入浏览器界面也判为失败；按指南允许浏览器界面聚焦的说明修正检查，未改产品行为，最终四种视口均通过。
+- 同步后曾将构建与交互检查并行执行，该次搜索焦点检查失败，未计为通过；构建结束后串行重跑，四种视口全部通过（见 [结果](check/measurements.json)）。局部焦点截图先将整张卡片滚入视口，避免截掉手机刷新轮廓底部。
 - Agent 查看桌面／手机前后截图，核对首页标题、导航、卡片顺序及内容；查看其他三个页面，并以导航和 shared-shell-scope 回归验证范围边界。Impeccable detector 对修改的两个界面文件返回 `[]`。
 
 以上为自动验证及 Agent 自验。未执行实体手机或辅助阅读器人工验收，不将结果称为完整 WCAG 认证；用户尚未亲自验收。独立双轴评审、远端 CI、最终 PR 和生产部署结果在 Issue／PR 中记录，未完成部署验收前保持 Issue 开放。
