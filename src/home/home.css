@@ -36,6 +36,18 @@
 .theme-light .almanac-block.good>b{background:#e3edd9}
 .theme-light .almanac-block.avoid>b{background:#f4eade;color:#947258}
 .theme-light .primary-button{background:#52764f;color:white}
+/* Keep homepage focus visible against light surfaces and inside clipped cards. */
+.home-app :is(button,a,input,select,textarea,summary):focus-visible{
+  outline:2px solid var(--accent);
+}
+.home-app .panel-open:focus-visible{outline-offset:-3px}
+.home-app .panel-footer>button{min-width:24px;min-height:24px}
+@media(pointer:coarse){
+  .home-app .top-settings,
+  .home-app .search-box button,
+  .home-app .panel-footer>button,
+  .home-app .modal>header button{min-width:44px;min-height:44px}
+}
 /* 时间各列共享行轨道，标签、时区、日期及时间基线保持一致。 */
 .clock-label{display:flex;align-items:center;gap:7px;font-size:11px;color:var(--quiet)}
 .theme-light .time-content{position:relative;display:grid;grid-template-columns:minmax(0,1.2fr) repeat(2,minmax(0,1fr));grid-template-rows:auto auto auto;gap:8px 32px;align-items:baseline;min-height:0;padding-bottom:0}

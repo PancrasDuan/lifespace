@@ -1,0 +1,130 @@
+[
+  {
+    "focused": [
+      {
+        "label": "查看世界时间详情",
+        "visible": true,
+        "outline": "rgb(139, 219, 192) solid 2px",
+        "offset": "4px"
+      },
+      {
+        "label": "刷新今日天气",
+        "visible": true,
+        "outline": "rgb(139, 219, 192) solid 2px",
+        "offset": "4px"
+      }
+    ],
+    "width": 1440,
+    "coarse": false,
+    "viewport": 1440,
+    "content": 1440,
+    "controls": [
+      {
+        "label": "首页设置",
+        "width": 34,
+        "height": 34,
+        "outline": "rgb(101, 118, 107) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "搜索",
+        "width": 36,
+        "height": 36,
+        "outline": "rgb(101, 118, 107) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "查看世界时间详情",
+        "width": 763.203125,
+        "height": 196.25,
+        "outline": "rgb(38, 63, 52) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "刷新今日天气",
+        "width": 20,
+        "height": 20,
+        "outline": "rgb(139, 219, 192) solid 2px",
+        "offset": "4px"
+      },
+      {
+        "label": "刷新DNSHE 域名",
+        "width": 20,
+        "height": 20,
+        "outline": "rgb(101, 118, 107) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "刷新服务状态",
+        "width": 20,
+        "height": 20,
+        "outline": "rgb(101, 118, 107) none 3px",
+        "offset": "0px"
+      }
+    ]
+  },
+  {
+    "focused": [
+      {
+        "label": "查看世界时间详情",
+        "visible": true,
+        "outline": "rgb(139, 219, 192) solid 2px",
+        "offset": "4px"
+      },
+      {
+        "label": "刷新今日天气",
+        "visible": true,
+        "outline": "rgb(139, 219, 192) solid 2px",
+        "offset": "4px"
+      }
+    ],
+    "width": 390,
+    "coarse": true,
+    "viewport": 390,
+    "content": 390,
+    "controls": [
+      {
+        "label": "首页设置",
+        "width": 34,
+        "height": 34,
+        "outline": "rgb(101, 118, 107) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "搜索",
+        "width": 36,
+        "height": 36,
+        "outline": "rgb(101, 118, 107) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "查看世界时间详情",
+        "width": 298,
+        "height": 275.46875,
+        "outline": "rgb(38, 63, 52) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "刷新今日天气",
+        "width": 20,
+        "height": 20,
+        "outline": "rgb(139, 219, 192) solid 2px",
+        "offset": "4px"
+      },
+      {
+        "label": "刷新DNSHE 域名",
+        "width": 20,
+        "height": 20,
+        "outline": "rgb(101, 118, 107) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "刷新服务状态",
+        "width": 20,
+        "height": 20,
+        "outline": "rgb(101, 118, 107) none 3px",
+        "offset": "0px"
+      }
+    ]
+  }
+]
