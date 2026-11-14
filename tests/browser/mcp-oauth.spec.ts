@@ -63,33 +63,38 @@ test('拒绝可独立提交；客户端资料不出现在授权表单', async ({
   expect(decision).toBe('deny')
 })
 
-test('授权管理展示独立连接，确认撤销并提供结果与在途边界', async ({ page }) => {
-  await page.setViewportSize({ width: 390, height: 844 })
+for (const width of [1440, 390]) test(`${width}px 授权管理以权限、时间和状态区分记录并确认撤销`, async ({ page }) => {
+  await page.setViewportSize({ width, height: 844 })
   const grant = { id: '00000000-0000-4000-8000-000000000002', clientId: 'https://client.example.invalid/metadata.json', clientName: 'Codex', scopes: mcpScopes, createdAt: '2026-11-14T00:00:00Z', expiresAt: '2099-01-01T00:00:00Z', revokedAt: null }
-  const second = { ...grant, id: '00000000-0000-4000-8000-000000000003', clientName: '另一个 MCP 客户端' }
+  const second = { ...grant, id: '00000000-0000-4000-8000-000000000003', clientName: '另一个 MCP 客户端', createdAt: '2026-11-14T00:10:00Z' }
   await page.route('**/api/oauth/grants', route => route.fulfill({ json: { grants: [grant, second], nextCursor: null } }))
   let revoked = ''
   await page.route('**/api/oauth/grants/revoke', route => { revoked = route.request().postDataJSON().id; return route.fulfill({ json: { revoked: true } }) })
   await page.goto('/oauth/grants')
-  await expect(page.getByRole('heading', { name: '已授权的客户端' })).toBeVisible()
-  const revokeFirst = page.getByRole('button', { name: /^撤销 Codex / })
+  await expect(page.getByRole('heading', { name: '账单授权' })).toBeVisible()
+  const panel = page.locator('.mcp-authorization')
+  await expect(panel).not.toContainText('Codex')
+  await expect(panel).not.toContainText('另一个 MCP 客户端')
+  await expect(panel).not.toContainText('client.example.invalid')
+  await expect(panel.locator('a')).toHaveCount(0)
+  const records = page.locator('.mcp-grants > li')
+  const revokeFirst = records.nth(0).getByRole('button', { name: /^撤销授权/ })
   await revokeFirst.click()
-  await expect(page.getByText('此连接需要重新征得你的同意', { exact: false })).toBeVisible()
   await expect(page.getByRole('button', { name: '确认撤销' })).toBeFocused()
   await page.getByRole('button', { name: '保留授权' }).click()
   await expect(revokeFirst).toBeFocused()
   await page.keyboard.press('Enter')
   await expect(page.getByRole('button', { name: '确认撤销' })).toBeFocused()
   await page.getByRole('button', { name: '确认撤销' }).click()
-  await expect(page.getByRole('status')).toContainText('后续调用和续期将被拒绝')
+  await expect(page.getByRole('status')).toContainText('授权已撤销')
   await expect(page.getByRole('status')).toBeFocused()
   expect(revoked).toBe(grant.id)
   await expect(revokeFirst).toHaveCount(0)
-  const revokeSecond = page.getByRole('button', { name: /^撤销 另一个 MCP 客户端 / })
+  const revokeSecond = records.nth(1).getByRole('button', { name: /^撤销授权/ })
   await revokeSecond.click()
   await page.getByRole('button', { name: '保留授权' }).click()
   await expect(revokeSecond).toBeFocused()
-  await page.screenshot({ path: '.cache/mcp-grants-mobile.png', fullPage: true })
+  await page.screenshot({ path: `.cache/mcp-grants-${width}.png`, fullPage: true })
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
 })
 
@@ -100,12 +105,12 @@ test('授权管理空状态、加载失败和撤销失败均可恢复', async ({
   await expect(page.getByRole('alert')).toContainText('暂时无法读取授权')
   failed = false
   await page.getByRole('button', { name: '刷新授权' }).click()
-  await expect(page.getByText('还没有授权客户端', { exact: false })).toBeVisible()
+  await expect(page.getByText('暂无账单授权', { exact: true })).toBeVisible()
   await page.route('**/api/oauth/grants', route => route.fulfill({ json: { grants: [{ id: '00000000-0000-4000-8000-000000000002', clientId: 'client-test', clientName: 'Codex', scopes: [mcpScopes[0]], createdAt: '2026-11-14T00:00:00Z', expiresAt: '2099-01-01T00:00:00Z', revokedAt: null }], nextCursor: null } }))
   let revokeFails = true
   await page.route('**/api/oauth/grants/revoke', route => route.fulfill(revokeFails ? { status: 503, json: {} } : { json: { revoked: true } }))
   await page.reload()
-  await page.getByRole('button', { name: /^撤销 / }).click()
+  await page.getByRole('button', { name: /^撤销授权/ }).click()
   await page.getByRole('button', { name: '确认撤销' }).click()
   await expect(page.getByRole('alert')).toContainText('撤销结果未确认')
   await expect(page.getByRole('alert')).toBeFocused()

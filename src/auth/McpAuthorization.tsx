@@ -100,7 +100,7 @@ export function McpAuthorization() {
 }
 
 export function McpGrants() {
-  const { ownerId, signal } = useVerifiedIdentity()
+  const { ownerId, email, signal } = useVerifiedIdentity()
   const [grants, setGrants] = useState<z.infer<typeof grantsSchema>['grants']>()
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
@@ -154,34 +154,35 @@ export function McpGrants() {
       if (!signal.aborted) {
         setGrants(current => current?.map(grant => grant.id === id ? { ...grant, revokedAt: new Date().toISOString() } : grant))
         setConfirming(undefined)
-        setMessage('授权已撤销，后续调用和续期将被拒绝；已在处理的请求不会自动回滚。')
+        setMessage('授权已撤销')
       }
     } catch { if (!signal.aborted) setError('撤销结果未确认，请刷新核对后重试。') }
     finally { pending.current = false; setBusy(false) }
   }
   return <AuthLayout title="客户端授权管理">
     <div className="mcp-authorization">
-      <h1 id="page-title" tabIndex={-1}>已授权的客户端</h1>
-      <p className="auth-subtitle">每次连接单独管理；退出网页不会撤销客户端授权。</p>
+      <h1 id="page-title" tabIndex={-1}>账单授权</h1>
+      <p className="mcp-account">{email}</p>
       {error && <p className="auth-banner" role="alert" tabIndex={-1} ref={errorElement}>{error} <button type="button" className="auth-link" onClick={() => setRevision(value => value + 1)}>刷新授权</button></p>}
-      <p role="status" className="mcp-note" tabIndex={-1} ref={resultElement}>{message}</p>
+      <p role="status" className="mcp-grant-result" tabIndex={-1} ref={resultElement}>{message}</p>
       {!grants && !error && <p>正在读取授权…</p>}
-      {grants?.length === 0 && <p className="mcp-empty">还没有授权客户端。从 MCP 客户端连接 LifeSpace 后，可在这里管理。</p>}
-      {grants && <ul className="mcp-grants">{grants.map(grant => {
+      {grants?.length === 0 && <p className="mcp-empty">暂无账单授权</p>}
+      {grants && <ul className="mcp-grants" role="list">{grants.map(grant => {
         const active = !grant.revokedAt && Date.parse(grant.expiresAt) > Date.now()
+        const created = new Date(grant.createdAt).toLocaleString('zh-CN')
         return <li key={grant.id}>
-          <h2>{grant.clientName || '未命名客户端'}</h2>
-          <p>{grant.scopes.map(scope => mcpScopeLabels[scope].name).join('、')}</p>
-          <p className="mcp-note">{grant.revokedAt ? '已撤销' : !active ? '已到期' : '已授权'} · 授权于 {new Date(grant.createdAt).toLocaleString('zh-CN')}</p>
+          <div className="mcp-grant-header">
+            <span className="mcp-note">授权于 <time dateTime={grant.createdAt}>{created}</time></span>
+            <span className={`mcp-grant-state${active ? ' is-active' : ''}`}>{grant.revokedAt ? '已撤销' : !active ? '已到期' : '已授权'}</span>
+          </div>
+          <ul className="mcp-grant-scopes" id={`scopes-${grant.id}`}>{grant.scopes.map(scope => <li key={scope}>{mcpScopeLabels[scope].name}</li>)}</ul>
           {active && (confirming === grant.id ? <div className="mcp-revoke-confirm">
-            <p>撤销后，此连接需要重新征得你的同意。</p>
             <button className="auth-secondary" type="button" disabled={busy} ref={confirmButton} onClick={() => void revoke(grant.id)}>{busy ? '正在撤销…' : '确认撤销'}</button>
             <button className="auth-link" type="button" disabled={busy} onClick={() => setConfirming(undefined)}>保留授权</button>
-          </div> : <button className="auth-secondary" type="button" disabled={busy} ref={node => { if (node) revokeButtons.current.set(grant.id, node); else revokeButtons.current.delete(grant.id) }} aria-label={`撤销 ${grant.clientName || '未命名客户端'} 于 ${new Date(grant.createdAt).toLocaleString('zh-CN')} 的授权`} onClick={() => setConfirming(grant.id)}>撤销授权</button>)}
+          </div> : <button className="auth-secondary" type="button" disabled={busy} ref={node => { if (node) revokeButtons.current.set(grant.id, node); else revokeButtons.current.delete(grant.id) }} aria-label={`撤销授权，${created}`} aria-describedby={`scopes-${grant.id}`} onClick={() => setConfirming(grant.id)}>撤销授权</button>)}
         </li>
       })}</ul>}
       {cursor && <button type="button" className="auth-secondary" disabled={busy} onClick={() => void loadMore()}>加载更早的授权</button>}
-      <p className="mcp-footer"><a href="/">返回 LifeSpace</a></p>
     </div>
   </AuthLayout>
 }

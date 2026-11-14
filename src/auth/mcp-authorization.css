@@ -1,5 +1,4 @@
 .mcp-authorization { overflow-wrap:anywhere; }
-.mcp-authorization h2 { font-size:1.125rem;line-height:1.5;margin:1.75rem 0 .5rem; }
 .mcp-authorization p { line-height:1.75; }
 .mcp-note { color:#536a5c;font-size:.875rem; }
 .mcp-account { color:#536a5c;font-size:.875rem;margin-block:.75rem 2rem; }
@@ -15,13 +14,18 @@
 .mcp-permissions:disabled label { cursor:default;opacity:.65; }
 .mcp-selection { display:flex;flex-wrap:wrap;justify-content:space-between;gap:.5rem;color:#536a5c;font-size:.875rem;margin-block:0 1.25rem; }
 .mcp-deny { display:block;inline-size:100%;min-block-size:3rem;margin-block-start:.5rem;font-size:.875rem; }
-.mcp-footer { margin-block:1.75rem 0;font-size:.875rem; }
-.mcp-footer a { color:#456841;display:inline-block;min-block-size:2rem;text-underline-offset:.2em; }
 .mcp-grants { margin:0;padding:0;list-style:none; }
-.mcp-grants li { padding-block:1.25rem;border-block-end:1px solid #d9e3d2; }
-.mcp-grants h2 { margin-block:0 .5rem; }
-.mcp-grants p { margin-block:.5rem; }
+.mcp-grants>li { padding-block:1.25rem;border-block-end:1px solid #d9e3d2; }
+.mcp-grants>li:first-child { padding-block-start:0; }
+.mcp-grant-header { display:flex;flex-wrap:wrap;justify-content:space-between;align-items:baseline;gap:.5rem; }
+.mcp-grant-state { color:#536a5c;font-size:.875rem;font-weight:600; }
+.mcp-grant-state.is-active { color:#456841; }
+.mcp-grant-scopes { padding-inline-start:1.25rem;margin-block:1rem; }
+.mcp-grant-scopes li { padding-block:.25rem;line-height:1.6; }
+.mcp-grant-scopes li::marker { color:#52764f; }
+.mcp-grant-result { color:#456841;font-size:.875rem;margin-block:0 1.25rem; }
+.mcp-grant-result:empty { margin:0; }
 .mcp-grants .auth-secondary { width:auto;min-block-size:3rem;margin-block-start:.5rem; }
 .mcp-revoke-confirm .auth-link { margin-inline-start:1rem;min-block-size:3rem; }
 .mcp-empty { padding-block:1.25rem; }
-@media (max-width:680px) { .mcp-authorization h1 { text-wrap:balance; }.mcp-footer a { min-block-size:3rem; } }
+@media (max-width:680px) { .mcp-authorization h1 { text-wrap:balance; } }
