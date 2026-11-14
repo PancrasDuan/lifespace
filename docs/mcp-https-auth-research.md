@@ -1,6 +1,6 @@
 # MCP HTTPS 认证调研与 LifeSpace 调整建议
 
-> 实施状态（#193）：用户已批准本文推荐方案。本 worktree 已实现同 Worker OAuth、独立资源 token、工具 scope、同意与授权管理及数据库撤销检查；尚待最终评审、具体合并发布授权与真实客户端/生产验收。最终设计见 [ADR 0012](adr/0012-mcp-oauth-grants.md)，配置和传播边界见 [运维说明](mcp-oauth-operations.md)。下文“当前实现”“建议”“未实施”的表述是调研时的历史基线，不再表示尚未获得实施授权。
+> 实施状态（#193）：同 Worker OAuth、独立资源 token、工具 scope、同意与授权管理及数据库撤销检查已实现并完成固定提交评审。用户已确认两页界面并授权本次发布；生产准备和后续阶段结果见 [验收记录](qa-mcp-oauth.md)及 [PR #194](https://github.com/PancrasDuan/lifespace/pull/194)，真实客户端按用户安排稍后验收。最终设计见 [ADR 0012](adr/0012-mcp-oauth-grants.md)，配置和传播边界见 [运维说明](mcp-oauth-operations.md)。下文“当前实现”“建议”“未实施”的表述保留调研时的历史基线。
 
 原交接文档 SHA-256 为 `b3158d60e9fe9027c92d2cf5cb46a784436aee1db8d6ef7fc76d99bd9db47c71`，原 SVG 为 `733c9347cc2ba63da8df81f930cda9a2cf604f0be9188275959d6b73a5f224d7`；本次按实际实施更新并纳入 Git，原 main 工作区素材未被修改。
 

@@ -1,6 +1,6 @@
 # MCP OAuth 接入与运维
 
-实现对应 [#193](https://github.com/PancrasDuan/lifespace/issues/193)、[ADR 0012](adr/0012-mcp-oauth-grants.md)。账单工具字段、结果、退款事实、requestId 重试和业务错误见 [MCP 接口](agent-mcp.md)。当前为待合并发布实现，生产仍使用原 Service Token 入口。
+实现对应 [#193](https://github.com/PancrasDuan/lifespace/issues/193)、[ADR 0012](adr/0012-mcp-oauth-grants.md)。账单工具字段、结果、退款事实、requestId 重试和业务错误见 [MCP 接口](agent-mcp.md)。标准 OAuth 入口与旧 Service Token 通道分离；具体部署版本和线上验证结果记录在 [PR #194](https://github.com/PancrasDuan/lifespace/pull/194)。
 
 ## 客户端与用户
 
@@ -43,7 +43,7 @@ Wrangler 的 `run_worker_first` 包含 `/api/*`、`/.well-known/*`、`/oauth/*`�
 
 ## 生产阶段与回退门禁
 
-2026-11-14 只读核对得到：Cloudflare 账户为仓库 Wrangler 账户，Access 应用 `e334ecac-3f93-4650-a0eb-39ab1fe02437`（LifeSpace Agent MCP）精确保护 `lifespace.onepeace.cc.cd/api/agent/mcp`；destination 相同，存在两条 `non_identity` 策略，`options_preflight_bypass=false`。这会拦截标准 MCP 首次请求。Supabase 项目 `zvdcjzjfhkjasikchceo` 现有 `agent_identity_bindings` 启用 RLS，尚无 `agent_oauth_grants` 或同名函数。本轮只读核对未改变两平台生产配置。
+发布准备前的只读基线（2026-11-14）：Cloudflare 账户为仓库 Wrangler 账户，Access 应用 `e334ecac-3f93-4650-a0eb-39ab1fe02437`（LifeSpace Agent MCP）精确保护 `lifespace.onepeace.cc.cd/api/agent/mcp`；destination 相同，存在两条 `non_identity` 策略，`options_preflight_bypass=false`。这会拦截标准 MCP 首次请求。当时 Supabase 项目 `zvdcjzjfhkjasikchceo` 已有启用 RLS 的 `agent_identity_bindings`，OAuth 表/函数尚不存在。
 
 | 阶段 | 门禁、证据与回退 |
 | --- | --- |
@@ -55,7 +55,7 @@ Wrangler 的 `run_worker_first` 包含 `/api/*`、`/.well-known/*`、`/oauth/*`�
 | 客户端及异地验收 | 实际版本客户端完成 URL 发现、登录、同意/拒绝、刷新、scope 增权、重连和撤销；至少异地只读验证数据库撤销后的拒绝。写入验收只用隔离合成账单；未验证项分别保留，不能用 HTTP 模拟代替 |
 | 回退 | 需用户授权：先将 Access 精确恢复原 domain/destination 和原策略，再恢复旧 Worker 版本，避免旧 Service Token 入口暂时公开。保留新授权表、KV 及原绑定；必要时先在数据库撤销新 grant，不改账单，不删除用户或原 Service Token |
 
-上述阶段尚未执行生产变更。不得把方案批准或本地通过作为任意生产迁移、Access 修改或直接上线的授权。
+2026-11-14 用户已确认两页界面并明确授权本次发布。发布准备已创建专用 KV 并完整应用授权表迁移（平台版本 `20261114144346_agent_oauth_grants`，对应仓库脚本 `20261114130000_agent_oauth_grants.sql`）；RLS、RPC ACL 和服务端只读调用已核对。Worker 发布及 Access 精确切换继续遵循上表门禁，阶段结果写入 PR；本次授权不延伸至其他生产改动。真实客户端验收按用户安排稍后进行。
 
 ## 验证入口
 

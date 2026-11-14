@@ -1,6 +1,6 @@
 # #193 OAuth 验证记录
 
-工作区 `/home/lighthouse/orca/workspaces/lifespace/193-mcp-oauth`，分支 `codex/193-mcp-oauth`，基线 `e235846dc3be0aaef5fb308bc89a82a58e2a6d6e`。2026-11-14 已重新成功 fetch，origin/main 仍为该提交。交付分级为需确认的变更；实施和 PR 已授权，生产存储、Access、具体合并发布等待可审查结果后的授权。
+工作区 `/home/lighthouse/orca/workspaces/lifespace/193-mcp-oauth`，分支 `codex/193-mcp-oauth`，基线 `e235846dc3be0aaef5fb308bc89a82a58e2a6d6e`。2026-11-14 已重新成功 fetch，origin/main 仍为该提交。交付分级为需确认的变更；用户已确认授权页和管理页，并明确授权本次 PR 及所需 KV、授权存储迁移、Access 路径切换和发布。真实客户端仍按其安排稍后验收。
 
 ## 已执行
 
@@ -18,7 +18,7 @@
 | 密钥扫描 | 全本地可达历史与当前 Git 源码/新增文件扫描通过，两个代码提交的提交钩子通过；远端密钥扫描成功。后续仅证据文档变更仍执行提交钩子与最终扫描 |
 | 前端机械检查 | impeccable detector 对新增 TSX/CSS 返回 `[]`；人工查看下面三份合成截图，无横向溢出。Agent 自验不等于用户界面验收 |
 | 架构素材 | 更新后的 `docs/design/mcp-https-auth.svg` 经 Chromium 渲染、实际看图及 `data-max-width` 文字宽度检查，均通过；原素材摘要保留在调研文档，未改原 main 工作区文件 |
-| 发布前置门禁 | `scripts/check-mcp-oauth-config.mjs` 对尚未绑定 ID 的当前构建返回非零，明确停止发布；未运行 deploy |
+| 发布前置门禁 | 缺少 ID 的负例明确停止发布；绑定已创建的专用 KV 后检查通过，生产构建和 Wrangler dry run 正常退出。dry run 使用任务专属配置目录，未在本地上传 Worker；生产由 Workers Builds 发布 |
 
 常规 OAuth 测试使用**真实官方库**，只模拟 KV/身份/业务授权边界，涵盖预注册、CIMD、显式 DCR、code/PKCE/redirect/resource 错误、过期及 audience 拒绝、scope 增权与刷新、拒绝/浏览器绑定/账户变化、共享客户端多用户、跨用户撤销、用户删除/停用/邮箱/白名单、KV/数据库故障、精确 Origin/CORS/OPTIONS 与分页。不可用模拟 Auth 证明真实 Supabase Auth 管理行为。
 
@@ -26,7 +26,7 @@
 
 本次是既有认证界面的新增状态，沿用 `AuthLayout`、字体、配色、控件和响应式规则，未改原登录、标题、导航及账单页面。架构 SVG 并非 UI 原型。没有新增视觉风格或修改 DESIGN.md；已有 PRODUCT.md 的历史账单描述不作为此次业务需求。截图由本分支 Playwright 用合成用户/客户端生成，桌面/手机授权页展示用户选择写入权限后的状态。
 
-用户明确要求删除整个客户端信息区块，包括名称、域名/链接、回调地址和说明。当前授权页只保留账户、三项权限、选中数量、简短有效期和授权/拒绝操作。管理页同步删除客户端名称、原始 URL、说明段落和页脚链接，以授权时间、权限列表、状态和撤销/保留按钮组织记录；成功反馈仅为“授权已撤销”。权限行以原生复选框、可点击标签及选中背景引导，按钮直接说明“授权所选权限”；说明与控件名称分开关联。使用 Modern Web Guidance 的 forms、checkbox、accessibility 指南及 impeccable distill/polish 核对；首轮精简的授权、原登录和共享外围布局共 39 项浏览器正常退出通过，管理页补齐桌面/手机后相关 8 项浏览器通过，类型/构建通过，detector 返回 `[]`，截图已同步并看图。预览和截图仍使用合成数据，真实客户端互操作及用户界面验收仍待完成。
+用户明确要求删除整个客户端信息区块，包括名称、域名/链接、回调地址和说明。当前授权页只保留账户、三项权限、选中数量、简短有效期和授权/拒绝操作。管理页同步删除客户端名称、原始 URL、说明段落和页脚链接，以授权时间、权限列表、状态和撤销/保留按钮组织记录；成功反馈仅为“授权已撤销”。权限行以原生复选框、可点击标签及选中背景引导，按钮直接说明“授权所选权限”；说明与控件名称分开关联。使用 Modern Web Guidance 的 forms、checkbox、accessibility 指南及 impeccable distill/polish 核对；首轮精简的授权、原登录和共享外围布局共 39 项浏览器正常退出通过，管理页补齐桌面/手机后相关 8 项浏览器通过，类型/构建通过，detector 返回 `[]`，截图已同步并看图。预览和截图仍使用合成数据；用户已确认两页界面，真实客户端互操作仍待完成。
 
 - [桌面授权页](design/mcp-oauth-consent-desktop.png)
 - [手机授权页](design/mcp-oauth-consent-mobile.png)
@@ -35,11 +35,19 @@
 
 ## 真实平台与待验收
 
-- Cloudflare 与 Supabase 只读检查及精确阶段/回退方案见 [运维说明](mcp-oauth-operations.md#生产阶段与回退门禁)。未修改真实账单、原绑定、Access 策略或数据库。
-- 自动审批拒绝创建生产账户持久化 `lifespace-mcp-oauth` KV namespace，理由是用户将生产配置变更保留到结果审查后授权；资源未创建。Wrangler 暂无 OAUTH_KV ID，deploy 门禁明确拒绝自动创建。后续须批准创建并将 ID 纳入新提交。
+- 生产阶段/回退方案见 [运维说明](mcp-oauth-operations.md#生产阶段与回退门禁)。用户发布授权后已完成下面的资源与数据库准备；旧绑定、账单及 Access 原策略未在准备阶段修改。
+- 无生产授权时，自动审批曾拒绝创建 KV。用户明确授权发布后，已创建独立 `lifespace-mcp-oauth`，ID `56d94963635d45d09618eaaa1a78cf7a`，并纳入 Wrangler 配置；不再依赖自动创建。
 - 本机 Codex CLI 为 0.169.0，登录命令提供 auto/CIMD/DCR 选项；尚未执行真实客户端 OAuth、刷新、增权、重连、撤销或外部对话验收。用户本会话明确选择“先完成实现与 PR，客户端稍后验收”。Grok Bot/WorkBuddy 等亦未验收。上述能力选项不构成互操作通过。
-- 真实 Supabase Auth、多地区网络传播、生产 Access 切换、生产部署和用户界面验收尚未完成。数据库迁移不会随 Worker 自动执行，不能在新表缺失时宣称生产可用。
-- 草稿 [PR #194](https://github.com/PancrasDuan/lifespace/pull/194) 已创建，未合并、未发布。规范/需求双轴评审覆盖下述固定代码提交，必需 CI 全部成功；最终文档提交另行增量复核，动态 CI 与最终 SHA 记录在 PR。
+- 真实 Supabase Auth、多地区网络传播及真实客户端验收仍待完成；用户本地界面验收已通过。数据库迁移已显式执行，不依赖 Worker 自动迁移。生产 Access 切换与部署的后续结果分别记录在 PR。
+- [PR #194](https://github.com/PancrasDuan/lifespace/pull/194) 保存固定提交规范/需求双轴评审、必需 CI 和用户发布授权；新增资源配置的增量复核、最终 SHA、合并及部署结果同样在 PR 记录。
+
+## 生产准备记录（2026-11-14）
+
+- 迁移全文 5445 字节、SHA-256 `63c94d2c165810995632e7633c2a32f07ebf3407c2b8834cea070a8fe6716e91`，一次提交完整事务。平台仅新增一条 `20261114144346_agent_oauth_grants` 历史记录，对应仓库已测试脚本 `20261114130000_agent_oauth_grants.sql`；未拆分或改写历史。
+- 生产新表为空、RLS 启用、owner 外键删除级联及约束完整；anon/authenticated/service_role 均无直接表读权限，四个业务 RPC 仅 service_role 可执行，JSON helper 不授予调用者权限，函数 search_path 固定 pg_catalog。
+- 用现有服务端配置调用新授权列表 RPC（不存在的合成 owner）返回 HTTP 200 和空数组；未创建用户/授权或写入账单。
+- Supabase advisor 的新提示为 [RLS Enabled No Policy](https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy)，符合表不直接对外开放、仅经受限 RPC 访问的设计。原有 [Leaked Password Protection Disabled](https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection) 提示在准备前已存在，本次未调整该 Auth 设置。
+- Access 完整配置及两条原策略已保存于忽略目录 `.cache/193-release/access-before.json`，权限 0600，SHA-256 `6cf82d9325af6af686d1835ff11a0acde26201d943c33ad7a6d1e096775d9d71`。切换前 Worker 版本为 `331d0e2e-66e1-4ae6-a983-da35bb1bfe08`；后续阶段保留回退依据。
 
 ## 首轮独立评审与修复
 

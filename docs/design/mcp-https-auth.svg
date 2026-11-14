@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1600" viewBox="0 0 1920 1600" role="img" aria-labelledby="title desc" font-family="'Noto Sans CJK SC', 'Microsoft YaHei', sans-serif">
   <title id="title">LifeSpace MCP HTTPS 认证：现状与建议改造</title>
-  <desc id="desc">上半部分为当前 Service Token 经 Cloudflare Access、Worker 验签、凭据用户绑定、在线准入到 MCP 账单业务的链路。下半部分为建议 OAuth 方案，区分首次发现与用户授权、后续每次请求的令牌和工具权限验证。蓝色为新增，橙色为调整，绿色为复用。Supabase 网页登录令牌不交给 Agent。此图为方案建议，尚未实施。</desc>
+  <desc id="desc">上半部分为旧 Service Token 经 Cloudflare Access、Worker 验签、凭据用户绑定、在线准入到 MCP 账单业务的链路。下半部分为本次独立 OAuth 方案，区分首次发现与用户授权、后续每次请求的令牌和工具权限验证。蓝色为新增，橙色为调整，绿色为复用。Supabase 网页登录令牌不交给 Agent。此图说明架构与范围，实现和发布记录见 Issue 193。</desc>
   <defs>
     <marker id="arrow-old" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
       <path d="M 0 0 L 10 5 L 0 10 z" fill="#63738a" />
