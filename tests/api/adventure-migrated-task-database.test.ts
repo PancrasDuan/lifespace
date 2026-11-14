@@ -5,7 +5,7 @@ import { localPlanningRpc, planningDatabase } from '../support/planning-database
 
 const fixtureSchema = z.object({
   receipts: z.array(z.object({ owner_id: z.uuid(), request_id: z.string(), command: z.record(z.string(), z.unknown()), receipt: z.unknown() })),
-  locks: z.array(z.object({ owner_id: z.uuid(), completion_id: z.uuid(), unlocked_completion_id: z.uuid(), invalidated_completion_id: z.uuid(), expected_version: z.coerce.number() })),
+  legacyCompletions: z.array(z.object({ owner_id: z.uuid(), completion_id: z.uuid(), expected_version: z.coerce.number() })),
 })
 const fixture = process.env.ADVENTURE_MIGRATED_FIXTURE ? fixtureSchema.parse(JSON.parse(process.env.ADVENTURE_MIGRATED_FIXTURE)) : undefined
 const api = planningDatabase('migrated-task@example.invalid')
@@ -109,20 +109,14 @@ describe.skipIf(!localPlanningRpc || !fixture)('旧库迁移后的真实 Worker 
     }
   })
 
-  it('原归属已结束的完成不可撤销，其他完成仍可撤销且旧失效回执不复活', async () => {
-    const lock = fixture!.locks[0]
-    const growthBefore = await (await api.request(lock.owner_id, '/api/adventure/growth')).json()
-    const denied = await api.request(lock.owner_id, '/api/adventure/commands', { requestId: 'lock-http-cancel', expectedVersion: lock.expected_version, command: { type: 'cancelTaskCompletion', completionId: lock.completion_id } })
-    expect(denied.status).toBe(400)
-    expect(await denied.json()).toMatchObject({ error: { code: 'READ_ONLY' } })
-    expect(await (await api.request(lock.owner_id, '/api/adventure/growth')).json()).toEqual(growthBefore)
-    const cancel = await api.request(lock.owner_id, '/api/adventure/commands', { requestId: 'unlock-http-cancel', expectedVersion: lock.expected_version, command: { type: 'cancelTaskCompletion', completionId: lock.unlocked_completion_id } })
+  it('迁移后旧主线结束不再冻结完成，完成可正常撤销且不产生主线残留', async () => {
+    const legacy = fixture!.legacyCompletions[0]
+    const growthBefore = z.object({ version: z.number() }).parse(await (await api.request(legacy.owner_id, '/api/adventure/growth')).json())
+    const cancel = await api.request(legacy.owner_id, '/api/adventure/commands', { requestId: 'legacy-http-cancel', expectedVersion: legacy.expected_version, command: { type: 'cancelTaskCompletion', completionId: legacy.completion_id } })
     expect(cancel.status).toBe(200)
-    const growthAfter = await (await api.request(lock.owner_id, '/api/adventure/growth')).json()
-    expect(growthAfter).toMatchObject({ version: lock.expected_version + 1, growth: { totalXp: 1, actions: 1 } })
-    const source = await api.request(lock.owner_id, `/api/adventure/reward-source?id=${lock.completion_id}`)
-    expect(source.status).toBe(200)
-    expect(await source.json()).toMatchObject({ event: { id: lock.completion_id, categoryLabel: null, title: '历史锁定任务' } })
+    const growthAfter = await (await api.request(legacy.owner_id, '/api/adventure/growth')).json()
+    expect(growthAfter).toMatchObject({ version: legacy.expected_version + 1, growth: { totalXp: 1, actions: 1 } })
     expect(JSON.stringify(growthAfter)).not.toMatch(/mainline|主线/i)
+    expect(growthBefore.version).toBe(legacy.expected_version)
   })
 })

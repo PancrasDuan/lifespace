@@ -48,17 +48,13 @@ begin
     from public.adventure_goals g join public.adventure_mainlines m on (m.owner_id,m.id)=(g.owner_id,g.mainline_id);
   create temporary table goal_migration_expected_tasks on commit drop as select pg_temp.goal_clean(to_jsonb(t)) row from public.adventure_tasks t;
   create temporary table goal_migration_expected_events on commit drop as
-    select pg_temp.goal_clean(to_jsonb(e)) || jsonb_build_object('historical_lock',e.kind='task_completed' and coalesce(m.status='ended',false)) row
-    from public.adventure_events e left join public.adventure_mainlines m on (m.owner_id,m.id)=(e.owner_id,e.mainline_id)
+    select pg_temp.goal_clean(to_jsonb(e)) row
+    from public.adventure_events e
     where e.kind not in ('mainline_created','mainline_updated','mainline_ended');
 alter table public.adventure_goals add column category_label text;
 alter table public.adventure_goals add constraint adventure_goals_category_label_check check (category_label is null or (kind='real' and length(category_label) between 1 and 200 and category_label=btrim(category_label,U&'\0009\000A\000B\000C\000D\0020\00A0\1680\2000\2001\2002\2003\2004\2005\2006\2007\2008\2009\200A\2028\2029\202F\205F\3000\FEFF')));
 alter table public.adventure_goals drop constraint adventure_goals_termination_cause_check;
 alter table public.adventure_tasks drop constraint adventure_tasks_end_cause_check;
-alter table public.adventure_events add column historical_lock boolean not null default false;
-alter table public.adventure_events add constraint adventure_events_historical_lock_check check (not historical_lock or kind='task_completed');
-update public.adventure_events e set historical_lock=true from public.adventure_mainlines m
-  where e.kind='task_completed' and (m.owner_id,m.id)=(e.owner_id,e.mainline_id) and m.status='ended';
 with ordering as (
  select g.owner_id,g.id,row_number() over (partition by g.owner_id order by m.created_at,m.id,g.focused desc,g.sort_order,g.id)-1 as ordering
  from public.adventure_goals g join public.adventure_mainlines m on (m.owner_id,m.id)=(g.owner_id,g.mainline_id) where g.kind='real' and g.status='active'
@@ -104,7 +100,6 @@ exception when others then
     when 'TASK_NOT_PENDING' then '仅待完成任务可以执行此操作'
     when 'DATE_LOCKED' then '仅能完成今天的安排或取消今天的完成'
     when 'COMPLETION_CHANGED' then '这次完成已变化，请重新读取'
-    when 'HISTORY_LOCKED' then '任务已有完成或历史安排，此操作不可用'
     when 'RESCHEDULE_PAST' then '只能改到今天或未来'
     when 'SAME_DATE' then '无需改到相同日期'
     when 'DATE_STARTED' then '执行日已到，此操作不可用'
@@ -203,7 +198,7 @@ begin
     if v_type='completeTask' and v_task.planned_on>p_today then raise exception 'DATE_LOCKED'; end if;
     if v_type='cancelTaskCompletion' then
       if v_task.status<>'completed' or v_task.completed_on<>p_today or v_task.completed_at<>v_done.occurred_at then raise exception 'COMPLETION_CHANGED'; end if;
-      if v_done.historical_lock or exists(select 1 from public.adventure_goals where owner_id=p_owner and id=v_done.goal_id and status<>'active') then raise exception 'READ_ONLY'; end if;
+      if exists(select 1 from public.adventure_goals where owner_id=p_owner and id=v_done.goal_id and status<>'active') then raise exception 'READ_ONLY'; end if;
     end if;
     select * into v_goal from public.adventure_goals where owner_id=p_owner and id=v_task.goal_id;
   end if;
@@ -704,7 +699,7 @@ begin
   if v_task.status<>'pending' then raise exception 'TASK_NOT_PENDING'; end if;
   select * into strict v_goal from public.adventure_goals where owner_id=p_owner and id=v_task.goal_id;
   if v_goal.status<>'active' or exists(select 1 from public.adventure_events e left join public.adventure_goals g on (g.owner_id,g.id)=(e.owner_id,e.goal_id)
-    where e.owner_id=p_owner and e.task_id=v_task.id and e.kind='task_completed' and e.invalidated_at is null and (g.status<>'active' or e.historical_lock)) then raise exception 'READ_ONLY'; end if;
+    where e.owner_id=p_owner and e.task_id=v_task.id and e.kind='task_completed' and e.invalidated_at is null and g.status<>'active') then raise exception 'READ_ONLY'; end if;
   if v_destination='' then
     if v_goal.kind='inbox' then raise exception 'SAME_DESTINATION'; end if;
   else
@@ -1084,7 +1079,7 @@ begin
     then raise exception 'GOAL_MIGRATION_INVALID_SCHEMA legacy_objects'; end if;
   for r in select * from (values ('adventure_goals','adventure_goals_category_label_check'),
     ('adventure_goals','adventure_goals_termination_cause_check'),('adventure_tasks','adventure_tasks_end_cause_check'),
-    ('adventure_events','adventure_events_historical_lock_check'),('adventure_events','adventure_events_kind_check'),
+    ('adventure_events','adventure_events_kind_check'),
     ('adventure_events','adventure_events_entity_type_check')) expected(relation,constraint_name) loop
     if not exists(select 1 from pg_constraint k join pg_class c on c.oid=k.conrelid where c.relnamespace='public'::regnamespace
       and c.relname=r.relation and k.conname=r.constraint_name and k.contype='c' and k.convalidated) then

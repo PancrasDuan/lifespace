@@ -6,7 +6,7 @@
 
 新库初始化和升级都核验 PUBLIC、`anon`、`authenticated`、`service_role` 及其可切换的角色继承链。服务角色只允许表上的 `SELECT`、`INSERT`、`UPDATE`，不允许 `DELETE`、`TRUNCATE`、`REFERENCES`、`TRIGGER`、PostgreSQL 17 的 `MAINTAIN` 或转授权；浏览器角色及 PUBLIC 不得持有表或列权限，也不得执行业务函数或创建 public schema 对象。异常直接授权、默认授权或继承授权导致 `GOAL_MIGRATION_UNSAFE_SECURITY` 并回滚；检查按角色成员关系保守处理，即使某条成员关系当前不能切换也可能拒绝。函数的服务角色转授权与可切换父角色的权限同样会被拒绝。
 
-目标和任务保留稳定 ID 与关联；有效奖励总和、账户 revision 和 total_xp 不变。旧主线结束后的完成限制保存在完成事件的中性 `historical_lock` 中，旧完成／达成快照不会补写分类。非纯主线成功回执保留摘要并先于版本检查重放清理后的结果；纯主线事件及其回执被删除，旧主线命令不能新执行。调用方不能把旧 requestId 复用于其他命令。
+目标和任务保留稳定 ID 与关联；有效奖励总和、账户 revision 和 total_xp 不变。旧主线结束后的完成限制不再保留：迁移后完成事件不带额外锁定字段，旧主线结束不再冻结完成，旧完成／达成快照不会补写分类。早期版本的本迁移曾写入 `historical_lock`；已确认无旧备份重放需求后，生产这类已迁移库须再执行 [20261113000000_drop_historical_lock.sql](../../db/adventure/migrations/20261113000000_drop_historical_lock.sql) 删除该列、约束与函数引用，脚本可重复执行。非纯主线成功回执保留摘要并先于版本检查重放清理后的结果；纯主线事件及其回执被删除，旧主线命令不能新执行。调用方不能把旧 requestId 复用于其他命令。
 
 新 Worker 的写命令要求请求头 `X-Adventure-Client-Version: goal-categories-1`；缺失或过期时，精确 POST 命令入口在认证前返回固定 `CLIENT_UPDATE_REQUIRED`／503，提示不要刷新或重新提交、联系维护人员；不解析封套、不查询身份或数据库，也不返回业务数据。其他路径、方法及携带当前版本的请求仍正常鉴权。503 避免旧客户端把此前未知结果当作确定失败；它不能解决已丢失封套或旧读取提示。成功封套仍须以同一 requestId 和内容重试；该版本头不是认证，也不保护旧 Worker、数据库直连或部署窗口，外层冻结及旧地址封闭要求见 [维护窗口](qa-goal-integration.md)。
 
@@ -26,4 +26,4 @@ POSTGRES_BIN=<postgres-bin目录> LD_LIBRARY_PATH=<postgres动态库目录> \
 npm run test:goal-migration-baseline -- --migration db/adventure/migrations/20261111000000_goal_categories.sql
 ```
 
-该脚本只创建本机临时集群和合成数据，不接受现有数据库地址。它验证异常映射、早晚故障回滚、逐 ID 对账、重复执行、新库等价、服务端权限、历史锁定和回执，以及新库数据库函数的基础行为；它不代替真实 HTTP、浏览器、生产备份恢复及发布验收。
+该脚本只创建本机临时集群和合成数据，不接受现有数据库地址。它验证异常映射、早晚故障回滚、逐 ID 对账、重复执行、新库等价、服务端权限、旧保护完成迁移后解除冻结和回执，以及新库数据库函数的基础行为；它不代替真实 HTTP、浏览器、生产备份恢复及发布验收。
