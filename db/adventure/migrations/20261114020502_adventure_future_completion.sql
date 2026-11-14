@@ -166,6 +166,67 @@ end $$;
 revoke execute on function public.adventure_task_check(uuid,jsonb,date), public.adventure_task_capability(uuid,jsonb,date), public.adventure_planning_preview(uuid,bigint,jsonb) from public,anon,authenticated;
 grant execute on function public.adventure_task_check(uuid,jsonb,date), public.adventure_task_capability(uuid,jsonb,date), public.adventure_planning_preview(uuid,bigint,jsonb) to service_role;
 
+create or replace function public.adventure_workspace_read(p_owner uuid,p_page integer default 1,p_page_size integer default 20,p_task_range text default 'today',p_task_page integer default 1,p_task_scope text default 'all',p_search text default '',p_goal_id uuid default null,p_goal_task_page integer default 1,p_include_terminal boolean default false)
+returns jsonb language plpgsql security invoker set search_path = '' set lock_timeout='3s' as $$
+declare
+  v_result jsonb;
+  v_today date;
+  v_tasks jsonb;
+  v_progress jsonb;
+  v_detail jsonb;
+  v_total bigint;
+  v_later jsonb:='{"allowed":false,"reason":"此操作尚未交付"}';
+begin
+  if p_task_range is null or p_task_range not in ('today','future','past') or p_task_page is null or p_task_page not between 1 and 1000000
+    or p_goal_task_page is null or p_goal_task_page not between 1 and 1000000
+    or p_task_scope is null or p_task_scope not in ('all','focus') or p_search is null or length(btrim(p_search))>100 then raise exception 'INVALID_COMMAND'; end if;
+  v_result:=public.adventure_planning_read(p_owner,p_page,p_page_size,p_include_terminal);
+  v_today:=(v_result->>'today')::date;
+  with filtered as materialized (
+    select t.* from public.adventure_tasks t join public.adventure_goals g on (g.owner_id,g.id)=(t.owner_id,t.goal_id)
+    where t.owner_id=p_owner and t.deleted_at is null and
+      case p_task_range when 'today' then (t.planned_on=v_today and t.status<>'completed' or t.status='completed' and t.completed_on=v_today) when 'past' then t.planned_on<v_today else t.planned_on>v_today end
+      and (p_task_scope='all' or g.focused or g.kind='inbox')
+      and (btrim(p_search)='' or position(lower(btrim(p_search)) in lower(t.title))>0 or position(lower(btrim(p_search)) in lower(t.description))>0)
+  )
+
+  select (select count(*) from filtered),
+    (select jsonb_build_object('completed',count(*) filter(where status='completed'),'total',count(*),
+      'ratio',case when count(*)=0 then null else (count(*) filter(where status='completed'))::numeric/count(*) end)
+      from filtered where status in ('pending','completed')),
+    (select coalesce(jsonb_agg(item order by status_rank,planned_on,created_at,id),'[]'::jsonb) from (
+    select case t.status when 'pending' then 0 when 'completed' then 1 else 2 end status_rank,t.planned_on,t.created_at,t.id,public.adventure_task_view(p_owner,t.id,v_today) item
+    from filtered t
+    order by status_rank,t.planned_on,t.created_at,t.id limit p_page_size offset (p_task_page::bigint-1)*p_page_size
+  ) tasks) into v_total,v_progress,v_tasks;
+  v_result:=v_result||jsonb_build_object('today',v_today,'tasks',v_tasks,'totalTasks',v_total,'taskPage',p_task_page,'taskRange',p_task_range,
+    'includeTerminal',p_include_terminal,
+    'taskScope',p_task_scope,'search',btrim(p_search),'taskProgress',v_progress,
+    'todayTaskProgress',(select jsonb_build_object('completed',count(*) filter(where status='completed'),'total',count(*),
+      'ratio',case when count(*)=0 then null else (count(*) filter(where status='completed'))::numeric/count(*) end)
+      from public.adventure_tasks where owner_id=p_owner and deleted_at is null and status in ('pending','completed') and (status='pending' and planned_on=v_today or status='completed' and completed_on=v_today)));
+  if p_goal_id is not null then
+    v_detail:=public.adventure_goal_view(p_owner,p_goal_id);
+    if v_detail is null then raise exception 'NOT_FOUND'; end if;
+    v_result:=v_result||jsonb_build_object('goalDetail',jsonb_build_object('goal',v_detail,
+      'taskPage',p_goal_task_page,'totalTasks',(select count(*) from public.adventure_tasks t where t.owner_id=p_owner and t.deleted_at is null and (t.goal_id=p_goal_id or exists(select 1 from public.adventure_events e where e.owner_id=p_owner and e.task_id=t.id and e.kind='task_completed' and e.invalidated_at is null and e.goal_id=p_goal_id))),
+      'totalRelatedTasks',(select count(*) from public.adventure_tasks where owner_id=p_owner and deleted_at is null and goal_id=p_goal_id and status in ('pending','completed')),
+      'relatedTasks',(select coalesce(jsonb_agg(jsonb_build_object('id',id,'title',title,'plannedOn',planned_on,'completedAt',completed_at) order by planned_on,created_at,id),'[]'::jsonb) from (
+        select id,title,planned_on,completed_at,created_at from public.adventure_tasks where owner_id=p_owner and goal_id=p_goal_id and deleted_at is null and status in ('pending','completed')
+        order by planned_on,created_at,id limit p_page_size offset (p_goal_task_page::bigint-1)*p_page_size) related),
+      'tasks',(select coalesce(jsonb_agg(item order by planned_on,created_at,id),'[]') from (
+        select planned_on,created_at,id,public.adventure_task_view(p_owner,id,v_today) item from public.adventure_tasks
+        where owner_id=p_owner and deleted_at is null and (goal_id=p_goal_id or exists(select 1 from public.adventure_events e where e.owner_id=p_owner and e.task_id=adventure_tasks.id and e.kind='task_completed' and e.invalidated_at is null and e.goal_id=p_goal_id)) order by planned_on,created_at,id
+        limit p_page_size offset (p_goal_task_page::bigint-1)*p_page_size) history)));
+  end if;
+  v_result:=jsonb_set(v_result,'{capabilities,createTask}','{"allowed":true}');
+  if octet_length(v_result::text)>1000000 then raise exception 'CAPACITY_REACHED'; end if;
+  return v_result;
+end $$;
+
+revoke execute on function public.adventure_workspace_read(uuid,integer,integer,text,integer,text,text,uuid,integer,boolean) from public,anon,authenticated;
+grant execute on function public.adventure_workspace_read(uuid,integer,integer,text,integer,text,text,uuid,integer,boolean) to service_role;
+
 notify pgrst, 'reload schema';
 commit;
 

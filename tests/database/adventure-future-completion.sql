@@ -57,4 +57,26 @@ begin
     or not has_function_privilege('service_role','public.adventure_task_check(uuid,jsonb,date)','execute')
     then raise exception 'future completion migration changed RPC permissions'; end if;
 end $$;
+do $$
+declare
+  v_owner uuid:=gen_random_uuid();
+  v_today date:=(clock_timestamp() at time zone 'Asia/Shanghai')::date;
+  v_task uuid;
+  v_receipt jsonb;
+  v_page jsonb;
+begin
+  v_receipt:=public.adventure_planning_command(v_owner,'arriving-plan-create',0,jsonb_build_object(
+    'type','createTask','title','昨天已提前完成','description','','plannedOn',v_today,'destination',''));
+  v_task:=(v_receipt->'result'->>'entityId')::uuid;
+  v_receipt:=public.adventure_planning_command(v_owner,'arriving-plan-complete',1,jsonb_build_object('type','completeTask','id',v_task));
+  update public.adventure_tasks set completed_at=completed_at-interval '1 day',completed_on=v_today-1 where owner_id=v_owner and id=v_task;
+  update public.adventure_events set occurred_at=occurred_at-interval '1 day',occurred_on=v_today-1
+    where owner_id=v_owner and id=(v_receipt->'result'->>'completionId')::uuid;
+  v_page:=public.adventure_workspace_read(v_owner);
+  if v_page->>'totalTasks' is distinct from '0'
+    or v_page->'todayTaskProgress' is distinct from '{"completed":0,"total":0,"ratio":null}'::jsonb
+    or v_page->'taskProgress' is distinct from '{"completed":0,"total":0,"ratio":null}'::jsonb
+    or v_page->'growth'->>'actions' is distinct from '1'
+    then raise exception 'earlier completion counted again on its planned day'; end if;
+end $$;
 rollback;

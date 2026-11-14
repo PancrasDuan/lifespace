@@ -1055,7 +1055,7 @@ begin
   with filtered as materialized (
     select t.* from public.adventure_tasks t join public.adventure_goals g on (g.owner_id,g.id)=(t.owner_id,t.goal_id)
     where t.owner_id=p_owner and t.deleted_at is null and
-      case p_task_range when 'today' then (t.planned_on=v_today or t.status='completed' and t.completed_on=v_today) when 'past' then t.planned_on<v_today else t.planned_on>v_today end
+      case p_task_range when 'today' then (t.planned_on=v_today and t.status<>'completed' or t.status='completed' and t.completed_on=v_today) when 'past' then t.planned_on<v_today else t.planned_on>v_today end
       and (p_task_scope='all' or g.focused or g.kind='inbox')
       and (btrim(p_search)='' or position(lower(btrim(p_search)) in lower(t.title))>0 or position(lower(btrim(p_search)) in lower(t.description))>0)
   )
@@ -1074,7 +1074,7 @@ begin
     'taskScope',p_task_scope,'search',btrim(p_search),'taskProgress',v_progress,
     'todayTaskProgress',(select jsonb_build_object('completed',count(*) filter(where status='completed'),'total',count(*),
       'ratio',case when count(*)=0 then null else (count(*) filter(where status='completed'))::numeric/count(*) end)
-      from public.adventure_tasks where owner_id=p_owner and deleted_at is null and status in ('pending','completed') and (planned_on=v_today or status='completed' and completed_on=v_today)));
+      from public.adventure_tasks where owner_id=p_owner and deleted_at is null and status in ('pending','completed') and (status='pending' and planned_on=v_today or status='completed' and completed_on=v_today)));
   if p_goal_id is not null then
     v_detail:=public.adventure_goal_view(p_owner,p_goal_id);
     if v_detail is null then raise exception 'NOT_FOUND'; end if;

@@ -86,6 +86,21 @@ describe.skipIf(!localPlanningRpc)('未来任务按实际完成日入账及查�
     expect(terminal.growth).toMatchObject({ totalXp: 3, actions: 1, achievedGoals: 1 })
   })
 
+  it('原计划日到来时不重复计入今日任务与页面汇总，成长仍只计一次', async () => {
+    const owner = crypto.randomUUID()
+    const today = (await read(owner)).today
+    const id = (await command(owner, { type: 'createTask', title: '昨天提前完成今天的计划', description: '', plannedOn: today, destination: '' })).result.entityId
+    const yesterday = Temporal.PlainDate.from(today).subtract({ days: 1 }).toString()
+    await database.historicalCommand(owner, envelope((await read(owner)).version, { type: 'completeTask', id }), yesterday)
+    const workspace = await read(owner)
+    expect(workspace.tasks).toEqual([])
+    expect(workspace.taskProgress).toEqual({ completed: 0, total: 0, ratio: null })
+    expect(workspace.todayTaskProgress).toEqual({ completed: 0, total: 0, ratio: null })
+    expect(workspace.growth).toMatchObject({ totalXp: 1, actions: 1 })
+    expect((await list(owner, today)).tasks).toEqual([])
+    expect((await list(owner, yesterday)).tasks[0]).toMatchObject({ id, plannedOn: today, completedOn: yesterday })
+  })
+
   it('提前完成跨日后冻结，即使计划仍在未来，原成功封套仍只重放', async () => {
     const owner = crypto.randomUUID()
     const id = (await command(owner, { type: 'createTask', title: '昨天提前完成', description: '', plannedOn: '2099-01-01', destination: '' })).result.entityId
