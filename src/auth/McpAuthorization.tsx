@@ -33,6 +33,7 @@ export function McpAuthorization() {
   const [busy, setBusy] = useState(false)
   const pending = useRef(false)
   const errorElement = useRef<HTMLParagraphElement>(null)
+  useEffect(() => { if (error) errorElement.current?.focus() }, [error])
   useEffect(() => {
     const controller = new AbortController()
     const combined = AbortSignal.any([signal, controller.signal])
@@ -47,7 +48,6 @@ export function McpAuthorization() {
     if (!consent || pending.current) return
     if (decision === 'approve' && !selected.length) {
       setError('请至少选择一项权限，或拒绝此次授权。')
-      window.setTimeout(() => errorElement.current?.focus(), 0)
       return
     }
     pending.current = true
@@ -65,7 +65,6 @@ export function McpAuthorization() {
     } catch (failure) {
       if (!signal.aborted) {
         setError(failure instanceof Error && !(failure instanceof z.ZodError) ? failure.message : '授权结果未确认，请从客户端重新连接，并在授权管理中核对。')
-        errorElement.current?.focus()
       }
       pending.current = false
       setBusy(false)
@@ -115,6 +114,21 @@ export function McpGrants() {
   const pending = useRef(false)
   const [revision, setRevision] = useState(0)
   const [cursor, setCursor] = useState<z.infer<typeof grantsSchema>['nextCursor']>(null)
+  const confirmButton = useRef<HTMLButtonElement>(null)
+  const resultElement = useRef<HTMLParagraphElement>(null)
+  const errorElement = useRef<HTMLParagraphElement>(null)
+  const revokeButtons = useRef(new Map<string, HTMLButtonElement>())
+  const previousConfirmation = useRef<string | undefined>(undefined)
+  useEffect(() => {
+    if (confirming) confirmButton.current?.focus()
+    else if (previousConfirmation.current) {
+      const trigger = revokeButtons.current.get(previousConfirmation.current)
+      if (trigger) trigger.focus()
+      else if (message) resultElement.current?.focus()
+    }
+    previousConfirmation.current = confirming
+  }, [confirming, message])
+  useEffect(() => { if (error) errorElement.current?.focus() }, [error])
   useEffect(() => {
     const controller = new AbortController()
     const combined = AbortSignal.any([signal, controller.signal])
@@ -154,8 +168,8 @@ export function McpGrants() {
     <div className="mcp-authorization">
       <h1 id="page-title" tabIndex={-1}>已授权的客户端</h1>
       <p className="auth-subtitle">每次连接单独管理；退出网页不会撤销客户端授权。</p>
-      {error && <p className="auth-banner" role="alert">{error} <button type="button" className="auth-link" onClick={() => setRevision(value => value + 1)}>刷新授权</button></p>}
-      <p role="status" className="mcp-note">{message}</p>
+      {error && <p className="auth-banner" role="alert" tabIndex={-1} ref={errorElement}>{error} <button type="button" className="auth-link" onClick={() => setRevision(value => value + 1)}>刷新授权</button></p>}
+      <p role="status" className="mcp-note" tabIndex={-1} ref={resultElement}>{message}</p>
       {!grants && !error && <p>正在读取授权…</p>}
       {grants?.length === 0 && <p className="mcp-empty">还没有授权客户端。从 MCP 客户端连接 LifeSpace 后，可在这里管理。</p>}
       {grants && <ul className="mcp-grants">{grants.map(grant => {
@@ -167,9 +181,9 @@ export function McpGrants() {
           <p className="mcp-note">{grant.revokedAt ? '已撤销' : !active ? '已到期' : '已授权'} · 授权于 {new Date(grant.createdAt).toLocaleString('zh-CN')}</p>
           {active && (confirming === grant.id ? <div className="mcp-revoke-confirm">
             <p>撤销后，此连接需要重新征得你的同意。</p>
-            <button className="auth-secondary" type="button" disabled={busy} onClick={() => void revoke(grant.id)}>{busy ? '正在撤销…' : '确认撤销'}</button>
+            <button className="auth-secondary" type="button" disabled={busy} ref={confirmButton} onClick={() => void revoke(grant.id)}>{busy ? '正在撤销…' : '确认撤销'}</button>
             <button className="auth-link" type="button" disabled={busy} onClick={() => setConfirming(undefined)}>保留授权</button>
-          </div> : <button className="auth-secondary" type="button" disabled={busy} aria-label={`撤销 ${grant.clientName || '未命名客户端'} 于 ${new Date(grant.createdAt).toLocaleString('zh-CN')} 的授权`} onClick={() => setConfirming(grant.id)}>撤销授权</button>)}
+          </div> : <button className="auth-secondary" type="button" disabled={busy} ref={node => { if (node) revokeButtons.current.set(grant.id, node); else revokeButtons.current.delete(grant.id) }} aria-label={`撤销 ${grant.clientName || '未命名客户端'} 于 ${new Date(grant.createdAt).toLocaleString('zh-CN')} 的授权`} onClick={() => setConfirming(grant.id)}>撤销授权</button>)}
         </li>
       })}</ul>}
       {cursor && <button type="button" className="auth-secondary" disabled={busy} onClick={() => void loadMore()}>加载更早的授权</button>}

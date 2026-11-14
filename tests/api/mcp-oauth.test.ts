@@ -162,6 +162,18 @@ test('Origin、CORS 与服务端路由有精确边界，DCR 默认不开放', as
   f.env.MCP_ALLOWED_ORIGINS = 'https://trusted-client.example'
   const trusted = await options('https://trusted-client.example')
   expect(trusted.headers.get('Access-Control-Allow-Origin')).toBe('https://trusted-client.example')
+  const token = await f.issue((await f.client()).clientId, [mcpScopes[0]])
+  for (const origin of [oauthIssuer, 'https://trusted-client.example']) {
+    const initialized = await f.request('/api/agent/mcp', { method: 'POST', headers: { Origin: origin, Authorization: `Bearer ${token.access_token}`, 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-11-25', capabilities: {}, clientInfo: { name: 'origin-test', version: '1' } } }) })
+    expect(initialized.status).toBe(200)
+    const list = await f.mcp(token.access_token, undefined, undefined, origin)
+    expect(list.status).toBe(200)
+    expect(list.headers.get('Access-Control-Allow-Origin')).toBe(origin)
+    expect((await f.mcp(token.access_token, 'list_ledger_accounts', {}, origin)).status).toBe(200)
+    const denied = await f.mcp(token.access_token, 'create_ledger_entry', {}, origin)
+    expect(denied.status).toBe(403)
+    expect(denied.headers.get('WWW-Authenticate')).toContain('insufficient_scope')
+  }
   const metadata = await f.request('/.well-known/oauth-authorization-server')
   expect(metadata.headers.get('Access-Control-Allow-Origin')).toBeNull()
   expect((await f.request('/oauth/register', { method: 'POST' })).status).toBe(404)
@@ -177,15 +189,34 @@ test('授权列表可以分页管理较早的有效连接，不能用分页参�
   f.grants.clear()
   for (let index = 0; index < 105; index++) {
     const id = `00000000-0000-4000-8000-${index.toString().padStart(12, '0')}`
-    f.grants.set(id, { ...template, id, createdAt: '2026-11-14T00:00:00Z' })
+    f.grants.set(id, { ...template, id, clientId: 'https://client.example.invalid/' + 'a'.repeat(2000), clientName: '😀'.repeat(200), createdAt: '2026-11-14T00:00:00Z' })
   }
   const response = await f.browser('/api/oauth/grants')
-  const first = await response.json() as { grants: { id: string }[]; nextCursor: { before: string; beforeId: string } }
-  expect(first.grants).toHaveLength(100)
-  const second = await (await f.browser('/api/oauth/grants?' + new URLSearchParams(first.nextCursor))).json() as { grants: { id: string }[]; nextCursor: null }
-  expect(second.grants).toHaveLength(5)
-  expect(second.nextCursor).toBeNull()
-  expect(new Set([...first.grants, ...second.grants].map(grant => grant.id)).size).toBe(105)
+  type Cursor = { before: string; beforeId: string }
+  const first = await response.json() as { grants: { id: string }[]; nextCursor: Cursor }
+  expect(first.grants).toHaveLength(20)
+  const all = [...first.grants]
+  let cursor: Cursor | null = first.nextCursor
+  while (cursor) {
+    const next: { grants: { id: string }[]; nextCursor: Cursor | null } = await (await f.browser('/api/oauth/grants?' + new URLSearchParams(cursor))).json()
+    expect(next.grants.length).toBeLessThanOrEqual(20)
+    all.push(...next.grants)
+    cursor = next.nextCursor
+  }
+  expect(new Set(all.map(grant => grant.id)).size).toBe(105)
+  expect((await f.browser('/api/oauth/grants/revoke', { id: all.at(-1)!.id })).status).toBe(200)
   expect((await f.browser('/api/oauth/grants?ownerId=' + oauthOther)).status).toBe(400)
   expect((await f.mcp(token.access_token)).status).toBe(401)
+})
+
+test('CIMD 验证失败的库内诊断不记录客户端 URL、邮箱或原始异常', async () => {
+  const f = oauthFixture()
+  const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+  const clientId = 'https://cimd.example.invalid/private-user@example.invalid/metadata.json'
+  f.documents.set(clientId, { client_id: 'https://mismatch.example.invalid/private-user@example.invalid', client_name: 'private-user@example.invalid', redirect_uris: [oauthRedirect], token_endpoint_auth_method: 'none' })
+  const result = await f.start(clientId)
+  expect(result.response.status).toBe(400)
+  expect(warn).toHaveBeenCalled()
+  expect(JSON.stringify(warn.mock.calls)).not.toContain('private-user@example.invalid')
+  expect(JSON.stringify(warn.mock.calls)).not.toContain(clientId)
 })

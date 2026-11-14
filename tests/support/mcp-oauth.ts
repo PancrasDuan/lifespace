@@ -71,7 +71,7 @@ export function oauthFixture(databaseUrl?: string) {
       grants.set(grant.id, grant)
       return Response.json(grant)
     }
-    if (name === 'agent_oauth_grants_list') return Response.json([...grants.values()].filter(grant => grant.ownerId === p.p_owner && (!p.p_before || grant.createdAt < p.p_before || (grant.createdAt === p.p_before && grant.id > p.p_before_id))).sort((a,b) => b.createdAt.localeCompare(a.createdAt) || a.id.localeCompare(b.id)).slice(0,101))
+    if (name === 'agent_oauth_grants_list') return Response.json([...grants.values()].filter(grant => grant.ownerId === p.p_owner && (!p.p_before || grant.createdAt < p.p_before || (grant.createdAt === p.p_before && grant.id > p.p_before_id))).sort((a,b) => b.createdAt.localeCompare(a.createdAt) || a.id.localeCompare(b.id)).slice(0,21))
     const grant = grants.get(p.p_id)
     if (name === 'agent_oauth_grant_revoke') {
       if (!grant || grant.ownerId !== p.p_owner) return Response.json(null)
@@ -101,8 +101,8 @@ export function oauthFixture(databaseUrl?: string) {
     body: body === undefined ? undefined : JSON.stringify(body),
   })
   const tokenRequest = (params: Record<string, string>) => request('/oauth/token', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams(params) })
-  const mcp = (token?: string, name?: string, args?: object) => request('/api/agent/mcp', { method: 'POST', headers: {
-    ...(token ? { Authorization: `Bearer ${token}` } : {}), 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream',
+  const mcp = (token?: string, name?: string, args?: object, origin?: string) => request('/api/agent/mcp', { method: 'POST', headers: {
+    ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(origin ? { Origin: origin } : {}), 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream',
   }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: name ? 'tools/call' : 'tools/list', ...(name ? { params: { name, arguments: args ?? {} } } : {}) }) })
   const client = () => authorizationServer(env).getOAuthApi(env).createClient({ clientName: 'Synthetic MCP Client', redirectUris: [oauthRedirect], tokenEndpointAuthMethod: 'none', grantTypes: ['authorization_code', 'refresh_token'], responseTypes: ['code'] })
   const start = async (clientId: string, scopes: readonly string[] = mcpScopes, owner = oauthOwner, extra: Record<string, string> = {}) => {

@@ -20,7 +20,7 @@ async function rpc<T>(env: OAuthEnv, name: string, params: object, schema: z.Zod
       method: 'POST', headers, body: JSON.stringify(params), redirect: 'manual', signal: AbortSignal.timeout(5000),
     })
     if (!response.ok || !response.body) throw oauthUnavailable()
-    return schema.parse(JSON.parse(await readBoundedBody(response.body, 131072, 5000)))
+    return schema.parse(JSON.parse(await readBoundedBody(response.body, 524288, 5000)))
   } catch { throw oauthUnavailable() }
 }
 export function createMcpGrant(env: OAuthEnv, grant: Pick<McpGrant, 'id' | 'ownerId' | 'clientId' | 'clientName' | 'resource' | 'scopes'>, consentHash: string) {
@@ -30,7 +30,7 @@ export function checkMcpGrant(env: OAuthEnv, id: string, ownerId: string, client
   return rpc(env, 'agent_oauth_grant_check', { p_id: id, p_owner: ownerId, p_client: clientId, p_resource: resource, p_provider_grant: providerGrantId ?? null, p_exchange_code: exchangeCode }, grantSchema.nullable())
 }
 export function listMcpGrants(env: OAuthEnv, ownerId: string, before?: string, beforeId?: string) {
-  return rpc(env, 'agent_oauth_grants_list', { p_owner: ownerId, p_before: before ?? null, p_before_id: beforeId ?? null }, z.array(grantSchema).max(101))
+  return rpc(env, 'agent_oauth_grants_list', { p_owner: ownerId, p_before: before ?? null, p_before_id: beforeId ?? null }, z.array(grantSchema).max(21))
 }
 export function revokeMcpGrant(env: OAuthEnv, id: string, ownerId: string) {
   return rpc(env, 'agent_oauth_grant_revoke', { p_id: id, p_owner: ownerId }, grantSchema.nullable())

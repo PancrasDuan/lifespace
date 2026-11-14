@@ -56,7 +56,7 @@ test.skipIf(!rpc)('真实 workerd + KV + 隔离 PostgreSQL 完成发现、同意
     const issued = await exchange({ grant_type: 'authorization_code', code: new URL(redirectTo).searchParams.get('code')!, code_verifier: verifier, redirect_uri: 'http://127.0.0.1:19234/callback', client_id: client.clientId })
     expect(issued.status).toBe(200)
     const credentials = await issued.json() as { access_token: string; refresh_token: string }
-    const mcp = () => request('/api/agent/mcp', { method: 'POST', headers: { Authorization: `Bearer ${credentials.access_token}`, 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' }) })
+    const mcp = () => request('/api/agent/mcp', { method: 'POST', headers: { Origin: issuer, Authorization: `Bearer ${credentials.access_token}`, 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' }) })
     expect((await mcp()).status).toBe(200)
     expect((await request('/api/ledger/accounts', { headers: { Authorization: `Bearer ${credentials.access_token}` } })).status).toBe(401)
     expect((await exchange({ grant_type: 'refresh_token', client_id: client.clientId, refresh_token: credentials.refresh_token })).status).toBe(200)

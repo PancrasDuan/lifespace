@@ -66,7 +66,7 @@ language sql stable security definer set search_path = pg_catalog as $$
   select coalesce(jsonb_agg(public.agent_oauth_grant_json(g) order by g.created_at desc, g.id), '[]'::jsonb)
     from (select * from public.agent_oauth_grants where owner_id = p_owner
       and (p_before is null or created_at < p_before or (created_at = p_before and id > p_before_id))
-      order by created_at desc, id limit 101) g;
+      order by created_at desc, id limit 21) g;
 $$;
 
 create function public.agent_oauth_grant_revoke(p_id uuid, p_owner uuid) returns jsonb

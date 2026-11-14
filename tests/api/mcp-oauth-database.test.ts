@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, test, vi } from 'vitest'
 import { oauthFixture, oauthOther, oauthOwner, oauthIssuer } from '../support/mcp-oauth'
 import { mcpScopes } from '../../worker/mcp-oauth-config'
+import { createMcpGrant } from '../../worker/mcp-grants'
+import { randomBytes } from 'node:crypto'
 
 const rpcUrl = process.env.LEDGER_LOCAL_RPC_URL
 afterEach(() => vi.unstubAllGlobals())
@@ -71,5 +73,28 @@ describe.skipIf(!rpcUrl)('OAuth 使用真实隔离 PostgreSQL/PostgREST', () => 
       expect((await f.mcp(token.access_token)).status).toBe(401)
     } finally { release() }
     expect((await pending).status).toBe(200)
+  })
+
+  test('长客户端元数据的60条授权仍可分页读取及撤销', async () => {
+    const f = oauthFixture(rpcUrl)
+    const ids = new Set<string>()
+    for (let index = 0; index < 60; index++) {
+      const id = crypto.randomUUID()
+      ids.add(id)
+      await createMcpGrant(f.env, { id, ownerId: oauthOwner, clientId: 'https://client.example.invalid/' + 'a'.repeat(2000), clientName: '界'.repeat(200), resource: oauthIssuer + '/api/agent/mcp', scopes: [mcpScopes[0]] }, randomBytes(32).toString('hex'))
+    }
+    let path = '/api/oauth/grants'
+    const found = new Set<string>()
+    for (let page = 0; page < 10; page++) {
+      const response = await f.browser(path)
+      expect(response.status).toBe(200)
+      const body = await response.json() as { grants: { id: string }[]; nextCursor: { before: string; beforeId: string } | null }
+      expect(body.grants.length).toBeLessThanOrEqual(20)
+      for (const grant of body.grants) if (ids.has(grant.id)) found.add(grant.id)
+      if (!body.nextCursor) break
+      path = '/api/oauth/grants?' + new URLSearchParams(body.nextCursor)
+    }
+    expect(found.size).toBe(60)
+    expect((await f.browser('/api/oauth/grants/revoke', { id: [...found].at(-1) })).status).toBe(200)
   })
 })

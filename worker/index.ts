@@ -124,10 +124,10 @@ app.all('/api/agent/mcp', async c => {
     listAccounts: input => readLedgerAccounts(c, input),
     createEntry: input => createLedgerEntry(c, input),
     refundEntry: (id, input) => createLedgerRefund(c, id, input),
-  }, name => {
+  }, { originValidated: true, authorizeTool: name => {
     const required = ({ list_ledger_accounts: mcpScopes[0], create_ledger_entry: mcpScopes[1], create_ledger_refund: mcpScopes[2] } as Record<string, string>)[name]
     if (required && !(c.get('identity').mcpScopes ?? []).includes(required)) throw new McpAuthError('insufficient_scope', [required])
-  })
+  } })
   response.headers.set('Cache-Control', 'no-store')
   return response
 })

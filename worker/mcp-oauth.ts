@@ -151,9 +151,9 @@ export async function readMcpGrants(c: OAuthContext) {
   const query = z.object({ before: z.iso.datetime({ offset: true }).optional(), beforeId: z.uuid().optional() }).strict().safeParse(c.req.query())
   if (!query.success || Boolean(query.data.before) !== Boolean(query.data.beforeId)) throw new ApiError('INVALID_QUERY', '分页参数无效', 400)
   const results = await listMcpGrants(c.env, c.get('identity').id, query.data.before, query.data.beforeId)
-  const grants = results.slice(0, 100)
+  const grants = results.slice(0, 20)
   const last = grants.at(-1)
-  return c.json({ grants, nextCursor: results.length > 100 && last ? { before: last.createdAt, beforeId: last.id } : null })
+  return c.json({ grants, nextCursor: results.length > 20 && last ? { before: last.createdAt, beforeId: last.id } : null })
 }
 export async function revokeMcpConsent(c: OAuthContext) {
   trustedOAuthOrigin(c.env, c.req.raw)
