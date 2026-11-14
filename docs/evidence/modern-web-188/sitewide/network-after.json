@@ -1,0 +1,222 @@
+[
+  {
+    "name": "login",
+    "jsBytes": 590112,
+    "gzipBytes": 169893,
+    "scripts": [
+      {
+        "name": "/assets/index-Ct8w_jLO.js",
+        "bytes": 2722,
+        "gzipBytes": 1402
+      },
+      {
+        "name": "/assets/main-3CwZMkxp.js",
+        "bytes": 258183,
+        "gzipBytes": 79717
+      },
+      {
+        "name": "/assets/AppLayout-CB08aZDc.js",
+        "bytes": 329207,
+        "gzipBytes": 88774
+      }
+    ]
+  },
+  {
+    "name": "home",
+    "jsBytes": 1110675,
+    "gzipBytes": 345314,
+    "scripts": [
+      {
+        "name": "/assets/index-Ct8w_jLO.js",
+        "bytes": 2722,
+        "gzipBytes": 1402
+      },
+      {
+        "name": "/assets/main-3CwZMkxp.js",
+        "bytes": 258183,
+        "gzipBytes": 79717
+      },
+      {
+        "name": "/assets/AppLayout-CB08aZDc.js",
+        "bytes": 329207,
+        "gzipBytes": 88774
+      },
+      {
+        "name": "/assets/useQuery-BE5tpODC.js",
+        "bytes": 8019,
+        "gzipBytes": 2952
+      },
+      {
+        "name": "/assets/arrow-up-right-6aICImAM.js",
+        "bytes": 200,
+        "gzipBytes": 180
+      },
+      {
+        "name": "/assets/ui-BDgBtWoJ.js",
+        "bytes": 9132,
+        "gzipBytes": 3883
+      },
+      {
+        "name": "/assets/request-Dq9lVWBO.js",
+        "bytes": 2655,
+        "gzipBytes": 1155
+      },
+      {
+        "name": "/assets/chevron-down-Dt1k-DsP.js",
+        "bytes": 161,
+        "gzipBytes": 161
+      },
+      {
+        "name": "/assets/index.esm-BhR9UbF_.js",
+        "bytes": 159239,
+        "gzipBytes": 45403
+      },
+      {
+        "name": "/assets/Home-DOebkEsA.js",
+        "bytes": 341157,
+        "gzipBytes": 121687
+      }
+    ]
+  },
+  {
+    "name": "news",
+    "jsBytes": 669956,
+    "gzipBytes": 198036,
+    "scripts": [
+      {
+        "name": "/assets/index-Ct8w_jLO.js",
+        "bytes": 2722,
+        "gzipBytes": 1402
+      },
+      {
+        "name": "/assets/main-3CwZMkxp.js",
+        "bytes": 258183,
+        "gzipBytes": 79717
+      },
+      {
+        "name": "/assets/AppLayout-CB08aZDc.js",
+        "bytes": 329207,
+        "gzipBytes": 88774
+      },
+      {
+        "name": "/assets/useQuery-BE5tpODC.js",
+        "bytes": 8019,
+        "gzipBytes": 2952
+      },
+      {
+        "name": "/assets/ui-BDgBtWoJ.js",
+        "bytes": 9132,
+        "gzipBytes": 3883
+      },
+      {
+        "name": "/assets/request-Dq9lVWBO.js",
+        "bytes": 2655,
+        "gzipBytes": 1155
+      },
+      {
+        "name": "/assets/News-UKVKhGZC.js",
+        "bytes": 60038,
+        "gzipBytes": 20153
+      }
+    ]
+  },
+  {
+    "name": "adventure",
+    "jsBytes": 837601,
+    "gzipBytes": 241254,
+    "scripts": [
+      {
+        "name": "/assets/index-Ct8w_jLO.js",
+        "bytes": 2722,
+        "gzipBytes": 1402
+      },
+      {
+        "name": "/assets/main-3CwZMkxp.js",
+        "bytes": 258183,
+        "gzipBytes": 79717
+      },
+      {
+        "name": "/assets/AppLayout-CB08aZDc.js",
+        "bytes": 329207,
+        "gzipBytes": 88774
+      },
+      {
+        "name": "/assets/transaction-date-time-field-COWhjEPT.js",
+        "bytes": 912,
+        "gzipBytes": 481
+      },
+      {
+        "name": "/assets/request-Dq9lVWBO.js",
+        "bytes": 2655,
+        "gzipBytes": 1155
+      },
+      {
+        "name": "/assets/index.esm-BhR9UbF_.js",
+        "bytes": 159239,
+        "gzipBytes": 45403
+      },
+      {
+        "name": "/assets/Adventure-DdF6oUU6.js",
+        "bytes": 84522,
+        "gzipBytes": 24161
+      },
+      {
+        "name": "/assets/chevron-down-Dt1k-DsP.js",
+        "bytes": 161,
+        "gzipBytes": 161
+      }
+    ]
+  },
+  {
+    "name": "finance",
+    "jsBytes": 825091,
+    "gzipBytes": 238073,
+    "scripts": [
+      {
+        "name": "/assets/index-Ct8w_jLO.js",
+        "bytes": 2722,
+        "gzipBytes": 1402
+      },
+      {
+        "name": "/assets/main-3CwZMkxp.js",
+        "bytes": 258183,
+        "gzipBytes": 79717
+      },
+      {
+        "name": "/assets/AppLayout-CB08aZDc.js",
+        "bytes": 329207,
+        "gzipBytes": 88774
+      },
+      {
+        "name": "/assets/arrow-up-right-6aICImAM.js",
+        "bytes": 200,
+        "gzipBytes": 180
+      },
+      {
+        "name": "/assets/transaction-date-time-field-COWhjEPT.js",
+        "bytes": 912,
+        "gzipBytes": 481
+      },
+      {
+        "name": "/assets/useQuery-BE5tpODC.js",
+        "bytes": 8019,
+        "gzipBytes": 2952
+      },
+      {
+        "name": "/assets/Finance-SxMBwYCg.js",
+        "bytes": 63954,
+        "gzipBytes": 18009
+      },
+      {
+        "name": "/assets/request-Dq9lVWBO.js",
+        "bytes": 2655,
+        "gzipBytes": 1155
+      },
+      {
+        "name": "/assets/index.esm-BhR9UbF_.js",
+        "bytes": 159239,
+        "gzipBytes": 45403
+      }
+    ]
+  }
+]

@@ -1,0 +1,22 @@
+[
+  {
+    "width": 1440,
+    "state": "pending",
+    "recovered": true
+  },
+  {
+    "width": 1440,
+    "state": "error",
+    "recovered": true
+  },
+  {
+    "width": 390,
+    "state": "pending",
+    "recovered": true
+  },
+  {
+    "width": 390,
+    "state": "error",
+    "recovered": true
+  }
+]

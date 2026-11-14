@@ -50,7 +50,7 @@ export function Home() {
   }
   return <AppLayout page="home" className="home-app"><div className="home-page"><header className="masthead">
     <div className="page-kicker"><span className="live-dot" />我的每日空间</div><button className="top-settings" aria-label="首页设置" onClick={() => setSettingsOpen(true)}><Settings2 size={18} /></button>
-    <h1 className="wordmark">Life<span>Space</span><i /></h1><p className="header-date">把今天放在眼前</p>
+    <h1 className="wordmark" id="page-title" tabIndex={-1}>Life<span>Space</span><i /></h1><p className="header-date">把今天放在眼前</p>
     <form className="search-box" role="search" action="https://www.google.com/search" method="get" target="_blank" rel="noopener noreferrer" onSubmit={submitSearch}><span className="google-mark" aria-hidden="true">G</span><input name="q" aria-label="Google 搜索" placeholder="搜索一下，找到你想知道的" value={search} onChange={event => setSearch(event.target.value)} /><span className="search-hint">Google</span><button aria-label="搜索"><Search size={20} /></button></form>
   </header><section className="glass-grid" aria-label="每日信息"><Panel kind="time" open={() => setActiveCard('time')}><TimeContent now={now} localZone={localZone} localName={city.name} overseas={settings.overseas} /></Panel>
   <Panel kind="weather" open={() => setActiveCard('weather')} footer={<><a href="https://open-meteo.com/" target="_blank" rel="noopener noreferrer">Open-Meteo</a> · {updated(weatherQuery.data?.fetchedAt)}</>} refresh={() => { void weatherQuery.refetch() }} loading={weatherQuery.isFetching}><WeatherContent query={weatherQuery} city={weatherCity} locationStatus={weatherLocation.pending ? '正在定位，暂时显示北京天气' : weatherLocation.error} /></Panel>

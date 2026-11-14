@@ -1,0 +1,92 @@
+[
+  {
+    "width": 320,
+    "path": "/",
+    "passed": true
+  },
+  {
+    "width": 320,
+    "path": "/news",
+    "passed": true
+  },
+  {
+    "width": 320,
+    "path": "/adventure?view=overview",
+    "passed": true
+  },
+  {
+    "width": 320,
+    "path": "/adventure?view=planning",
+    "passed": true
+  },
+  {
+    "width": 320,
+    "path": "/adventure?view=growth",
+    "passed": true
+  },
+  {
+    "width": 320,
+    "path": "/finance",
+    "passed": true
+  },
+  {
+    "width": 390,
+    "path": "/",
+    "passed": true
+  },
+  {
+    "width": 390,
+    "path": "/news",
+    "passed": true
+  },
+  {
+    "width": 390,
+    "path": "/adventure?view=overview",
+    "passed": true
+  },
+  {
+    "width": 390,
+    "path": "/adventure?view=planning",
+    "passed": true
+  },
+  {
+    "width": 390,
+    "path": "/adventure?view=growth",
+    "passed": true
+  },
+  {
+    "width": 390,
+    "path": "/finance",
+    "passed": true
+  },
+  {
+    "width": 720,
+    "path": "/",
+    "passed": true
+  },
+  {
+    "width": 720,
+    "path": "/news",
+    "passed": true
+  },
+  {
+    "width": 720,
+    "path": "/adventure?view=overview",
+    "passed": true
+  },
+  {
+    "width": 720,
+    "path": "/adventure?view=planning",
+    "passed": true
+  },
+  {
+    "width": 720,
+    "path": "/adventure?view=growth",
+    "passed": true
+  },
+  {
+    "width": 720,
+    "path": "/finance",
+    "passed": true
+  }
+]

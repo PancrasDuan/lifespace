@@ -251,3 +251,9 @@
 .lp-delete-preview .lp-amount { font-size: 16px; }
 .lp-delete-content > p { color: #526447; font-size: 12px; line-height: 1.8; margin: 18px 0; }
 .lp-delete-content .lp-form-actions { margin-top: 18px; padding-top: 0; border: 0; }
+@media (pointer: coarse) {
+  .lp-app main :is(.lp-primary,.lp-secondary),.lp-app main .lp-filter-buttons > button,.lp-app main .lp-account-filter select { min-height: 44px; }
+  .lp-app main .lp-filter-buttons > button { min-width: 44px; }
+  .lp-dialog > header button { min-width: 44px; min-height: 44px; }
+  .lp-dialog .lp-field > :is(input,textarea,select) { min-height: 48px; font-size: max(1rem,1em); }
+}

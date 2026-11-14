@@ -222,7 +222,7 @@ function Workspace() {
   return <AppLayout page="adventure"><div className="adventure-page planning-page prototype-page">
     <header className="page-heading">
       <div className="page-kicker"><span className="live-dot" aria-hidden="true" />LifeSpace · 人生规划</div>
-      <h1>人生冒险</h1><p>把想做的事，慢慢变成现实。</p>
+      <h1 id="page-title" tabIndex={-1}>人生冒险</h1><p>把想做的事，慢慢变成现实。</p>
     </header>
     <div className="adventure-toolbar">
       <div className="create-intro"><strong>新建</strong><span>从目标或行动开始</span></div>

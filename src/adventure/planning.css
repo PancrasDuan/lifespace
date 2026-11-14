@@ -189,3 +189,10 @@
 .adventure-dialog.task-dialog .task-date-field .lp-time-trigger { color: #4f7049; }
 
 .adventure-dialog.task-dialog .task-delete-copy { font-size: 16px; color: #293b2b; line-height: normal; margin: 1em 0; }
+
+@media (pointer: coarse) {
+  .lifespace-app .adventure-dialog > header > button,.lifespace-app .adventure-dialog.task-dialog > header > button { min-width: 44px; min-height: 44px; }
+  .lifespace-app .adventure-dialog input:not([type=checkbox],[type=radio]),.lifespace-app .adventure-dialog textarea,.lifespace-app .adventure-dialog select { font-size: max(1rem, 1em); }
+  .lifespace-app .adventure-dialog input:not([type=checkbox],[type=radio]),.lifespace-app .adventure-dialog select { min-height: 48px; }
+  .planning-toast > button { min-width: 44px; min-height: 44px; }
+}

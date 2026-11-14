@@ -1,0 +1,3126 @@
+[
+  {
+    "name": "home",
+    "width": 1440,
+    "title": "首页 · LifeSpace",
+    "overflow": false,
+    "controls": [
+      {
+        "label": "账户菜单",
+        "width": 38,
+        "height": 38,
+        "font": "16px",
+        "outline": "rgb(82, 118, 79) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "首页设置",
+        "width": 34,
+        "height": 34,
+        "font": "16px",
+        "outline": "rgb(101, 118, 107) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "Google 搜索",
+        "width": 424,
+        "height": 17,
+        "font": "13px",
+        "outline": "rgb(38, 63, 52) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "搜索",
+        "width": 36,
+        "height": 36,
+        "font": "16px",
+        "outline": "rgb(101, 118, 107) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "查看世界时间详情",
+        "width": 763,
+        "height": 196,
+        "font": "16px",
+        "outline": "rgb(38, 63, 52) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "查看今日天气详情",
+        "width": 334,
+        "height": 179,
+        "font": "16px",
+        "outline": "rgb(38, 63, 52) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "刷新今日天气",
+        "width": 24,
+        "height": 24,
+        "font": "9px",
+        "outline": "rgb(101, 118, 107) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "白羊座",
+        "width": 113,
+        "height": 74,
+        "font": "11px",
+        "outline": "rgb(38, 63, 52) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "金牛座",
+        "width": 113,
+        "height": 74,
+        "font": "11px",
+        "outline": "rgb(38, 63, 52) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "双子座",
+        "width": 113,
+        "height": 74,
+        "font": "11px",
+        "outline": "rgb(38, 63, 52) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "巨蟹座",
+        "width": 113,
+        "height": 74,
+        "font": "11px",
+        "outline": "rgb(38, 63, 52) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "狮子座",
+        "width": 113,
+        "height": 74,
+        "font": "11px",
+        "outline": "rgb(38, 63, 52) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "处女座",
+        "width": 113,
+        "height": 74,
+        "font": "11px",
+        "outline": "rgb(38, 63, 52) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "天秤座",
+        "width": 113,
+        "height": 74,
+        "font": "11px",
+        "outline": "rgb(38, 63, 52) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "天蝎座",
+        "width": 113,
+        "height": 74,
+        "font": "11px",
+        "outline": "rgb(38, 63, 52) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "射手座",
+        "width": 113,
+        "height": 74,
+        "font": "11px",
+        "outline": "rgb(38, 63, 52) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "摩羯座",
+        "width": 113,
+        "height": 74,
+        "font": "11px",
+        "outline": "rgb(38, 63, 52) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "水瓶座",
+        "width": 113,
+        "height": 74,
+        "font": "11px",
+        "outline": "rgb(38, 63, 52) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "双鱼座",
+        "width": 113,
+        "height": 74,
+        "font": "11px",
+        "outline": "rgb(38, 63, 52) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "查看日期与黄历详情",
+        "width": 334,
+        "height": 189,
+        "font": "16px",
+        "outline": "rgb(38, 63, 52) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "查看DNSHE 域名详情",
+        "width": 1118,
+        "height": 179,
+        "font": "16px",
+        "outline": "rgb(38, 63, 52) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "刷新DNSHE 域名",
+        "width": 24,
+        "height": 24,
+        "font": "9px",
+        "outline": "rgb(101, 118, 107) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "设置服务",
+        "width": 83,
+        "height": 28,
+        "font": "11px",
+        "outline": "rgb(101, 118, 107) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "查看服务状态详情",
+        "width": 1118,
+        "height": 123,
+        "font": "16px",
+        "outline": "rgb(38, 63, 52) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "刷新服务状态",
+        "width": 24,
+        "height": 24,
+        "font": "9px",
+        "outline": "rgb(101, 118, 107) none 3px",
+        "offset": "0px"
+      }
+    ]
+  },
+  {
+    "name": "news",
+    "width": 1440,
+    "title": "热点新闻 · LifeSpace",
+    "overflow": false,
+    "controls": [
+      {
+        "label": "账户菜单",
+        "width": 38,
+        "height": 38,
+        "font": "16px",
+        "outline": "rgb(82, 118, 79) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "刷新全部新闻",
+        "width": 98,
+        "height": 37,
+        "font": "12px",
+        "outline": "rgb(72, 109, 82) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "新闻来源设置",
+        "width": 98,
+        "height": 37,
+        "font": "12px",
+        "outline": "rgb(72, 109, 82) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "拖动百度热搜",
+        "width": 48,
+        "height": 44,
+        "font": "16px",
+        "outline": "rgb(248, 251, 245) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "刷新百度热搜",
+        "width": 27,
+        "height": 27,
+        "font": "16px",
+        "outline": "rgb(72, 109, 82) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "百度热搜榜单",
+        "width": 358,
+        "height": 365,
+        "font": "16px",
+        "outline": "rgb(72, 109, 82) solid 2px",
+        "offset": "-3px"
+      },
+      {
+        "label": "拖动财联社热门",
+        "width": 48,
+        "height": 44,
+        "font": "16px",
+        "outline": "rgb(248, 251, 245) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "刷新财联社热门",
+        "width": 27,
+        "height": 27,
+        "font": "16px",
+        "outline": "rgb(72, 109, 82) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "财联社热门榜单",
+        "width": 358,
+        "height": 365,
+        "font": "16px",
+        "outline": "rgb(38, 63, 52) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "拖动腾讯新闻综合早报",
+        "width": 48,
+        "height": 44,
+        "font": "16px",
+        "outline": "rgb(248, 251, 245) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "刷新腾讯新闻综合早报",
+        "width": 27,
+        "height": 27,
+        "font": "16px",
+        "outline": "rgb(72, 109, 82) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "腾讯新闻综合早报榜单",
+        "width": 358,
+        "height": 365,
+        "font": "16px",
+        "outline": "rgb(38, 63, 52) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "拖动今日头条",
+        "width": 48,
+        "height": 44,
+        "font": "16px",
+        "outline": "rgb(248, 251, 245) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "刷新今日头条",
+        "width": 27,
+        "height": 27,
+        "font": "16px",
+        "outline": "rgb(72, 109, 82) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "今日头条榜单",
+        "width": 358,
+        "height": 365,
+        "font": "16px",
+        "outline": "rgb(38, 63, 52) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "拖动知乎",
+        "width": 48,
+        "height": 44,
+        "font": "16px",
+        "outline": "rgb(248, 251, 245) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "刷新知乎",
+        "width": 27,
+        "height": 27,
+        "font": "16px",
+        "outline": "rgb(72, 109, 82) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "知乎榜单",
+        "width": 358,
+        "height": 365,
+        "font": "16px",
+        "outline": "rgb(38, 63, 52) none 3px",
+        "offset": "0px"
+      }
+    ]
+  },
+  {
+    "name": "today",
+    "width": 1440,
+    "title": "人生冒险 · LifeSpace",
+    "overflow": false,
+    "controls": [
+      {
+        "label": "账户菜单",
+        "width": 38,
+        "height": 38,
+        "font": "16px",
+        "outline": "rgb(82, 118, 79) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "新建目标",
+        "width": 100,
+        "height": 44,
+        "font": "13px",
+        "outline": "rgb(56, 91, 61) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "新建行动",
+        "width": 100,
+        "height": 44,
+        "font": "13px",
+        "outline": "rgb(255, 255, 255) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "今日聚焦",
+        "width": 60,
+        "height": 49,
+        "font": "15px",
+        "outline": "rgb(56, 91, 61) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "目标",
+        "width": 30,
+        "height": 49,
+        "font": "15px",
+        "outline": "rgb(82, 105, 90) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "成长记录",
+        "width": 60,
+        "height": 49,
+        "font": "15px",
+        "outline": "rgb(82, 105, 90) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "上一周",
+        "width": 30,
+        "height": 30,
+        "font": "16px",
+        "outline": "rgb(100, 120, 102) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "下一周",
+        "width": 30,
+        "height": 30,
+        "font": "16px",
+        "outline": "rgb(100, 120, 102) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "回到今天",
+        "width": 60,
+        "height": 30,
+        "font": "11px",
+        "outline": "rgb(82, 118, 79) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "选择日期 2026-10-19",
+        "width": 102,
+        "height": 75,
+        "font": "16px",
+        "outline": "rgb(107, 125, 108) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "选择日期 2026-10-20",
+        "width": 102,
+        "height": 75,
+        "font": "16px",
+        "outline": "rgb(49, 93, 54) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "选择日期 2026-10-21",
+        "width": 102,
+        "height": 75,
+        "font": "16px",
+        "outline": "rgb(107, 125, 108) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "选择日期 2026-10-22",
+        "width": 102,
+        "height": 75,
+        "font": "16px",
+        "outline": "rgb(107, 125, 108) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "选择日期 2026-10-23",
+        "width": 102,
+        "height": 75,
+        "font": "16px",
+        "outline": "rgb(107, 125, 108) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "选择日期 2026-10-24",
+        "width": 102,
+        "height": 75,
+        "font": "16px",
+        "outline": "rgb(107, 125, 108) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "选择日期 2026-10-25",
+        "width": 102,
+        "height": 75,
+        "font": "16px",
+        "outline": "rgb(107, 125, 108) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "搜索任务",
+        "width": 111,
+        "height": 16,
+        "font": "12px",
+        "outline": "rgb(139, 154, 138) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "查看完整成长记录",
+        "width": 104,
+        "height": 36,
+        "font": "13px",
+        "outline": "rgb(56, 91, 61) none 3px",
+        "offset": "0px"
+      }
+    ]
+  },
+  {
+    "name": "task-form",
+    "width": 1440,
+    "title": "人生冒险 · LifeSpace",
+    "overflow": false,
+    "controls": [
+      {
+        "label": "账户菜单",
+        "width": 38,
+        "height": 38,
+        "font": "16px",
+        "outline": "rgb(82, 118, 79) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "新建目标",
+        "width": 100,
+        "height": 44,
+        "font": "13px",
+        "outline": "rgb(56, 91, 61) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "新建行动",
+        "width": 100,
+        "height": 44,
+        "font": "13px",
+        "outline": "rgb(255, 255, 255) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "今日聚焦",
+        "width": 60,
+        "height": 49,
+        "font": "15px",
+        "outline": "rgb(56, 91, 61) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "目标",
+        "width": 30,
+        "height": 49,
+        "font": "15px",
+        "outline": "rgb(82, 105, 90) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "成长记录",
+        "width": 60,
+        "height": 49,
+        "font": "15px",
+        "outline": "rgb(82, 105, 90) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "上一周",
+        "width": 30,
+        "height": 30,
+        "font": "16px",
+        "outline": "rgb(100, 120, 102) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "下一周",
+        "width": 30,
+        "height": 30,
+        "font": "16px",
+        "outline": "rgb(100, 120, 102) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "回到今天",
+        "width": 60,
+        "height": 30,
+        "font": "11px",
+        "outline": "rgb(82, 118, 79) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "选择日期 2026-10-19",
+        "width": 102,
+        "height": 75,
+        "font": "16px",
+        "outline": "rgb(107, 125, 108) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "选择日期 2026-10-20",
+        "width": 102,
+        "height": 75,
+        "font": "16px",
+        "outline": "rgb(49, 93, 54) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "选择日期 2026-10-21",
+        "width": 102,
+        "height": 75,
+        "font": "16px",
+        "outline": "rgb(107, 125, 108) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "选择日期 2026-10-22",
+        "width": 102,
+        "height": 75,
+        "font": "16px",
+        "outline": "rgb(107, 125, 108) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "选择日期 2026-10-23",
+        "width": 102,
+        "height": 75,
+        "font": "16px",
+        "outline": "rgb(107, 125, 108) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "选择日期 2026-10-24",
+        "width": 102,
+        "height": 75,
+        "font": "16px",
+        "outline": "rgb(107, 125, 108) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "选择日期 2026-10-25",
+        "width": 102,
+        "height": 75,
+        "font": "16px",
+        "outline": "rgb(107, 125, 108) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "搜索任务",
+        "width": 111,
+        "height": 16,
+        "font": "12px",
+        "outline": "rgb(139, 154, 138) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "查看完整成长记录",
+        "width": 104,
+        "height": 36,
+        "font": "13px",
+        "outline": "rgb(56, 91, 61) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "关闭弹窗",
+        "width": 28,
+        "height": 28,
+        "font": "16px",
+        "outline": "rgb(73, 100, 62) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "",
+        "width": 562,
+        "height": 43,
+        "font": "13px",
+        "outline": "rgb(72, 100, 58) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "任务说明",
+        "width": 562,
+        "height": 96,
+        "font": "13px",
+        "outline": "rgb(72, 100, 58) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "",
+        "width": 137,
+        "height": 43,
+        "font": "16px",
+        "outline": "rgb(72, 100, 58) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "选择执行日期",
+        "width": 423,
+        "height": 43,
+        "font": "16px",
+        "outline": "rgb(79, 112, 73) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "任务归属",
+        "width": 562,
+        "height": 43,
+        "font": "13px",
+        "outline": "rgb(156, 164, 149) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "取消",
+        "width": 60,
+        "height": 44,
+        "font": "16px",
+        "outline": "rgb(73, 100, 62) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "创建任务",
+        "width": 92,
+        "height": 44,
+        "font": "16px",
+        "outline": "rgb(255, 255, 255) none 3px",
+        "offset": "0px"
+      }
+    ]
+  },
+  {
+    "name": "goals",
+    "width": 1440,
+    "title": "人生冒险 · LifeSpace",
+    "overflow": false,
+    "controls": [
+      {
+        "label": "账户菜单",
+        "width": 38,
+        "height": 38,
+        "font": "16px",
+        "outline": "rgb(82, 118, 79) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "新建目标",
+        "width": 100,
+        "height": 44,
+        "font": "13px",
+        "outline": "rgb(56, 91, 61) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "新建行动",
+        "width": 100,
+        "height": 44,
+        "font": "13px",
+        "outline": "rgb(255, 255, 255) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "今日聚焦",
+        "width": 60,
+        "height": 49,
+        "font": "15px",
+        "outline": "rgb(82, 105, 90) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "目标",
+        "width": 30,
+        "height": 49,
+        "font": "15px",
+        "outline": "rgb(56, 91, 61) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "成长记录",
+        "width": 60,
+        "height": 49,
+        "font": "15px",
+        "outline": "rgb(82, 105, 90) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "显示已达成／已结束",
+        "width": 13,
+        "height": 13,
+        "font": "11px",
+        "outline": "rgb(0, 0, 0) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "调整目标 五公里 的顺序，使用上下方向键",
+        "width": 15,
+        "height": 25,
+        "font": "13px",
+        "outline": "rgb(48, 72, 58) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "五公里",
+        "width": 39,
+        "height": 19,
+        "font": "13px",
+        "outline": "rgb(48, 72, 58) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "关系卡片",
+        "width": 79,
+        "height": 30,
+        "font": "11px",
+        "outline": "rgb(64, 93, 65) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "变更目标 五公里",
+        "width": 38,
+        "height": 30,
+        "font": "11px",
+        "outline": "rgb(64, 93, 65) none 3px",
+        "offset": "0px"
+      }
+    ]
+  },
+  {
+    "name": "growth",
+    "width": 1440,
+    "title": "人生冒险 · LifeSpace",
+    "overflow": false,
+    "controls": [
+      {
+        "label": "账户菜单",
+        "width": 38,
+        "height": 38,
+        "font": "16px",
+        "outline": "rgb(82, 118, 79) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "新建目标",
+        "width": 100,
+        "height": 44,
+        "font": "13px",
+        "outline": "rgb(56, 91, 61) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "新建行动",
+        "width": 100,
+        "height": 44,
+        "font": "13px",
+        "outline": "rgb(255, 255, 255) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "今日聚焦",
+        "width": 60,
+        "height": 49,
+        "font": "15px",
+        "outline": "rgb(82, 105, 90) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "目标",
+        "width": 30,
+        "height": 49,
+        "font": "15px",
+        "outline": "rgb(82, 105, 90) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "成长记录",
+        "width": 60,
+        "height": 49,
+        "font": "15px",
+        "outline": "rgb(56, 91, 61) none 3px",
+        "offset": "0px"
+      }
+    ]
+  },
+  {
+    "name": "finance",
+    "width": 1440,
+    "title": "财务 · LifeSpace",
+    "overflow": false,
+    "controls": [
+      {
+        "label": "账户菜单",
+        "width": 38,
+        "height": 38,
+        "font": "16px",
+        "outline": "rgb(82, 118, 79) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "刷新数据",
+        "width": 106,
+        "height": 40,
+        "font": "13px",
+        "outline": "rgb(61, 88, 69) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "显示账户余额",
+        "width": 85,
+        "height": 38,
+        "font": "12px",
+        "outline": "rgb(71, 103, 62) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "账户转账",
+        "width": 108,
+        "height": 40,
+        "font": "13px",
+        "outline": "rgb(61, 88, 69) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "新增账户",
+        "width": 109,
+        "height": 40,
+        "font": "13px",
+        "outline": "rgb(255, 255, 255) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "修改示例银行卡",
+        "width": 32,
+        "height": 32,
+        "font": "14px",
+        "outline": "rgb(82, 106, 75) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "从示例银行卡转账",
+        "width": 50,
+        "height": 22,
+        "font": "11px",
+        "outline": "rgb(71, 103, 62) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "新建流水",
+        "width": 95,
+        "height": 34,
+        "font": "12px",
+        "outline": "rgb(61, 88, 69) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "全部时间",
+        "width": 72,
+        "height": 34,
+        "font": "12px",
+        "outline": "rgb(54, 93, 69) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "今天",
+        "width": 48,
+        "height": 34,
+        "font": "12px",
+        "outline": "rgb(104, 118, 109) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "近 7 天",
+        "width": 61,
+        "height": 34,
+        "font": "12px",
+        "outline": "rgb(104, 118, 109) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "近 1 个月",
+        "width": 73,
+        "height": 34,
+        "font": "12px",
+        "outline": "rgb(104, 118, 109) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "自定义",
+        "width": 60,
+        "height": 34,
+        "font": "12px",
+        "outline": "rgb(104, 118, 109) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "筛选账户",
+        "width": 98,
+        "height": 34,
+        "font": "12px",
+        "outline": "rgb(54, 93, 69) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "新建流水",
+        "width": 99,
+        "height": 37,
+        "font": "11px",
+        "outline": "rgb(61, 88, 69) none 3px",
+        "offset": "0px"
+      }
+    ]
+  },
+  {
+    "name": "account-form",
+    "width": 1440,
+    "title": "财务 · LifeSpace",
+    "overflow": false,
+    "controls": [
+      {
+        "label": "账户菜单",
+        "width": 38,
+        "height": 38,
+        "font": "16px",
+        "outline": "rgb(82, 118, 79) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "刷新数据",
+        "width": 106,
+        "height": 40,
+        "font": "13px",
+        "outline": "rgb(61, 88, 69) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "显示账户余额",
+        "width": 85,
+        "height": 38,
+        "font": "12px",
+        "outline": "rgb(71, 103, 62) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "账户转账",
+        "width": 108,
+        "height": 40,
+        "font": "13px",
+        "outline": "rgb(61, 88, 69) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "新增账户",
+        "width": 109,
+        "height": 40,
+        "font": "13px",
+        "outline": "rgb(255, 255, 255) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "修改示例银行卡",
+        "width": 32,
+        "height": 32,
+        "font": "14px",
+        "outline": "rgb(82, 106, 75) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "从示例银行卡转账",
+        "width": 50,
+        "height": 22,
+        "font": "11px",
+        "outline": "rgb(71, 103, 62) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "关闭",
+        "width": 30,
+        "height": 30,
+        "font": "14px",
+        "outline": "rgb(119, 137, 113) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "账户名称",
+        "width": 488,
+        "height": 50,
+        "font": "16px",
+        "outline": "rgb(85, 124, 83) solid 2px",
+        "offset": "3px"
+      },
+      {
+        "label": "初始余额",
+        "width": 488,
+        "height": 50,
+        "font": "16px",
+        "outline": "rgb(60, 88, 62) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "取消",
+        "width": 88,
+        "height": 40,
+        "font": "13px",
+        "outline": "rgb(61, 88, 69) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "保存账户",
+        "width": 88,
+        "height": 40,
+        "font": "13px",
+        "outline": "rgb(255, 255, 255) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "新建流水",
+        "width": 95,
+        "height": 34,
+        "font": "12px",
+        "outline": "rgb(61, 88, 69) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "全部时间",
+        "width": 72,
+        "height": 34,
+        "font": "12px",
+        "outline": "rgb(54, 93, 69) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "今天",
+        "width": 48,
+        "height": 34,
+        "font": "12px",
+        "outline": "rgb(104, 118, 109) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "近 7 天",
+        "width": 61,
+        "height": 34,
+        "font": "12px",
+        "outline": "rgb(104, 118, 109) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "近 1 个月",
+        "width": 73,
+        "height": 34,
+        "font": "12px",
+        "outline": "rgb(104, 118, 109) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "自定义",
+        "width": 60,
+        "height": 34,
+        "font": "12px",
+        "outline": "rgb(104, 118, 109) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "筛选账户",
+        "width": 98,
+        "height": 34,
+        "font": "12px",
+        "outline": "rgb(54, 93, 69) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "新建流水",
+        "width": 99,
+        "height": 37,
+        "font": "11px",
+        "outline": "rgb(61, 88, 69) none 3px",
+        "offset": "0px"
+      }
+    ]
+  },
+  {
+    "name": "entry-form",
+    "width": 1440,
+    "title": "财务 · LifeSpace",
+    "overflow": false,
+    "controls": [
+      {
+        "label": "账户菜单",
+        "width": 38,
+        "height": 38,
+        "font": "16px",
+        "outline": "rgb(82, 118, 79) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "刷新数据",
+        "width": 106,
+        "height": 40,
+        "font": "13px",
+        "outline": "rgb(61, 88, 69) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "显示账户余额",
+        "width": 85,
+        "height": 38,
+        "font": "12px",
+        "outline": "rgb(71, 103, 62) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "账户转账",
+        "width": 108,
+        "height": 40,
+        "font": "13px",
+        "outline": "rgb(61, 88, 69) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "新增账户",
+        "width": 109,
+        "height": 40,
+        "font": "13px",
+        "outline": "rgb(255, 255, 255) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "修改示例银行卡",
+        "width": 32,
+        "height": 32,
+        "font": "14px",
+        "outline": "rgb(82, 106, 75) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "从示例银行卡转账",
+        "width": 50,
+        "height": 22,
+        "font": "11px",
+        "outline": "rgb(71, 103, 62) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "新建流水",
+        "width": 95,
+        "height": 34,
+        "font": "12px",
+        "outline": "rgb(61, 88, 69) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "全部时间",
+        "width": 72,
+        "height": 34,
+        "font": "12px",
+        "outline": "rgb(54, 93, 69) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "今天",
+        "width": 48,
+        "height": 34,
+        "font": "12px",
+        "outline": "rgb(104, 118, 109) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "近 7 天",
+        "width": 61,
+        "height": 34,
+        "font": "12px",
+        "outline": "rgb(104, 118, 109) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "近 1 个月",
+        "width": 73,
+        "height": 34,
+        "font": "12px",
+        "outline": "rgb(104, 118, 109) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "自定义",
+        "width": 60,
+        "height": 34,
+        "font": "12px",
+        "outline": "rgb(104, 118, 109) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "筛选账户",
+        "width": 98,
+        "height": 34,
+        "font": "12px",
+        "outline": "rgb(54, 93, 69) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "新建流水",
+        "width": 99,
+        "height": 37,
+        "font": "11px",
+        "outline": "rgb(61, 88, 69) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "关闭",
+        "width": 30,
+        "height": 30,
+        "font": "14px",
+        "outline": "rgb(119, 137, 113) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "支出",
+        "width": 277,
+        "height": 36,
+        "font": "12px",
+        "outline": "rgb(60, 99, 71) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "收入",
+        "width": 277,
+        "height": 36,
+        "font": "12px",
+        "outline": "rgb(123, 141, 113) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "交易金额",
+        "width": 525,
+        "height": 44,
+        "font": "34px",
+        "outline": "rgb(47, 79, 57) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "",
+        "width": 167,
+        "height": 41,
+        "font": "12px",
+        "outline": "rgb(60, 88, 62) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "选择交易时间",
+        "width": 399,
+        "height": 41,
+        "font": "12px",
+        "outline": "rgb(79, 112, 73) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "交易账户",
+        "width": 274,
+        "height": 41,
+        "font": "12px",
+        "outline": "rgb(60, 88, 62) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "交易分类",
+        "width": 274,
+        "height": 41,
+        "font": "12px",
+        "outline": "rgb(60, 88, 62) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "交易备注",
+        "width": 568,
+        "height": 82,
+        "font": "12px",
+        "outline": "rgb(60, 88, 62) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "取消",
+        "width": 88,
+        "height": 40,
+        "font": "13px",
+        "outline": "rgb(61, 88, 69) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "保存流水",
+        "width": 88,
+        "height": 40,
+        "font": "13px",
+        "outline": "rgb(255, 255, 255) none 3px",
+        "offset": "0px"
+      }
+    ]
+  },
+  {
+    "name": "login",
+    "width": 1440,
+    "title": "登录 · LifeSpace",
+    "overflow": false,
+    "controls": [
+      {
+        "label": "登录",
+        "width": 236,
+        "height": 46,
+        "font": "16px"
+      },
+      {
+        "label": "注册",
+        "width": 236,
+        "height": 46,
+        "font": "16px"
+      },
+      {
+        "label": "",
+        "width": 486,
+        "height": 48,
+        "font": "16px"
+      },
+      {
+        "label": "忘记密码？",
+        "width": 60,
+        "height": 17,
+        "font": "12px"
+      },
+      {
+        "label": "",
+        "width": 486,
+        "height": 48,
+        "font": "16px"
+      },
+      {
+        "label": "显示密码",
+        "width": 36,
+        "height": 36,
+        "font": "16px"
+      },
+      {
+        "label": "登录 LifeSpace",
+        "width": 486,
+        "height": 48,
+        "font": "16px"
+      },
+      {
+        "label": "账户菜单",
+        "width": 38,
+        "height": 38,
+        "font": "16px"
+      }
+    ]
+  },
+  {
+    "name": "register",
+    "width": 1440,
+    "title": "注册 · LifeSpace",
+    "overflow": false,
+    "controls": [
+      {
+        "label": "登录",
+        "width": 236,
+        "height": 46,
+        "font": "16px"
+      },
+      {
+        "label": "注册",
+        "width": 236,
+        "height": 46,
+        "font": "16px"
+      },
+      {
+        "label": "",
+        "width": 486,
+        "height": 48,
+        "font": "16px"
+      },
+      {
+        "label": "",
+        "width": 486,
+        "height": 48,
+        "font": "16px"
+      },
+      {
+        "label": "显示密码",
+        "width": 36,
+        "height": 36,
+        "font": "16px"
+      },
+      {
+        "label": "",
+        "width": 486,
+        "height": 48,
+        "font": "16px"
+      },
+      {
+        "label": "显示确认密码",
+        "width": 36,
+        "height": 36,
+        "font": "16px"
+      },
+      {
+        "label": "创建账户",
+        "width": 486,
+        "height": 48,
+        "font": "16px"
+      },
+      {
+        "label": "账户菜单",
+        "width": 38,
+        "height": 38,
+        "font": "16px"
+      }
+    ]
+  },
+  {
+    "name": "forgot",
+    "width": 1440,
+    "title": "找回密码 · LifeSpace",
+    "overflow": false,
+    "controls": [
+      {
+        "label": "",
+        "width": 486,
+        "height": 48,
+        "font": "16px"
+      },
+      {
+        "label": "发送重置邮件",
+        "width": 486,
+        "height": 48,
+        "font": "16px"
+      },
+      {
+        "label": "返回登录",
+        "width": 48,
+        "height": 17,
+        "font": "12px"
+      },
+      {
+        "label": "账户菜单",
+        "width": 38,
+        "height": 38,
+        "font": "16px"
+      }
+    ]
+  },
+  {
+    "name": "reset",
+    "width": 1440,
+    "title": "重置密码 · LifeSpace",
+    "overflow": false,
+    "controls": [
+      {
+        "label": "返回登录",
+        "width": 486,
+        "height": 48,
+        "font": "16px"
+      },
+      {
+        "label": "账户菜单",
+        "width": 38,
+        "height": 38,
+        "font": "16px"
+      }
+    ]
+  },
+  {
+    "name": "home",
+    "width": 390,
+    "title": "首页 · LifeSpace",
+    "overflow": false,
+    "controls": [
+      {
+        "label": "账户菜单",
+        "width": 44,
+        "height": 44,
+        "font": "16px",
+        "outline": "rgb(82, 118, 79) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "首页设置",
+        "width": 44,
+        "height": 44,
+        "font": "16px",
+        "outline": "rgb(101, 118, 107) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "Google 搜索",
+        "width": 194,
+        "height": 20,
+        "font": "16px",
+        "outline": "rgb(38, 63, 52) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "搜索",
+        "width": 44,
+        "height": 44,
+        "font": "16px",
+        "outline": "rgb(101, 118, 107) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "查看世界时间详情",
+        "width": 298,
+        "height": 275,
+        "font": "16px",
+        "outline": "rgb(38, 63, 52) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "查看今日天气详情",
+        "width": 298,
+        "height": 177,
+        "font": "16px",
+        "outline": "rgb(38, 63, 52) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "刷新今日天气",
+        "width": 44,
+        "height": 44,
+        "font": "9px",
+        "outline": "rgb(101, 118, 107) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "白羊座",
+        "width": 60,
+        "height": 74,
+        "font": "11px",
+        "outline": "rgb(38, 63, 52) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "金牛座",
+        "width": 60,
+        "height": 74,
+        "font": "11px",
+        "outline": "rgb(38, 63, 52) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "双子座",
+        "width": 60,
+        "height": 74,
+        "font": "11px",
+        "outline": "rgb(38, 63, 52) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "巨蟹座",
+        "width": 60,
+        "height": 74,
+        "font": "11px",
+        "outline": "rgb(38, 63, 52) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "狮子座",
+        "width": 60,
+        "height": 74,
+        "font": "11px",
+        "outline": "rgb(38, 63, 52) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "处女座",
+        "width": 60,
+        "height": 74,
+        "font": "11px",
+        "outline": "rgb(38, 63, 52) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "天秤座",
+        "width": 60,
+        "height": 74,
+        "font": "11px",
+        "outline": "rgb(38, 63, 52) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "天蝎座",
+        "width": 60,
+        "height": 74,
+        "font": "11px",
+        "outline": "rgb(38, 63, 52) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "射手座",
+        "width": 60,
+        "height": 74,
+        "font": "11px",
+        "outline": "rgb(38, 63, 52) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "摩羯座",
+        "width": 60,
+        "height": 74,
+        "font": "11px",
+        "outline": "rgb(38, 63, 52) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "水瓶座",
+        "width": 60,
+        "height": 74,
+        "font": "11px",
+        "outline": "rgb(38, 63, 52) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "双鱼座",
+        "width": 60,
+        "height": 74,
+        "font": "11px",
+        "outline": "rgb(38, 63, 52) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "查看日期与黄历详情",
+        "width": 298,
+        "height": 135,
+        "font": "16px",
+        "outline": "rgb(38, 63, 52) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "查看DNSHE 域名详情",
+        "width": 298,
+        "height": 177,
+        "font": "16px",
+        "outline": "rgb(38, 63, 52) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "刷新DNSHE 域名",
+        "width": 44,
+        "height": 44,
+        "font": "9px",
+        "outline": "rgb(101, 118, 107) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "设置服务",
+        "width": 75,
+        "height": 44,
+        "font": "10px",
+        "outline": "rgb(101, 118, 107) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "查看服务状态详情",
+        "width": 298,
+        "height": 121,
+        "font": "16px",
+        "outline": "rgb(38, 63, 52) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "刷新服务状态",
+        "width": 44,
+        "height": 44,
+        "font": "9px",
+        "outline": "rgb(101, 118, 107) none 3px",
+        "offset": "0px"
+      }
+    ]
+  },
+  {
+    "name": "news",
+    "width": 390,
+    "title": "热点新闻 · LifeSpace",
+    "overflow": false,
+    "controls": [
+      {
+        "label": "账户菜单",
+        "width": 44,
+        "height": 44,
+        "font": "16px",
+        "outline": "rgb(82, 118, 79) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "刷新全部新闻",
+        "width": 88,
+        "height": 44,
+        "font": "11px",
+        "outline": "rgb(72, 109, 82) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "新闻来源设置",
+        "width": 88,
+        "height": 44,
+        "font": "11px",
+        "outline": "rgb(72, 109, 82) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "拖动百度热搜",
+        "width": 48,
+        "height": 44,
+        "font": "16px",
+        "outline": "rgb(248, 251, 245) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "刷新百度热搜",
+        "width": 44,
+        "height": 44,
+        "font": "16px",
+        "outline": "rgb(72, 109, 82) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "百度热搜榜单",
+        "width": 298,
+        "height": 330,
+        "font": "16px",
+        "outline": "rgb(72, 109, 82) solid 2px",
+        "offset": "-3px"
+      },
+      {
+        "label": "拖动财联社热门",
+        "width": 48,
+        "height": 44,
+        "font": "16px",
+        "outline": "rgb(248, 251, 245) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "刷新财联社热门",
+        "width": 44,
+        "height": 44,
+        "font": "16px",
+        "outline": "rgb(72, 109, 82) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "财联社热门榜单",
+        "width": 298,
+        "height": 330,
+        "font": "16px",
+        "outline": "rgb(38, 63, 52) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "拖动腾讯新闻综合早报",
+        "width": 48,
+        "height": 44,
+        "font": "16px",
+        "outline": "rgb(248, 251, 245) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "刷新腾讯新闻综合早报",
+        "width": 44,
+        "height": 44,
+        "font": "16px",
+        "outline": "rgb(72, 109, 82) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "腾讯新闻综合早报榜单",
+        "width": 298,
+        "height": 330,
+        "font": "16px",
+        "outline": "rgb(38, 63, 52) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "拖动今日头条",
+        "width": 48,
+        "height": 44,
+        "font": "16px",
+        "outline": "rgb(248, 251, 245) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "刷新今日头条",
+        "width": 44,
+        "height": 44,
+        "font": "16px",
+        "outline": "rgb(72, 109, 82) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "今日头条榜单",
+        "width": 298,
+        "height": 330,
+        "font": "16px",
+        "outline": "rgb(38, 63, 52) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "拖动知乎",
+        "width": 48,
+        "height": 44,
+        "font": "16px",
+        "outline": "rgb(248, 251, 245) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "刷新知乎",
+        "width": 44,
+        "height": 44,
+        "font": "16px",
+        "outline": "rgb(72, 109, 82) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "知乎榜单",
+        "width": 298,
+        "height": 330,
+        "font": "16px",
+        "outline": "rgb(38, 63, 52) none 3px",
+        "offset": "0px"
+      }
+    ]
+  },
+  {
+    "name": "today",
+    "width": 390,
+    "title": "人生冒险 · LifeSpace",
+    "overflow": false,
+    "controls": [
+      {
+        "label": "账户菜单",
+        "width": 44,
+        "height": 44,
+        "font": "16px",
+        "outline": "rgb(82, 118, 79) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "新建目标",
+        "width": 146,
+        "height": 44,
+        "font": "13px",
+        "outline": "rgb(56, 91, 61) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "新建行动",
+        "width": 146,
+        "height": 44,
+        "font": "13px",
+        "outline": "rgb(255, 255, 255) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "今日聚焦",
+        "width": 56,
+        "height": 48,
+        "font": "14px",
+        "outline": "rgb(56, 91, 61) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "目标",
+        "width": 28,
+        "height": 48,
+        "font": "14px",
+        "outline": "rgb(82, 105, 90) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "成长记录",
+        "width": 56,
+        "height": 48,
+        "font": "14px",
+        "outline": "rgb(82, 105, 90) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "上一周",
+        "width": 44,
+        "height": 44,
+        "font": "16px",
+        "outline": "rgb(100, 120, 102) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "下一周",
+        "width": 44,
+        "height": 44,
+        "font": "16px",
+        "outline": "rgb(100, 120, 102) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "回到今天",
+        "width": 60,
+        "height": 44,
+        "font": "11px",
+        "outline": "rgb(82, 118, 79) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "选择日期 2026-10-19",
+        "width": 37,
+        "height": 75,
+        "font": "16px",
+        "outline": "rgb(107, 125, 108) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "选择日期 2026-10-20",
+        "width": 37,
+        "height": 75,
+        "font": "16px",
+        "outline": "rgb(49, 93, 54) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "选择日期 2026-10-21",
+        "width": 37,
+        "height": 75,
+        "font": "16px",
+        "outline": "rgb(107, 125, 108) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "选择日期 2026-10-22",
+        "width": 37,
+        "height": 75,
+        "font": "16px",
+        "outline": "rgb(107, 125, 108) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "选择日期 2026-10-23",
+        "width": 37,
+        "height": 75,
+        "font": "16px",
+        "outline": "rgb(107, 125, 108) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "选择日期 2026-10-24",
+        "width": 37,
+        "height": 75,
+        "font": "16px",
+        "outline": "rgb(107, 125, 108) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "选择日期 2026-10-25",
+        "width": 37,
+        "height": 75,
+        "font": "16px",
+        "outline": "rgb(107, 125, 108) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "搜索任务",
+        "width": 226,
+        "height": 20,
+        "font": "16px",
+        "outline": "rgb(139, 154, 138) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "查看完整成长记录",
+        "width": 104,
+        "height": 36,
+        "font": "13px",
+        "outline": "rgb(56, 91, 61) none 3px",
+        "offset": "0px"
+      }
+    ]
+  },
+  {
+    "name": "task-form",
+    "width": 390,
+    "title": "人生冒险 · LifeSpace",
+    "overflow": false,
+    "controls": [
+      {
+        "label": "账户菜单",
+        "width": 44,
+        "height": 44,
+        "font": "16px",
+        "outline": "rgb(82, 118, 79) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "新建目标",
+        "width": 146,
+        "height": 44,
+        "font": "13px",
+        "outline": "rgb(56, 91, 61) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "新建行动",
+        "width": 146,
+        "height": 44,
+        "font": "13px",
+        "outline": "rgb(255, 255, 255) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "今日聚焦",
+        "width": 56,
+        "height": 48,
+        "font": "14px",
+        "outline": "rgb(56, 91, 61) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "目标",
+        "width": 28,
+        "height": 48,
+        "font": "14px",
+        "outline": "rgb(82, 105, 90) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "成长记录",
+        "width": 56,
+        "height": 48,
+        "font": "14px",
+        "outline": "rgb(82, 105, 90) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "上一周",
+        "width": 44,
+        "height": 44,
+        "font": "16px",
+        "outline": "rgb(100, 120, 102) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "下一周",
+        "width": 44,
+        "height": 44,
+        "font": "16px",
+        "outline": "rgb(100, 120, 102) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "回到今天",
+        "width": 60,
+        "height": 44,
+        "font": "11px",
+        "outline": "rgb(82, 118, 79) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "选择日期 2026-10-19",
+        "width": 37,
+        "height": 75,
+        "font": "16px",
+        "outline": "rgb(107, 125, 108) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "选择日期 2026-10-20",
+        "width": 37,
+        "height": 75,
+        "font": "16px",
+        "outline": "rgb(49, 93, 54) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "选择日期 2026-10-21",
+        "width": 37,
+        "height": 75,
+        "font": "16px",
+        "outline": "rgb(107, 125, 108) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "选择日期 2026-10-22",
+        "width": 37,
+        "height": 75,
+        "font": "16px",
+        "outline": "rgb(107, 125, 108) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "选择日期 2026-10-23",
+        "width": 37,
+        "height": 75,
+        "font": "16px",
+        "outline": "rgb(107, 125, 108) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "选择日期 2026-10-24",
+        "width": 37,
+        "height": 75,
+        "font": "16px",
+        "outline": "rgb(107, 125, 108) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "选择日期 2026-10-25",
+        "width": 37,
+        "height": 75,
+        "font": "16px",
+        "outline": "rgb(107, 125, 108) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "搜索任务",
+        "width": 226,
+        "height": 20,
+        "font": "16px",
+        "outline": "rgb(139, 154, 138) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "查看完整成长记录",
+        "width": 104,
+        "height": 36,
+        "font": "13px",
+        "outline": "rgb(56, 91, 61) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "关闭弹窗",
+        "width": 44,
+        "height": 44,
+        "font": "16px",
+        "outline": "rgb(73, 100, 62) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "",
+        "width": 336,
+        "height": 48,
+        "font": "16px",
+        "outline": "rgb(72, 100, 58) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "任务说明",
+        "width": 336,
+        "height": 101,
+        "font": "16px",
+        "outline": "rgb(72, 100, 58) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "",
+        "width": 137,
+        "height": 48,
+        "font": "16px",
+        "outline": "rgb(72, 100, 58) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "选择执行日期",
+        "width": 197,
+        "height": 48,
+        "font": "16px",
+        "outline": "rgb(79, 112, 73) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "任务归属",
+        "width": 336,
+        "height": 48,
+        "font": "16px",
+        "outline": "rgb(156, 164, 149) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "取消",
+        "width": 60,
+        "height": 44,
+        "font": "16px",
+        "outline": "rgb(73, 100, 62) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "创建任务",
+        "width": 92,
+        "height": 44,
+        "font": "16px",
+        "outline": "rgb(255, 255, 255) none 3px",
+        "offset": "0px"
+      }
+    ]
+  },
+  {
+    "name": "goals",
+    "width": 390,
+    "title": "人生冒险 · LifeSpace",
+    "overflow": false,
+    "controls": [
+      {
+        "label": "账户菜单",
+        "width": 44,
+        "height": 44,
+        "font": "16px",
+        "outline": "rgb(82, 118, 79) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "新建目标",
+        "width": 146,
+        "height": 44,
+        "font": "13px",
+        "outline": "rgb(56, 91, 61) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "新建行动",
+        "width": 146,
+        "height": 44,
+        "font": "13px",
+        "outline": "rgb(255, 255, 255) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "今日聚焦",
+        "width": 56,
+        "height": 48,
+        "font": "14px",
+        "outline": "rgb(82, 105, 90) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "目标",
+        "width": 28,
+        "height": 48,
+        "font": "14px",
+        "outline": "rgb(56, 91, 61) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "成长记录",
+        "width": 56,
+        "height": 48,
+        "font": "14px",
+        "outline": "rgb(82, 105, 90) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "显示已达成／已结束",
+        "width": 13,
+        "height": 13,
+        "font": "11px",
+        "outline": "rgb(0, 0, 0) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "调整目标 五公里 的顺序，使用上下方向键",
+        "width": 15,
+        "height": 25,
+        "font": "13px",
+        "outline": "rgb(48, 72, 58) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "五公里",
+        "width": 39,
+        "height": 19,
+        "font": "13px",
+        "outline": "rgb(48, 72, 58) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "关系卡片",
+        "width": 79,
+        "height": 44,
+        "font": "11px",
+        "outline": "rgb(64, 93, 65) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "变更目标 五公里",
+        "width": 38,
+        "height": 44,
+        "font": "11px",
+        "outline": "rgb(64, 93, 65) none 3px",
+        "offset": "0px"
+      }
+    ]
+  },
+  {
+    "name": "growth",
+    "width": 390,
+    "title": "人生冒险 · LifeSpace",
+    "overflow": false,
+    "controls": [
+      {
+        "label": "账户菜单",
+        "width": 44,
+        "height": 44,
+        "font": "16px",
+        "outline": "rgb(82, 118, 79) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "新建目标",
+        "width": 146,
+        "height": 44,
+        "font": "13px",
+        "outline": "rgb(56, 91, 61) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "新建行动",
+        "width": 146,
+        "height": 44,
+        "font": "13px",
+        "outline": "rgb(255, 255, 255) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "今日聚焦",
+        "width": 56,
+        "height": 48,
+        "font": "14px",
+        "outline": "rgb(82, 105, 90) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "目标",
+        "width": 28,
+        "height": 48,
+        "font": "14px",
+        "outline": "rgb(82, 105, 90) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "成长记录",
+        "width": 56,
+        "height": 48,
+        "font": "14px",
+        "outline": "rgb(56, 91, 61) none 3px",
+        "offset": "0px"
+      }
+    ]
+  },
+  {
+    "name": "finance",
+    "width": 390,
+    "title": "财务 · LifeSpace",
+    "overflow": false,
+    "controls": [
+      {
+        "label": "账户菜单",
+        "width": 44,
+        "height": 44,
+        "font": "16px",
+        "outline": "rgb(82, 118, 79) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "刷新数据",
+        "width": 106,
+        "height": 44,
+        "font": "13px",
+        "outline": "rgb(61, 88, 69) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "显示账户余额",
+        "width": 38,
+        "height": 38,
+        "font": "11px",
+        "outline": "rgb(71, 103, 62) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "账户转账",
+        "width": 88,
+        "height": 44,
+        "font": "11px",
+        "outline": "rgb(61, 88, 69) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "新增账户",
+        "width": 89,
+        "height": 44,
+        "font": "11px",
+        "outline": "rgb(255, 255, 255) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "修改示例银行卡",
+        "width": 44,
+        "height": 44,
+        "font": "14px",
+        "outline": "rgb(82, 106, 75) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "从示例银行卡转账",
+        "width": 50,
+        "height": 38,
+        "font": "11px",
+        "outline": "rgb(71, 103, 62) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "新建流水",
+        "width": 95,
+        "height": 44,
+        "font": "12px",
+        "outline": "rgb(61, 88, 69) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "全部时间",
+        "width": 56,
+        "height": 44,
+        "font": "10px",
+        "outline": "rgb(54, 93, 69) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "今天",
+        "width": 44,
+        "height": 44,
+        "font": "10px",
+        "outline": "rgb(104, 118, 109) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "近 7 天",
+        "width": 47,
+        "height": 44,
+        "font": "10px",
+        "outline": "rgb(104, 118, 109) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "近 1 个月",
+        "width": 57,
+        "height": 44,
+        "font": "10px",
+        "outline": "rgb(104, 118, 109) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "自定义",
+        "width": 46,
+        "height": 44,
+        "font": "10px",
+        "outline": "rgb(104, 118, 109) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "筛选账户",
+        "width": 98,
+        "height": 44,
+        "font": "12px",
+        "outline": "rgb(54, 93, 69) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "新建流水",
+        "width": 99,
+        "height": 44,
+        "font": "11px",
+        "outline": "rgb(61, 88, 69) none 3px",
+        "offset": "0px"
+      }
+    ]
+  },
+  {
+    "name": "account-form",
+    "width": 390,
+    "title": "财务 · LifeSpace",
+    "overflow": false,
+    "controls": [
+      {
+        "label": "账户菜单",
+        "width": 44,
+        "height": 44,
+        "font": "16px",
+        "outline": "rgb(82, 118, 79) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "刷新数据",
+        "width": 106,
+        "height": 44,
+        "font": "13px",
+        "outline": "rgb(61, 88, 69) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "显示账户余额",
+        "width": 38,
+        "height": 38,
+        "font": "11px",
+        "outline": "rgb(71, 103, 62) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "账户转账",
+        "width": 88,
+        "height": 44,
+        "font": "11px",
+        "outline": "rgb(61, 88, 69) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "新增账户",
+        "width": 89,
+        "height": 44,
+        "font": "11px",
+        "outline": "rgb(255, 255, 255) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "修改示例银行卡",
+        "width": 44,
+        "height": 44,
+        "font": "14px",
+        "outline": "rgb(82, 106, 75) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "从示例银行卡转账",
+        "width": 50,
+        "height": 38,
+        "font": "11px",
+        "outline": "rgb(71, 103, 62) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "关闭",
+        "width": 44,
+        "height": 44,
+        "font": "14px",
+        "outline": "rgb(119, 137, 113) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "账户名称",
+        "width": 326,
+        "height": 50,
+        "font": "16px",
+        "outline": "rgb(85, 124, 83) solid 2px",
+        "offset": "3px"
+      },
+      {
+        "label": "初始余额",
+        "width": 326,
+        "height": 50,
+        "font": "16px",
+        "outline": "rgb(60, 88, 62) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "取消",
+        "width": 88,
+        "height": 44,
+        "font": "13px",
+        "outline": "rgb(61, 88, 69) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "保存账户",
+        "width": 88,
+        "height": 44,
+        "font": "13px",
+        "outline": "rgb(255, 255, 255) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "新建流水",
+        "width": 95,
+        "height": 44,
+        "font": "12px",
+        "outline": "rgb(61, 88, 69) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "全部时间",
+        "width": 56,
+        "height": 44,
+        "font": "10px",
+        "outline": "rgb(54, 93, 69) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "今天",
+        "width": 44,
+        "height": 44,
+        "font": "10px",
+        "outline": "rgb(104, 118, 109) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "近 7 天",
+        "width": 47,
+        "height": 44,
+        "font": "10px",
+        "outline": "rgb(104, 118, 109) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "近 1 个月",
+        "width": 57,
+        "height": 44,
+        "font": "10px",
+        "outline": "rgb(104, 118, 109) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "自定义",
+        "width": 46,
+        "height": 44,
+        "font": "10px",
+        "outline": "rgb(104, 118, 109) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "筛选账户",
+        "width": 98,
+        "height": 44,
+        "font": "12px",
+        "outline": "rgb(54, 93, 69) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "新建流水",
+        "width": 99,
+        "height": 44,
+        "font": "11px",
+        "outline": "rgb(61, 88, 69) none 3px",
+        "offset": "0px"
+      }
+    ]
+  },
+  {
+    "name": "entry-form",
+    "width": 390,
+    "title": "财务 · LifeSpace",
+    "overflow": false,
+    "controls": [
+      {
+        "label": "账户菜单",
+        "width": 44,
+        "height": 44,
+        "font": "16px",
+        "outline": "rgb(82, 118, 79) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "刷新数据",
+        "width": 106,
+        "height": 44,
+        "font": "13px",
+        "outline": "rgb(61, 88, 69) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "显示账户余额",
+        "width": 38,
+        "height": 38,
+        "font": "11px",
+        "outline": "rgb(71, 103, 62) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "账户转账",
+        "width": 88,
+        "height": 44,
+        "font": "11px",
+        "outline": "rgb(61, 88, 69) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "新增账户",
+        "width": 89,
+        "height": 44,
+        "font": "11px",
+        "outline": "rgb(255, 255, 255) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "修改示例银行卡",
+        "width": 44,
+        "height": 44,
+        "font": "14px",
+        "outline": "rgb(82, 106, 75) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "从示例银行卡转账",
+        "width": 50,
+        "height": 38,
+        "font": "11px",
+        "outline": "rgb(71, 103, 62) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "新建流水",
+        "width": 95,
+        "height": 44,
+        "font": "12px",
+        "outline": "rgb(61, 88, 69) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "全部时间",
+        "width": 56,
+        "height": 44,
+        "font": "10px",
+        "outline": "rgb(54, 93, 69) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "今天",
+        "width": 44,
+        "height": 44,
+        "font": "10px",
+        "outline": "rgb(104, 118, 109) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "近 7 天",
+        "width": 47,
+        "height": 44,
+        "font": "10px",
+        "outline": "rgb(104, 118, 109) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "近 1 个月",
+        "width": 57,
+        "height": 44,
+        "font": "10px",
+        "outline": "rgb(104, 118, 109) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "自定义",
+        "width": 46,
+        "height": 44,
+        "font": "10px",
+        "outline": "rgb(104, 118, 109) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "筛选账户",
+        "width": 98,
+        "height": 44,
+        "font": "12px",
+        "outline": "rgb(54, 93, 69) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "新建流水",
+        "width": 99,
+        "height": 44,
+        "font": "11px",
+        "outline": "rgb(61, 88, 69) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "关闭",
+        "width": 44,
+        "height": 44,
+        "font": "14px",
+        "outline": "rgb(119, 137, 113) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "支出",
+        "width": 156,
+        "height": 36,
+        "font": "12px",
+        "outline": "rgb(60, 99, 71) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "收入",
+        "width": 156,
+        "height": 36,
+        "font": "12px",
+        "outline": "rgb(123, 141, 113) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "交易金额",
+        "width": 283,
+        "height": 44,
+        "font": "34px",
+        "outline": "rgb(47, 79, 57) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "",
+        "width": 214,
+        "height": 48,
+        "font": "16px",
+        "outline": "rgb(60, 88, 62) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "选择交易时间",
+        "width": 110,
+        "height": 48,
+        "font": "12px",
+        "outline": "rgb(79, 112, 73) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "交易账户",
+        "width": 326,
+        "height": 48,
+        "font": "16px",
+        "outline": "rgb(60, 88, 62) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "交易分类",
+        "width": 326,
+        "height": 48,
+        "font": "16px",
+        "outline": "rgb(60, 88, 62) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "交易备注",
+        "width": 326,
+        "height": 101,
+        "font": "16px",
+        "outline": "rgb(60, 88, 62) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "取消",
+        "width": 88,
+        "height": 44,
+        "font": "13px",
+        "outline": "rgb(61, 88, 69) none 3px",
+        "offset": "0px"
+      },
+      {
+        "label": "保存流水",
+        "width": 88,
+        "height": 44,
+        "font": "13px",
+        "outline": "rgb(255, 255, 255) none 3px",
+        "offset": "0px"
+      }
+    ]
+  },
+  {
+    "name": "login",
+    "width": 390,
+    "title": "登录 · LifeSpace",
+    "overflow": false,
+    "controls": [
+      {
+        "label": "登录",
+        "width": 143,
+        "height": 46,
+        "font": "16px"
+      },
+      {
+        "label": "注册",
+        "width": 143,
+        "height": 46,
+        "font": "16px"
+      },
+      {
+        "label": "",
+        "width": 300,
+        "height": 48,
+        "font": "16px"
+      },
+      {
+        "label": "忘记密码？",
+        "width": 60,
+        "height": 44,
+        "font": "12px"
+      },
+      {
+        "label": "",
+        "width": 300,
+        "height": 48,
+        "font": "16px"
+      },
+      {
+        "label": "显示密码",
+        "width": 44,
+        "height": 44,
+        "font": "16px"
+      },
+      {
+        "label": "登录 LifeSpace",
+        "width": 300,
+        "height": 48,
+        "font": "16px"
+      },
+      {
+        "label": "账户菜单",
+        "width": 44,
+        "height": 44,
+        "font": "16px"
+      }
+    ]
+  },
+  {
+    "name": "register",
+    "width": 390,
+    "title": "注册 · LifeSpace",
+    "overflow": false,
+    "controls": [
+      {
+        "label": "登录",
+        "width": 143,
+        "height": 46,
+        "font": "16px"
+      },
+      {
+        "label": "注册",
+        "width": 143,
+        "height": 46,
+        "font": "16px"
+      },
+      {
+        "label": "",
+        "width": 300,
+        "height": 48,
+        "font": "16px"
+      },
+      {
+        "label": "",
+        "width": 300,
+        "height": 48,
+        "font": "16px"
+      },
+      {
+        "label": "显示密码",
+        "width": 44,
+        "height": 44,
+        "font": "16px"
+      },
+      {
+        "label": "",
+        "width": 300,
+        "height": 48,
+        "font": "16px"
+      },
+      {
+        "label": "显示确认密码",
+        "width": 44,
+        "height": 44,
+        "font": "16px"
+      },
+      {
+        "label": "创建账户",
+        "width": 300,
+        "height": 48,
+        "font": "16px"
+      },
+      {
+        "label": "账户菜单",
+        "width": 44,
+        "height": 44,
+        "font": "16px"
+      }
+    ]
+  },
+  {
+    "name": "forgot",
+    "width": 390,
+    "title": "找回密码 · LifeSpace",
+    "overflow": false,
+    "controls": [
+      {
+        "label": "",
+        "width": 300,
+        "height": 48,
+        "font": "16px"
+      },
+      {
+        "label": "发送重置邮件",
+        "width": 300,
+        "height": 48,
+        "font": "16px"
+      },
+      {
+        "label": "返回登录",
+        "width": 48,
+        "height": 44,
+        "font": "12px"
+      },
+      {
+        "label": "账户菜单",
+        "width": 44,
+        "height": 44,
+        "font": "16px"
+      }
+    ]
+  },
+  {
+    "name": "reset",
+    "width": 390,
+    "title": "重置密码 · LifeSpace",
+    "overflow": false,
+    "controls": [
+      {
+        "label": "返回登录",
+        "width": 300,
+        "height": 48,
+        "font": "16px"
+      },
+      {
+        "label": "账户菜单",
+        "width": 44,
+        "height": 44,
+        "font": "16px"
+      }
+    ]
+  }
+]
