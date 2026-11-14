@@ -111,10 +111,10 @@ test('一次性任务创建编辑完成、直接撤销与再次完成；刷新�
   expect(server.envelopes).toHaveLength(5)
 })
 
-test('周历按日读取，未来任务不能提前完成且过去只看完成事实', async ({ page, context }) => {
+test('周历按日读取，未来任务仍遵守服务端能力且过去只看完成事实', async ({ page, context }) => {
   const server = await planningFixture(context, base)
   await page.goto('/adventure')
-  server.show({ ...base, taskRange: 'future', tasks: [{ ...base.tasks[0], title: '未来行动', plannedOn: '2026-10-21', capabilities: { ...base.tasks[0].capabilities, complete: { allowed: false, reason: '仅能完成今天的安排' } } }] })
+  server.show({ ...base, taskRange: 'future', tasks: [{ ...base.tasks[0], title: '未来行动', plannedOn: '2026-10-21', capabilities: { ...base.tasks[0].capabilities, complete: { allowed: false, reason: '任务或相关规划已进入终态，只能查看' } } }] })
   await page.getByRole('button', { name: '选择日期 2026-10-21', exact: true }).click()
   await expect(page.getByRole('button', { name: '选择日期 2026-10-21', exact: true })).toHaveAttribute('aria-pressed', 'true')
   const future = page.getByRole('article', { name: '任务：未来行动' })

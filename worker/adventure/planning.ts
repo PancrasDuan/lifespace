@@ -26,7 +26,7 @@ const errors = {
   READ_ONLY: [400, '内容已进入终态，只能查看'],
   RESCHEDULE_PAST: [400, '只能改到服务端今天或未来，不能补写过去完成'],
   SAME_DATE: [400, '新日期与当前执行日期相同，无需改期'],
-  DATE_LOCKED: [400, '不能提前完成未来安排，且仅能取消今天的完成'],
+  DATE_LOCKED: [400, '仅能取消实际完成日为今天的完成记录'],
   TASK_NOT_PENDING: [400, '仅待完成任务可以执行此操作'],
   DATE_STARTED: [400, '执行日已到，此操作不可用'],
   COMPLETION_CHANGED: [409, '这次完成已变化，请重新读取后确认'],

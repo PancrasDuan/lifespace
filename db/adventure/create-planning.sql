@@ -197,7 +197,7 @@ exception when others then
   return jsonb_build_object('allowed',false,'reason',case sqlerrm
     when 'READ_ONLY' then '任务或相关规划已进入终态，只能查看'
     when 'TASK_NOT_PENDING' then '仅待完成任务可以执行此操作'
-    when 'DATE_LOCKED' then '仅能完成今天的安排或取消今天的完成'
+    when 'DATE_LOCKED' then '仅能取消实际完成日为今天的完成记录'
     when 'COMPLETION_CHANGED' then '这次完成已变化，请重新读取'
     when 'RESCHEDULE_PAST' then '只能改到今天或未来'
     when 'SAME_DATE' then '无需改到相同日期'
@@ -303,7 +303,6 @@ begin
     if v_type='deleteTask' then
       if v_task.status<>'pending' then raise exception 'TASK_NOT_PENDING'; end if;
     end if;
-    if v_type='completeTask' and v_task.planned_on>p_today then raise exception 'DATE_LOCKED'; end if;
     if v_type='cancelTaskCompletion' then
       if v_task.status<>'completed' or v_task.completed_on<>p_today or v_task.completed_at<>v_done.occurred_at then raise exception 'COMPLETION_CHANGED'; end if;
       if exists(select 1 from public.adventure_goals where owner_id=p_owner and id=v_done.goal_id and status<>'active') then raise exception 'READ_ONLY'; end if;
@@ -985,7 +984,7 @@ begin
       'growthBefore',v_before,'growthAfter',v_after,'completionId',p_command->>'completionId');
   end if;
   return jsonb_build_object('version',v_revision,'today',v_today,
-    'allowed',true,'requiresConfirmation',false,'message',case when p_command->>'type'='completeTask' then '可直接完成今天的行动，实时获得 1 点经验' else '保存后更新规划，不改变目标状态或经验' end);
+    'allowed',true,'requiresConfirmation',false,'message',case when p_command->>'type'='completeTask' then '可直接完成行动，按实际完成日记录并实时获得 1 点经验' else '保存后更新规划，不改变目标状态或经验' end);
 end $$;
 
 
@@ -1056,7 +1055,7 @@ begin
   with filtered as materialized (
     select t.* from public.adventure_tasks t join public.adventure_goals g on (g.owner_id,g.id)=(t.owner_id,t.goal_id)
     where t.owner_id=p_owner and t.deleted_at is null and
-      case p_task_range when 'today' then (t.planned_on=v_today or t.status='completed' and t.completed_on=v_today) when 'past' then t.planned_on<v_today else t.planned_on>v_today end
+      case p_task_range when 'today' then (t.planned_on=v_today and t.status<>'completed' or t.status='completed' and t.completed_on=v_today) when 'past' then t.planned_on<v_today else t.planned_on>v_today end
       and (p_task_scope='all' or g.focused or g.kind='inbox')
       and (btrim(p_search)='' or position(lower(btrim(p_search)) in lower(t.title))>0 or position(lower(btrim(p_search)) in lower(t.description))>0)
   )
@@ -1075,7 +1074,7 @@ begin
     'taskScope',p_task_scope,'search',btrim(p_search),'taskProgress',v_progress,
     'todayTaskProgress',(select jsonb_build_object('completed',count(*) filter(where status='completed'),'total',count(*),
       'ratio',case when count(*)=0 then null else (count(*) filter(where status='completed'))::numeric/count(*) end)
-      from public.adventure_tasks where owner_id=p_owner and deleted_at is null and status in ('pending','completed') and (planned_on=v_today or status='completed' and completed_on=v_today)));
+      from public.adventure_tasks where owner_id=p_owner and deleted_at is null and status in ('pending','completed') and (status='pending' and planned_on=v_today or status='completed' and completed_on=v_today)));
   if p_goal_id is not null then
     v_detail:=public.adventure_goal_view(p_owner,p_goal_id);
     if v_detail is null then raise exception 'NOT_FOUND'; end if;

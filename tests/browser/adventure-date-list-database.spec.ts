@@ -42,7 +42,7 @@ test.describe('今日聚焦周历真实数据流程', () => {
     await expect(future).toBeVisible()
     await expect(future.locator('.today-task-dates')).toBeVisible()
     await future.getByRole('button', { name: '任务详情：明天的安排', exact: true }).click()
-    await expect(future.getByRole('button', { name: '完成', exact: true })).toBeDisabled()
+    await expect(future.getByRole('button', { name: '完成', exact: true })).toBeEnabled()
     await expect(future).not.toContainText('安排记录')
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
     await page.screenshot({ path: `.cache/adventure145-${width}.png`, fullPage: true })
