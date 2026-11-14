@@ -39,7 +39,6 @@
 /* Keep homepage focus visible against light surfaces and inside clipped cards. */
 .home-app :is(button,a,input,select,textarea,summary):focus-visible{
   outline:2px solid var(--accent);
-  outline-offset:4px;
 }
 .home-app .panel-open:focus-visible{outline-offset:-3px}
 .home-app .panel-footer>button{min-width:24px;min-height:24px}
