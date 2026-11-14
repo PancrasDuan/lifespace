@@ -22,6 +22,29 @@ test('未登录用户不能读取业务接口', async () => {
   expect(upstream).not.toHaveBeenCalled()
 })
 
+// GHSA-h7mg-cq63-vhpq: encoded line terminators must not bypass /api/*.
+const unknownApiPaths = ['', '%0A', '%0D', '%E2%80%A8', '%E2%80%A9']
+  .map(suffix => `/api/does-not-exist${suffix ? `/${suffix}` : ''}`)
+
+test.each([...unknownApiPaths, '/api/ledger/entries/%0A'])('匿名请求 %s 仍经过鉴权与禁止缓存中间件', async path => {
+  const upstream = vi.fn()
+  vi.stubGlobal('fetch', upstream)
+  const response = await app.request(path, {}, {})
+  expect({ status: response.status, cacheControl: response.headers.get('Cache-Control') })
+    .toEqual({ status: 401, cacheControl: 'no-store' })
+  expect(await response.json()).toMatchObject({ error: { code: 'AUTH_REQUIRED' } })
+  expect(upstream).not.toHaveBeenCalled()
+})
+
+test.each(unknownApiPaths)('已鉴权请求 %s 的 404 仍禁止缓存', async path => {
+  const upstream = vi.fn(async () => Response.json({ id: claims.sub, email: 'demo@example.com', email_confirmed_at: '2026-10-11', is_anonymous: false }))
+  vi.stubGlobal('fetch', upstream)
+  const response = await app.request(path, { headers: { Authorization: `Bearer ${token}` } }, env)
+  expect({ status: response.status, cacheControl: response.headers.get('Cache-Control') })
+    .toEqual({ status: 404, cacheControl: 'no-store' })
+  expect(upstream).toHaveBeenCalledOnce()
+})
+
 test('名单内已验证账户经在线会话检查后取得最小准入身份', async () => {
   const upstream = vi.fn(async (_input: unknown, init?: RequestInit) => {
     expect(new Headers(init?.headers).get('Authorization')).toBe(`Bearer ${token}`)
