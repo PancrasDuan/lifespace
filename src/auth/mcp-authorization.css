@@ -1,0 +1,22 @@
+.mcp-authorization { overflow-wrap:anywhere; }
+.mcp-authorization h2 { font-size:1.125rem;line-height:1.5;margin:1.75rem 0 .5rem; }
+.mcp-authorization p { line-height:1.75; }
+.mcp-client-source,.mcp-note { color:#536a5c;font-size:.875rem; }
+.mcp-callback { margin-block:1.25rem; }
+.mcp-permissions { border:0;padding:0;margin:1.75rem 0 1.25rem; }
+.mcp-permissions legend { font-weight:600;margin-block-end:.5rem; }
+.mcp-permission { display:flex;align-items:center;gap:.75rem;min-block-size:4.5rem;border-block-end:1px solid #d9e3d2; }
+.mcp-permission input { flex:none;inline-size:1.15rem;block-size:1.15rem;accent-color:#52764f;margin:0; }
+.mcp-permission label { padding-block:.75rem;cursor:pointer;flex:1;min-block-size:3rem; }
+.mcp-permission label span { display:block;font-size:.875rem;color:#536a5c;line-height:1.6;margin-block-start:.25rem; }
+.mcp-permissions:disabled label { cursor:default;opacity:.65; }
+.mcp-footer { margin-block:1.75rem 0;font-size:.875rem; }
+.mcp-footer a { color:#456841;display:inline-block;min-block-size:2rem;text-underline-offset:.2em; }
+.mcp-grants { margin:0;padding:0;list-style:none; }
+.mcp-grants li { padding-block:1.25rem;border-block-end:1px solid #d9e3d2; }
+.mcp-grants h2 { margin-block:0 .5rem; }
+.mcp-grants p { margin-block:.5rem; }
+.mcp-grants .auth-secondary { width:auto;min-block-size:3rem;margin-block-start:.5rem; }
+.mcp-revoke-confirm .auth-link { margin-inline-start:1rem;min-block-size:3rem; }
+.mcp-empty { padding-block:1.25rem; }
+@media (max-width:680px) { .mcp-authorization h1 { text-wrap:balance; }.mcp-footer a { min-block-size:3rem; } }

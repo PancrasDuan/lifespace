@@ -96,17 +96,29 @@ export async function verifyAgentIdentity(env: AgentAuthEnv, assertion?: string)
   if (result.status !== 200 || !owner.success) throw unavailable()
   if (!owner.data) throw invalid()
 
-  const current = await jsonResponse(`${base}/auth/v1/admin/users/${owner.data.ownerId}`, { headers })
+  const identity = await verifyAgentUser(env, owner.data.ownerId)
+  if (claims.data.exp <= Date.now() / 1000) throw invalid()
+  return identity
+}
+
+// Both independent Agent channels must re-check current user state and admission.
+// This deliberately does not require a browser session or cache admission.
+export async function verifyAgentUser(env: AuthEnv, ownerId: string): Promise<Identity> {
+  if (!env.SUPABASE_SECRET_KEY) throw unavailable()
+  const base = publicConfig(env).url.replace(/\/$/, '')
+  const secret = env.SUPABASE_SECRET_KEY
+  const headers = new Headers({ apikey: secret })
+  if (secret.startsWith('eyJ')) headers.set('Authorization', `Bearer ${secret}`)
+  const current = await jsonResponse(`${base}/auth/v1/admin/users/${ownerId}`, { headers })
   if (current.status === 404) throw invalid()
   const parsed = authUser.safeParse(current.value)
   if (current.status !== 200) throw unavailable()
-  if (!parsed.success || parsed.data.id !== owner.data.ownerId || parsed.data.deleted_at) throw invalid()
+  if (!parsed.success || parsed.data.id !== ownerId || parsed.data.deleted_at) throw invalid()
   if (parsed.data.banned_until) {
     const until = Date.parse(parsed.data.banned_until)
     if (!Number.isFinite(until) || until > Date.now()) throw invalid()
   }
   const email = parsed.data.email.trim().toLowerCase()
   if (!allowedEmails(env).has(email)) throw denied()
-  if (claims.data.exp <= Date.now() / 1000) throw invalid()
   return { id: parsed.data.id, email }
 }

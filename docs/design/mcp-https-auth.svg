@@ -1,0 +1,195 @@
+<?xml version='1.0' encoding='utf-8'?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1600" viewBox="0 0 1920 1600" role="img" aria-labelledby="title desc" font-family="'Noto Sans CJK SC', 'Microsoft YaHei', sans-serif">
+  <title id="title">LifeSpace MCP HTTPS 认证：现状与建议改造</title>
+  <desc id="desc">上半部分为当前 Service Token 经 Cloudflare Access、Worker 验签、凭据用户绑定、在线准入到 MCP 账单业务的链路。下半部分为建议 OAuth 方案，区分首次发现与用户授权、后续每次请求的令牌和工具权限验证。蓝色为新增，橙色为调整，绿色为复用。Supabase 网页登录令牌不交给 Agent。此图为方案建议，尚未实施。</desc>
+  <defs>
+    <marker id="arrow-old" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#63738a" />
+    </marker>
+    <marker id="arrow-new" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#3759cc" />
+    </marker>
+    <marker id="arrow-change" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#a46318" />
+    </marker>
+    <marker id="arrow-keep" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#1d755d" />
+    </marker>
+  </defs>
+  <rect x="0" y="0" width="1920" height="1600" rx="0" fill="#f7f9fc" stroke="none" />
+  <rect x="0" y="0" width="1920" height="7" rx="0" fill="#3759cc" stroke="none" />
+  <text x="48" y="51" fill="#64748b" font-size="17" font-weight="600" text-anchor="start">LIFESPACE  /  MCP AUTHENTICATION MAP</text>
+  <text x="48" y="111" fill="#17263c" font-size="44" font-weight="700" text-anchor="start" data-max-width="1740">MCP HTTPS 认证：旧通道 → 已批准方案</text>
+  <text x="48" y="157" fill="#64748b" font-size="23" font-weight="400" text-anchor="start" data-max-width="1190">复用 Supabase 登录，向 Agent 签发仅用于 MCP 的 OAuth 专用令牌。</text>
+  <rect x="1390" y="137" width="14" height="14" rx="4" fill="#63738a" stroke="none" />
+  <text x="1414" y="151" fill="#64748b" font-size="19" font-weight="400" text-anchor="start">现状</text>
+  <rect x="1510" y="137" width="14" height="14" rx="4" fill="#3759cc" stroke="none" />
+  <text x="1534" y="151" fill="#64748b" font-size="19" font-weight="400" text-anchor="start">新增</text>
+  <rect x="1630" y="137" width="14" height="14" rx="4" fill="#a46318" stroke="none" />
+  <text x="1654" y="151" fill="#64748b" font-size="19" font-weight="400" text-anchor="start">调整</text>
+  <rect x="1750" y="137" width="14" height="14" rx="4" fill="#1d755d" stroke="none" />
+  <text x="1774" y="151" fill="#64748b" font-size="19" font-weight="400" text-anchor="start">复用</text>
+  <rect x="48" y="193" width="1824" height="350" rx="22" fill="white" stroke="#dbe3ee" />
+  <text x="80" y="239" fill="#17263c" font-size="29" font-weight="700" text-anchor="start">现状</text>
+  <text x="167" y="238" fill="#64748b" font-size="23" font-weight="400" text-anchor="start">专用 Service Token 接入</text>
+  <rect x="1578" y="214" width="226" height="30" rx="8" fill="#f1f4f8" stroke="#d6dfea" />
+  <text x="1691.0" y="235" fill="#63738a" font-size="17" font-weight="600" text-anchor="middle" data-max-width="212">旧通道基线</text>
+  <rect x="80" y="288" width="256" height="140" rx="16" fill="#f1f4f8" stroke="#d6dfea" stroke-width="1.5" />
+  <rect x="80" y="306" width="4" height="104" rx="2" fill="#63738a" stroke="none" />
+  <text x="100" y="327" fill="#63738a" font-size="23" font-weight="650" text-anchor="start" data-max-width="216">外部 Agent</text>
+  <text x="100" y="362" fill="#17263c" font-size="18" font-weight="400" text-anchor="start" data-max-width="216">手动配置 Client ID</text>
+  <text x="100" y="390" fill="#17263c" font-size="18" font-weight="400" text-anchor="start" data-max-width="216">与 Client Secret</text>
+  <path d="M 344 357 L 371 357" fill="none" stroke="#63738a" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow-old)" />
+  <rect x="380" y="288" width="256" height="140" rx="16" fill="#f1f4f8" stroke="#d6dfea" stroke-width="1.5" />
+  <rect x="380" y="306" width="4" height="104" rx="2" fill="#63738a" stroke="none" />
+  <text x="400" y="327" fill="#63738a" font-size="23" font-weight="650" text-anchor="start" data-max-width="216">Cloudflare Access</text>
+  <text x="400" y="362" fill="#17263c" font-size="18" font-weight="400" text-anchor="start" data-max-width="216">校验 Service Token</text>
+  <text x="400" y="390" fill="#17263c" font-size="18" font-weight="400" text-anchor="start" data-max-width="216">注入签名身份断言</text>
+  <path d="M 644 357 L 671 357" fill="none" stroke="#63738a" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow-old)" />
+  <rect x="680" y="288" width="256" height="140" rx="16" fill="#f1f4f8" stroke="#d6dfea" stroke-width="1.5" />
+  <rect x="680" y="306" width="4" height="104" rx="2" fill="#63738a" stroke="none" />
+  <text x="700" y="327" fill="#63738a" font-size="23" font-weight="650" text-anchor="start" data-max-width="216">Worker 验证断言</text>
+  <text x="700" y="362" fill="#17263c" font-size="18" font-weight="400" text-anchor="start" data-max-width="216">验签、issuer / AUD</text>
+  <text x="700" y="390" fill="#17263c" font-size="18" font-weight="400" text-anchor="start" data-max-width="216">有效期 / 生效时间</text>
+  <path d="M 944 357 L 971 357" fill="none" stroke="#63738a" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow-old)" />
+  <rect x="980" y="288" width="256" height="140" rx="16" fill="#f1f4f8" stroke="#d6dfea" stroke-width="1.5" />
+  <rect x="980" y="306" width="4" height="104" rx="2" fill="#63738a" stroke="none" />
+  <text x="1000" y="327" fill="#63738a" font-size="23" font-weight="650" text-anchor="start" data-max-width="216">凭据 → 用户绑定</text>
+  <text x="1000" y="362" fill="#17263c" font-size="18" font-weight="400" text-anchor="start" data-max-width="216">Client ID → ownerId</text>
+  <text x="1000" y="390" fill="#17263c" font-size="18" font-weight="400" text-anchor="start" data-max-width="216">查询启用的服务端绑定</text>
+  <path d="M 1244 357 L 1271 357" fill="none" stroke="#63738a" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow-old)" />
+  <rect x="1280" y="288" width="256" height="140" rx="16" fill="#edf8f2" stroke="#add8c5" stroke-width="1.5" />
+  <rect x="1280" y="306" width="4" height="104" rx="2" fill="#1d755d" stroke="none" />
+  <text x="1300" y="327" fill="#1d755d" font-size="23" font-weight="650" text-anchor="start" data-max-width="216">在线准入检查</text>
+  <text x="1300" y="362" fill="#17263c" font-size="18" font-weight="400" text-anchor="start" data-max-width="216">Supabase 用户状态</text>
+  <text x="1300" y="390" fill="#17263c" font-size="18" font-weight="400" text-anchor="start" data-max-width="216">邮箱白名单</text>
+  <path d="M 1544 357 L 1571 357" fill="none" stroke="#63738a" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow-old)" />
+  <rect x="1580" y="288" width="256" height="140" rx="16" fill="#edf8f2" stroke="#add8c5" stroke-width="1.5" />
+  <rect x="1580" y="306" width="4" height="104" rx="2" fill="#1d755d" stroke="none" />
+  <text x="1600" y="327" fill="#1d755d" font-size="23" font-weight="650" text-anchor="start" data-max-width="216">MCP 工具 → 账单</text>
+  <text x="1600" y="362" fill="#17263c" font-size="18" font-weight="400" text-anchor="start" data-max-width="216">查询账户 / 创建 / 退款</text>
+  <text x="1600" y="390" fill="#17263c" font-size="18" font-weight="400" text-anchor="start" data-max-width="216">owner 隔离、事务、幂等</text>
+  <rect x="80" y="453" width="1756" height="60" rx="12" fill="#f6f8fb" stroke="none" />
+  <text x="102" y="491" fill="#64748b" font-size="21" font-weight="400" text-anchor="start" data-max-width="1712">旧通道特征：凭据由管理员发放；有效 Agent 身份可使用三个工具；尚无 OAuth 自动发现、用户授权和工具 scope。</text>
+  <rect x="48" y="571" width="1824" height="608" rx="22" fill="white" stroke="#dbe3ee" />
+  <text x="80" y="616" fill="#17263c" font-size="29" font-weight="700" text-anchor="start">已批准方案</text>
+  <text x="234" y="615" fill="#64748b" font-size="23" font-weight="400" text-anchor="start" data-max-width="1180">OAuth 2.1 + PKCE；授权与资源服务可在同一 Worker</text>
+  <rect x="1580" y="592" width="224" height="30" rx="8" fill="#eef2ff" stroke="#becbfa" />
+  <text x="1692.0" y="613" fill="#3759cc" font-size="17" font-weight="600" text-anchor="middle" data-max-width="210">实施方案 · 待发布</text>
+  <text x="80" y="658" fill="#3759cc" font-size="21" font-weight="650" text-anchor="start">A  首次连接 / 增加权限时</text>
+  <text x="1836" y="658" fill="#64748b" font-size="19" font-weight="400" text-anchor="end">用户只在需要授权时交互</text>
+  <rect x="80" y="687" width="300" height="130" rx="16" fill="#fff7e9" stroke="#eacb93" stroke-width="1.5" />
+  <rect x="80" y="705" width="4" height="94" rx="2" fill="#a46318" stroke="none" />
+  <text x="100" y="726" fill="#a46318" font-size="23" font-weight="650" text-anchor="start" data-max-width="260">MCP 客户端</text>
+  <text x="100" y="761" fill="#17263c" font-size="18" font-weight="400" text-anchor="start" data-max-width="260">连接同一 MCP URL</text>
+  <text x="100" y="789" fill="#17263c" font-size="18" font-weight="400" text-anchor="start" data-max-width="260">根据 401 指引开始授权</text>
+  <rect x="460" y="687" width="360" height="130" rx="16" fill="#eef2ff" stroke="#becbfa" stroke-width="1.5" />
+  <rect x="460" y="705" width="4" height="94" rx="2" fill="#3759cc" stroke="none" />
+  <text x="480" y="726" fill="#3759cc" font-size="23" font-weight="650" text-anchor="start" data-max-width="320">① 标准服务发现</text>
+  <text x="480" y="761" fill="#17263c" font-size="18" font-weight="400" text-anchor="start" data-max-width="320">401 + WWW-Authenticate</text>
+  <text x="480" y="789" fill="#17263c" font-size="18" font-weight="400" text-anchor="start" data-max-width="320">资源与授权服务器 metadata</text>
+  <rect x="724" y="672" width="78" height="30" rx="8" fill="#eef2ff" stroke="#becbfa" />
+  <text x="763.0" y="693" fill="#3759cc" font-size="17" font-weight="600" text-anchor="middle" data-max-width="64">新增</text>
+  <rect x="920" y="687" width="400" height="130" rx="16" fill="#eef2ff" stroke="#becbfa" stroke-width="1.5" />
+  <rect x="920" y="705" width="4" height="94" rx="2" fill="#3759cc" stroke="none" />
+  <text x="940" y="726" fill="#3759cc" font-size="23" font-weight="650" text-anchor="start" data-max-width="360">② OAuth 授权服务器</text>
+  <text x="940" y="761" fill="#17263c" font-size="18" font-weight="400" text-anchor="start" data-max-width="360">校验客户端、PKCE、resource</text>
+  <text x="940" y="789" fill="#17263c" font-size="18" font-weight="400" text-anchor="start" data-max-width="360">签发限定 scope 的 MCP token</text>
+  <rect x="1224" y="672" width="78" height="30" rx="8" fill="#eef2ff" stroke="#becbfa" />
+  <text x="1263.0" y="693" fill="#3759cc" font-size="17" font-weight="600" text-anchor="middle" data-max-width="64">新增</text>
+  <rect x="1440" y="687" width="396" height="130" rx="16" fill="#edf8f2" stroke="#add8c5" stroke-width="1.5" />
+  <rect x="1440" y="705" width="4" height="94" rx="2" fill="#1d755d" stroke="none" />
+  <text x="1460" y="726" fill="#1d755d" font-size="23" font-weight="650" text-anchor="start" data-max-width="356">③ 登录 + 用户同意</text>
+  <text x="1460" y="761" fill="#17263c" font-size="18" font-weight="400" text-anchor="start" data-max-width="356">复用 Supabase 登录与准入</text>
+  <text x="1460" y="789" fill="#17263c" font-size="18" font-weight="400" text-anchor="start" data-max-width="356">新增客户端权限同意页面</text>
+  <rect x="1712" y="672" width="106" height="30" rx="8" fill="#edf8f2" stroke="#add8c5" />
+  <text x="1765.0" y="693" fill="#1d755d" font-size="17" font-weight="600" text-anchor="middle" data-max-width="92">复用登录</text>
+  <path d="M 388 752 L 450 752" fill="none" stroke="#a46318" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow-change)" />
+  <path d="M 829 752 L 910 752" fill="none" stroke="#3759cc" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow-new)" />
+  <path d="M 1329 733 L 1430 733" fill="none" stroke="#3759cc" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow-new)" />
+  <path d="M 1430 784 L 1329 784" fill="none" stroke="#1d755d" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow-keep)" stroke-dasharray="7 6" />
+  <text x="1380" y="718" fill="#64748b" font-size="17" font-weight="400" text-anchor="middle">登录</text>
+  <text x="1380" y="808" fill="#64748b" font-size="17" font-weight="400" text-anchor="middle">同意</text>
+  <path d="M 1120 825 L 1120 874 L 230 874 L 230 825" fill="none" stroke="#3759cc" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow-new)" />
+  <text x="675" y="859" fill="#3759cc" font-size="21" font-weight="550" text-anchor="middle" data-max-width="850">④ 授权码 + PKCE 兑换 → 返回 MCP token（可刷新）</text>
+  <text x="1440" y="858" fill="#1d755d" font-size="20" font-weight="550" text-anchor="start" data-max-width="396">网页登录 token 留在网页端</text>
+  <text x="1440" y="888" fill="#64748b" font-size="19" font-weight="400" text-anchor="start" data-max-width="396">Agent 只得到 MCP 专用凭据</text>
+  <text x="80" y="932" fill="#a46318" font-size="21" font-weight="650" text-anchor="start">B  后续每次受保护请求</text>
+  <text x="1836" y="932" fill="#64748b" font-size="19" font-weight="400" text-anchor="end">无需每次重新登录；按当前授权放行</text>
+  <rect x="80" y="959" width="256" height="144" rx="16" fill="#fff7e9" stroke="#eacb93" stroke-width="1.5" />
+  <rect x="80" y="977" width="4" height="108" rx="2" fill="#a46318" stroke="none" />
+  <text x="100" y="998" fill="#a46318" font-size="23" font-weight="650" text-anchor="start" data-max-width="216">Agent 携带令牌</text>
+  <text x="100" y="1033" fill="#17263c" font-size="18" font-weight="400" text-anchor="start" data-max-width="216">Authorization: Bearer</text>
+  <text x="100" y="1061" fill="#17263c" font-size="18" font-weight="400" text-anchor="start" data-max-width="216">MCP 专用 access token</text>
+  <path d="M 344 1031 L 371 1031" fill="none" stroke="#3759cc" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow-new)" />
+  <rect x="380" y="959" width="256" height="144" rx="16" fill="#fff7e9" stroke="#eacb93" stroke-width="1.5" />
+  <rect x="380" y="977" width="4" height="108" rx="2" fill="#a46318" stroke="none" />
+  <text x="400" y="998" fill="#a46318" font-size="23" font-weight="650" text-anchor="start" data-max-width="216">Worker 验证令牌</text>
+  <text x="400" y="1033" fill="#17263c" font-size="18" font-weight="400" text-anchor="start" data-max-width="216">可信签发方 / 有效期</text>
+  <text x="400" y="1061" fill="#17263c" font-size="18" font-weight="400" text-anchor="start" data-max-width="216">目标资源必须匹配 MCP</text>
+  <path d="M 644 1031 L 671 1031" fill="none" stroke="#3759cc" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow-new)" />
+  <rect x="680" y="959" width="256" height="144" rx="16" fill="#fff7e9" stroke="#eacb93" stroke-width="1.5" />
+  <rect x="680" y="977" width="4" height="108" rx="2" fill="#a46318" stroke="none" />
+  <text x="700" y="998" fill="#a46318" font-size="23" font-weight="650" text-anchor="start" data-max-width="216">授权记录 → 用户</text>
+  <text x="700" y="1033" fill="#17263c" font-size="18" font-weight="400" text-anchor="start" data-max-width="216">从可信 grant 取得 owner</text>
+  <text x="700" y="1061" fill="#17263c" font-size="18" font-weight="400" text-anchor="start" data-max-width="216">client_id 表示客户端应用</text>
+  <path d="M 944 1031 L 971 1031" fill="none" stroke="#3759cc" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow-new)" />
+  <rect x="980" y="959" width="256" height="144" rx="16" fill="#edf8f2" stroke="#add8c5" stroke-width="1.5" />
+  <rect x="980" y="977" width="4" height="108" rx="2" fill="#1d755d" stroke="none" />
+  <text x="1000" y="998" fill="#1d755d" font-size="23" font-weight="650" text-anchor="start" data-max-width="216">在线准入检查</text>
+  <text x="1000" y="1033" fill="#17263c" font-size="18" font-weight="400" text-anchor="start" data-max-width="216">用户状态、邮箱白名单</text>
+  <text x="1000" y="1061" fill="#17263c" font-size="18" font-weight="400" text-anchor="start" data-max-width="216">并检查授权仍然启用</text>
+  <path d="M 1244 1031 L 1271 1031" fill="none" stroke="#3759cc" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow-new)" />
+  <rect x="1280" y="959" width="256" height="144" rx="16" fill="#eef2ff" stroke="#becbfa" stroke-width="1.5" />
+  <rect x="1280" y="977" width="4" height="108" rx="2" fill="#3759cc" stroke="none" />
+  <text x="1300" y="998" fill="#3759cc" font-size="23" font-weight="650" text-anchor="start" data-max-width="216">按工具检查 scope</text>
+  <text x="1300" y="1033" fill="#17263c" font-size="18" font-weight="400" text-anchor="start" data-max-width="216">账户读取 / 流水创建</text>
+  <text x="1300" y="1061" fill="#17263c" font-size="18" font-weight="400" text-anchor="start" data-max-width="216">退款登记分别授权</text>
+  <path d="M 1544 1031 L 1571 1031" fill="none" stroke="#3759cc" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow-new)" />
+  <rect x="1580" y="959" width="256" height="144" rx="16" fill="#edf8f2" stroke="#add8c5" stroke-width="1.5" />
+  <rect x="1580" y="977" width="4" height="108" rx="2" fill="#1d755d" stroke="none" />
+  <text x="1600" y="998" fill="#1d755d" font-size="23" font-weight="650" text-anchor="start" data-max-width="216">复用账单业务</text>
+  <text x="1600" y="1033" fill="#17263c" font-size="18" font-weight="400" text-anchor="start" data-max-width="216">原有工具与参数校验</text>
+  <text x="1600" y="1061" fill="#17263c" font-size="18" font-weight="400" text-anchor="start" data-max-width="216">owner 隔离、事务、幂等</text>
+  <text x="80" y="1147" fill="#64748b" font-size="21" font-weight="400" text-anchor="start" data-max-width="1756">无效令牌 → HTTP 401；缺少权限 → HTTP 403 + 所需 scope。MCP token 不能用于网页 REST 接口。</text>
+  <text x="48" y="1232" fill="#17263c" font-size="28" font-weight="700" text-anchor="start">需要变更的地方</text>
+  <text x="1872" y="1230" fill="#64748b" font-size="19" font-weight="400" text-anchor="end">对应调研文档中的推荐路线</text>
+  <rect x="48" y="1254" width="592" height="119" rx="16" fill="white" stroke="#dbe3ee" />
+  <rect x="66" y="1272" width="42" height="34" rx="8" fill="#eef2ff" stroke="none" />
+  <text x="87" y="1296" fill="#3759cc" font-size="19" font-weight="650" text-anchor="middle">01</text>
+  <text x="122" y="1297" fill="#3759cc" font-size="23" font-weight="650" text-anchor="start" data-max-width="496">增加 OAuth 与服务发现</text>
+  <text x="70" y="1329" fill="#64748b" font-size="19" font-weight="400" text-anchor="start" data-max-width="548">授权码、PKCE、metadata、token 端点</text>
+  <text x="70" y="1356" fill="#64748b" font-size="19" font-weight="400" text-anchor="start" data-max-width="548">优先 CIMD；DCR 仅用于兼容</text>
+  <rect x="664" y="1254" width="592" height="119" rx="16" fill="white" stroke="#dbe3ee" />
+  <rect x="682" y="1272" width="42" height="34" rx="8" fill="#fff7e9" stroke="none" />
+  <text x="703" y="1296" fill="#a46318" font-size="19" font-weight="650" text-anchor="middle">02</text>
+  <text x="738" y="1297" fill="#a46318" font-size="23" font-weight="650" text-anchor="start" data-max-width="496">改造 MCP 鉴权入口</text>
+  <text x="686" y="1329" fill="#64748b" font-size="19" font-weight="400" text-anchor="start" data-max-width="548">worker/index.ts · worker/agent-auth.ts</text>
+  <text x="686" y="1356" fill="#64748b" font-size="19" font-weight="400" text-anchor="start" data-max-width="548">由 Access 断言转为 MCP Bearer 验证</text>
+  <rect x="1280" y="1254" width="592" height="119" rx="16" fill="white" stroke="#dbe3ee" />
+  <rect x="1298" y="1272" width="42" height="34" rx="8" fill="#fff7e9" stroke="none" />
+  <text x="1319" y="1296" fill="#a46318" font-size="19" font-weight="650" text-anchor="middle">03</text>
+  <text x="1354" y="1297" fill="#a46318" font-size="23" font-weight="650" text-anchor="start" data-max-width="496">调整用户授权归属</text>
+  <text x="1302" y="1329" fill="#64748b" font-size="19" font-weight="400" text-anchor="start" data-max-width="548">原凭据绑定保留用于旧通道</text>
+  <text x="1302" y="1356" fill="#64748b" font-size="19" font-weight="400" text-anchor="start" data-max-width="548">新通道按用户 + 客户端 + 资源管理 grant</text>
+  <rect x="48" y="1392" width="592" height="119" rx="16" fill="white" stroke="#dbe3ee" />
+  <rect x="66" y="1410" width="42" height="34" rx="8" fill="#eef2ff" stroke="none" />
+  <text x="87" y="1434" fill="#3759cc" font-size="19" font-weight="650" text-anchor="middle">04</text>
+  <text x="122" y="1435" fill="#3759cc" font-size="23" font-weight="650" text-anchor="start" data-max-width="496">增加工具权限检查</text>
+  <text x="70" y="1467" fill="#64748b" font-size="19" font-weight="400" text-anchor="start" data-max-width="548">worker/agent-mcp.ts</text>
+  <text x="70" y="1494" fill="#64748b" font-size="19" font-weight="400" text-anchor="start" data-max-width="548">按 tool name 校验 scope；所有工具都用 POST</text>
+  <rect x="664" y="1392" width="592" height="119" rx="16" fill="white" stroke="#dbe3ee" />
+  <rect x="682" y="1410" width="42" height="34" rx="8" fill="#eef2ff" stroke="none" />
+  <text x="703" y="1434" fill="#3759cc" font-size="19" font-weight="650" text-anchor="middle">05</text>
+  <text x="738" y="1435" fill="#3759cc" font-size="23" font-weight="650" text-anchor="start" data-max-width="496">增加授权管理与撤销</text>
+  <text x="686" y="1467" fill="#64748b" font-size="19" font-weight="400" text-anchor="start" data-max-width="548">同意页面、授权记录、停用与撤销</text>
+  <text x="686" y="1494" fill="#64748b" font-size="19" font-weight="400" text-anchor="start" data-max-width="548">继续逐请求准入；核验撤销一致性</text>
+  <rect x="1280" y="1392" width="592" height="119" rx="16" fill="white" stroke="#dbe3ee" />
+  <rect x="1298" y="1410" width="42" height="34" rx="8" fill="#fff7e9" stroke="none" />
+  <text x="1319" y="1434" fill="#a46318" font-size="19" font-weight="650" text-anchor="middle">06</text>
+  <text x="1354" y="1435" fill="#a46318" font-size="23" font-weight="650" text-anchor="start" data-max-width="496">调整路由与接入策略</text>
+  <text x="1302" y="1467" fill="#64748b" font-size="19" font-weight="400" text-anchor="start" data-max-width="548">wrangler.jsonc + Cloudflare Access</text>
+  <text x="1302" y="1494" fill="#64748b" font-size="19" font-weight="400" text-anchor="start" data-max-width="548">发现端点不落入 SPA；旧入口按需隔离</text>
+  <text x="48" y="1562" fill="#64748b" font-size="19" font-weight="400" text-anchor="start" data-max-width="1510">范围：认证与授权改造；账单业务继续复用。当前 MCP 传输版本的升级需单独评估。</text>
+  <text x="1872" y="1562" fill="#64748b" font-size="18" font-weight="400" text-anchor="end">2026-11-14</text>
+</svg>

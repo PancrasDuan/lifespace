@@ -7,6 +7,7 @@ const clientId = 'agent-test-client.access'
 const team = 'https://agent-test.cloudflareaccess.com'
 const audience = 'test-agent-audience'
 const env = {
+  MCP_LEGACY_ENABLED: 'true',
   CF_ACCESS_TEAM_DOMAIN: team,
   CF_ACCESS_AUD: audience,
   SUPABASE_URL: 'https://auth-test.supabase.co',
@@ -22,7 +23,7 @@ const assertion = (claims: Record<string, unknown> = {}) => {
   return `${message}.${sign('RSA-SHA256', Buffer.from(message), pair.privateKey).toString('base64url')}`
 }
 const user = { id: owner, email: 'agent@example.invalid', email_confirmed_at: '2026-11-01T00:00:00Z', is_anonymous: false }
-const call = (token?: string, bindings = env) => app.request('/api/agent/mcp', {
+const call = (token?: string, bindings = env) => app.request('/api/agent/legacy/mcp', {
   method: 'POST', headers: { ...(token ? { 'Cf-Access-Jwt-Assertion': token } : {}), 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream' },
   body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-11-25', capabilities: {}, clientInfo: { name: 'test-client', version: '1' } } }),
 }, bindings)

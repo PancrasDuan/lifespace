@@ -1,7 +1,6 @@
 # Agent 账单 MCP 接口
 
-Issue #130 的 Agent 入口为 `/api/agent/mcp`，使用 Streamable HTTP；#151 扩展登记退款。它与现有网页普通流水及退款接口共用校验、错误与数据库事务；网页现有接口继续使用 Supabase 登录鉴权。Agent 身份和绑定配置见 [ADR 0009](adr/0009-agent-service-token-access.md) 与 [绑定管理](agent-access-bindings.md)。
-
+标准入口为 `/api/agent/mcp`，采用 OAuth Bearer、授权码 + PKCE 和独立 MCP token；#193 的实现与生产启用状态见 [OAuth 运维说明](mcp-oauth-operations.md) 和 [ADR 0012](adr/0012-mcp-oauth-grants.md)。#130 的旧 Service Token 方案按需迁到显式开启的 `/api/agent/legacy/mcp`，原绑定只用于旧通道。#151 的三个工具继续与网页共用校验、错误和数据库事务，网页 REST 继续使用 Supabase 登录。
 ## 工具与 REST 契约
 
 - `list_ledger_accounts` 返回本人完整账户列表和版本，包括账户名称、标识及余额；与 `GET /api/ledger/accounts` 共用空参数校验与服务。
@@ -25,24 +24,19 @@ Issue #130 的 Agent 入口为 `/api/agent/mcp`，使用 Streamable HTTP；#151 
 
 `serverInfo.version` 升为 `2.0.0`，MCP 协议协商版本保持原值。全部三个工具的业务错误体统一为 REST 的 `{ error: { code, message } }`；客户端须从 `structuredContent.error` 读取错误，不能继续读取 v1 的顶层 `code`／`message`。账户工具的额外查询字段也统一返回业务 `INVALID_QUERY`，普通创建与退款均保留 REST 的具体校验提示和未知结果消息。成功业务数据不变。
 
-入口只接收无浏览器 `Origin` 的请求；浏览器类 Agent 的实际兼容性仍需验证。
+标准入口按已配置的精确 Origin 列表支持 CORS/OPTIONS；旧入口继续拒绝浏览器 Origin。OAuth 权限不足在工具业务错误 catch 之外返回 HTTP 403 和所需 scope；不得将其封装为 HTTP 200 的业务失败。认证无效返回 HTTP 401 Bearer challenge。各工具所需权限见 [OAuth 运维说明](mcp-oauth-operations.md#客户端与用户)。
 
 ## 接入和发布前置
 
-1. 只读核对目标 Cloudflare 账户、现有 Worker 路由、Access 设置和 Supabase 项目；避免更改其他 Worker 或网页路径。分别准备测试用户及其绑定，不能使用真实流水做破坏性测试。
-2. 在隔离环境部署迁移并验证；正式数据库迁移和生产 Access 配置须按项目交付流程另行审核与授权。数据库迁移不会由 Worker 自动部署执行。
-3. 为目标域名的精确 `/api/agent/mcp` 路径配置 Cloudflare Access，仅允许选定的 Service Token。必须验证不经 Access 的其他域名、`workers.dev` 或预览路径不能绕过 Worker 的签名与受众检查；不得给整个业务域名套用该规则。
-4. 为 Worker 配置 `CF_ACCESS_TEAM_DOMAIN`（完整 `https://<team>.cloudflareaccess.com`，不带末尾斜杠）及目标 Access 应用的 `CF_ACCESS_AUD`。两者尚未加入仓库默认部署配置；未配置时 Agent 入口拒绝请求，不影响现有网页鉴权。部署前需将非密钥配置纳入实际 Wrangler 配置或使用受控的 Worker secrets；单独在 Dashboard 设置的普通变量可能被后续 Wrangler 部署覆盖。详见 [Wrangler 配置](https://developers.cloudflare.com/workers/wrangler/configuration/)。
-5. 管理员为每个 Agent 创建单独的 Service Token，按 [绑定管理](agent-access-bindings.md) 核对用户后配置绑定。Client Secret 只经安全渠道交给用户，不能写入仓库、Issue、日志或对话。
-6. 在隔离环境先验证 Codex 的连接、完整字段确认、账户查询、普通创建、退款与重复请求；退款还须用用户提供的详情核对父支出及继承信息、修改后再次确认与未知结果原请求重试。再检查 WorkBuddy、Grok Bot 能否携带 Access 凭据连接。同一入口的兼容性不能仅凭 HTTP 单元测试推断。
+标准客户端只配置 MCP URL，再按照 metadata 完成客户端识别、网页登录、明确同意与 PKCE。不要把网页 Supabase access/refresh token 配给 Agent。授权管理、逐请求准入、撤销边界、生产 Access 的精确迁移及回退门禁见 [OAuth 运维说明](mcp-oauth-operations.md)。
 
-## Codex 配置示例
+## 旧 Service Token 配置示例
 
 以下是本地 Codex 的配置形状；环境变量需由使用者通过安全方式在 Codex 进程环境中提供，不要将真实值写入配置文件。`env_http_headers` 的可用性与运行位置、Codex 版本有关，部署前须实测。[Codex 配置参考](https://developers.openai.com/codex/config-reference)
 
 ```toml
 [mcp_servers.lifespace]
-url = "https://<lifespace-host>/api/agent/mcp"
+url = "https://<lifespace-host>/api/agent/legacy/mcp"
 
 [mcp_servers.lifespace.env_http_headers]
 CF-Access-Client-Id = "LIFESPACE_ACCESS_CLIENT_ID"
@@ -53,6 +47,6 @@ CF-Access-Client-Secret = "LIFESPACE_ACCESS_CLIENT_SECRET"
 
 ## 测试与回退
 
-运行接口测试、类型检查、构建及隔离数据库测试；隔离数据库验证覆盖绑定、禁用、跨账户拒绝、REST／MCP 成功与错误契约一致、退款事实及余额、并发额度、时间和余额边界、事务回滚、请求编号去重及提交后响应丢失。完整账单隔离测试为 `npm run test:database -- --ledger`；单独 Agent 链路可加 `--api tests/api/agent-mcp-database.test.ts`，所需本机工具见 [账单测试说明](ledger/api.md)。签名使用合成密钥，Auth 与公钥服务在测试中受控；账单服务、绑定解析及 PostgreSQL／PostgREST 为真实隔离链路。真实 Cloudflare、Supabase Auth 管理接口和目标 Agent 仍需分别验收，不能用 HTTP 模拟替代。本次扩展无需新增迁移、绑定或生产配置。
+运行接口测试、类型检查、构建及隔离数据库测试；隔离数据库验证覆盖绑定、禁用、跨账户拒绝、REST／MCP 成功与错误契约一致、退款事实及余额、并发额度、时间和余额边界、事务回滚、请求编号去重及提交后响应丢失。完整账单隔离测试为 `npm run test:database -- --ledger`；单独 Agent 链路可加 `--api tests/api/agent-mcp-database.test.ts`，所需本机工具见 [账单测试说明](ledger/api.md)。签名使用合成密钥，Auth 与公钥服务在测试中受控；账单服务、绑定解析及 PostgreSQL／PostgREST 为真实隔离链路。真实 Cloudflare、Supabase Auth 管理接口和目标 Agent 仍需分别验收，不能用 HTTP 模拟替代。退款扩展未新增这些配置；#193 OAuth 另有授权表迁移、专用 KV 与 Access 路径调整，须按运维门禁执行。
 
-回退先停用绑定及对应 Cloudflare Service Token；保留数据库绑定表与限制性权限。必要时回退 Worker 代码，但不删除或更改已有账单。已通过鉴权的在途请求不自动回滚。
+旧通道回退先停用绑定及对应 Cloudflare Service Token；保留数据库绑定表与限制性权限。必要时回退 Worker 代码，但不删除或更改已有账单。已通过鉴权的在途请求不自动回滚。
