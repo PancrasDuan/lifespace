@@ -150,6 +150,7 @@ try {
     : legacyRegression ? [...legacySchema, ...legacyChecks]
     : ['db/adventure/create-planning.sql', 'db/adventure/list-tasks.sql', 'tests/database/adventure-goal-model-transaction.sql', 'tests/database/adventure-goal-model-history-seed.sql']
   for (const path of setup) await sql(await readFile(join(root, path), 'utf8'))
+  if (goalModel) await sql(await readFile(join(root, 'tests/database/adventure-future-completion.sql'), 'utf8'))
   if (legacyRegression) console.log(`通过：旧五表 SQL 回归（${legacyChecks.length} 个脚本）`)
   let migratedFixture
   if (goalsOnly) {
@@ -233,6 +234,30 @@ try {
     const cleaned = (await sql("select snapshot->'result' result from public.adventure_events where request_id='rpc-complete-task'")).rows[0]?.result
     if (!cleaned || 'mainlineName' in cleaned || 'mainlineId' in cleaned.source || cleaned.source.goalTitle !== '保留的旧名称') throw new Error('旧回执结构化归属清理失败')
     migratedFixture = JSON.stringify({ receipts, legacyCompletions })
+  }
+  if (goalModel || legacyModel || goalsOnly) {
+    await sql(await readFile(join(root, 'tests/database/fixtures/adventure-task-check-before-185.sql'), 'utf8'))
+    const upgradeOwner = crypto.randomUUID()
+    const created = (await sql({ text: `select public.adventure_planning_command($1,'future-upgrade-pending',0,
+      jsonb_build_object('type','createTask','title','升级前的未来安排','description','','plannedOn',(clock_timestamp() at time zone 'Asia/Shanghai')::date+7,'destination','')) result`, values: [upgradeOwner] })).rows[0].result
+    const complete = { type: 'completeTask', id: created.result.entityId }
+    try {
+      await sql({ text: 'select public.adventure_planning_command($1,$2,$3,$4)', values: [upgradeOwner, 'future-upgrade-blocked', created.version, complete] })
+      throw new Error('升级前应拒绝提前完成')
+    } catch (error) { if (error.message !== 'DATE_LOCKED') throw error }
+    const snapshot = `select jsonb_build_object(
+      'accounts',(select jsonb_agg(to_jsonb(account) order by owner_id) from public.adventure_accounts account),
+      'goals',(select jsonb_agg(to_jsonb(goal) order by id) from public.adventure_goals goal),
+      'tasks',(select jsonb_agg(to_jsonb(task) order by id) from public.adventure_tasks task),
+      'events',(select jsonb_agg(to_jsonb(event) order by id) from public.adventure_events event)) data`
+    const before = JSON.stringify((await sql(snapshot)).rows[0].data)
+    const migration = await readFile(join(root, 'db/adventure/migrations/20261114020502_adventure_future_completion.sql'), 'utf8')
+    await sql(migration)
+    await sql(migration)
+    if (JSON.stringify((await sql(snapshot)).rows[0].data) !== before) throw new Error('提前完成规则升级修改了业务行或历史回执')
+    await sql({ text: 'select public.adventure_planning_command($1,$2,$3,$4)', values: [upgradeOwner, 'future-upgrade-complete', created.version, complete] })
+    await sql(await readFile(join(root, 'tests/database/adventure-future-completion.sql'), 'utf8'))
+    console.log('通过：提前完成空库／非空库升级、重复执行、业务行与回执对账、实际完成日及取消窗口')
   }
   if (!ledgerOnly && !goalModel && !legacyModel && !goalsOnly) {
     await sql(await readFile(join(root, 'tests/database/adventure-today-upgrade-before.sql'), 'utf8'))
@@ -324,7 +349,7 @@ try {
   const apiArgs = process.argv.includes('--api') ? process.argv.slice(process.argv.indexOf('--api') + 1, process.argv.includes('--browser') ? process.argv.indexOf('--browser') : undefined) : goalsOnly ? ['tests/api/adventure-goals-database.test.ts'] : legacyModel ? ['tests/api/adventure-migrated-task-database.test.ts'] : goalModel ? [
     'tests/api/adventure-category-database.test.ts', 'tests/api/adventure-task-edit-database.test.ts',
     'tests/api/adventure-task-delete-database.test.ts', 'tests/api/adventure-actions-database.test.ts',
-    'tests/api/adventure-overdue-database.test.ts', 'tests/api/adventure-date-list-database.test.ts',
+    'tests/api/adventure-overdue-database.test.ts', 'tests/api/adventure-date-list-database.test.ts', 'tests/api/adventure-future-completion-database.test.ts',
     'tests/api/adventure-lifecycle-database.test.ts', 'tests/api/adventure-reschedule-database.test.ts',
     'tests/api/adventure-growth-database.test.ts', 'tests/api/adventure-integration-database.test.ts',
     'tests/api/adventure-goal-relations-database.test.ts',
@@ -339,7 +364,7 @@ try {
     const browserArgs = process.argv.slice(process.argv.indexOf('--browser') + 1)
     // Flags such as --output/--grep refine the domain defaults; a leading file
     // selector replaces them. Never run another domain against this database.
-    const specs = browserArgs.length && !browserArgs[0].startsWith('-') ? [] : goalsOnly ? ['tests/browser/adventure-goal-console-database.spec.ts'] : ledgerOnly ? ['tests/browser/ledger-database.spec.ts', 'tests/browser/ledger-accounts-database.spec.ts', 'tests/browser/ledger-account-entries-database.spec.ts', 'tests/browser/ledger-transfers-database.spec.ts', 'tests/browser/ledger-dates-database.spec.ts', 'tests/browser/ledger-account-filter-database.spec.ts', 'tests/browser/ledger-refunds-database.spec.ts', 'tests/browser/ledger-delete-database.spec.ts'] : ['tests/browser/adventure-actions-database.spec.ts', 'tests/browser/adventure-overdue-database.spec.ts', 'tests/browser/adventure-date-list-database.spec.ts', 'tests/browser/adventure-growth-database.spec.ts', 'tests/browser/adventure-integration-database.spec.ts', 'tests/browser/adventure-task-edit-database.spec.ts', 'tests/browser/adventure-task-delete-database.spec.ts', 'tests/browser/adventure-review-fixes-database.spec.ts', 'tests/browser/adventure-task-date-interaction-database.spec.ts', ...(goalModel ? ['tests/browser/adventure-goal-relations-database.spec.ts'] : [])]
+    const specs = browserArgs.length && !browserArgs[0].startsWith('-') ? [] : goalsOnly ? ['tests/browser/adventure-goal-console-database.spec.ts'] : ledgerOnly ? ['tests/browser/ledger-database.spec.ts', 'tests/browser/ledger-accounts-database.spec.ts', 'tests/browser/ledger-account-entries-database.spec.ts', 'tests/browser/ledger-transfers-database.spec.ts', 'tests/browser/ledger-dates-database.spec.ts', 'tests/browser/ledger-account-filter-database.spec.ts', 'tests/browser/ledger-refunds-database.spec.ts', 'tests/browser/ledger-delete-database.spec.ts'] : ['tests/browser/adventure-actions-database.spec.ts', 'tests/browser/adventure-overdue-database.spec.ts', 'tests/browser/adventure-date-list-database.spec.ts', 'tests/browser/adventure-future-completion-database.spec.ts', 'tests/browser/adventure-growth-database.spec.ts', 'tests/browser/adventure-integration-database.spec.ts', 'tests/browser/adventure-task-edit-database.spec.ts', 'tests/browser/adventure-task-delete-database.spec.ts', 'tests/browser/adventure-review-fixes-database.spec.ts', 'tests/browser/adventure-task-date-interaction-database.spec.ts', ...(goalModel ? ['tests/browser/adventure-goal-relations-database.spec.ts'] : [])]
     const reportPath = join(work, 'playwright-results.json')
     await runReported('浏览器', ['node_modules/@playwright/test/cli.js', 'test', ...specs, ...browserArgs, '--reporter=list,json'], { ...env, PLAYWRIGHT_JSON_OUTPUT_FILE: reportPath }, reportPath, browserCounts)
     browserScope = `已运行（参数：${[...specs, ...browserArgs].join(' ')}）`

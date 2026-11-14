@@ -29,13 +29,11 @@ describe.skipIf(!localPlanningRpc)('逾期行动经 Worker 和真实数据库完
     expect(await (await send(owner, finish)).json()).toEqual(receipt)
     expect(await read(owner, '?taskRange=past')).toEqual(canceled)
   })
-  it('未来和其他账户不能完成，竞争逾期完成只计奖一次，目标详情保留服务端日期', async () => {
+  it('其他账户不能完成，竞争逾期完成只计奖一次，目标详情保留服务端日期', async () => {
     const owner = crypto.randomUUID(), other = crypto.randomUUID()
     const goal = (await database.fixtureGoal(owner, (await read(owner)).version, { type: 'createGoal', title: '补做成果', standards: ['完成标准'] })).result.entityId
     const overdue = (await database.createHistoricalTaskFourTable(owner, { type: 'createTask', title: '逾期目标行动', description: '', plannedOn: '2020-01-01', destination: goal })).result.entityId
-    const future = (await command(owner, { type: 'createTask', title: '未来行动', description: '', plannedOn: '2099-01-01', destination: '' })).result.entityId
     const before = await read(owner)
-    expect((await send(owner, envelope(before.version, { type: 'completeTask', id: future }))).status).toBe(400)
     expect((await send(other, envelope(0, { type: 'completeTask', id: overdue }))).status).toBe(404)
     expect(await read(owner)).toEqual(before)
     const finishes = [envelope(before.version, { type: 'completeTask', id: overdue }), envelope(before.version, { type: 'completeTask', id: overdue })]

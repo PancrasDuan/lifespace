@@ -180,8 +180,9 @@ describe.skipIf(!rpcOrigin)('正式 Worker HTTP → 本机真实 PostgREST → �
     expect((await read(owner)).tasks).toEqual([expect.objectContaining({ title: '今天', goalId: goal, goalTitle: '成果', independent: false })])
     expect((await read(owner, '?taskRange=past')).tasks).toEqual([expect.objectContaining({ id: past, overdue: true, status: 'pending', capabilities: { complete: { allowed: true }, edit: { allowed: true }, cancel: expect.any(Object), reschedule: expect.any(Object), migrate: expect.any(Object), end: expect.any(Object), delete: { allowed: true } } })])
     expect((await read(owner, '?taskRange=future')).tasks[0].id).toBe(future)
-    expect((await send(owner, envelope((await read(owner)).version, { type: 'completeTask', id: future }))).status).toBe(400)
-    expect((await read(owner)).growth.totalXp).toBe(0)
+    await command(owner, { type: 'completeTask', id: future })
+    expect((await read(owner)).tasks.find(task => task.id === future)).toMatchObject({ plannedOn: today.add({ days: 1 }).toString(), completedOn: today.toString(), status: 'completed' })
+    expect((await read(owner)).growth.totalXp).toBe(1)
   })
 
   it('取消预览无写入；取消、再完成后旧成功请求只回放，旧事件不能取消新完成', async () => {
