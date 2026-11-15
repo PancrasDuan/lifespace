@@ -4,6 +4,7 @@
 .mcp-account { color:#536a5c;font-size:.875rem;margin-block:.75rem 2rem; }
 .mcp-permissions { border:0;padding:0;margin:0 0 1.25rem;min-inline-size:0; }
 .mcp-permissions legend { font-weight:600;margin-block-end:.75rem; }
+.mcp-select-all { display:block;margin-inline-start:auto;min-inline-size:3rem;min-block-size:3rem;font-size:.875rem; }
 .mcp-permission { display:flex;align-items:center;gap:.875rem;min-block-size:5rem;border-block-end:1px solid #d9e3d2;padding-inline:.75rem; }
 .mcp-permission:has(input:checked) { background:#f0f5eb; }
 .mcp-permission:hover { background:#f5f8f1; }

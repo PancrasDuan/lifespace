@@ -39,7 +39,7 @@ export function McpAuthorization() {
     const combined = AbortSignal.any([signal, controller.signal])
     void authorizedMutation('/api/oauth/consent/start', JSON.stringify({ query: window.location.search }), combined, ownerId)
       .then(response => readResponse(response, consentSchema))
-      .then(value => { if (!combined.aborted) { setConsent(value); setSelected(value.details.scope) } })
+      .then(value => { if (!combined.aborted) { setConsent(value); setSelected([]) } })
       .catch(() => { if (!combined.aborted) setError('无法打开授权请求，请从客户端重新连接。') })
     return () => controller.abort()
   }, [ownerId, signal])
@@ -81,6 +81,7 @@ export function McpAuthorization() {
         <form onSubmit={submit} action="/api/oauth/consent/finish" method="post">
           <fieldset disabled={busy} className="mcp-permissions">
             <legend>选择允许的操作</legend>
+            <button type="button" className="auth-link mcp-select-all" onClick={() => { setSelected([...mcpScopes]); setError('') }}>全选</button>
             {mcpScopes.map(scope => <div className="mcp-permission" key={scope}>
               <input id={`permission-${scope}`} type="checkbox" name="scope" value={scope} checked={selected.includes(scope)}
                 aria-labelledby={`name-${scope}`} aria-describedby={`description-${scope}`} onChange={event => {
@@ -91,7 +92,7 @@ export function McpAuthorization() {
             </div>)}
           </fieldset>
           <div className="mcp-selection"><span>已选 {selected.length} 项权限</span><span>最长 30 天</span></div>
-          <button type="submit" className="auth-primary" disabled={busy}>{busy ? '正在处理…' : '授权所选权限'}</button>
+          <button type="submit" className="auth-primary" disabled={busy || selected.length === 0}>{busy ? '正在处理…' : '授权所选权限'}</button>
           <button type="button" className="auth-link mcp-deny" disabled={busy} onClick={() => void decide('deny')}>拒绝授权</button>
         </form>
       </>}
