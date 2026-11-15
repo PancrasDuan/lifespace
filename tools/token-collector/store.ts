@@ -33,8 +33,8 @@ export class Store {
         CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
         CREATE TABLE IF NOT EXISTS rollups (date TEXT NOT NULL, agent TEXT NOT NULL, generation TEXT NOT NULL, version TEXT NOT NULL, hash TEXT NOT NULL, snapshot TEXT NOT NULL, PRIMARY KEY(date,agent));
         CREATE TABLE IF NOT EXISTS queue (id INTEGER PRIMARY KEY, date TEXT NOT NULL, agent TEXT NOT NULL, generation TEXT NOT NULL, version TEXT NOT NULL, hash TEXT NOT NULL, body TEXT NOT NULL, attempts INTEGER NOT NULL DEFAULT 0, next_at INTEGER NOT NULL DEFAULT 0, error TEXT, UNIQUE(date,agent,generation,version));
-        CREATE TABLE IF NOT EXISTS sources (path TEXT PRIMARY KEY, proof TEXT NOT NULL);
-        PRAGMA user_version=1;`)
+        CREATE TABLE IF NOT EXISTS sources (path TEXT PRIMARY KEY, proof TEXT NOT NULL);`)
+      if (schemaVersion === 0) db.exec('PRAGMA user_version=1')
       return new Store(db, lock)
     } catch (e) { lock.close(); if (e instanceof LocalError) throw e; throw new LocalError('LOCAL_DATABASE_FAILED') }
   }

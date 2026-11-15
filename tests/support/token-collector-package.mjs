@@ -46,7 +46,7 @@ try {
   assert.equal(JSON.parse(status).pending, 1); assert(!status.includes(secret)); assert(!status.includes(home))
   await run(process.execPath, [cli, 'timer', 'install', '--state-dir', state])
   await run(process.execPath, [cli, 'upgrade', '--state-dir', state, '--archive', archive, '--prefix', prefix, '--apply'])
-  assert.deepEqual(await readFile(join(state, 'state.sqlite')), before)
+  assert((await readFile(join(state, 'state.sqlite'))).equals(before), 'SQLite bytes changed during status/timer preview/upgrade')
   assert.equal((await stat(join(state, 'state.sqlite'))).mode & 0o777, 0o600)
   const tokscale = JSON.parse(await readFile(join(prefix, 'node_modules/@tokscale/cli/package.json'), 'utf8'))
   assert.equal(tokscale.version, '4.23.0')
