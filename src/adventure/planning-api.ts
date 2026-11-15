@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { growthPageSchema, rewardSourceSchema } from '../shared/adventure-growth'
 import { authorizedFetch, authorizedMutation } from '../auth/request'
-import { adventureClientVersion, adventureClientVersionHeader, legacyAdventureClientVersion, planningCompatibilitySchema, recurringAdventureClientVersion } from '../shared/adventure-client-version'
+import { adventureClientVersion, adventureClientVersionHeader, adventureReceiptModel, planningCompatibilitySchema, recurringAdventureClientVersion } from '../shared/adventure-client-version'
 import {
   dateTaskListInputSchema, dateTaskListSchema, recurringChildrenInputSchema, recurringChildrenSchema,
   recurringChildDetailSchema, recurringDefinitiveErrors, recurringDetailInputSchema, recurringListInputSchema,
@@ -70,10 +70,9 @@ export const planningApi = {
       const model: unknown = await compatibility.json().catch(() => null)
       const supported = planningCompatibilitySchema.safeParse(model)
       if (!compatibility.ok || !noStore(compatibility) || !supported.success) throw uncertain()
-      const receiptVersion = 'clientVersion' in supported.data ? supported.data.clientVersion : legacyAdventureClientVersion
       const nonce = Array.from(crypto.getRandomValues(new Uint8Array(32)), byte => byte.toString(16).padStart(2, '0')).join('')
       const response = await authorizedMutation('/api/adventure/receipts/lookup', JSON.stringify({ ...envelope, nonce }), signal, owner)
-      if (!response.ok || response.headers.get('X-Lifespace-Adventure-Model') !== receiptVersion || !noStore(response)) throw uncertain()
+      if (!response.ok || response.headers.get('X-Lifespace-Adventure-Model') !== adventureReceiptModel || !noStore(response)) throw uncertain()
       const result = await read(response, z.strictObject({ requestId: z.string(), nonce: z.string(), receipt: planningReceiptSchema }), true)
       if (result.requestId !== envelope.requestId || result.nonce !== nonce) throw uncertain()
       return result.receipt

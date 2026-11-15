@@ -5,7 +5,7 @@ import type { AuthEnv, Identity } from '../auth'
 import { readBoundedBody, BodyLimitError } from '../read-body'
 import { ApiError } from '../upstream'
 import { traceUpstreamFailure, traceUpstreamStatus, upstreamFailureType } from '../trace'
-import { adventureClientVersion, adventureClientVersionHeader } from '../../src/shared/adventure-client-version'
+import { adventureClientVersion, adventureClientVersionHeader, adventureReceiptModel } from '../../src/shared/adventure-client-version'
 import { storedPlanningEnvelopeSchema } from '../../src/shared/adventure-recovery'
 import {
   taskListInputSchema, taskListSchema, taskHistorySchema, migrationOptionsSchema, planningPageSchema, planningReceiptSchema, taskRangeSchema, taskScopeSchema, planningSearchSchema,
@@ -132,7 +132,7 @@ export async function lookupPlanningReceipt(c: PlanningContext) {
   const receipt = await rpc(c, 'adventure_receipt_lookup', {
     p_request_id: value.requestId, p_command: value.command,
   }, planningReceiptSchema)
-  c.header('X-Lifespace-Adventure-Model', adventureClientVersion)
+  c.header('X-Lifespace-Adventure-Model', adventureReceiptModel)
   return c.json({ requestId: value.requestId, nonce: value.nonce, receipt })
 }
 

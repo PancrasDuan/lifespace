@@ -7,8 +7,12 @@ export const adventureClientVersion = legacyAdventureClientVersion
 // #199 activates this gate for ALL new writes in the coordinated release.
 // #198 keeps the currently deployed once-task gate unchanged.
 export const recurringAdventureClientVersion = 'recurring-1'
-export const planningCompatibilitySchema = z.union([
-  z.strictObject({ model: z.literal('goal-categories'), version: z.literal(1), receiptLookup: z.literal(true), legacyRetry: z.literal(false) }),
-  z.strictObject({ model: z.literal('goal-categories'), version: z.literal(1), receiptLookup: z.literal(true), legacyRetry: z.literal(false),
-    recurring: z.literal(1), clientVersion: z.literal(recurringAdventureClientVersion) }),
-])
+// This read-only protocol must outlive write-gate upgrades: old pending pages
+// parse the probe strictly and compare this exact response header value.
+export const adventureReceiptModel = 'goal-categories-1'
+export const planningCompatibilitySchema = z.strictObject({
+  model: z.literal('goal-categories'), version: z.literal(1), receiptLookup: z.literal(true), legacyRetry: z.literal(false),
+})
+export const planningCompatibility = planningCompatibilitySchema.parse({
+  model: 'goal-categories', version: 1, receiptLookup: true, legacyRetry: false,
+})

@@ -29,7 +29,9 @@
 
 跨天新写返回 HTTP409 `PLANNING_DATE_CHANGED`，无业务写入、无 revision/XP/子任务变化、不创建成功回执。#200 清理该次明确失败的 pending 后提示、回读权威日期／期数／能力，等待用户再次主动操作，不能补交；未知响应保留 pending，先按原封套确认。锁等待跨午夜也按取得锁后的日期处理。
 
-`POST /api/adventure/receipts/lookup` 仍只读、不得在查无回执时落到 command；继续绑定 nonce、requestId、no-store、精确模型头与规范化摘要。兼容探针新增形状为 `{model:'goal-categories',version:1,receiptLookup:true,legacyRetry:false,recurring:1,clientVersion:'recurring-1'}`；保留旧四字段形状的解析。新探针对应 `X-Lifespace-Adventure-Model: recurring-1`，旧探针对应现行模型头；所有合法旧一次性、退役命令及五表目标封套的成功回执仍可只读查到。查不到为未知，不通过换 requestId 或版本重做。
+`POST /api/adventure/receipts/lookup` 仍只读、不得在查无回执时落到 command；继续绑定 nonce、requestId、no-store、精确模型头与规范化摘要。`GET /api/adventure/compatibility` **始终只返回**旧四字段 `{model:'goal-categories',version:1,receiptLookup:true,legacyRetry:false}`，不得加周期或写版本字段；新旧客户端都使用该恢复协议。lookup 成功响应**始终使用** `X-Lifespace-Adventure-Model: goal-categories-1`（共享常量 `adventureReceiptModel`），与 command 的 `adventureClientVersion`／recurring-1 写门禁完全独立。周期能力仅在 `planningPage.recurring` 声明，不升级或复用旧恢复探针。所有合法旧一次性、退役命令及五表目标封套的成功回执仍可只读查到；新周期 pending 也走同一只读协议。查不到为未知，不通过换 requestId、today 或版本重做。
+
+服务端必须在写版本切到 recurring-1 后继续支持旧页面的四字段严格解析和旧回执模型头；仅让新客户端兼容旧协议不构成双向兼容。`receipts/lookup` 不要求新写版本头，不经过 command gate，原 owner／规范化摘要／nonce 校验保持；`commands` 与 `legacy-retry` 仍拒绝旧客户端新写，不能借恢复协议放行目标终态、计奖或其他写。#198 现有 Worker 只读接线已引用共享冻结值，未新增周期业务，#199 不得在切换写版本时更改这些值。
 
 ## 只读列表、详情与分页
 
@@ -141,7 +143,7 @@ preview 沿用 `/api/adventure/preview` 和 `{expectedVersion,command}`。create
 ## 迁移、客户端与交付门禁
 
 1. #198仅交付契约：当前`adventureClientVersion=goal-categories-1`保持部署版本，新增周期请求专用`recurringAdventureClientVersion=recurring-1`；现行Worker会拒绝这些尚未实现的写，不通过契约提交冒充后端上线。新只读endpoint目前未挂载，必须由#199实施并通过隔离公共边界测试。
-2. #199协同发布时把`adventureClientVersion`切到recurring-1，Worker拒绝所有旧客户端**新写**（包括旧一次性写，因为目标计奖／终态口径已变），新客户端所有一次性和周期新写都发recurring-1。旧UI可读及只读查成功回执，不允许旧目标写绕过周期阻塞。不得仅改前端或仅改schema而先部署。缺少新`planningPage.recurring`不得显示可写周期UI。
+2. #199协同发布时把`adventureClientVersion`切到recurring-1，Worker拒绝所有旧客户端**新写**（包括旧一次性写，因为目标计奖／终态口径已变），新客户端所有一次性和周期新写都发recurring-1。旧UI可读及只读查成功回执：保留精确四字段探针与goal-categories-1回执头；不要求旧lookup发送recurring-1，不把新写门禁用于只读回执。新增验收必须将写门禁模拟／切到recurring-1后以基线旧严格解析器读取旧成功回执，同时证明旧目标写与legacy-retry仍被拒绝；不允许旧目标写绕过周期阻塞。不得仅改前端或仅改schema而先部署。缺少新`planningPage.recurring`不得显示可写周期UI。
 3. 新库安装在现行四表基础上增加父表、扩展子kind／事件约束、RPC／权限及查询；非空四表库用一个可回滚事务升级，结构、函数、权限、后置断言一起完成。禁止重放旧五表初始化或重新导入示例；保留全部旧ID、快照、有效奖励、XP、revision及成功回执/命令摘要，不重算历史奖励，不恢复historical_lock。重复执行必须安全或明确无副作用拒绝，并测试。
 4. #199先在隔离PostgreSQL分别做新库与非空升级，比较结构／索引／约束／权限／函数签名和相同输入的公开输出；逐ID核对旧任务、事件、XP、revision、回执。覆盖升级失败回滚、重复执行、owner攻击、RPC授权、并发上限、跨午夜锁等待、旧回执跨天优先、年月末锚点、历史计数冻结。真实数据库验证未运行不得称通过；本票无生产DB操作权限。
 5. #200按同一冻结提交实施原型26状态，沿用一次性toast／pending／确认模式；成长的周期来源按快照表达并正确处理plannedOn=null，不把父归属当历史归属；#201统一真实联通、截图／外围范围、浏览器／数据库／权限／迁移、双轴评审和必需CI，不以mock或契约解析替代。

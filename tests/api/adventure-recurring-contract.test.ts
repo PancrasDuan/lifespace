@@ -5,7 +5,7 @@ import { recurringChildSchema, recurringChildrenSchema, recurringListInputSchema
 import { rewardEntrySchema, rewardSourceSchema } from '../../src/shared/adventure-growth'
 import { planningApi, PlanningError } from '../../src/adventure/planning-api'
 import { authorizedFetch, authorizedMutation } from '../../src/auth/request'
-import { adventureClientVersion, recurringAdventureClientVersion } from '../../src/shared/adventure-client-version'
+import { adventureClientVersion, adventureReceiptModel, planningCompatibility, recurringAdventureClientVersion } from '../../src/shared/adventure-client-version'
 
 vi.mock('../../src/auth/request', () => ({ authorizedFetch: vi.fn(), authorizedMutation: vi.fn() }))
 const parentId = '00000000-0000-4000-8000-000000000198'
@@ -154,20 +154,35 @@ describe('纯API客户端的错误和接续边界', () => {
       '/api/adventure/recurring/detail', '/api/adventure/recurring/children', '/api/adventure/recurring/child', '/api/adventure/date-tasks/list',
     ])
   })
-  it.each([false, true])('在%s周期兼容探针下只查回执并绑定nonce，不落到commands', async recurring => {
-    vi.mocked(authorizedFetch).mockResolvedValue(Response.json({ model: 'goal-categories', version: 1, receiptLookup: true, legacyRetry: false,
-      ...(recurring ? { recurring: 1, clientVersion: recurringAdventureClientVersion } : {}) }, { headers: { 'Cache-Control': 'no-store' } }))
+  it('新客户端对旧一次性和周期pending都使用冻结的只读协议，不协商写版本', async () => {
+    const once = { ...envelope, command: { type: 'completeTask' as const, id: childId } }
+    vi.mocked(authorizedFetch).mockImplementation(async () => Response.json(planningCompatibility, { headers: { 'Cache-Control': 'no-store' } }))
     vi.mocked(authorizedMutation).mockImplementation(async (_path, body) => {
       const lookup = JSON.parse(body)
-      return Response.json({ requestId: lookup.requestId, nonce: lookup.nonce, receipt }, { headers: { 'Cache-Control': 'no-store', 'X-Lifespace-Adventure-Model': recurring ? recurringAdventureClientVersion : adventureClientVersion } })
+      return Response.json({ requestId: lookup.requestId, nonce: lookup.nonce, receipt }, { headers: { 'Cache-Control': 'no-store', 'X-Lifespace-Adventure-Model': adventureReceiptModel } })
     })
-    expect(await planningApi.lookupReceipt(parentId, envelope, readSignal())).toEqual(planningReceiptSchema.parse(receipt))
+    for (const pending of [once, envelope]) {
+      expect(await planningApi.lookupReceipt(parentId, pending, readSignal())).toEqual(planningReceiptSchema.parse(receipt))
+    }
+    expect(authorizedMutation).toHaveBeenCalledTimes(2)
+    expect(vi.mocked(authorizedMutation).mock.calls.every(call => call[0] === '/api/adventure/receipts/lookup' && call[5] === undefined)).toBe(true)
+  })
+  it('探针加字段或回执头误用新写版本时保持未知，不回退写入', async () => {
+    vi.mocked(authorizedFetch).mockResolvedValueOnce(Response.json({ ...planningCompatibility, recurring: 1, clientVersion: recurringAdventureClientVersion }, { headers: { 'Cache-Control': 'no-store' } }))
+    await expect(planningApi.lookupReceipt(parentId, envelope, readSignal())).rejects.toMatchObject({ uncertain: true })
+    expect(authorizedMutation).not.toHaveBeenCalled()
+    vi.mocked(authorizedFetch).mockResolvedValueOnce(Response.json(planningCompatibility, { headers: { 'Cache-Control': 'no-store' } }))
+    vi.mocked(authorizedMutation).mockImplementationOnce(async (_path, body) => {
+      const lookup = JSON.parse(body)
+      return Response.json({ requestId: lookup.requestId, nonce: lookup.nonce, receipt }, { headers: { 'Cache-Control': 'no-store', 'X-Lifespace-Adventure-Model': recurringAdventureClientVersion } })
+    })
+    await expect(planningApi.lookupReceipt(parentId, envelope, readSignal())).rejects.toMatchObject({ uncertain: true })
     expect(authorizedMutation).toHaveBeenCalledTimes(1)
     expect(vi.mocked(authorizedMutation).mock.calls[0][0]).toBe('/api/adventure/receipts/lookup')
   })
   it('回执nonce不符或无no-store时保持未知，绝不退回写入', async () => {
     vi.mocked(authorizedFetch).mockResolvedValue(Response.json({ model: 'goal-categories', version: 1, receiptLookup: true, legacyRetry: false }, { headers: { 'Cache-Control': 'no-store' } }))
-    vi.mocked(authorizedMutation).mockResolvedValue(Response.json({ requestId: envelope.requestId, nonce: 'bad', receipt }, { headers: { 'Cache-Control': 'no-store', 'X-Lifespace-Adventure-Model': adventureClientVersion } }))
+    vi.mocked(authorizedMutation).mockResolvedValue(Response.json({ requestId: envelope.requestId, nonce: 'bad', receipt }, { headers: { 'Cache-Control': 'no-store', 'X-Lifespace-Adventure-Model': adventureReceiptModel } }))
     await expect(planningApi.lookupReceipt(parentId, envelope, readSignal())).rejects.toMatchObject({ uncertain: true })
     expect(authorizedMutation).toHaveBeenCalledTimes(1)
     vi.mocked(authorizedFetch).mockResolvedValue(Response.json({ model: 'goal-categories', version: 1, receiptLookup: true, legacyRetry: false }))
