@@ -52,10 +52,9 @@ export async function handleAgentMcp(request: Request, operations: {
   listAccounts: (input: unknown) => Promise<object>
   createEntry: (input: unknown) => Promise<object>
   refundEntry: (id: unknown, input: unknown) => Promise<object>
-}, authorization?: { originValidated: boolean; authorizeTool: (name: string) => void }): Promise<Response> {
+}, authorization: { authorizeTool: (name: string) => void }): Promise<Response> {
   // Legacy callers retain their non-browser policy. OAuth callers have already
   // checked the exact Origin before validating the token or entering this parser.
-  if (request.headers.has('Origin') && !authorization?.originValidated) return new Response(null, { status: 403 })
   if (request.method !== 'POST') return new Response(null, { status: 405, headers: { Allow: 'POST' } })
   const accepted = (request.headers.get('Accept') ?? '').split(',').map(part => {
     const [media, ...parameters] = part.trim().toLowerCase().split(';').map(item => item.trim())
@@ -84,7 +83,7 @@ export async function handleAgentMcp(request: Request, operations: {
   if (message.jsonrpc === '2.0' && message.method === 'ping' && message.id !== undefined) return Response.json({ jsonrpc: '2.0', id: message.id, result: {} })
   if (message.jsonrpc === '2.0' && message.method === 'tools/call' && message.id !== undefined && tools.some(tool => tool.name === message.params?.name)) {
     // Authorization failures must remain HTTP 403, outside the business-error envelope.
-    authorization?.authorizeTool(message.params!.name!)
+    authorization.authorizeTool(message.params!.name!)
     const args = message.params?.arguments ?? {}
     if (typeof args !== 'object' || args === null || Array.isArray(args)) {
       return Response.json({ jsonrpc: '2.0', id: message.id, error: { code: -32602, message: 'Invalid tool arguments' } })

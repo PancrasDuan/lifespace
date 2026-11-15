@@ -12,7 +12,6 @@ import { newsSources } from '../src/shared/news-sources'
 import { readNews } from './news'
 import { readAiStatus } from './ai-status'
 import { publicConfig, registrationHook, verifyIdentity, type Identity } from './auth'
-import { verifyAgentIdentity } from './agent-auth'
 import { handleAgentMcp } from './agent-mcp'
 import { beginTrace, traceErrorCode, withRootSpan } from './trace'
 import { McpAuthError, bearerChallenge, mcpScopes, oauthConfig, trustedOAuthOrigin, type OAuthEnv } from './mcp-oauth-config'
@@ -104,15 +103,13 @@ app.use('/api/*', async (c, next) => {
     && c.req.header(adventureClientVersionHeader) !== adventureClientVersion) throw oldClientUnavailable()
   await next()
 })
+// Retired before all identity middleware: stale configuration or credentials
+// must never reactivate this endpoint or fall back to browser authentication.
+app.all('/api/agent/legacy/mcp', c => c.json({ error: { code: 'NOT_FOUND', message: '接口不存在' } }, 404))
 app.use('/api/*', async (c, next) => {
   if (c.req.path === '/api/agent/mcp') {
     const grant = await (await mcpOAuth()).verifyMcpIdentity(c.env, c.req.header('Authorization'))
     c.set('identity', { ...grant.identity, mcpScopes: grant.scopes })
-    await next()
-    return
-  }
-  if (c.req.path === '/api/agent/legacy/mcp' && c.env.MCP_LEGACY_ENABLED === 'true') {
-    c.set('identity', await verifyAgentIdentity(c.env, c.req.header('Cf-Access-Jwt-Assertion')))
     await next()
     return
   }
@@ -124,20 +121,12 @@ app.all('/api/agent/mcp', async c => {
     listAccounts: input => readLedgerAccounts(c, input),
     createEntry: input => createLedgerEntry(c, input),
     refundEntry: (id, input) => createLedgerRefund(c, id, input),
-  }, { originValidated: true, authorizeTool: name => {
+  }, { authorizeTool: name => {
     const required = ({ list_ledger_accounts: mcpScopes[0], create_ledger_entry: mcpScopes[1], create_ledger_refund: mcpScopes[2] } as Record<string, string>)[name]
     if (required && !(c.get('identity').mcpScopes ?? []).includes(required)) throw new McpAuthError('insufficient_scope', [required])
   } })
   response.headers.set('Cache-Control', 'no-store')
   return response
-})
-app.all('/api/agent/legacy/mcp', async c => {
-  if (c.env.MCP_LEGACY_ENABLED !== 'true') return c.json({ error: { code: 'NOT_FOUND', message: '接口不存在' } }, 404)
-  return handleAgentMcp(c.req.raw, {
-    listAccounts: input => readLedgerAccounts(c, input),
-    createEntry: input => createLedgerEntry(c, input),
-    refundEntry: (id, input) => createLedgerRefund(c, id, input),
-  })
 })
 app.post('/api/oauth/consent/start', async c => (await mcpOAuth()).beginMcpConsent(c))
 app.post('/api/oauth/consent/finish', async c => (await mcpOAuth()).finishMcpConsent(c))
