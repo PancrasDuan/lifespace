@@ -9,12 +9,14 @@ export function AppLayout({
   page,
   children,
   className = '',
+  title,
 }: {
   page: AppPage
   children: ReactNode
   className?: string
+  title?: string
 }) {
-  usePageTitle(pageTitles[page])
+  usePageTitle(title ?? pageTitles[page])
   return (
     <div className={`lifespace-app theme-light ${className}`}>
       <a className="skip-link" href="#page-title">跳到主要内容</a>

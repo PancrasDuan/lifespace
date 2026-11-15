@@ -245,30 +245,22 @@
       "kind": "input",
       "refersTo": "filter-select",
       "description": "原生时间范围 select；菜单保持浏览器默认行为。",
-      "html": "<label class=\"ds-filter-label\">时间范围<select class=\"ds-select\" name=\"period\"><option>今天</option><option>近 7 天</option><option selected>近 30 天</option><option>近 90 天</option><option>今年</option></select></label>",
+      "html": "<label class=\"ds-filter-label\">时间范围<select class=\"ds-select\" name=\"period\"><option>今天</option><option>本周</option><option>本月</option><option>近 7 天</option><option selected>近 30 天</option><option>近 90 天</option><option>今年</option></select></label>",
       "css": ":host { font-family:'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;font-size:14px;color:var(--ink, #263f34);font-variant-numeric:tabular-nums; }\n.ds-select { inline-size: 100%; min-block-size: 37px; padding: 8px 26px 8px 11px; border: 1px solid #d8e0d2; border-radius: 7px; background-color: var(--surface, #ffffff); font-size: 12px; cursor: pointer; }\n.ds-select:hover { border-color: #b7c9ae; }\n.ds-select:focus-visible { outline: 3px solid var(--accent, #365d45); outline-offset: 4px; }\n.ds-select { font-family:'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;cursor:pointer;transition: background-color 160ms ease-out, border-color 160ms ease-out; }\n.ds-filter-label{display:grid;gap:7px;font-size:11px;color:var(--muted, #65766b);}.ds-select{color:inherit;} @media(max-width:720px){.ds-select{min-block-size:39px;font-size:12px;}}\n@media(prefers-reduced-motion:reduce){.ds-filter-label,.ds-select{transition:none !important;scroll-behavior:auto !important;}}"
-    },
-    {
-      "name": "演示状态标记",
-      "kind": "chip",
-      "refersTo": "demo-label",
-      "description": "只读状态说明；没有伪造可点击状态。",
-      "html": "<span class=\"ds-demo-label\">演示数据</span>",
-      "css": ":host { font-family:'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;font-size:14px;color:var(--ink, #263f34);font-variant-numeric:tabular-nums; }\n.ds-demo-label { color: #617359; border: 1px solid #d7e1d1; font-size: 11px; font-weight: 400; padding: 3px 7px; border-radius: 5px; white-space: nowrap; }\n@media(prefers-reduced-motion:reduce){.ds-demo-label{transition:none !important;scroll-behavior:auto !important;}}"
     },
     {
       "name": "标准面板",
       "kind": "card",
       "refersTo": "panel-standard",
       "description": "设备同步面板的边框、标题及内边距摘录。",
-      "html": "<section class=\"ds-panel ds-devices-panel\"><div class=\"ds-panel-heading\"><div><h2 class=\"ds-panel-title\">设备同步</h2><p>最近一次收到的设备报告</p></div><span class=\"ds-small-note\">2 台设备</span></div></section>",
+      "html": "<section class=\"ds-panel ds-devices-panel\"><div class=\"ds-panel-heading\"><div><h2 class=\"ds-panel-title\">设备同步</h2></div><span class=\"ds-small-note\">2 台设备</span></div></section>",
       "css": ":host { font-family:'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;font-size:14px;color:var(--ink, #263f34);font-variant-numeric:tabular-nums; }\n.ds-panel { border: 1px solid var(--line, #e3e9df); border-radius: var(--radius, 14px); background: var(--surface, #ffffff); min-inline-size: 0; }\n.ds-devices-panel, .ds-daily-panel { padding: 22px 23px; }\n.ds-panel-heading { display: flex; justify-content: space-between; align-items: start; gap: 12px; }\n.ds-panel-title { font-size: 15px; font-weight: 620; letter-spacing: -.01em; line-height: 1.5; }\n.ds-panel-heading p { color: var(--muted, #65766b); font-size: 11px; line-height: 1.7; margin-block-start: 4px; }\n.ds-small-note { color: var(--muted, #65766b); font-size: 11px; white-space: nowrap; margin-block-start: 4px; }\n.ds-panel-title,.ds-panel-heading p{margin:0;}.ds-panel-heading p{margin-block-start:4px;}@media(max-width:720px){.ds-devices-panel{padding:18px 16px;}.ds-panel-title{font-size:14px;}}\n@media(prefers-reduced-motion:reduce){.ds-devices-panel,.ds-panel,.ds-panel-heading,.ds-panel-title,.ds-small-note{transition:none !important;scroll-behavior:auto !important;}}"
     },
     {
       "name": "分段控件",
       "kind": "button",
       "refersTo": "segmented-button",
-      "description": "趋势指标切换；片段展示 Token 选中状态，逻辑由原页面 app.js 驱动。",
+      "description": "趋势指标切换；片段展示 Token 选中状态，交互由正式 React TokenTrend 提供。",
       "html": "<div class=\"ds-segmented\" aria-label=\"趋势指标\"><button type=\"button\" aria-pressed=\"true\">Token</button><button type=\"button\" aria-pressed=\"false\">费用</button></div>",
       "css": ":host { font-family:'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;font-size:14px;color:var(--ink, #263f34);font-variant-numeric:tabular-nums; }\n.ds-segmented { display: inline-flex; align-items: center; padding: 3px; gap: 2px; background: #f0f5eb; border-radius: 7px; flex: none; }\n.ds-segmented button { min-block-size: 29px; padding: 5px 11px; border: 0; background: transparent; border-radius: 5px; color: #52694d; font-size: 11px; }\n.ds-segmented button:hover { background: #e6efdf; }\n.ds-segmented button[aria-pressed=true] { background: var(--surface, #ffffff); color: #365d45; box-shadow: 0 1px 3px #263f3414; font-weight: 600; }\n.ds-segmented button:focus-visible { outline: 3px solid var(--accent, #365d45); outline-offset: 4px; }\n.ds-segmented button { font-family:'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;cursor:pointer;transition: background-color 160ms ease-out, border-color 160ms ease-out; }\n.ds-segmented button:disabled { cursor: default; opacity: .45; }\n@media(max-width:720px){.ds-segmented button{min-block-size:34px;padding-inline:8px;}} @container trend (max-width:470px){.ds-segmented button{padding-inline:8px;}}\n@media(prefers-reduced-motion:reduce){.ds-segmented{transition:none !important;scroll-behavior:auto !important;}}"
     },

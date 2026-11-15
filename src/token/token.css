@@ -380,3 +380,13 @@
 }
 
 .token-page .token-cost strong { color:var(--ink); }
+
+.token-page .chart-legend { min-inline-size:0; flex:1; }
+.token-page .chart-legend>span { min-inline-size:0; max-inline-size:100%; white-space:normal; overflow-wrap:anywhere; }
+.token-page .chart-legend i { flex:none; }
+.token-page .model-cost-coverage { display:block; margin-block-start:3px; font-size:10px; }
+
+@media (max-width:360px) {
+ .token-page .device-actions { flex:1 0 100%; flex-direction:row; align-items:center; justify-content:flex-end; gap:12px; margin-inline-start:0; }
+ .token-page .device-actions .text-button { padding-block:5px; }
+}

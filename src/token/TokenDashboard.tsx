@@ -2,17 +2,13 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { ArrowRight, Check, ChevronDown, RotateCcw } from 'lucide-react'
 import type { TokenDashboardSummary } from '../shared/token-backend-contract'
 import { beijingToday, periodRange, periods, type Period } from './dates'
-import { readSummary, readUsage, readDevices, errorMessage, type Query } from './api'
-import { useResource, type Resource } from './useResource'
+import { readSummary, readUsage, readDevices, type Query } from './api'
+import { useResource } from './useResource'
 import { compact, fullCount, rate, money, coverageLabel, costText, modelName, modelColor } from './format'
 import { TokenTrend } from './TokenTrend'
 import { TokenCalendar } from './TokenCalendar'
 import { TokenDevices } from './TokenDevices'
-
-export function Feedback({ resource, retry, label = '正在读取用量…' }: { resource: Resource<unknown>; retry: () => void; label?: string }) {
-  return resource.error ? <div className="token-feedback" role="alert"><p>{errorMessage(resource.error)}</p><button className="button" type="button" onClick={retry}>重试</button></div>
-    : resource.loading ? <p className="token-loading" role="status">{label}</p> : null
-}
+import { Feedback } from './Feedback'
 
 export function TokenDashboard() {
   const [today, setToday] = useState(beijingToday)
@@ -46,6 +42,10 @@ export function TokenDashboard() {
     if (modelKey && !values.has(modelKey)) values.set(modelKey, modelName(JSON.parse(modelKey)))
     return values
   }, [catalogue.data, current.data, modelKey])
+  const modelColors = useMemo(() => {
+    let index = 0
+    return new Map([...modelOptions.keys()].map(key => [key, key === 'null' ? modelColor(3) : modelColor(index++ % 3)]))
+  }, [modelOptions])
   const [agents, setAgents] = useState(['codex'])
   useEffect(() => {
     if (usage.data) setAgents(known => [...new Set([...known, ...usage.data!.map(row => row.agent)])])
@@ -89,11 +89,11 @@ export function TokenDashboard() {
       </div>
     </section>
     <div className="analysis-grid">
-      <TokenTrend current={current.data} previous={previous.data} usage={usage} range={range} selectedDate={selectedDate} selectDate={selectDate} clearFilters={reset} retry={retry} />
+      <TokenTrend current={current.data} previous={previous.data} usage={usage} colors={modelColors} range={range} selectedDate={selectedDate} selectDate={selectDate} clearFilters={reset} retry={retry} />
       <section className="panel model-panel" aria-labelledby="models-title"><div className="panel-heading"><h2 id="models-title">模型构成</h2><span className="small-note">Token 占比</span></div><div className="model-list">{models.length ? models.map((model, index) => {
-        const key = JSON.stringify(model.modelId), color = modelColor(index)
+        const key = JSON.stringify(model.modelId), color = modelColors.get(key) ?? modelColor(index)
         const share = typeof model.metrics.total === 'number' && typeof totals?.metrics.total === 'number' && totals.metrics.total > 0 ? model.metrics.total / totals.metrics.total * 100 : null
-        return <button type="button" className="model-row" key={key} aria-pressed={modelKey === key} aria-label={`${modelKey === key ? '取消筛选' : '筛选'}${modelName(model.modelId)}`} onClick={() => setModel(modelKey === key ? '' : key)}><span className="model-row-heading"><span className="model-name"><i style={{ background: color }} />{modelName(model.modelId)}</span><span className="model-row-action"><span className="model-share">{share === null ? '—' : `${share.toFixed(1)}%`}</span>{modelKey === key ? <Check size={13} /> : <ArrowRight size={13} />}</span></span><span className="model-row-values"><strong title={fullCount(model.metrics.total)}>{compact(model.metrics.total)}</strong><span title={costText(model.costs)}>{model.costs.map(cost => typeof cost.apiEstimate === 'string' && !(cost.apiEstimate === '0' && cost.coverage !== 'complete') ? money(cost.apiEstimate, cost.currency) : '费用未知').join(' · ')}</span></span><span className="share-track"><span style={{ inlineSize: `${Math.min(100, share ?? 0)}%`, background: color }} /></span></button>
+        return <button type="button" className="model-row" key={key} aria-pressed={modelKey === key} aria-label={`${modelKey === key ? '取消筛选' : '筛选'}${modelName(model.modelId)}`} onClick={() => setModel(modelKey === key ? '' : key)}><span className="model-row-heading"><span className="model-name"><i style={{ background: color }} />{modelName(model.modelId)}</span><span className="model-row-action"><span className="model-share">{share === null ? '—' : `${share.toFixed(1)}%`}</span>{modelKey === key ? <Check size={13} /> : <ArrowRight size={13} />}</span></span><span className="model-row-values"><strong title={fullCount(model.metrics.total)}>{compact(model.metrics.total)}</strong><span title={costText(model.costs)}>{model.costs.map(cost => cost.apiEstimate === null ? '费用未知' : money(cost.apiEstimate, cost.currency)).join(' · ')}{model.costs.some(cost => typeof cost.apiEstimate === 'string' && cost.coverage !== 'complete') && <small className="model-cost-coverage">{model.costs.map(cost => coverageLabel[cost.coverage]).filter(Boolean).join(' · ')}</small>}</span></span><span className="share-track"><span style={{ inlineSize: `${Math.min(100, share ?? 0)}%`, background: color }} /></span></button>
       }) : <div className="chart-empty"><strong>{current.loading ? '正在读取模型…' : current.error ? '模型暂不可用' : '暂无模型数据'}</strong></div>}</div>{modelKey && <button type="button" className="text-button" onClick={() => setModel('')}>查看全部模型<ArrowRight size={13} /></button>}<Feedback resource={{ ...catalogue, loading: false }} retry={retry} /></section>
     </div>
     <TokenCalendar today={today} resource={annual} selectedDate={selectedDate} selectDate={selectDate} retry={retry} />

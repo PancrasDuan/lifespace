@@ -25,6 +25,6 @@ export default defineConfig({
   ],
   server: { host: '127.0.0.1', watch: { usePolling: true }, fs: {
     deny: ['.env', '.env.*', '*.{crt,pem,key,p12,pfx,cer,der}', '.npmrc', '.yarnrc.yml', '**/.git/**',
-      '**/.dev.vars*', '**/.cache/**', '**/.aws/**', `${projectRoot}/.codex/**`, '**/dist/lifespace/**'],
+      '**/.dev.vars*', '**/.cache/**', '**/.aws/**', '**/.impeccable/**', '**/DESIGN.md', `${projectRoot}/.codex/**`, '**/dist/lifespace/**'],
   } },
 })

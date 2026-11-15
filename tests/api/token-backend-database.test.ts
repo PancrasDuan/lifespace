@@ -24,6 +24,10 @@ describe.skipIf(!process.env.TOKEN_DB_URL)('Token real PostgreSQL', () => {
   }
   beforeAll(async () => { db = new pg.Client({ connectionString: process.env.TOKEN_DB_URL }); await db.connect() })
   afterAll(async () => { await db?.end() })
+  test('inspection compatibility field preserves privileged execution ACL', async () => {
+    const rows = await sql("select has_function_privilege('anon','public.token_registration_inspect(uuid,text)','execute') anon, has_function_privilege('authenticated','public.token_registration_inspect(uuid,text)','execute') authenticated, has_function_privilege('service_role','public.token_registration_inspect(uuid,text)','execute') service_role")
+    expect(rows[0]).toEqual({ anon: false, authenticated: false, service_role: true })
+  })
   test('fixed canonical vector; missing/null/zero, Unicode UTF16 model ordering and decimals agree with JS', async () => {
     await reset()
     const models = ['\uE000', '😀', '模型', 'a\n"', 'é', 'é', null].map(modelId => ({ modelId, providerId: null, metrics: {}, cost: { currency: 'USD', apiEstimate: '0.00014199999999999998', coverage: 'unverified' } }))

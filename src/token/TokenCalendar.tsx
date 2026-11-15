@@ -3,7 +3,7 @@ import type { TokenDashboardSummary } from '../shared/token-backend-contract'
 import type { Resource } from './useResource'
 import { datesBetween, offsetDate, sundayOffset } from './dates'
 import { costText, fullCount } from './format'
-import { Feedback } from './TokenDashboard'
+import { Feedback } from './Feedback'
 
 type Props = { today: string; resource: Resource<TokenDashboardSummary>; selectedDate: string; selectDate: (date: string) => void; retry: () => void }
 export function TokenCalendar({ today, resource, selectedDate, selectDate, retry }: Props) {
@@ -13,6 +13,8 @@ export function TokenCalendar({ today, resource, selectedDate, selectDate, retry
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const [hint, setHint] = useState<{ date: string; cell: HTMLButtonElement }>()
   const [tabDate, setTabDate] = useState(today)
+  const reachableDate = tabDate < start || tabDate > today ? today : tabDate
+  const activeDate = selectedDate < start || selectedDate > today ? today : selectedDate
   const [popover, setPopover] = useState<'hint' | 'auto' | undefined>(undefined)
   const daily = new Map(resource.data?.daily.map(day => [day.date, day]))
   const maximum = Math.max(1, ...[...daily.values()].map(day => day.metrics.total ?? 0))
@@ -87,7 +89,7 @@ export function TokenCalendar({ today, resource, selectedDate, selectDate, retry
           const day = daily.get(date), future = date > today
           const level = !day?.metrics.total ? 0 : Math.min(4, Math.ceil(day.metrics.total / maximum * 4))
           const description = future ? '未来日期' : resource.loading ? '正在读取' : resource.error ? '用量暂不可用' : day ? `${fullCount(day.metrics.total)} Token，${costText(day.costs)}` : '没有匹配的记录'
-          return <button key={date} className={`heat-cell${future ? ' future' : ''}`} data-level={level} data-date={date} type="button" disabled={future || resource.loading || resource.error !== undefined} aria-label={`${date}，${description}`} aria-pressed={date === selectedDate} tabIndex={date === tabDate ? 0 : -1} onPointerEnter={event => { if (event.pointerType !== 'touch') show(event.currentTarget) }} onPointerLeave={delayHide} onFocus={event => show(event.currentTarget)} onBlur={delayHide} onClick={event => show(event.currentTarget)} onKeyDown={event => {
+          return <button key={date} className={`heat-cell${future ? ' future' : ''}`} data-level={level} data-date={date} type="button" disabled={future || resource.loading || resource.error !== undefined} aria-label={`${date}，${description}`} aria-pressed={date === activeDate} tabIndex={date === reachableDate ? 0 : -1} onPointerEnter={event => { if (event.pointerType !== 'touch') show(event.currentTarget) }} onPointerLeave={delayHide} onFocus={event => show(event.currentTarget)} onBlur={delayHide} onClick={event => show(event.currentTarget)} onKeyDown={event => {
             const shifts: Record<string, number> = { ArrowLeft: -7, ArrowRight: 7, ArrowUp: -1, ArrowDown: 1 }
             let target = event.key in shifts ? offsetDate(date, shifts[event.key]) : event.key === 'Home' ? start : event.key === 'End' ? today : undefined
             if (!target) return

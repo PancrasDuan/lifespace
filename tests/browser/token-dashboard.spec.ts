@@ -2,6 +2,7 @@ import { test, expect } from './authenticated-test'
 import { fixtureDevices, selectRows, summarize, fixedToday, fixtureRows } from '../fixtures/token-dashboard/fixture'
 import { tokenDashboardSummarySchema } from '../../src/shared/token-backend-contract'
 import { mkdir } from 'node:fs/promises'
+import { captureTokenPage, captureTokenViewport } from '../support/capture-token-page'
 
 test.beforeEach(async ({ page, context }) => {
   await page.clock.setFixedTime(new Date(`${fixedToday}T06:32:00Z`))
@@ -32,7 +33,13 @@ test('approved prototype: five widths, same data; no global overflow or runtime 
     await page.setViewportSize({ width, height: width <= 390 ? 844 : 1000 })
     await expect(page.locator('.plot svg')).toBeVisible()
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
-    await page.screenshot({ path: `.impeccable/review/token-frontend/${width === 1440 ? 'desktop' : width === 390 ? 'mobile' : `width-${width}`}.png`, fullPage: true })
+    if (width === 320) await expect(page.locator('.plot .date-label')).toHaveCount(3)
+    if (width === 390 || width === 1440) await expect(page.locator('.plot .date-label')).toHaveCount(5)
+    const labels = await page.locator('.plot .date-label').evaluateAll(nodes => nodes.map(node => { const box = node.getBoundingClientRect(); return { left: box.left, right: box.right } }))
+    for (let index = 1; index < labels.length; index++) expect(labels[index].left - labels[index - 1].right).toBeGreaterThanOrEqual(4)
+    if (width === 320) expect(labels).toHaveLength(3)
+    if (width === 390 || width === 1440) expect(labels).toHaveLength(5)
+    await captureTokenPage(page, `.impeccable/review/token-frontend/${width === 1440 ? 'desktop' : width === 390 ? 'mobile' : `width-${width}`}.png`)
   }
   expect(errors).toEqual([])
 })
@@ -44,7 +51,7 @@ test('period/model/device filters, full pagination, independent year and chart c
   await page.setViewportSize({ width: 1440, height: 1000 })
   await page.getByRole('button', { name: '日统计明细' }).click()
   await expect(page.getByText('已读取 60 份设备日汇总', { exact: false })).toBeVisible()
-  await page.screenshot({ path: '.impeccable/review/token-frontend/daily-expanded.png', fullPage: true })
+  await captureTokenViewport(page, '.impeccable/review/token-frontend/daily-expanded.png')
   await page.getByRole('button', { name: '日统计明细' }).click()
   await expect(page.locator('#token-daily-details')).toHaveAttribute('hidden', 'until-found')
   await page.locator('#token-daily-details').dispatchEvent('beforematch')
@@ -54,6 +61,7 @@ test('period/model/device filters, full pagination, independent year and chart c
   await page.getByRole('button', { name: '费用', exact: true }).click()
   await page.getByRole('button', { name: '筛选GPT-5 mini', exact: true }).click()
   await expect(page.getByRole('button', { name: '取消筛选GPT-5 mini', exact: true })).toHaveAttribute('aria-pressed', 'true')
+  await expect(page.getByRole('button', { name: '取消筛选GPT-5 mini', exact: true }).locator('.model-name i')).toHaveCSS('background-color', 'rgb(168, 121, 67)')
   await page.getByLabel('设备', { exact: true }).selectOption('linux')
   await expect(page.getByText('暂无用量', { exact: true })).toBeVisible()
   await expect(page.getByLabel('模型', { exact: true }).locator('option')).toHaveCount(5)
@@ -66,13 +74,14 @@ test('period/model/device filters, full pagination, independent year and chart c
 })
 
 test('calendar hover, persistence, focus, arrows, Escape and findable detail semantics', async ({ page }) => {
+  await page.setViewportSize({ width: 952, height: 1000 })
   await page.goto('/token')
   const cell = page.locator('[data-date="2026-11-15"]'), hint = page.getByRole('tooltip')
   await expect(cell).toBeEnabled()
   await cell.hover()
   await expect(hint).toBeVisible()
   await expect(hint).toContainText('1,242,583 Token')
-  await page.screenshot({ path: '.impeccable/review/token-frontend/calendar-hint.png', fullPage: true })
+  await captureTokenViewport(page, '.impeccable/review/token-frontend/calendar-hint.png')
   await hint.hover(); await expect(hint).toBeVisible()
   await page.keyboard.press('Escape'); await expect(hint).toBeHidden()
   await cell.focus(); await expect(hint).toBeVisible()
@@ -97,6 +106,8 @@ test.describe('touch', () => {
   expect(box!.x).toBeGreaterThanOrEqual(0); expect(box!.x + box!.width).toBeLessThanOrEqual(390)
   expect(box!.y + box!.height).toBeLessThanOrEqual(520)
   await expect(page.getByRole('link', { name: 'Token', exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: '账户菜单', exact: true })).toBeInViewport()
+  await captureTokenViewport(page, '.impeccable/review/token-frontend/touch-calendar.png')
 })
 
 })
@@ -139,7 +150,10 @@ test('disable is explicitly confirmed; error stays recoverable; history remains'
     await route.fulfill({ status: calls === 1 ? 503 : 200, json: calls === 1 ? { error: { code: 'TOKEN_UNAVAILABLE', message: '' } } : { deviceId: 'mac', disabled: true } })
   })
   await page.goto('/token')
+  await page.setViewportSize({ width: 320, height: 844 })
   await page.getByRole('button', { name: '停用', exact: true }).first().click()
+  await page.getByRole('button', { name: '确认停用', exact: true }).scrollIntoViewIfNeeded()
+  await captureTokenViewport(page, '.impeccable/review/token-frontend/device-disable.png')
   expect(calls).toBe(0)
   await page.getByRole('button', { name: '取消', exact: true }).click(); expect(calls).toBe(0)
   await page.getByRole('button', { name: '停用', exact: true }).first().click()
@@ -158,13 +172,18 @@ test('device code survives refresh, rebind needs checkbox, conflict needs inspec
     await route.fulfill({ status: conflict ? 409 : 200, json: conflict ? { error: { code: 'TOKEN_REBIND_REQUIRED', message: '' } } : { status: 'approved' } })
   })
   await page.goto('/token/devices/confirm?code=ABCDEFGH')
+  await expect(page).toHaveTitle('确认采集设备 · LifeSpace')
   await expect(page.getByLabel('设备码（8 位字母或数字）')).toHaveValue('ABCDEFGH')
   await page.reload()
+  await expect(page).toHaveTitle('确认采集设备 · LifeSpace')
   await page.getByRole('button', { name: '核对设备', exact: true }).click()
   await expect(page.getByRole('button', { name: '批准连接' })).toBeDisabled()
-  await page.screenshot({ path: '.impeccable/review/token-frontend/device-confirmation.png', fullPage: true })
+  await captureTokenPage(page, '.impeccable/review/token-frontend/device-confirmation.png')
   expect(decisions).toBe(0)
   await page.getByRole('checkbox').check()
+  await page.setViewportSize({ width: 320, height: 844 })
+  await page.getByRole('button', { name: '批准连接' }).scrollIntoViewIfNeeded()
+  await captureTokenViewport(page, '.impeccable/review/token-frontend/device-rebind.png')
   await page.getByRole('button', { name: '批准连接' }).click()
   await expect(page.getByRole('alert')).toContainText('重新核对')
   await expect(page.getByRole('button', { name: '批准连接' })).toHaveCount(0)
@@ -223,6 +242,11 @@ test('manual tooltip and expanded search fallback without browser APIs', async (
   const cell = page.locator('[data-date="2026-11-15"]')
   await expect(cell).toBeEnabled(); await cell.focus()
   await expect(page.getByRole('tooltip')).toBeVisible()
+  await expect(page.getByRole('tooltip')).toBeInViewport()
+  const hintBox = await page.getByRole('tooltip').boundingBox()
+  const viewport = page.viewportSize()!
+  expect(hintBox!.x).toBeGreaterThanOrEqual(0); expect(hintBox!.x + hintBox!.width).toBeLessThanOrEqual(viewport.width)
+  expect(hintBox!.y).toBeGreaterThanOrEqual(0); expect(hintBox!.y + hintBox!.height).toBeLessThanOrEqual(viewport.height)
   await page.keyboard.press('Escape'); await expect(page.getByRole('tooltip')).toBeHidden()
 })
 
@@ -238,6 +262,11 @@ test('long identities, large counts and tiny unverified fees remain readable', a
   await expect(page.getByTestId('token-total')).toHaveAttribute('data-value', '9000000000000000')
   await expect(page.locator('.metric-band')).toContainText('<$0.01')
   await expect(page.locator('.metric-band')).toContainText('计价未核实')
+  await page.getByRole('button', { name: '费用', exact: true }).click()
+  await page.getByRole('button', { name: '模型堆叠', exact: true }).click()
+  await page.locator('.plot').focus(); await page.keyboard.press('End')
+  await expect(page.locator('.inspection .detail-model')).toContainText('<$0.01')
+  await expect(page.locator('.inspection .detail-model')).toContainText('计价未核实')
   for (const width of [1440, 390, 320]) {
     await page.setViewportSize({ width, height: 844 })
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
@@ -260,4 +289,72 @@ test('anonymous and unapproved accounts cannot query Token routes; safe code con
   await expect(anonymous).toHaveURL(/code=ABCDEFGH$/)
   expect(tokenCalls).toBe(0)
   await anonymous.close()
+})
+
+test('known zero retains its amount independently of unverified coverage', async ({ page, context }) => {
+  const source = fixtureRows.find(row => row.date === fixedToday)!
+  const cost = { currency: 'USD', apiEstimate: '0', coverage: 'unverified' as const }
+  const row = { ...source, cost, models: [{ ...source.models[0], cost }] }
+  await context.route('**/api/token/summary?*', route => route.fulfill({ json: summarize([row]) }))
+  await page.goto('/token')
+  await expect(page.locator('.model-row-values')).toContainText('$0.00')
+  await expect(page.locator('.model-row-values')).toContainText('计价未核实')
+  await expect(page.locator('.model-row-values')).not.toContainText('费用未知')
+})
+
+test('mounted Beijing new-year rollover keeps a keyboard calendar entry', async ({ page }) => {
+  await page.clock.setFixedTime(new Date('2026-12-31T15:59:59Z'))
+  await page.goto('/token')
+  await expect(page.locator('[data-date="2026-12-31"]')).toHaveAttribute('tabindex', '0')
+  await page.clock.setFixedTime(new Date('2026-12-31T16:00:01Z'))
+  await page.evaluate(() => window.dispatchEvent(new Event('focus')))
+  const first = page.locator('[data-date="2027-01-01"]')
+  await expect(first).toBeEnabled()
+  await expect(first).toHaveAttribute('tabindex', '0')
+  await first.focus(); await page.keyboard.press('End')
+  await expect(first).toBeFocused()
+  await expect(page.getByRole('tooltip')).toContainText('2027/01/01')
+})
+
+test('email auth callback restores only the safe device context, including a new tab', async ({ page, context }) => {
+  await page.goto('/token/devices/confirm?code=ABCDEFGH')
+  await page.goto('/auth/callback')
+  await expect(page).toHaveURL('/token/devices/confirm?code=ABCDEFGH')
+  await expect(page.getByLabel('设备码（8 位字母或数字）')).toHaveValue('ABCDEFGH')
+  const second = await context.newPage()
+  await second.goto('/auth/callback?deviceCode=ABCDEFGH')
+  await expect(second).toHaveURL('/token/devices/confirm?code=ABCDEFGH')
+  await expect(second.getByRole('heading', { name: '确认采集设备', exact: true })).toBeVisible()
+  await second.close()
+  await page.evaluate(() => sessionStorage.clear())
+  await page.goto('/auth/callback?deviceCode=https%3A%2F%2Fevil.invalid&returnTo=https%3A%2F%2Fevil.invalid')
+  await expect(page).toHaveURL('/')
+})
+
+test('expired browser return context is discarded', async ({ page }) => {
+  await page.goto('/token/devices/confirm?code=ABCDEFGH')
+  await page.clock.setFixedTime(new Date('2026-11-15T06:43:00Z'))
+  await page.goto('/auth/callback')
+  await expect(page).toHaveURL('/')
+})
+
+test('design contracts are unavailable as static development assets', async ({ request }) => {
+  for (const path of ['/DESIGN.md', '/.impeccable/design.json']) {
+    const response = await request.get(path)
+    expect([403, 404]).toContain(response.status())
+  }
+})
+
+test('native text-fragment search reveals the hidden daily table', async ({ page }) => {
+  await page.goto('/token')
+  await expect(page.locator('#token-daily-details tbody tr')).toHaveCount(30)
+  await page.evaluate(() => {
+    const link = document.createElement('a')
+    link.href = '/token#:~:text=1%2C242%2C583'
+    link.textContent = 'Native daily search'
+    document.querySelector('main')!.append(link)
+  })
+  await page.getByRole('link', { name: 'Native daily search', exact: true }).click()
+  await expect(page.getByRole('button', { name: '日统计明细' })).toHaveAttribute('aria-expanded', 'true')
+  await expect(page.locator('#token-daily-details')).not.toHaveAttribute('hidden')
 })

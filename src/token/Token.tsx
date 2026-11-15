@@ -6,5 +6,6 @@ import './token.css'
 
 export function Token() {
   const path = usePagePath()
-  return <AppLayout page="token" className="token-page">{path === '/token/devices/confirm' ? <DeviceConfirmation /> : <TokenDashboard />}</AppLayout>
+  const confirming = path === '/token/devices/confirm'
+  return <AppLayout page="token" className="token-page" title={confirming ? '确认采集设备' : 'Token 用量'}>{confirming ? <DeviceConfirmation /> : <TokenDashboard />}</AppLayout>
 }

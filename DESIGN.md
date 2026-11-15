@@ -1,6 +1,6 @@
 ---
 name: "Token 正式界面"
-description: "仅适用于 src/home/prototype-token-usage-v2；采用当前 LifeSpace 公开线上风格与共享源码。"
+description: "仅适用于正式 Token 路由；继承已确认 LifeSpace 绿色世界与共享源码。"
 colors:
   page: "#f2f6ef"
   surface: "#ffffff"
@@ -60,7 +60,6 @@ components:
   button-text: {"backgroundColor": "transparent", "textColor": "{colors.accent}", "padding": "8px 0"}
   button-chart-view: {"backgroundColor": "transparent", "textColor": "#657b60", "rounded": "{rounded.segment}", "padding": "5px"}
   filter-select: {"backgroundColor": "{colors.surface}", "textColor": "{colors.muted}", "rounded": "{rounded.control}", "padding": "8px 26px 8px 11px"}
-  demo-label: {"textColor": "#617359", "rounded": "{rounded.segment}", "padding": "3px 7px"}
   panel-standard: {"backgroundColor": "{colors.surface}", "rounded": "{rounded.panel}", "padding": "22px 23px"}
   segmented-button: {"backgroundColor": "transparent", "textColor": "#52694d", "rounded": "{rounded.segment}", "padding": "5px 11px"}
   heat-cell: {"backgroundColor": "{colors.heat-0}", "rounded": "{rounded.heat-cell}", "width": "13px", "height": "13px"}

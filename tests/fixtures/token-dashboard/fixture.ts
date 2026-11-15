@@ -14,7 +14,8 @@ const grouped = new Map<string, typeof fixture.rows>()
 for (const row of fixture.rows) { const key = `${row.date}/${row.device}/${row.agent}`; grouped.set(key, [...(grouped.get(key) ?? []), row]) }
 export const fixtureRows: TokenDashboardPage['rows'] = [...grouped].map(([, group]) => {
   const first = group[0]
-  const models = group.map(row => ({ modelId: row.model === 'unknown' ? null : fixture.models.find(model => model.id === row.model)!.name, providerId: null, metrics: { input: row.input, output: row.output, total: row.total, cacheRead: row.cached }, cost: { currency: 'USD', apiEstimate: row.cost === null ? null : String(row.cost), coverage: row.cost === null ? 'unknown' as const : 'complete' as const } }))
+  // The approved unknown model has no prices, including its zero-token rest days.
+  const models = group.map(row => ({ modelId: row.model === 'unknown' ? null : fixture.models.find(model => model.id === row.model)!.name, providerId: null, metrics: { input: row.input, output: row.output, total: row.total, cacheRead: row.cached }, cost: { currency: 'USD', apiEstimate: row.model === 'unknown' || row.cost === null ? null : String(row.cost), coverage: row.model === 'unknown' || row.cost === null ? 'unknown' as const : 'complete' as const } }))
   return { date: first.date, deviceId: first.device, agent: first.agent, generation: '1', snapshotVersion: '1', contentHash: 'a'.repeat(64), metrics: metrics(models), cost: costs(models)[0], models, modelCoverage: 'complete', receivedAt: '2026-11-15T06:29:00Z' }
 })
 export function selectRows(query: URLSearchParams, rows = fixtureRows) {

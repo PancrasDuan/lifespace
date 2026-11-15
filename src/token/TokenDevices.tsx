@@ -6,7 +6,7 @@ import { PageLink } from '../app/navigation'
 import { disableDevice, errorMessage } from './api'
 import type { Resource } from './useResource'
 import { receivedTime } from './dates'
-import { Feedback } from './TokenDashboard'
+import { Feedback } from './Feedback'
 
 export function TokenDevices({ resource, deviceId, refresh }: { resource: Resource<TokenDevicesPage['devices']>; deviceId: string; refresh: () => void }) {
   const identity = useVerifiedIdentity()

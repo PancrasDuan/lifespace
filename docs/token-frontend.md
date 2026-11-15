@@ -6,7 +6,7 @@
 
 ## 路由与数据
 
-`/token` 和 `/token/devices/confirm` 复用现有 App/AuthGate/PageContent/AppLayout/navigation；所有 Token CSS 限于 `.token-page`。浏览器请求复用 `authorizedFetch/authorizedMutation` 与 verified identity 撤销信号；没有第二套路由框架或公开 demo。短设备码保存在同源确认 URL，正常邮箱密码登录留在原路径；任何 claimSecret/uploadToken 均只在终端。
+`/token` 和 `/token/devices/confirm` 复用现有 App/AuthGate/PageContent/AppLayout/navigation；所有 Token CSS 限于 `.token-page`。浏览器请求复用 `authorizedFetch/authorizedMutation` 与 verified identity 撤销信号；没有第二套路由框架或公开 demo。短设备码保存在同源确认 URL 与最多10分钟的本标签页上下文；邮箱验证 callback 只允许回到固定确认路由，邮件回跳携带校验后的 deviceCode，不接受任意返回 URL。正常邮箱密码登录留在原路径；任何 claimSecret/uploadToken 均只在终端。
 
 摘要、上一周期和年度日历分别调用 summary；devices 与 usage 均跟随 nextCursor 直到 null，重复 cursor 作为协议错误。模型堆叠按分页读取的真实逐日模型子项合计；主摘要仍由服务端提供。筛选后的旧请求取消且返回前检查撤销信号；渲染同时检查查询键，禁止旧范围数据暂时冒充当前范围。
 

@@ -17,6 +17,7 @@ import { syntheticCodexLog } from '../fixtures/token-usage/synthetic'
 import { type TokenUsageSnapshot } from '../../src/shared/token-usage-contract'
 import { withTokenBrowser } from '../support/token-browser'
 import { expect as browserExpect } from '@playwright/test'
+import { captureTokenPage, captureTokenViewport } from '../support/capture-token-page'
 
 const close = (s?: Server) => s ? new Promise<void>(r => { s.closeAllConnections(); s.close(() => r()) }) : undefined
 const listen = async (server: Server) => { server.listen(0, '127.0.0.1'); await once(server, 'listening'); return (server.address() as { port: number }).port }
@@ -177,12 +178,14 @@ describe.skipIf(!process.env.TOKEN_DB_URL)('collector actual Worker HTTPS gatewa
       await browserExpect(page.locator('.device-text strong')).toHaveText('synthetic-browser-device')
       await page.getByRole('button', { name: '日统计明细' }).click()
       await browserExpect(page.getByText('已读取 2 份设备日汇总', { exact: false })).toBeVisible()
-      await page.screenshot({ path: '.impeccable/review/token-frontend/real-chain.png', fullPage: true })
+      await captureTokenViewport(page, '.impeccable/review/token-frontend/real-chain.png')
+      await captureTokenPage(page, '.impeccable/review/token-frontend/real-chain-full.png')
       await page.getByRole('button', { name: '停用', exact: true }).click()
       await page.getByRole('button', { name: '确认停用', exact: true }).click()
       await browserExpect(page.getByText('已停用', { exact: true })).toBeVisible()
       await browserExpect(page.getByTestId('token-total')).toHaveAttribute('data-value', '780')
       expect((await db.query('select enabled from token_private.devices where device_id=$1', [device])).rows[0].enabled).toBe(false)
+      expect((await browser('inspect', { code: display.code })).superseded).toBe(true)
       expect((await db.query('select count(*)::int n from token_private.rollups')).rows[0].n).toBe(2)
       expect((await uploadPending(store, 'synthetic-browser-device')).heartbeat).toBe(false)
       expect(errors).toEqual([])

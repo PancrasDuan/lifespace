@@ -1,17 +1,16 @@
 import { useEffect, useRef, useState } from 'react'
 import { PageLink } from '../app/navigation'
 import { useVerifiedIdentity } from '../auth/identity'
-import { usePageTitle } from '../app/usePageTitle'
 import { tokenCodeSchema } from '../shared/token-backend-contract'
 import { inspectRegistration, decideRegistration, TokenError, errorMessage, type Inspection } from './api'
 import { receivedTime } from './dates'
+import { clearTokenConfirmation, rememberTokenConfirmation } from '../auth/token-confirmation-return'
 
 function initialCode() {
   const value = new URLSearchParams(window.location.search).get('code')?.toUpperCase() ?? ''
   return tokenCodeSchema.safeParse(value).success ? value : ''
 }
 export function DeviceConfirmation() {
-  usePageTitle('确认采集设备')
   const identity = useVerifiedIdentity()
   const [code, setCode] = useState(initialCode)
   const [inspection, setInspection] = useState<Inspection>()
@@ -35,7 +34,8 @@ export function DeviceConfirmation() {
     setBusy(true); setInspection(undefined); setError(''); setReplace(false); setExpired(false)
     // Only the short user code is retained in the same-origin URL across login/reload.
     window.history.replaceState(null, '', `/token/devices/confirm?${new URLSearchParams({ code })}`)
-    try { const result = await inspectRegistration(identity.ownerId, code, signal); if (!signal.aborted) setInspection(result) }
+    rememberTokenConfirmation(code)
+    try { const result = await inspectRegistration(identity.ownerId, code, signal); if (!signal.aborted) { setInspection(result); if (result.status !== 'pending') clearTokenConfirmation() } }
     catch (error) { if (!signal.aborted) setError(errorMessage(error)) }
     finally { if (!signal.aborted) setBusy(false) }
   }
@@ -46,7 +46,7 @@ export function DeviceConfirmation() {
     setBusy(true); setError('')
     try {
       const result = await decideRegistration(identity.ownerId, { requestId: inspection.requestId, code, approve, replaceExisting: approve && replace }, signal)
-      if (!signal.aborted) setInspection({ ...inspection, status: result.status })
+      if (!signal.aborted) { setInspection({ ...inspection, status: result.status }); clearTokenConfirmation() }
     } catch (error) {
       if (!signal.aborted) {
         setError(errorMessage(error)); setReplace(false)
