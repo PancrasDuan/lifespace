@@ -1,6 +1,8 @@
 # MCP OAuth 接入与运维
 
-实现对应 [#193](https://github.com/PancrasDuan/lifespace/issues/193)、[ADR 0012](adr/0012-mcp-oauth-grants.md)。账单工具字段、结果、退款事实、requestId 重试和业务错误见 [MCP 接口](agent-mcp.md)。标准 OAuth 是唯一 MCP 接入方式；旧 Service Token 通道按 [#204 退役清单](mcp-legacy-retirement.md) 下线；具体部署版本和线上验证结果记录在 [PR #194](https://github.com/PancrasDuan/lifespace/pull/194)。
+实现对应 [#193](https://github.com/PancrasDuan/lifespace/issues/193)、[ADR 0012](adr/0012-mcp-oauth-grants.md)。账单工具字段、结果、退款事实、requestId 重试和业务错误见 [MCP 接口](agent-mcp.md)。标准 OAuth 是唯一 MCP 接入方式；[#204 退役清单](mcp-legacy-retirement.md) 所列旧通道、凭据、配置及绑定表/RPC 已通过 [PR #207](https://github.com/PancrasDuan/lifespace/pull/207) 和 [PR #210](https://github.com/PancrasDuan/lifespace/pull/210) 完成生产清理，历史迁移保留。最终部署与线上核验见 [退役验证](qa-mcp-legacy-retirement.md#生产发布与验收)，初次 OAuth 上线记录保存在 [PR #194](https://github.com/PancrasDuan/lifespace/pull/194)。
+
+2026-11-16 用户已确认真实客户端验证通过；未提供具体客户端版本、全部 OAuth 子流程或异地撤销传播的逐项记录，不能据此扩展验收结论。
 
 ## 客户端与用户
 
