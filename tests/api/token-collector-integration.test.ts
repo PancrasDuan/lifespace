@@ -15,6 +15,8 @@ import { scan } from '../../tools/token-collector/collector'
 import { startRegistration, claimRegistration, uploadPending, request, endpoint } from '../../tools/token-collector/transport'
 import { syntheticCodexLog } from '../fixtures/token-usage/synthetic'
 import { type TokenUsageSnapshot } from '../../src/shared/token-usage-contract'
+import { withTokenBrowser } from '../support/token-browser'
+import { expect as browserExpect } from '@playwright/test'
 
 const close = (s?: Server) => s ? new Promise<void>(r => { s.closeAllConnections(); s.close(() => r()) }) : undefined
 const listen = async (server: Server) => { server.listen(0, '127.0.0.1'); await once(server, 'listening'); return (server.address() as { port: number }).port }
@@ -150,4 +152,40 @@ describe.skipIf(!process.env.TOKEN_DB_URL)('collector actual Worker HTTPS gatewa
     expect(await uploadPending(store, 'synthetic', now + 10000)).toMatchObject({ uploaded: 2, pending: 0, heartbeat: true })
     expect((await db.query("select metrics from token_private.rollups where date='2026-11-15'")).rows[0].metrics.total).toBe(82)
   })
+  test('actual React browser approves replacement; collector claims/uploads; summary reaches DOM; disable preserves history', async () => {
+    const display = await startRegistration(store, store.config(), 'synthetic-browser-device', 'linux')
+    const oldCode = (await db.query("select code from token_private.registrations where status='claimed' order by created_at limit 1")).rows[0].code
+    await withTokenBrowser(workerUrl, browserToken(), owner, async page => {
+      await page.clock.setFixedTime(new Date('2026-11-15T06:32:00Z'))
+      const errors: string[] = []; page.on('pageerror', error => errors.push(error.message))
+      await page.goto('/token/devices/confirm?code=' + display.code)
+      await page.getByRole('button', { name: '核对设备', exact: true }).click()
+      await browserExpect(page.getByText('synthetic-browser-device', { exact: true })).toBeVisible()
+      await browserExpect(page.getByRole('button', { name: '批准连接' })).toBeDisabled()
+      await page.getByRole('checkbox').check()
+      await page.getByRole('button', { name: '批准连接' }).click()
+      await browserExpect(page.getByRole('status')).toContainText('已批准')
+      expect(await claimRegistration(store)).toEqual({ status: 'claimed' })
+      expect((await browser('inspect', { code: oldCode })).superseded).toBe(true)
+      await scan(store, state, { offline: true })
+      expect(await uploadPending(store, 'synthetic-browser-device')).toMatchObject({ pending: 0, heartbeat: true })
+      const summaryResponse = await fetch(workerUrl + '/api/token/summary?startDate=2026-10-17&endDate=2026-11-15', { headers: { Authorization: 'Bearer ' + browserToken() } })
+      const summary = await summaryResponse.json() as { totals: { metrics: { total: number } } }
+      expect(summary.totals.metrics.total).toBe(780)
+      await page.goto('/token')
+      await browserExpect(page.getByTestId('token-total')).toHaveAttribute('data-value', '780')
+      await browserExpect(page.locator('.device-text strong')).toHaveText('synthetic-browser-device')
+      await page.getByRole('button', { name: '日统计明细' }).click()
+      await browserExpect(page.getByText('已读取 2 份设备日汇总', { exact: false })).toBeVisible()
+      await page.screenshot({ path: '.impeccable/review/token-frontend/real-chain.png', fullPage: true })
+      await page.getByRole('button', { name: '停用', exact: true }).click()
+      await page.getByRole('button', { name: '确认停用', exact: true }).click()
+      await browserExpect(page.getByText('已停用', { exact: true })).toBeVisible()
+      await browserExpect(page.getByTestId('token-total')).toHaveAttribute('data-value', '780')
+      expect((await db.query('select enabled from token_private.devices where device_id=$1', [device])).rows[0].enabled).toBe(false)
+      expect((await db.query('select count(*)::int n from token_private.rollups')).rows[0].n).toBe(2)
+      expect((await uploadPending(store, 'synthetic-browser-device')).heartbeat).toBe(false)
+      expect(errors).toEqual([])
+    })
+  }, 90000)
 })

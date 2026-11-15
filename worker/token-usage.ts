@@ -4,7 +4,7 @@ import type { AuthEnv, Identity } from './auth'
 import { publicConfig } from './auth'
 import { ApiError } from './upstream'
 import { readBoundedBody } from './read-body'
-import { tokenClaimSchema, tokenCodeSchema, tokenDashboardPageSchema, tokenDashboardQuerySchema, tokenDashboardSummarySchema, tokenDecisionSchema, tokenDevicesPageSchema, tokenRegistrationSchema } from '../src/shared/token-backend-contract'
+import { tokenInspectionSchema, tokenClaimSchema, tokenCodeSchema, tokenDashboardPageSchema, tokenDashboardQuerySchema, tokenDashboardSummarySchema, tokenDecisionSchema, tokenDevicesPageSchema, tokenRegistrationSchema } from '../src/shared/token-backend-contract'
 
 type TokenContext = Context<{ Bindings: AuthEnv; Variables: { identity: Identity } }>
 const failure = (code = 'TOKEN_UNAVAILABLE', status: 400 | 404 | 409 | 429 | 503 = 503) => new ApiError(code, ({ TOKEN_UNAVAILABLE: 'Token 服务暂时不可用，未确认操作可沿用原请求重试', TOKEN_INVALID: '请求格式无效', TOKEN_NOT_FOUND: '登记请求不存在或已过期', TOKEN_STATE_CONFLICT: '登记状态已变化', TOKEN_REBIND_REQUIRED: '请明确确认替换现有设备授权', TOKEN_RATE_LIMIT: '请求过于频繁，请稍后重试' } as Record<string, string>)[code] ?? 'Token 请求失败', status)
@@ -54,7 +54,6 @@ export async function startTokenRegistration(c: TokenContext) {
   const result = await rpc(c, 'token_registration_start', { p_id: requestId, p_code: code, p_claim_hash: await digest(claimSecret), p_token_hash: await digest(uploadToken),
     p_device: value.deviceId, p_hostname: value.hostname, p_platform: value.platform,
     p_ip_hash: await digest(c.req.header('CF-Connecting-IP') ?? 'local-unknown') }, z.strictObject({ requestId: z.uuid(), expiresIn: z.literal(600), interval: z.literal(5) }))
-  // Browser confirmation UI is supplied by the following frontend phase.
   return c.json({ ...result, code, claimSecret, verificationPath: '/token/devices/confirm' }, 201)
 }
 export async function claimTokenRegistration(c: TokenContext) {
@@ -72,10 +71,7 @@ export async function claimTokenRegistration(c: TokenContext) {
 }
 export async function inspectTokenRegistration(c: TokenContext) {
   const { code } = await input(c, z.strictObject({ code: tokenCodeSchema }))
-  return c.json(await rpc(c, 'token_registration_inspect', { p_owner: c.get('identity').id, p_code: code }, z.strictObject({
-    requestId: z.uuid(), deviceId: tokenRegistrationSchema.shape.deviceId, hostname: z.string(), platform: z.enum(['macos', 'linux']),
-    status: z.enum(['pending', 'approved', 'denied', 'claimed']), expiresAt: z.string(), replacesExisting: z.boolean(),
-  })))
+  return c.json(await rpc(c, 'token_registration_inspect', { p_owner: c.get('identity').id, p_code: code }, tokenInspectionSchema))
 }
 export async function decideTokenRegistration(c: TokenContext) {
   const value = await input(c, tokenDecisionSchema)

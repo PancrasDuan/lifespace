@@ -17,6 +17,12 @@ export const tokenRegistrationSchema = z.strictObject({ deviceId, hostname, plat
 export const tokenClaimSchema = z.strictObject({ requestId: z.uuid(), claimSecret: secret })
 export const tokenCodeSchema = z.string().regex(/^[A-Z2-9]{8}$/)
 export const tokenDecisionSchema = z.strictObject({ requestId: z.uuid(), code: tokenCodeSchema, approve: z.boolean(), replaceExisting: z.boolean() })
+export const tokenInspectionSchema = z.strictObject({
+  requestId: z.uuid(), deviceId, hostname: z.string(), platform: z.enum(['macos', 'linux']),
+  status: z.enum(['pending', 'approved', 'denied', 'claimed']), expiresAt: z.string(), replacesExisting: z.boolean(),
+  // A claimed request may subsequently have been disabled or replaced. Older backends omit this field.
+  superseded: z.boolean().optional(),
+})
 export const tokenUploadSchema = z.strictObject({
   p_generation: generation, p_snapshot: tokenUsageSnapshotSchema.refine(s => s.metadata.snapshotVersion !== undefined && s.identity.date >= '0001-01-01' && s.content.models.items.length <= 500 && postgresJson(s)),
   p_hash: z.string().regex(/^[a-f0-9]{64}$/),
