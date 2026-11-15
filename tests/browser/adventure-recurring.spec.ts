@@ -2,7 +2,7 @@ import { mkdir } from 'node:fs/promises'
 import { test, expect, type Page } from './authenticated-test'
 import { initial, parent, children, workspace, future, uuid, makeChild, recurringFixture, type RecurringFixture } from './adventure-recurring-fixture'
 
-const output = 'docs/evidence/200-recurring-frontend'
+const output = process.env.RECURRING_EVIDENCE_DIR || 'docs/evidence/200-recurring-frontend'
 const modal = (page: Page) => page.getByRole('dialog')
 const after = (patch: Partial<RecurringFixture>): RecurringFixture => ({ ...structuredClone(initial), ...patch })
 const version = () => ({ ...structuredClone(workspace), version: 21 })

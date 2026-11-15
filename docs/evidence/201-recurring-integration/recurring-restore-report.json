@@ -1,0 +1,25 @@
+{
+  "method": "pg_dump -Fc; pg_restore --exit-on-error --single-transaction into a new database in the same disposable cluster",
+  "archiveBytes": 200665,
+  "archiveSha256": "e1523973950185802afb822eedc4590c513b39f702fddaca2342021bdb8818ae",
+  "reconciliationSha256": "918ee16c014a8dec221506276e47c71c810b4cd9dfb6d0ce111277787ca99099",
+  "tables": {
+    "integration_history.migrations": 1,
+    "public.adventure_accounts": 3,
+    "public.adventure_events": 8,
+    "public.adventure_goals": 3,
+    "public.adventure_recurring_tasks": 1,
+    "public.adventure_tasks": 3
+  },
+  "functionCount": 45,
+  "extensions": [
+    [
+      "plpgsql",
+      "1.0",
+      "pg_catalog"
+    ]
+  ],
+  "globals": "Existing synthetic cluster roles reused; no independent globals restore proved. No production roles or extensions inspected.",
+  "history": "Synthetic integration_history.migrations included; hosted supabase_migrations history remains a production gate.",
+  "passed": true
+}

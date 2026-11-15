@@ -11,7 +11,7 @@ import { buildRecurringInstall } from '../../scripts/build-adventure-recurring-i
 const root = resolve(import.meta.dirname, '../..')
 const tools = resolve(root, '.cache/recurring-tools')
 const bin = name => join(process.env.POSTGRES_BIN || join(tools, 'bin'), name)
-const work = await mkdtemp(join(tmpdir(), 'lifespace-199-'))
+const work = await mkdtemp(join(tmpdir(), 'lifespace-recurring-'))
 const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith('PG') && !/SUPABASE|ADVENTURE_/.test(k)))
 const freePort = async () => {
   const server = createServer().listen(0, '127.0.0.1')
@@ -103,6 +103,7 @@ try {
   assert.deepEqual(await schema(fresh),await schema(upgrade))
   assert.deepEqual((await upgrade.query('select public.adventure_receipt_lookup($1,$2,$3) r',[owner,'old-create-task',oldEnvelope])).rows[0].r,oldCreate)
   console.log('PASS: empty install/nonempty upgrade equivalence, full old-row/receipt reconciliation, injected failure rollback, repeat rejected without effects')
+  await (await import('./recurring-backup-restore.mjs')).verifyRecurringRestore({ admin, client: upgrade, connect, command, today, bin, run, work, port, migration })
   await (await import('../database/adventure-first-account-read.mjs')).verifyFirstAccountReads({client:upgrade,connect:()=>connect('recurring_upgrade'),command,today,assert})
   await (await import('../database/adventure-recurring.mjs')).verifyRecurring({client:upgrade,connect:()=>connect('recurring_upgrade'),command,today,assert,root})
   await upgrade.query(await readFile(join(root,'tests/database/adventure-goal-model-history-seed.sql'),'utf8'))
@@ -141,6 +142,18 @@ try {
   assert.equal(result.numFailedTests,0)
   assert.equal(result.numPendingTests,0)
   console.log(`PASS: real RPC + Worker HTTP ${result.numPassedTests} tests, 0 skipped`)
+  if (process.argv.includes('--browser')) {
+    const browserReport = join(root, '.cache/recurring-browser-report.json')
+    run(process.execPath, ['node_modules/@playwright/test/cli.js', 'test', 'adventure-recurring-database.spec.ts', '--reporter=json', '--output=.cache/recurring-browser-results'], {
+      env: { ...env, ADVENTURE_LOCAL_RPC_URL: url, PLAYWRIGHT_PORT: process.env.PLAYWRIGHT_PORT || '5231', PLAYWRIGHT_JSON_OUTPUT_FILE: browserReport }, stdio: 'inherit',
+    })
+    const browser = JSON.parse(await readFile(browserReport, 'utf8'))
+    assert.ok(browser.stats.expected > 0)
+    assert.equal(browser.stats.unexpected, 0)
+    assert.equal(browser.stats.skipped, 0)
+    assert.equal(browser.stats.flaky, 0)
+    console.log(`PASS: real browser + Worker + RPC ${browser.stats.expected} tests, 0 skipped`)
+  }
 } finally {
   if(rest && rest.exitCode===null){rest.kill('SIGTERM');await once(rest,'exit')}
   for(const c of clients)await c.end().catch(()=>{})
