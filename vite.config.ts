@@ -3,11 +3,13 @@ import react from '@vitejs/plugin-react'
 import { cloudflare } from '@cloudflare/vite-plugin'
 import { fileURLToPath } from 'node:url'
 import { rm } from 'node:fs/promises'
+import { tokenCollectorBoundary } from './build-plugins/token-collector-boundary.ts'
 
 const projectRoot = fileURLToPath(new URL('.', import.meta.url)).replace(/\/$/, '')
 
 export default defineConfig({
   plugins: [
+    tokenCollectorBoundary(),
     react(),
     cloudflare(),
     // The Vite plugin serializes local dev vars beside the Worker bundle for preview.
