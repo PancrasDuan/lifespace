@@ -1,13 +1,16 @@
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
-import { mkdtemp, mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
-import { dirname, join, resolve } from 'node:path'
+import { mkdtemp, mkdir, readFile, realpath, rm, stat, writeFile } from 'node:fs/promises'
+import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import assert from 'node:assert/strict'
 import { randomBytes } from 'node:crypto'
 
 // Deliberately outside the checkout, even when TMPDIR points into test-results.
-const work = await mkdtemp('/tmp/lifespace-collector-install-')
+const base = await realpath(process.env.TOKEN_PACKAGE_TMPDIR || '/tmp')
+const fromRepo = relative(await realpath('.'), base)
+assert(fromRepo && (fromRepo.startsWith('..' + '/') || isAbsolute(fromRepo)), 'Package installation must stay outside repository')
+const work = await mkdtemp(join(base, 'lifespace-collector-install-'))
 const npm = join(dirname(process.execPath), 'npm')
 const env = { PATH: `${dirname(process.execPath)}:/usr/bin:/bin`, HOME: work, TMPDIR: work, npm_config_cache: resolve('test-results/package-npm-cache') }
 const exec = promisify(execFile)
@@ -20,6 +23,10 @@ try {
   const packageRoot = join(prefix, 'node_modules/@lifespace/token-collector')
   const cli = join(packageRoot, 'dist/tools/token-collector/cli.js')
   assert.match((await run(process.execPath, [cli, '--help'])).stdout, /Tokscale 4.23.0/)
+  // Exercise the real OS identity probe without printing its value. Synthetic
+  // logs below stay separate from the user's real sources and device state.
+  const identity = `import assert from 'node:assert/strict'; import {systemDeviceId} from ${JSON.stringify(pathToFileURL(join(packageRoot, 'dist/tools/token-collector/local.js')).href)}; const a=await systemDeviceId();assert.match(a,/^lsd1_[a-f0-9]{64}$/);assert.equal(await systemDeviceId(),a);`
+  await run(process.execPath, ['--input-type=module', '-e', identity])
   const state = join(work, 'state'), home = join(work, 'source-home')
   await mkdir(join(home, '.codex/sessions'), { recursive: true, mode: 0o700 })
   const rows = [
@@ -50,5 +57,5 @@ try {
   assert.equal((await stat(join(state, 'state.sqlite'))).mode & 0o777, 0o600)
   const tokscale = JSON.parse(await readFile(join(prefix, 'node_modules/@tokscale/cli/package.json'), 'utf8'))
   assert.equal(tokscale.version, '4.23.0')
-  console.log(JSON.stringify({ packedFiles: result.files.length, package: '@lifespace/token-collector@0.1.0', runtimeTokscale: tokscale.version, outsideRepository: true, actualScan: '12 tokens, unknown cost, one persisted pending task', upgrade: 'local archive reinstalled; SQLite byte-for-byte preserved', timer: 'plan only; no system timer installed' }))
+  console.log(JSON.stringify({ packedFiles: result.files.length, package: '@lifespace/token-collector@0.1.0', runtimeTokscale: tokscale.version, platform: process.platform, systemIdentity: 'real read-only probe stable; value not logged', outsideRepository: true, actualScan: '12 tokens, unknown cost, one persisted pending task', upgrade: 'local archive reinstalled; SQLite byte-for-byte preserved', timer: 'plan only; no system timer installed' }))
 } finally { await rm(work, { recursive: true, force: true }) }

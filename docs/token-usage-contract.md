@@ -1,6 +1,8 @@
 # Token 首阶段统计契约
 
-对应 [#206](https://github.com/PancrasDuan/lifespace/issues/206)，父任务 [#205](https://github.com/PancrasDuan/lifespace/issues/205)，规划 #79／#82／#83／#85。仅实现本地契约与适配，不代表上传链路或整个 MVP 完成。领域依据见 [ADR 0016](adr/0016-token-local-rollup-contract.md)。
+> 本文保留阶段范围与当时验证；累计实现、已收敛结论及独立验收门禁见 [统一集成验收](token-integration.md)。
+
+对应 [#206](https://github.com/PancrasDuan/lifespace/issues/206)，父任务 [#205](https://github.com/PancrasDuan/lifespace/issues/205)，规划 #79／#82／#83／#85。仅实现本地契约与适配，不代表上传链路或整个 MVP 完成。领域依据见 [ADR 0019](adr/0019-token-local-rollup-contract.md)。
 
 ## 入口与运行边界
 

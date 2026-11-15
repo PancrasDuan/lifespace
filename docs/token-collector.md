@@ -1,5 +1,7 @@
 # Token 采集器协议（阶段 03）
 
+> 本文保留阶段范围与当时验证；累计实现、已收敛结论及独立验收门禁见 [统一集成验收](token-integration.md)。
+
 对应 #213 / #205，依赖 #209 / PR #212，起点与阶段 PR base 均为 `codex/209-token-backend` 的 `04566322ea0a200c2886ea93fd242e2b0be1bb66`；启动时 fetch 的 main 是 `6c218846e8920dd99cae4ef6685d9d2ad19e5944`。新增代码在 `tools/token-collector/`，使用同目录独立 manifest/lockfile/构建，正式统计与上传 schema 继续复用 `src/shared/`。本地持久化/授权/系统任务属需确认分级；本地实现、隔离验证、提交、评审和阶段 PR 已授权，阶段 PR 保留未合并；生产、真实凭据、npm 发布及真实 timer 未执行。
 
 安装、命令与恢复操作见 [包说明](../tools/token-collector/README.md)，决策见 [ADR 0018](adr/0018-token-source-coverage-and-local-queue.md)。不新增 Web/Worker 页面，不改变浏览器/API 的既有鉴权和后端协议。

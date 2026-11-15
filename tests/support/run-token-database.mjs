@@ -6,6 +6,7 @@ import { randomBytes } from 'node:crypto'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import pg from 'pg'
+import { auditTokenMigrations } from './token-migration-audit.mjs'
 
 // Never accepts a database URL; every run creates and deletes its own local cluster.
 const work = await mkdtemp(join(tmpdir(), 'lifespace-token-db-'))
@@ -33,6 +34,7 @@ try {
   const files = (await readdir('db/token/migrations')).filter(f => f.endsWith('.sql')).sort()
   if (!files.length) throw new Error('Missing Token migration')
   for (const file of files) await client.query(await readFile(join('db/token/migrations', file), 'utf8'))
+  await auditTokenMigrations(client, url, files, work, bin)
   let rpcUrl
   const jwtSecret = randomBytes(32).toString('hex')
   if (process.env.POSTGREST_BIN) {

@@ -1,5 +1,7 @@
 # Token 正式前端（阶段 04）
 
+> 本文保留阶段范围与当时验证；累计实现、已收敛结论及独立验收门禁见 [统一集成验收](token-integration.md)。
+
 对应 #217 / #205；前置与阶段 PR base 为 `codex/213-token-collector` 的 `51fe85803606a640c57a6d2a004343ff74b9a69f`。本阶段从新 session / Orca 子工作区 `217-token-frontend` 开发；父工作区 `codex-token-usage-dashboard`。启动时 fetch main 为 `3d4ecfad5518c405302a7827fa09dd9c6aff55eb`，累计 merge-base 仍为 `f04aee12ed25d720f2c93e3a6d572b9653076c16`。阶段 PR 保持未合并；最新 main 集成及 ADR 重编号由后续全新阶段处理。
 
 完整界面、设备批准/停用与兼容查询字段属需确认变更，用户已有授权覆盖本地实现、隔离验证、评审、提交和阶段 PR；没有生产迁移、合并、部署、真实设备凭据或真实 timer。

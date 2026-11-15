@@ -13,7 +13,7 @@ import app from '../../worker/index'
 import { Store } from '../../tools/token-collector/store'
 import { scan } from '../../tools/token-collector/collector'
 import { startRegistration, claimRegistration, uploadPending, request, endpoint } from '../../tools/token-collector/transport'
-import { syntheticCodexLog } from '../fixtures/token-usage/synthetic'
+import { syntheticCodexLog, syntheticUnknownModelLog } from '../fixtures/token-usage/synthetic'
 import { type TokenUsageSnapshot } from '../../src/shared/token-usage-contract'
 import { withTokenBrowser } from '../support/token-browser'
 import { expect as browserExpect } from '@playwright/test'
@@ -191,4 +191,46 @@ describe.skipIf(!process.env.TOKEN_DB_URL)('collector actual Worker HTTPS gatewa
       expect(errors).toEqual([])
     })
   }, 90000)
+  test('second independent collector state uploads and filters real combined summary; disabling keeps both histories', async () => {
+    const secondState = join(root, 'second-state'), secondHome = join(root, 'second-source')
+    await mkdir(join(secondHome, '.codex/sessions'), { recursive: true })
+    await writeFile(join(secondHome, '.codex/sessions/source.jsonl'), syntheticUnknownModelLog())
+    const second = await Store.open(secondState)
+    try {
+      second.set('config', { deviceId: 'synthetic-second-state-219', server: workerUrl + '/', sourceHome: secondHome, hours: 3, loopback: true })
+      const display = await startRegistration(second, second.config(), 'synthetic-second-state', 'linux')
+      await withTokenBrowser(workerUrl, browserToken(), owner, async page => {
+        await page.clock.setFixedTime(new Date('2026-11-15T06:32:00Z'))
+        await page.goto('/token/devices/confirm?code=' + display.code)
+        await page.getByRole('button', { name: '核对设备', exact: true }).click()
+        await browserExpect(page.getByRole('button', { name: '批准连接' })).toBeEnabled()
+        await page.getByRole('button', { name: '批准连接' }).click()
+        await browserExpect(page.getByRole('status')).toContainText('已批准')
+        expect(await claimRegistration(second)).toEqual({ status: 'claimed' })
+        expect((await scan(second, secondState, { offline: true })).blockedDates).toEqual([])
+        expect(await uploadPending(second, 'synthetic-second-state')).toMatchObject({ uploaded: 1, pending: 0, heartbeat: true })
+        await page.goto('/token')
+        await browserExpect(page.getByTestId('token-total')).toHaveAttribute('data-value', '830')
+        await page.getByLabel('设备', { exact: true }).selectOption('synthetic-second-state-219')
+        await browserExpect(page.getByTestId('token-total')).toHaveAttribute('data-value', '50')
+        await page.getByLabel('模型', { exact: true }).selectOption('null')
+        await browserExpect(page.getByTestId('token-total')).toHaveAttribute('data-value', '50')
+        await page.getByRole('button', { name: '重置', exact: true }).click()
+        await browserExpect(page.getByTestId('token-total')).toHaveAttribute('data-value', '830')
+        await page.locator('[data-date="2026-11-15"]').hover()
+        await browserExpect(page.getByRole('tooltip')).toContainText('700 Token')
+        await page.keyboard.press('Escape')
+        await page.getByRole('button', { name: '日统计明细' }).click()
+        await browserExpect(page.getByText('已读取 3 份设备日汇总', { exact: false })).toBeVisible()
+        await captureTokenViewport(page, '.impeccable/review/token-frontend/real-chain.png')
+        await captureTokenPage(page, '.impeccable/review/token-frontend/real-chain-full.png')
+        await page.getByRole('button', { name: '停用', exact: true }).click()
+        await page.getByRole('button', { name: '确认停用', exact: true }).click()
+        await browserExpect(page.getByTestId('token-total')).toHaveAttribute('data-value', '830')
+        expect((await uploadPending(second, 'synthetic-second-state')).heartbeat).toBe(false)
+        expect((await db.query('select count(*)::int n from token_private.rollups')).rows[0].n).toBe(3)
+      })
+    } finally { second.close() }
+  }, 90000)
+
 })
