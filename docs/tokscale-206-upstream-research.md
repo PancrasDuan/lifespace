@@ -77,7 +77,7 @@ TOKSCALE_CONFIG_DIR=/tmp/token-206-fixture-config \
 
 **不能把 `TZ=Asia/Shanghai` 视为无条件覆盖开关。** 最终优先级是有效的 `scanner.bucketTimezone` 固定 IANA 区域优先；未固定、空值或无效值时退回 `chrono::Local`。Linux/Unix 的本地时区路径会参考 `TZ`，Windows 路径不以 `TZ` 作为本地区域。因此已有其他有效 pin 时，仅改 TZ 不会重分桶。[时区选择和日期键][bucket-zone]、[Unix TZ 与 Windows 区别][tz-platform]
 
-首次普通运行会尝试固定本地区域；但指定 `--home` 时，启动自动固定函数立即返回，不写目标或真实用户设置。Linux 下目标 settings 从 `<explicit-home>/.config/tokscale/settings.json` 读取，而不是用 `TOKSCALE_CONFIG_DIR` 替代这个路径。夹具目录可预先只放：
+首次普通运行会尝试固定本地区域；但指定 `--home` 时，启动自动固定函数立即返回，不写目标或真实用户设置。目标 settings 优先从 `<explicit-home>/.config/tokscale/settings.json` 读取，而不是用 `TOKSCALE_CONFIG_DIR` 替代这个路径；缺失或不可读时，Linux/macOS 的 home override 均会回退读取 `<explicit-home>/Library/Application Support/tokscale/settings.json`。封装应统一检查这条旧布局，不能只在 macOS 检查。夹具目录可预先只放：
 
 ```json
 {"scanner":{"bucketTimezone":"Asia/Shanghai"}}

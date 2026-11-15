@@ -21,8 +21,11 @@ export async function collectTokscaleUsage(input: TokscaleOptions, context: Toke
   // A valid scanner pin overrides TZ. Never silently mislabel another zone's
   // already-aggregated day, or rewrite a user's existing settings.
   let settingsText: string | undefined
-  const settingsPaths = [join(options.homeDir, '.config/tokscale/settings.json')]
-  if (process.platform === 'darwin') settingsPaths.push(join(options.homeDir, 'Library/Application Support/tokscale/settings.json'))
+  // Upstream checks its legacy macOS layout even on Linux, for migrated homes.
+  const settingsPaths = [
+    join(options.homeDir, '.config/tokscale/settings.json'),
+    join(options.homeDir, 'Library/Application Support/tokscale/settings.json'),
+  ]
   for (const path of settingsPaths) {
     try {
       settingsText = await readFile(path, 'utf8')

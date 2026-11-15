@@ -96,6 +96,26 @@ test('已有时区固定值不能被 TZ 悄悄覆盖；拒绝冲突并保留原�
   expect((await collectTokscaleUsage(options, context)).snapshots.map(row => row.identity.date)).toEqual(['2026-11-14', '2026-11-15'])
 })
 
+test('Linux 也会读取迁移home的旧配置，拒绝旧UTC pin并用北京pin实际跨日', async () => {
+  const options = await profile()
+  const legacyDir = join(options.homeDir, 'Library/Application Support/tokscale')
+  await mkdir(legacyDir, { recursive: true })
+  const legacyPath = join(legacyDir, 'settings.json')
+  const utc = JSON.stringify({ scanner: { bucketTimezone: 'UTC' } })
+  await writeFile(legacyPath, utc)
+  await writeFile(join(options.homeDir, '.codex', 'sessions', 'synthetic.jsonl'), syntheticCodexLog())
+  await expect(collectTokscaleUsage(options, context)).rejects.toThrow(/时区不是 Asia\/Shanghai/)
+  expect(await readFile(legacyPath, 'utf8')).toBe(utc)
+  await writeFile(legacyPath, JSON.stringify({ scanner: { bucketTimezone: 'Asia/Shanghai' } }))
+  expect((await collectTokscaleUsage(options, context)).snapshots.map(row => [row.identity.date, row.content.metrics.total]))
+    .toEqual([['2026-11-14', 130], ['2026-11-15', 650]])
+  // Canonical settings take precedence over the legacy fallback on both OSes.
+  await writeFile(legacyPath, utc)
+  await mkdir(join(options.homeDir, '.config/tokscale'), { recursive: true })
+  await writeFile(join(options.homeDir, '.config/tokscale/settings.json'), JSON.stringify({ scanner: { bucketTimezone: 'Asia/Shanghai' } }))
+  expect((await collectTokscaleUsage(options, context)).snapshots[1].identity.date).toBe('2026-11-15')
+})
+
 test('Vite 浏览器/Worker 环境禁止打包 Node collector，纯共享契约可供两端导入', async () => {
   const root = await mkdtemp(join(tmpdir(), 'lifespace-token-bundle-'))
   temporaryDirs.push(root)

@@ -11,7 +11,7 @@
 | `tools/token-collector/tokscale-cli.ts` | Node-only 子进程；固定本项目依赖，不从 PATH/npx 自动拉取最新版 |
 | `build-plugins/token-collector-boundary.ts` | Vite 全环境阻止 collector 或 `@tokscale` 进入浏览器/Worker bundle |
 
-`collectTokscaleUsage({ homeDir, configDir, since?, until? }, context)` 要求绝对目录，日期为有效公历日且起止有序。它强制 `TZ=Asia/Shanghai`、独立 `TOKSCALE_CONFIG_DIR`、显式 `--home`、`--client codex` 和 `--offline`；调用前检查显式 home 下 `.config/tokscale/settings.json`，拒绝无效配置或非北京 `scanner.bucketTimezone`，因为有效 pin 优先于 TZ，不擅改已有设置。子进程不继承服务凭据，不调用登录、提交或自动同步命令，超时 60 秒，stdout 上限 32 MiB。错误不返回原始 stdout/stderr/路径；有 stderr 时只返回 `tokscale_diagnostic` 标记。该标记表示有上游诊断，不能将扫描完成视为来源完整或同步成功。
+`collectTokscaleUsage({ homeDir, configDir, since?, until? }, context)` 要求绝对目录，日期为有效公历日且起止有序。它强制 `TZ=Asia/Shanghai`、独立 `TOKSCALE_CONFIG_DIR`、显式 `--home`、`--client codex` 和 `--offline`；调用前检查显式 home 下 `.config/tokscale/settings.json`，缺失时在 Linux/macOS 都检查旧布局 `Library/Application Support/tokscale/settings.json`。拒绝无效配置或非北京 `scanner.bucketTimezone`，因为有效 pin 优先于 TZ，不擅改已有设置。子进程不继承服务凭据，不调用登录、提交或自动同步命令，超时 60 秒，stdout 上限 32 MiB。错误不返回原始 stdout/stderr/路径；有 stderr 时只返回 `tokscale_diagnostic` 标记。该标记表示有上游诊断，不能将扫描完成视为来源完整或同步成功。
 
 安装的工具为精确 devDependency `@tokscale/cli@4.23.0`，平台包及 integrity 固定在 `package-lock.json`。2026-11-15 重新查询 npm 官方 `latest` 确认此版本，未直接沿用旧研究。已实跑 Linux x64，Node **24.22.1**；仓库已有 `.node-version` 不由本任务改动。macOS 的真实执行留待后续设备验收。
 
