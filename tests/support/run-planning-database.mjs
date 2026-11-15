@@ -268,7 +268,8 @@ try {
     if (legacyRegression) await sql(await readFile(join(root, 'tests/database/adventure-actions-audit.sql'), 'utf8'))
     console.log('通过：非空五表函数升级可重复执行，旧结束任务、完成奖励与成功回执均保留')
   }
-  if (ledgerOnly) await sql(`insert into auth.users (id) values ('00000000-0000-4000-8000-000000000007');
+  if (ledgerOnly) await sql(`insert into auth.users (id) values ('00000000-0000-4000-8000-000000000007'),
+    ('00000000-0000-4000-8000-000000000001');
     insert into public.agent_identity_bindings (client_id, owner_id, enabled)
       values ('synthetic-http-active.access', '00000000-0000-4000-8000-000000000007', true);`)
   if (!ledgerOnly && !legacyModel && !goalsOnly && !legacyRegression) await sql(`create function pg_temp.fail_reschedule_http() returns trigger language plpgsql as $$
