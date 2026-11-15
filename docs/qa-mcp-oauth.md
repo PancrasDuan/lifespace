@@ -56,3 +56,15 @@
 最终代码范围的目标分支与 merge-base 均为 `e235846dc3be0aaef5fb308bc89a82a58e2a6d6e`，待审 HEAD 为 `285ca13451d55100c26f7a89edf717768386fdff`。Standards 独立复核：原三项全部关闭，未解决规范违反 0、Fowler 判断项 0；Spec 独立复核：Origin 项关闭，未解决需求问题 0、无新增偏离。两轴均保留“需确认的变更”分级及真实客户端/生产待验收边界，见 [固定提交评审记录](https://github.com/PancrasDuan/lifespace/pull/194#pullrequestreview-5904492877)。
 
 独立界面文档核对确认是既有 AuthLayout 的普通扩展，保留绿白色、原字体、双栏及680px折叠；scope逐选、明确同意/拒绝和撤销焦点接续仍保留，客户端信息展示按用户后续要求移除。未创建新视觉系统文件；PRODUCT.md中“拟新增账单/自由账户/不含转账”为已有历史漂移，本任务未修。合成UI预览为 http://127.0.0.1:5194/oauth/authorize 与 /oauth/grants，独立Orca终端保持运行，不连接生产数据。
+
+## WorkBuddy 客户端验收跟进
+
+基线为 PR #194 的合并提交 `aee5a083f05f753f0a6d85e484846f78e0d7d7a8`；后续修复在原工作区的 `codex/193-workbuddy-oauth` 分支。用户本机 WorkBuddy 初次报两个 Cloudflare IP 的10秒连接超时，随后列出三个工具但停在“需要认证”，点击“连接”完全无反应；用户确认同机浏览器可打开网站。
+
+只读检查中，诊断环境到两个 IP 和 Node fetch 均能取得200；AS metadata 未公布 `registration_endpoint`，`/oauth/register` 为404，`/oauth/authorize` 为200 HTML。WorkBuddy 官方动态 OAuth 流程需要 DCR，因此已确认生产配置存在注册兼容缺口；未取得客户端日志，不能据此断言按钮无反应的唯一原因，也不能将诊断环境的成功当作用户网络已恢复。
+
+修复显式启用既有官方库的 DCR 开关，并重新生成绑定类型。隔离 workerd 测试读取实际生产构建的开关，按 metadata 的入口通过 HTTP 注册客户端，随后完成同意、S256 code 兑换、MCP 工具列表、REST 拒绝、refresh 和数据库撤销拒绝。旧构建在缺少 `registration_endpoint` 的断言处失败；修复后该流程通过。身份服务使用合成边界，授权及账单使用一次性 PostgreSQL/PostgREST，未创建真实用户或生产授权。
+
+本地验证：相关OAuth/旧通道接口100项通过；隔离数据库及workerd共5项通过、0跳过；类型生成、类型检查和构建通过；完整安全检查7项、便携安全4项通过；生产配置门禁与 Wrangler dry run 通过。密钥扫描、固定SHA双轴评审及CI结果补充在后续PR。新增范围仅为客户端注册配置及其验证/运维文档，无界面修改。
+
+当前生产仍为已发布的 PR #194。后续配置尚待PR交付；真实 WorkBuddy 的连接按钮、浏览器启动、登录、回跳、刷新和撤销均待用户复验。回退此增量可将DCR开关恢复为关闭并重新发布，保留已有客户端/授权记录及存储；已签发凭据仍按原授权及撤销规则验证。

@@ -12,7 +12,7 @@
     "not_found_handling": "single-page-application",
     "run_worker_first": ["/api/*", "/.well-known/*", "/oauth/*"]
   },
-  "vars": {"SUPABASE_URL": "https://zvdcjzjfhkjasikchceo.supabase.co", "MCP_OAUTH_ISSUER": "https://lifespace.onepeace.cc.cd", "MCP_LEGACY_ENABLED": "true"},
+  "vars": {"SUPABASE_URL": "https://zvdcjzjfhkjasikchceo.supabase.co", "MCP_OAUTH_ISSUER": "https://lifespace.onepeace.cc.cd", "MCP_OAUTH_DCR_ENABLED": "true", "MCP_LEGACY_ENABLED": "true"},
   "kv_namespaces": [{"binding": "HOROSCOPE_KV", "id": "57e73bb16a73477d9c307458e0d119ba"}, {"binding": "OAUTH_KV", "id": "56d94963635d45d09618eaaa1a78cf7a"}],
   "ratelimits": [
     {"name": "DNSHE_READ_LIMITER", "namespace_id": "20261006", "simple": {"limit": 1, "period": 60}},
