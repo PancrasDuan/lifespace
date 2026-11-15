@@ -57,11 +57,11 @@ metadata.snapshotVersion 在该传输层必填、正整数十进制字符串，�
 
 无 modelKey 的 totals/daily 使用主行；有 modelKey 只使用命中的子行指标与费用，不额外加入主行。模型图数据始终来自子行，分类 partial/missing 不能假装可重建主总量。计数合计先传播未报告，再传播 null；已知计数合计超出安全整数时拒绝。费用按币种独立合计，用 numeric 精确加法返回规范十进制字符串，保留 unknown/partial/unverified 与实际/估算/未分类字段。缓存比例应使用汇总 cacheRead/input，仅在两者已知且 input>0 时计算。
 
-summary 最多扫描范围内 100000 主行，响应最多约 4 MiB，超限 TOKEN_QUERY_TOO_BROAD；缩小日期/设备/Agent 范围。明细按 `date/deviceId/agent` ASCII 键连续分页，cursor 只用于相同筛选；读完 nextCursor=null 才算完整明细，但完整范围总计直接取 summary。多次请求之间不提供冻结数据库快照，正在上传时 summary 与多页明细可能变化；刷新以获取当前结果，不将多页历史读当作原子全库导出。各页包含服务器收到的版本、摘要和模型覆盖；所有查询都排除凭据摘要和 owner/服务器信息。
+summary 最多处理符合全部筛选条件的 100000 主行，响应最多约 4 MiB，超限 TOKEN_QUERY_TOO_BROAD；缩小日期/设备/Agent 范围。明细按 `date/deviceId/agent` ASCII 键连续分页，cursor 只用于相同筛选；读完 nextCursor=null 才算完整明细，但完整范围总计直接取 summary。多次请求之间不提供冻结数据库快照，正在上传时 summary 与多页明细可能变化；刷新以获取当前结果，不将多页历史读当作原子全库导出。各页包含服务器收到的版本、摘要和模型覆盖；所有查询都排除凭据摘要和 owner/服务器信息。
 
 ## 验证与最终交付顺序
 
-`npm run test:token-database` 总是创建全新本地集群、随机 127.0.0.1 端口，从不接受远端连接字符串。`POSTGRES_BIN` 指向 PostgreSQL bin；可选 `POSTGREST_BIN` 指向固定二进制；CI 必须提供两者并执行该任务，validate 包含数据库门禁。测试使用合成身份与随机临时凭据，正常完成或失败后停止并删除本实例。本机 PG 17.11 / PostgREST 13.0.7 已用于实测；CI 下载官方同版本，验证 release SHA-256。常规 API 测试无数据库环境时跳过数据库组，不能代替专项执行。
+`npm run test:token-database` 总是创建全新本地集群、随机 127.0.0.1 端口，从不接受远端连接字符串。`POSTGRES_BIN` 指向 PostgreSQL bin；可选 `POSTGREST_BIN` 指向固定二进制；CI 必须提供两者并执行该任务，validate 包含数据库门禁。测试使用合成身份与随机临时凭据，正常完成或失败后停止并删除本实例；本机 /tmp 空间不足时可将 TMPDIR 指向本工作区忽略的 test-results 子目录（不能置于开发服务器明确禁止的 .cache 路径）。本机 PG 17.11 / PostgREST 13.0.7 已用于实测；CI 下载官方同版本，验证 release SHA-256。常规 API 测试无数据库环境时跳过数据库组，不能代替专项执行。
 
 独立 PostgreSQL 实测包括共享固定向量/Unicode/缺失/null/零/金额、严格字段与完整分类对账、A→B→A/乱序/重传/并发/冲突、下降/模型替换删除/事务回滚、跨设备写入拒绝/私有表与管理函数权限、停用/重绑/轮询/过期/拒绝/并发领取/响应丢失恢复、心跳/年度分页/模型筛选与费用合计、Worker 接真实 DB 授权、PostgREST 混合大小写请求头读取及匿名 RPC 权限。API 回归另测当前登录/白名单拒绝、严格参数、秘密响应隔离。最终命令与结果、固定 SHA 双轴评审和 CI 由阶段报告记录。
 

@@ -77,6 +77,15 @@ describe.skipIf(!process.env.TOKEN_DB_URL)('Token real PostgreSQL', () => {
     expect((await sql('select count(*)::int n from token_private.models'))[0].n).toBe(1)
     await upload(snapshot(100, '3')); expect((await sql('select count(*)::int n from token_private.models'))[0].n).toBe(0)
   })
+  test('valid upload token never substitutes for a required generation, including NULL through direct RPC', async () => {
+    await reset()
+    for(const generation of [null, '', '01', '0', '2']) {
+      await expect(sql('select public.token_usage_upload($1,$2,$3)',[generation,snapshot(),await tokenUsageContentHash(content())])).rejects.toThrow('TOKEN_CREDENTIAL_INVALID')
+      await expect(sql('select public.token_usage_heartbeat($1,$2,$3,$4)',[device,generation,'host',1])).rejects.toThrow('TOKEN_CREDENTIAL_INVALID')
+    }
+    expect((await sql('select count(*)::int n from token_private.rollups'))[0].n).toBe(0)
+    expect((await sql('select last_received_at from token_private.devices'))[0].last_received_at).toBeNull()
+  })
   test('mid-function model failure rolls back main, child replacement and receive watermark together', async () => {
     await reset(); await upload(snapshot())
     const before = (await sql('select revision::text,received_at from token_private.rollups'))[0]
@@ -148,6 +157,17 @@ describe.skipIf(!process.env.TOKEN_DB_URL)('Token real PostgreSQL', () => {
     expect(second.rows).toHaveLength(2); expect(second.nextCursor).toBeNull()
     const keys = [...first.rows, ...second.rows].map(r => r.date); expect(new Set(keys).size).toBe(252)
   })
+  test('summary row bound follows the full filter, so device/Agent/model narrowing recovers a broad year', { timeout: 30000 }, async () => {
+    await reset(); const s=snapshot(); s.content.models={coverage:'partial',items:[{modelId:'target-model',providerId:null,metrics:{input:20},cost:unknownCost}]}; await upload(s)
+    await sql("insert into token_private.devices select 'synthetic-bulk',hostname,platform,owner_id,enabled,generation,extensions.digest('synthetic-bulk-token','sha256'),created_at,bound_at,last_received_at,sync_hours from token_private.devices")
+    await sql("insert into token_private.rollups select 'synthetic-bulk',date,'bulk-'||i,generation,revision,content_hash,metrics,cost,model_coverage,metadata,content_updated_at,received_at from token_private.rollups cross join generate_series(1,100001) i")
+    const year={startDate:'2026-01-01',endDate:'2026-12-31'}
+    await expect(sql('select public.token_dashboard_summary($1)',[year])).rejects.toThrow('TOKEN_QUERY_TOO_BROAD')
+    for(const filter of [{deviceId:device},{agent:'codex'},{modelKey:'"target-model"'}]) {
+      const result=(await sql('select public.token_dashboard_summary($1) r',[{...year,...filter}]))[0].r
+      expect(result.rowCount).toBe(1)
+    }
+  })
   test('concurrent claims serialize, rate limits persist, rotation can restart revisions without permitting old credentials', async () => {
     await reset()
     const id = '00000000-0000-4000-8000-000000000212', claim = randomBytes(32).toString('base64url'), replacement = randomBytes(32).toString('base64url')
@@ -214,6 +234,7 @@ describe.skipIf(!process.env.TOKEN_DB_URL)('Token real PostgreSQL', () => {
     const url = process.env.TOKEN_DB_RPC_URL!
     const request = async (headers: Record<string,string>) => fetch(`${url}/rpc/token_usage_upload`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...headers }, body: JSON.stringify({ p_generation: '1', p_snapshot: snapshot(), p_hash: await tokenUsageContentHash(content()) }) })
     expect((await request({})).ok).toBe(false)
+    const invalidGeneration=await fetch(`${url}/rpc/token_usage_upload`,{method:'POST',headers:{'Content-Type':'application/json','X-LifeSpace-Device-Token':token},body:JSON.stringify({p_generation:null,p_snapshot:snapshot(),p_hash:await tokenUsageContentHash(content())})}); expect(invalidGeneration.ok).toBe(false)
     const response = await request({ 'X-LifeSpace-Device-Token': token }); expect(response.status).toBe(200); expect(await response.json()).toMatchObject({ persisted: true, snapshotVersion: '1' })
     expect((await fetch(`${url}/rpc/token_devices_query`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-LifeSpace-Device-Token': token }, body: '{}' })).ok).toBe(false)
   })

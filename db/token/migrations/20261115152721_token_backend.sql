@@ -66,8 +66,22 @@ begin
     when exists(select from jsonb_array_elements(items) i where i->'cost'->>'coverage'='unverified') then 'unverified' else 'complete' end;
   return r||jsonb_build_object('coverage',cov);
 end $$;
+create function token_private.sum_metrics(items jsonb) returns jsonb language plpgsql immutable set search_path='' as $$
+declare result jsonb:='{}'; k text; n numeric;
+begin
+  foreach k in array array['input','output','total','cacheRead','cacheWrite','reasoning'] loop
+    if exists(select from jsonb_array_elements(items) item where not (item->'metrics' ? k)) then continue;
+    elsif exists(select from jsonb_array_elements(items) item where item->'metrics'->k='null') then result:=result||jsonb_build_object(k,null);
+    else
+      select coalesce(sum((item->'metrics'->>k)::numeric),0) into n from jsonb_array_elements(items) item;
+      if n>9007199254740991 then raise exception 'TOKEN_TOTAL_OVERFLOW' using errcode='22023'; end if;
+      result:=result||jsonb_build_object(k,n);
+    end if;
+  end loop;
+  return result;
+end $$;
 create function token_private.content(v jsonb) returns void language plpgsql immutable set search_path='' as $$
-declare model_item jsonb; k text; n jsonb; items jsonb;
+declare model_item jsonb; k text; items jsonb;
 begin
   perform token_private.object(v,array['metrics','cost','models'],array['metrics','cost','models']);
   perform token_private.metrics(v->'metrics'); perform token_private.cost(v->'cost');
@@ -86,16 +100,7 @@ begin
   end loop;
   perform token_private.require(not exists(select from jsonb_array_elements(items) i group by i->'modelId' having count(*)>1));
   if v->'models'->>'coverage'='complete' then
-    foreach k in array array['input','output','total','cacheRead','cacheWrite','reasoning'] loop
-      if exists(select from jsonb_array_elements(items) i where not (i->'metrics' ? k)) then
-        perform token_private.require(not(v->'metrics' ? k));
-      elsif exists(select from jsonb_array_elements(items) i where i->'metrics'->k='null') then
-        perform token_private.require(v->'metrics'->k='null');
-      else
-        select to_jsonb(coalesce(sum((i->'metrics'->>k)::numeric),0)) into n from jsonb_array_elements(items) i;
-        perform token_private.require(n::numeric<=9007199254740991 and v->'metrics'->k=n);
-      end if;
-    end loop;
+    perform token_private.require(v->'metrics'=token_private.sum_metrics(items));
     perform token_private.require(v->'cost'=token_private.sum_cost(items,v->'cost'->>'currency'));
   end if;
 end $$;
@@ -246,11 +251,12 @@ end $$;
 create function token_private.authenticate(p_device text,p_generation text) returns token_private.devices language plpgsql set search_path='' as $$
 declare d token_private.devices; t text;
 begin
+  if p_generation is null or p_generation !~ '^[1-9][0-9]{0,18}$' then raise exception 'TOKEN_CREDENTIAL_INVALID' using errcode='28000'; end if;
   t:=coalesce(nullif(current_setting('request.headers',true),'')::jsonb->>'x-lifespace-device-token','');
   if t !~ '^[A-Za-z0-9_-]{43}$' then raise exception 'TOKEN_CREDENTIAL_INVALID' using errcode='28000'; end if;
   perform pg_advisory_xact_lock(hashtextextended(p_device,209));
   select * into d from token_private.devices where device_id=p_device for update;
-  if not found or not d.enabled or d.generation::text<>p_generation or d.token_hash<>extensions.digest(t,'sha256') then
+  if not found or not d.enabled or d.generation::text is distinct from p_generation or d.token_hash<>extensions.digest(t,'sha256') then
     raise exception 'TOKEN_CREDENTIAL_INVALID' using errcode='28000';
   end if;
   return d;
@@ -367,20 +373,6 @@ begin
     case when (select count(*) from selected)>100 then (select device_id from page order by device_id collate "C" desc limit 1) else null end into rows,cursor;
   return jsonb_build_object('devices',rows,'nextCursor',cursor,'serverTime',now());
 end $$;
-create function token_private.sum_metrics(items jsonb) returns jsonb language plpgsql immutable set search_path='' as $$
-declare result jsonb:='{}'; k text; n numeric;
-begin
-  foreach k in array array['input','output','total','cacheRead','cacheWrite','reasoning'] loop
-    if exists(select from jsonb_array_elements(items) item where not (item->'metrics' ? k)) then continue;
-    elsif exists(select from jsonb_array_elements(items) item where item->'metrics'->k='null') then result:=result||jsonb_build_object(k,null);
-    else
-      select coalesce(sum((item->'metrics'->>k)::numeric),0) into n from jsonb_array_elements(items) item;
-      if n>9007199254740991 then raise exception 'TOKEN_TOTAL_OVERFLOW' using errcode='22023'; end if;
-      result:=result||jsonb_build_object(k,n);
-    end if;
-  end loop;
-  return result;
-end $$;
 create function token_private.summary(items jsonb) returns jsonb language sql immutable set search_path='' as $$
   select jsonb_build_object('metrics',token_private.sum_metrics(items),'costs',coalesce((
     select jsonb_agg(token_private.sum_cost(entries,currency) order by currency collate "C")
@@ -393,7 +385,12 @@ begin
   perform token_private.object(p_query,array['startDate','endDate','agent','deviceId','modelKey'],array['startDate','endDate']);
   start_on:=(p_query->>'startDate')::date; end_on:=(p_query->>'endDate')::date;
   perform token_private.require(start_on<=end_on and end_on-start_on<=366 and start_on>=date '0001-01-01' and end_on<=date '9999-12-31');
-  if (select count(*) from (select from token_private.rollups where date between start_on and end_on limit 100001) bounded)>100000 then raise exception 'TOKEN_QUERY_TOO_BROAD' using errcode='22023'; end if;
+  if (select count(*) from (
+    select from token_private.rollups r where r.date between start_on and end_on
+      and (not(p_query ? 'agent') or r.agent=p_query->>'agent') and (not(p_query ? 'deviceId') or r.device_id=p_query->>'deviceId')
+      and (not(p_query ? 'modelKey') or exists(select from token_private.models m where (m.device_id,m.date,m.agent)=(r.device_id,r.date,r.agent) and m.model_key=p_query->>'modelKey'))
+    limit 100001
+  ) bounded)>100000 then raise exception 'TOKEN_QUERY_TOO_BROAD' using errcode='22023'; end if;
   with selected as materialized (
     select r.device_id,r.date,r.agent,
       case when p_query ? 'modelKey' then m.item->'metrics' else r.metrics end metrics,
