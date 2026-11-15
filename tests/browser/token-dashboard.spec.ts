@@ -352,7 +352,7 @@ test('native text-fragment search reveals the hidden daily table', async ({ page
     const link = document.createElement('a')
     link.href = '/token#:~:text=1%2C242%2C583'
     link.textContent = 'Native daily search'
-    document.querySelector('main')!.append(link)
+    document.querySelector<HTMLElement>('main')!.appendChild(link)
   })
   await page.getByRole('link', { name: 'Native daily search', exact: true }).click()
   await expect(page.getByRole('button', { name: '日统计明细' })).toHaveAttribute('aria-expanded', 'true')

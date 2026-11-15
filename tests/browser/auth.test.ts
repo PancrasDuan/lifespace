@@ -249,6 +249,33 @@ test('另一浏览器缺少校验凭据时提示手动登录，密码登录后�
   await expect(page.getByRole('button', { name: '查看世界时间详情' })).toBeVisible()
 })
 
+for (const allowed of [true, false]) test(`设备邮件在无会话和校验凭据时恢复密码登录，在线准入${allowed ? '通过' : '拒绝'}`, async ({ page }) => {
+  let tokenCalls = 0
+  await page.route('https://auth-test.supabase.co/auth/v1/token?grant_type=password', route => route.fulfill({ json: session }))
+  await page.route('**/api/auth/me', route => route.fulfill(allowed
+    ? { json: { user: { id: user.id, email: user.email } } }
+    : { status: 403, json: { error: { code: 'AUTH_DENIED', message: '' } } }))
+  await page.route('**/api/token/**', route => { tokenCalls++; return route.fulfill({ status: 503, json: {} }) })
+  await page.goto('/auth/callback?code=test-verification-code&deviceCode=ABCDEFGH&returnTo=https%3A%2F%2Fevil.invalid')
+  expect(await page.evaluate(() => localStorage.getItem('sb-auth-test-auth-token'))).toBeNull()
+  expect(await page.evaluate(() => localStorage.getItem('sb-auth-test-auth-token-code-verifier'))).toBeNull()
+  await expect(page.getByRole('heading', { name: '请登录继续访问' })).toBeVisible()
+  await page.getByRole('button', { name: '使用邮箱密码登录' }).click()
+  await expect(page).toHaveURL('/token/devices/confirm?code=ABCDEFGH')
+  await page.getByLabel('邮箱', { exact: true }).fill(user.email)
+  await page.getByLabel('密码', { exact: true }).fill('test-password')
+  await page.getByRole('button', { name: '登录 LifeSpace', exact: true }).click()
+  if (allowed) {
+    await expect(page.getByRole('heading', { name: '确认采集设备', exact: true })).toBeVisible()
+    await expect(page.getByLabel('设备码（8 位字母或数字）')).toHaveValue('ABCDEFGH')
+    await expect(page).toHaveTitle('确认采集设备 · LifeSpace')
+  } else {
+    await expect(page.getByText('此账户暂未获准访问 LifeSpace。')).toBeVisible()
+    await expect(page.getByRole('heading', { name: '确认采集设备', exact: true })).toHaveCount(0)
+  }
+  expect(tokenCalls).toBe(0)
+})
+
 test('原浏览器交换已失效的验证代码仍显示错误提示', async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem('sb-auth-test-auth-token-code-verifier', JSON.stringify('test-pkce-verifier')))
   await page.route('https://auth-test.supabase.co/auth/v1/token?grant_type=pkce', route => route.fulfill({ status: 400, json: { code: 'flow_state_expired', msg: 'Expired auth code' } }))

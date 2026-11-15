@@ -325,7 +325,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
                 className="auth-primary"
                 onClick={() =>
                   callbackMessage
-                    ? window.location.assign('/')
+                    ? window.location.assign(takeTokenConfirmationReturn())
                     : window.location.reload()
                 }
               >
