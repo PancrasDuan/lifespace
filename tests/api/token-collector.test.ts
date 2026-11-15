@@ -246,6 +246,18 @@ test('moving/restoring identical bytes or a parent directory during a scan inval
   await rename(join(p.home, '.codex'), join(p.dir, 'temporarily-away')); await rename(join(p.dir, 'temporarily-away'), join(p.home, '.codex'))
   expect((await assessCoverage(prior, stable, await inventory(p.home), ['2026-11-14', '2026-11-15'])).blocked.has('2026-11-15')).toBe(true)
 })
+test('prefix validation cannot borrow restored bytes from a file changed after the second inventory', async () => {
+  const p = await profile(), source = join(p.home, '.codex/sessions/source.jsonl'), original = syntheticCodexLog()
+  await writeFile(source, original); await scan(p.store, p.state, { offline: true })
+  const prior = p.store.sources()
+  await writeFile(source, original.replace('100', '101') + syntheticUnknownModelLog())
+  const before = await inventory(p.home), after = await inventory(p.home), dates = ['2026-11-14', '2026-11-15']
+  expect((await assessCoverage(prior, before, after, dates)).blocked.has('2026-11-15')).toBe(true)
+  // Graph and both inventories saw the rewritten prefix. Replacing it now
+  // must not lend the old prefix to that earlier, incomplete graph.
+  await writeFile(source, original + syntheticUnknownModelLog())
+  expect((await assessCoverage(prior, before, after, dates)).blocked.has('2026-11-15')).toBe(true)
+})
 test('price cache correction recomputes actual CLI estimates downwards while retaining unknown buckets', async () => {
   const p = await profile(); await writeFile(join(p.home, '.codex/sessions/source.jsonl'), syntheticCodexLog())
   const cache = join(p.state, 'tokscale/cache'); await mkdir(cache, { recursive: true })

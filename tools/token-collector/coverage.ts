@@ -1,8 +1,8 @@
-import { createReadStream } from 'node:fs'
+import { constants, createReadStream } from 'node:fs'
 import { createHash } from 'node:crypto'
 import { createZstdDecompress } from 'node:zlib'
 import { compose } from 'node:stream'
-import { lstat, readdir, readFile } from 'node:fs/promises'
+import { lstat, open, readdir, readFile, type FileHandle } from 'node:fs/promises'
 import { join } from 'node:path'
 import { isMissing, LocalError, noSymlinkPath } from './local.ts'
 import type { SourceProof } from './store.ts'
@@ -13,7 +13,10 @@ function stamp(value: { dev: bigint; ino: bigint; size: bigint; mtimeNs: bigint;
   return [value.dev, value.ino, value.size, value.mtimeNs, value.ctimeNs].join(':')
 }
 const roots = ['.codex/sessions', '.codex/archived_sessions', '.config/tokscale/headless/codex', 'Library/Application Support/tokscale/headless/codex']
-function sourceStream(path: string) { return path.endsWith('.zst') ? compose(createReadStream(path), createZstdDecompress()) : createReadStream(path) }
+function sourceStream(path: string, handle?: FileHandle) {
+  const input = handle ? handle.createReadStream({ autoClose: false }) : createReadStream(path)
+  return path.endsWith('.zst') ? compose(input, createZstdDecompress()) : input
+}
 function transcript(path: string) {
   const name = path.split('/').at(-1)!, marker = name.indexOf('.jsonl')
   if (marker <= 0) return false
@@ -118,15 +121,21 @@ async function prefixMatches(current: Observation, prior: SourceProof): Promise<
   if (current.size === prior.size) return current.hash === prior.hash
   if (prior.size === 0) return true
   const hash = createHash('sha256')
+  let handle: FileHandle | undefined
   try {
+    handle = await open(current.path, constants.O_RDONLY | constants.O_NOFOLLOW)
+    // Bind this later prefix read to the exact object inventoried around the
+    // graph. A restored/replaced path must not lend bytes to an older report.
+    if (stamp(await handle.stat({ bigint: true })) !== current.stamp) return false
     let remaining = prior.size
-    for await (const chunk of sourceStream(current.path)) {
+    for await (const chunk of sourceStream(current.path, handle)) {
       const bytes = chunk as Buffer; hash.update(bytes.subarray(0, remaining)); remaining -= Math.min(bytes.length, remaining)
       if (remaining === 0) break
     }
     if (remaining) return false
-    return hash.digest('hex') === prior.hash
+    return stamp(await handle.stat({ bigint: true })) === current.stamp && hash.digest('hex') === prior.hash
   } catch { return false }
+  finally { await handle?.close().catch(() => {}) }
 }
 export async function assessCoverage(prior: SourceProof[], before: Inventory, after: Inventory, allDates: string[], sourceDiagnostic = false) {
   const blocked = new Set<string>(), diagnostics = new Set<string>(), accepted: SourceProof[] = []
