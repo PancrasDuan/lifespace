@@ -18,7 +18,7 @@ begin
     select from pg_proc p join pg_namespace n on n.oid = p.pronamespace
      where n.nspname not in ('pg_catalog', 'information_schema')
        and p.oid <> coalesce(to_regprocedure('public.agent_resolve_owner(text)')::oid, 0::oid)
-       and p.prosrc ~ '\m(agent_identity_bindings|agent_resolve_owner)\M'
+       and p.prosrc ~* '\m(agent_identity_bindings|agent_resolve_owner)\M'
   ) then
     raise exception 'LEGACY_BINDINGS_STILL_REFERENCED';
   end if;

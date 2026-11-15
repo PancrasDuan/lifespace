@@ -24,10 +24,15 @@ export async function verifyAgentBindingsRetirement(client, migration) {
   await client.query(`delete from public.agent_identity_bindings where client_id='synthetic-retirement-guard.access'`)
   await client.query('delete from auth.users where id=$1', [owner])
 
-  await client.query(`create function public.retirement_reference_probe() returns bigint language sql as
-    'select count(*) from public.agent_identity_bindings'`)
-  await reject(/LEGACY_BINDINGS_STILL_REFERENCED/)
-  await client.query('drop function public.retirement_reference_probe()')
+  for (const body of [
+    'select count(*) from public.agent_identity_bindings',
+    'select count(*) from public.AGENT_IDENTITY_BINDINGS',
+    "select case when public.AGENT_RESOLVE_OWNER('synthetic-retired.access') is null then 0::bigint else 1::bigint end",
+  ]) {
+    await client.query(`create function public.retirement_reference_probe() returns bigint language sql as $probe$${body}$probe$`)
+    await reject(/LEGACY_BINDINGS_STILL_REFERENCED/)
+    await client.query('drop function public.retirement_reference_probe()')
+  }
 
   // The resolver is dropped first, but a dependent view must roll the entire
   // transaction back rather than cascade-delete the view or leave half a change.
