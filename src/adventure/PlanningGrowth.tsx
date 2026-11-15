@@ -4,6 +4,7 @@ import { useVerifiedIdentity } from '../auth/identity'
 import type { GrowthPage, RewardEntry, RewardSource } from '../shared/adventure-growth'
 import { planningApi, PlanningError } from './planning-api'
 import { PlanningTaskHistory } from './PlanningReschedule'
+import { periodLabels } from './RecurringTasks'
 import { PlanningToast } from './PlanningToast'
 
 function Attribution({ entry }: { entry: Pick<RewardEntry, 'categoryLabel' | 'goalId' | 'goalTitle'> }) {
@@ -43,14 +44,15 @@ function RewardInline({ id, version, title, detailId, changed, reportError, reco
       : !data ? <p role="status">正在读取来源…</p> : <>
         <h3>{data.event.title}</h3><p>{data.event.kind === 'task_completed' ? '任务完成' : '目标达成'} · {data.event.occurredOn} · +{data.event.amount} 点经验</p>
         <p><Attribution entry={data.event} /></p><p><Calculation entry={data.event} /></p>
+        {data.event.recurring && <p>周期完成 · 第 {data.event.recurring.periodNumber} 期 · {periodLabels[data.event.recurring.periodType]} {data.event.recurring.requiredCount} 次</p>}
         {data.plannedOn && <p>发生时安排：{data.plannedOn}</p>}
         {data.description && <p className="planning-frozen-content">{data.description}</p>}
         {data.standards.length > 0 && <><h4>发生时完成标准</h4><ul>{data.standards.map((item, index) => <li key={index}>{item}</li>)}</ul></>}
         {data.reflection && <><h4>达成感想</h4><p className="planning-frozen-content">{data.reflection}</p></>}
 
-        {data.event.kind === 'task_completed' && <section aria-label="任务安排历史"><h4>当前任务的完整原安排链</h4><PlanningTaskHistory key={`${data.event.entityId}:${data.version}`} id={data.event.entityId} /></section>}
+        {data.event.kind === 'task_completed' && !data.event.recurring && <section aria-label="任务安排历史"><h4>当前任务的完整原安排链</h4><PlanningTaskHistory key={`${data.event.entityId}:${data.version}`} id={data.event.entityId} /></section>}
         {data.totalSources > 0 && <section aria-label="冻结计奖行动"><h4>计奖行动 · 共 {data.totalSources} 次</h4>
-          <ol>{data.actionSources.map(source => <li key={source.completionId}><strong>{source.title}</strong><p>{source.occurredOn} · 原安排 {source.plannedOn}</p><p><Attribution entry={source} /></p><p className="planning-frozen-content">{source.description}</p></li>)}</ol>
+          <ol>{data.actionSources.map(source => <li key={source.completionId}><strong>{source.title}</strong><p>{source.occurredOn}{source.recurring ? ` · 周期完成 · 第 ${source.recurring.periodNumber} 期 · ${periodLabels[source.recurring.periodType]} ${source.recurring.requiredCount} 次` : source.plannedOn ? ` · 原安排 ${source.plannedOn}` : ''}</p><p><Attribution entry={source} /></p><p className="planning-frozen-content">{source.description}</p></li>)}</ol>
           <div className="planning-pagination"><small>第 {data.page} 页</small><div>
             <button disabled={page <= 1} onClick={() => setPage(page - 1)}>上一页计奖行动</button>
             <button disabled={page * data.pageSize >= data.totalSources} onClick={() => setPage(page + 1)}>下一页计奖行动</button>

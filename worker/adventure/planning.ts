@@ -5,8 +5,13 @@ import type { AuthEnv, Identity } from '../auth'
 import { readBoundedBody, BodyLimitError } from '../read-body'
 import { ApiError } from '../upstream'
 import { traceUpstreamFailure, traceUpstreamStatus, upstreamFailureType } from '../trace'
-import { adventureClientVersion, adventureClientVersionHeader } from '../../src/shared/adventure-client-version'
+import { adventureClientVersion, adventureClientVersionHeader, adventureReceiptModel } from '../../src/shared/adventure-client-version'
 import { storedPlanningEnvelopeSchema } from '../../src/shared/adventure-recovery'
+import {
+  recurringListInputSchema, recurringDetailInputSchema, recurringChildrenInputSchema,
+  recurringListSchema, recurringParentDetailSchema, recurringChildrenSchema, recurringChildDetailSchema,
+  dateTaskListSchema,
+} from '../../src/shared/adventure-recurring'
 import {
   taskListInputSchema, taskListSchema, taskHistorySchema, migrationOptionsSchema, planningPageSchema, planningReceiptSchema, taskRangeSchema, taskScopeSchema, planningSearchSchema,
   planningPreviewInputSchema, planningPreviewSchema,
@@ -16,6 +21,12 @@ type PlanningContext = Context<{ Bindings: AuthEnv; Variables: { identity: Ident
 const unavailable = () => new ApiError('ADVENTURE_UNAVAILABLE', '暂时无法读取人生冒险，请稍后重试', 503)
 export const oldClientUnavailable = () => new ApiError('CLIENT_UPDATE_REQUIRED', '旧页面操作结果可能未知，请不要刷新或重新提交，请联系维护人员核对。', 503)
 const errors = {
+  PLANNING_DATE_CHANGED: [409, '规划日期已变化，请刷新后重新确认操作'],
+  PERIOD_FULL: [400, '本期已满足要求次数'],
+  RECURRING_NOT_STARTED: [400, '周期任务尚未开始'],
+  RECURRING_ALREADY_STARTED: [400, '周期任务已经开始'],
+  RECURRING_START_PAST: [400, '开始日只能是今天或未来'],
+  PENDING_RECURRING_TASKS: [400, '请先处理目标下全部未结束的周期任务'],
   PENDING_TASKS: [400, '请先删除未完成任务，或在编辑任务中移到其他进行中目标／独立任务'],
   VERSION_CONFLICT: [409, '数据已更新，请重新读取后确认操作'],
   REQUEST_ID_REUSED: [409, '请求编号已用于其他操作，请重新确认'],
@@ -31,6 +42,7 @@ const errors = {
   DATE_STARTED: [400, '执行日已到，此操作不可用'],
   COMPLETION_CHANGED: [409, '这次完成已变化，请重新读取后确认'],
   INVALID_COMMAND: [400, '输入字段或内容无效'],
+  COMMAND_TOO_LARGE: [400, '命令内容超出大小限制'],
   CAPACITY_REACHED: [400, '操作超出当前容量限制，未保存任何变更'],
 } as const
 
@@ -132,7 +144,7 @@ export async function lookupPlanningReceipt(c: PlanningContext) {
   const receipt = await rpc(c, 'adventure_receipt_lookup', {
     p_request_id: value.requestId, p_command: value.command,
   }, planningReceiptSchema)
-  c.header('X-Lifespace-Adventure-Model', adventureClientVersion)
+  c.header('X-Lifespace-Adventure-Model', adventureReceiptModel)
   return c.json({ requestId: value.requestId, nonce: value.nonce, receipt })
 }
 
@@ -167,3 +179,20 @@ export async function readTaskList(c: PlanningContext) {
     p_date: value.date, p_scope: value.scope, p_expected_version: value.expectedVersion, p_today: value.today, p_page: value.page,
   }, taskListSchema))
 }
+
+async function recurringRead<I, O>(c: PlanningContext, name: string, inputSchema: z.ZodType<I>, outputSchema: z.ZodType<O>, parameters: (value: I) => Record<string, unknown>) {
+  if (Object.keys(c.req.query()).length) throw new ApiError('INVALID_QUERY', '查询条件请放入请求体', 400)
+  const value = await input(c, inputSchema)
+  return c.json(await rpc(c, name, parameters(value), outputSchema))
+}
+const listParameters = (value: z.infer<typeof recurringListInputSchema>) => ({
+  p_expected_version: value.expectedVersion, p_today: value.today, p_date: value.date,
+  p_scope: value.scope, p_search: value.search, p_page: value.page,
+})
+const detailParameters = (value: z.infer<typeof recurringDetailInputSchema>) => ({ p_expected_version: value.expectedVersion, p_today: value.today, p_id: value.id })
+export const readRecurringList = (c: PlanningContext) => recurringRead(c, 'adventure_recurring_list', recurringListInputSchema, recurringListSchema, listParameters)
+export const readRecurringParent = (c: PlanningContext) => recurringRead(c, 'adventure_recurring_detail', recurringDetailInputSchema, recurringParentDetailSchema, detailParameters)
+export const readRecurringChild = (c: PlanningContext) => recurringRead(c, 'adventure_recurring_child', recurringDetailInputSchema, recurringChildDetailSchema, detailParameters)
+export const readRecurringChildren = (c: PlanningContext) => recurringRead(c, 'adventure_recurring_children', recurringChildrenInputSchema, recurringChildrenSchema,
+  value => ({ p_expected_version: value.expectedVersion, p_today: value.today, p_parent_id: value.parentId, p_page: value.page }))
+export const readDateTaskList = (c: PlanningContext) => recurringRead(c, 'adventure_date_task_list', recurringListInputSchema, dateTaskListSchema, listParameters)

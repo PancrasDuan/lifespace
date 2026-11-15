@@ -1,0 +1,48 @@
+{
+  "sourceSha256": "834dfc2e2c99f1551499f7a4c41ead61559f2bd0bd038366caf6f8d06c2f3af9",
+  "scenarios": [
+    {
+      "mode": "startup-SIGTERM",
+      "trigger": "PG ready and pg_ctl returned, before preview READY",
+      "childExit": null,
+      "signal": "SIGTERM",
+      "directoryExists": true,
+      "passed": false,
+      "error": "Expected values to be strictly equal:\n\nnull !== 0\n"
+    },
+    {
+      "mode": "startup-SIGINT",
+      "trigger": "PG ready and pg_ctl returned, before preview READY",
+      "childExit": null,
+      "signal": "SIGINT",
+      "directoryExists": true,
+      "passed": false,
+      "error": "Expected values to be strictly equal:\n\nnull !== 0\n"
+    },
+    {
+      "mode": "ready-SIGTERM",
+      "childExit": 0,
+      "signal": null,
+      "realWorkerRecordXp": 2,
+      "allPortsClosed": true,
+      "directoriesRemoved": true,
+      "passed": true
+    },
+    {
+      "mode": "ready-SIGINT",
+      "childExit": 0,
+      "signal": null,
+      "realWorkerRecordXp": 2,
+      "allPortsClosed": true,
+      "directoriesRemoved": true,
+      "passed": true
+    },
+    {
+      "mode": "occupied-port",
+      "expectedChildExit": 1,
+      "signal": null,
+      "directoriesRemoved": true,
+      "passed": true
+    }
+  ]
+}

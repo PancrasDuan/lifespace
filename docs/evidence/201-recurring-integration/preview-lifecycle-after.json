@@ -1,0 +1,46 @@
+{
+  "sourceSha256": "1ad0bced81580af1c2430b476d969d61715a9835cbd5dbc25be5ef6ada258a62",
+  "scenarios": [
+    {
+      "mode": "startup-SIGTERM",
+      "trigger": "PG ready and pg_ctl returned, before preview READY",
+      "childExit": 0,
+      "signal": null,
+      "directoryExists": false,
+      "passed": true
+    },
+    {
+      "mode": "startup-SIGINT",
+      "trigger": "PG ready and pg_ctl returned, before preview READY",
+      "childExit": 0,
+      "signal": null,
+      "directoryExists": false,
+      "passed": true
+    },
+    {
+      "mode": "ready-SIGTERM",
+      "childExit": 0,
+      "signal": null,
+      "realWorkerRecordXp": 2,
+      "allPortsClosed": true,
+      "directoriesRemoved": true,
+      "passed": true
+    },
+    {
+      "mode": "ready-SIGINT",
+      "childExit": 0,
+      "signal": null,
+      "realWorkerRecordXp": 2,
+      "allPortsClosed": true,
+      "directoriesRemoved": true,
+      "passed": true
+    },
+    {
+      "mode": "occupied-port",
+      "expectedChildExit": 1,
+      "signal": null,
+      "directoriesRemoved": true,
+      "passed": true
+    }
+  ]
+}

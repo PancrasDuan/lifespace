@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { listLedger, detailLedger, createLedger, createLedgerEntry, createLedgerRefund, createLedgerTransfer, refundLedger, previewLedgerDelete, deleteLedger, listLedgerAccounts, readLedgerAccounts, createLedgerAccount, updateLedgerAccount } from './ledger'
-import { readTaskList, readRewardSource, readGrowth, readTaskHistory, readMigrationOptions, readPlanning, previewPlanning, commandPlanning, lookupPlanningReceipt, oldClientUnavailable } from './adventure/planning'
-import { adventureClientVersion, adventureClientVersionHeader } from '../src/shared/adventure-client-version'
+import { readRecurringList, readRecurringParent, readRecurringChildren, readRecurringChild, readDateTaskList, readTaskList, readRewardSource, readGrowth, readTaskHistory, readMigrationOptions, readPlanning, previewPlanning, commandPlanning, lookupPlanningReceipt, oldClientUnavailable } from './adventure/planning'
+import { adventureClientVersion, adventureClientVersionHeader, planningCompatibility } from '../src/shared/adventure-client-version'
 import { readHoroscope } from './horoscope'
 import { readTasks } from './tasks'
 import { ApiError, apiErrorBody } from './upstream'
@@ -157,11 +157,16 @@ app.get('/api/ledger/entries/:id/delete-preview', previewLedgerDelete)
 app.post('/api/ledger/entries/:id/delete', deleteLedger)
 app.get('/api/adventure', readPlanning)
 app.post('/api/adventure/tasks/list', readTaskList)
+app.post('/api/adventure/recurring/list', readRecurringList)
+app.post('/api/adventure/recurring/detail', readRecurringParent)
+app.post('/api/adventure/recurring/children', readRecurringChildren)
+app.post('/api/adventure/recurring/child', readRecurringChild)
+app.post('/api/adventure/date-tasks/list', readDateTaskList)
 app.get('/api/adventure/migration-options', readMigrationOptions)
 app.get('/api/adventure/task-history', readTaskHistory)
 app.get('/api/adventure/growth', readGrowth)
 app.get('/api/adventure/reward-source', readRewardSource)
-app.get('/api/adventure/compatibility', c => c.json({ model: 'goal-categories', version: 1, receiptLookup: true, legacyRetry: false }))
+app.get('/api/adventure/compatibility', c => c.json(planningCompatibility))
 app.post('/api/adventure/legacy-retry', () => { throw oldClientUnavailable() })
 app.post('/api/adventure/preview', previewPlanning)
 app.post('/api/adventure/receipts/lookup', lookupPlanningReceipt)

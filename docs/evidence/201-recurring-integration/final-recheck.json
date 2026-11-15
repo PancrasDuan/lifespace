@@ -1,0 +1,60 @@
+{
+  "validatedCommit": "43a6b7e6ca603ad6b784e5d6bd3075567315fb6e",
+  "scope": "Final product and browser/DB test blobs unchanged; subsequent incremental patch changes only local preview lifecycle and evidence",
+  "parallelRun": {
+    "exit": 1,
+    "httpPassed": 98,
+    "httpFailed": 1,
+    "skipped": 0,
+    "failure": "adventure-growth-database.test.ts:121 exceeded existing 20000ms timeout; browser stage not entered"
+  },
+  "serialRun": {
+    "exit": 0,
+    "httpPassed": 99,
+    "httpFailed": 0,
+    "skipped": 0,
+    "sqlGroups": 11,
+    "firstAccountRpcs": 15,
+    "firstAccountReads": 600,
+    "newInstallUpgradeAndRestore": true
+  },
+  "201-final-api.json": {
+    "numPassedTests": 383,
+    "numFailedTests": 0,
+    "numPendingTests": 219,
+    "success": true
+  },
+  "201-final-browser.json": {
+    "startTime": "2026-11-15T09:57:23.642Z",
+    "duration": 262475.699,
+    "expected": 86,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  },
+  "recurring-browser-report.json": {
+    "startTime": "2026-11-15T10:03:00.819Z",
+    "duration": 54296.904,
+    "expected": 9,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  },
+  "checks": {
+    "build": 0,
+    "api": 0,
+    "portableSecurity": {
+      "exit": 0,
+      "passed": 4
+    },
+    "mainSecurity": {
+      "exit": 0,
+      "passedChecks": 7
+    },
+    "secretScan": {
+      "exit": 0,
+      "reachableCommits": 213,
+      "findings": 0
+    }
+  }
+}

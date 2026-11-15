@@ -26,11 +26,11 @@ it('旧版命令在认证前固定失败关闭，新版和其他接口仍执行�
   }
   expect(authCalls).toBe(0)
   expect(databaseCalls).toBe(0)
-  const current = await app.request('/api/adventure/commands', { method: 'POST', headers: { Authorization: token, 'X-Adventure-Client-Version': 'goal-categories-1' }, body: '{}' }, env)
+  const current = await app.request('/api/adventure/commands', { method: 'POST', headers: { Authorization: token, 'X-Adventure-Client-Version': 'recurring-1' }, body: '{}' }, env)
   expect(current.status).toBe(403)
   expect(await current.json()).toMatchObject({ error: { code: 'AUTH_DENIED' } })
   expect(authCalls).toBe(1)
-  const forged = await app.request('/api/adventure/commands', { method: 'POST', headers: { 'X-Adventure-Client-Version': 'goal-categories-1', Authorization: 'Bearer expired' }, body: '{}' }, env)
+  const forged = await app.request('/api/adventure/commands', { method: 'POST', headers: { 'X-Adventure-Client-Version': 'recurring-1', Authorization: 'Bearer expired' }, body: '{}' }, env)
   expect(forged.status).toBe(401)
   expect((await app.request('/api/adventure/commands', { method: 'GET' }, env)).status).toBe(401)
   expect((await app.request('/api/adventure/commands/', { method: 'POST', body: '{}' }, env)).status).toBe(401)

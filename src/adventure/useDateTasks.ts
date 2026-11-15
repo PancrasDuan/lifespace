@@ -3,12 +3,13 @@ import { useVerifiedIdentity } from '../auth/identity'
 import type { PlanningPage, TaskList } from '../shared/adventure-planning'
 import { planningApi } from './planning-api'
 
-export function useDateTasks(workspace: PlanningPage, date: string) {
+export function useDateTasks(workspace: PlanningPage, date: string, enabled = true) {
   const identity = useVerifiedIdentity()
   const [attempt, setAttempt] = useState(0)
   const [state, setState] = useState<{ key: string; result?: TaskList; loaded: number; error?: string }>()
   const key = `${identity.ownerId}:${workspace.version}:${workspace.today}:${date}:${workspace.taskScope}:${attempt}`
   useEffect(() => {
+    if (!enabled) return
     const controller = new AbortController()
     setState({ key, loaded: 0 })
     void (async () => {
@@ -40,7 +41,7 @@ export function useDateTasks(workspace: PlanningPage, date: string) {
       }
     })()
     return () => controller.abort()
-  }, [key, identity.ownerId, identity.signal, workspace.version, workspace.today, workspace.taskScope, date])
+  }, [key, enabled, identity.ownerId, identity.signal, workspace.version, workspace.today, workspace.taskScope, date])
   return { result: state?.key === key ? state.result : undefined, error: state?.key === key ? state.error : undefined,
     loaded: state?.key === key ? state.loaded : 0, retry: () => setAttempt(value => value + 1) }
 }

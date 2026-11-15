@@ -1,0 +1,12 @@
+[
+  {
+    "file": "db/adventure/migrations/20261115082114_recurring_tasks.sql",
+    "bytes": 126905,
+    "sha256": "cf7ae7fb6cb806c8f3494441b1ab3563f1630fad1946c6db23d8b3531c68c171"
+  },
+  {
+    "file": ".cache/adventure-recurring-install.sql",
+    "bytes": 224046,
+    "sha256": "1557e7cf1e1b5730ffd3be4b257434f965dc0297c9208ae8ab4eb9a1d8c7203f"
+  }
+]

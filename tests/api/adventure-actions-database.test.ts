@@ -311,7 +311,8 @@ describe.skipIf(!rpcOrigin)('正式 Worker HTTP → 本机真实 PostgREST → �
     expect(page.taskProgress).toMatchObject({ completed: 1, total: 4, ratio: 0.25 })
     const noMatches = await read(owner, '?search=没有匹配')
     expect(noMatches.taskProgress).toEqual({ completed: 0, total: 0, ratio: null })
-    expect(noMatches.todayTaskProgress).toMatchObject({ completed: 1, total: 6 })
+    // R44: all-scope today progress includes the overdue pending task as well.
+    expect(noMatches.todayTaskProgress).toMatchObject({ completed: 1, total: 7 })
     // Unfocused tasks remain executable.
     await command(owner, { type: 'completeTask', id: outside })
     expect((await read(owner)).totalGoals).toBe(2)

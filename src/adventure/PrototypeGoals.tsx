@@ -13,7 +13,7 @@ export function PrototypeGoals({ goals, blocked, action, openGoal, toggleGoal, e
     if (goal.status === 'active') void action({ type: 'reorderGoals', id: goal.id, direction, ...(targetId ? { targetId } : {}) })
   }
   return <div className="goal-console-table" role="table" aria-label="目标列表">
-    <div role="row" className="goal-console-head"><span role="columnheader">目标</span><span role="columnheader">分类标签</span><span role="columnheader">任务进度</span><span role="columnheader">任务</span><span role="columnheader">状态</span><span role="columnheader">操作</span></div>
+    <div role="row" className="goal-console-head"><span role="columnheader">目标</span><span role="columnheader">分类标签</span><span role="columnheader">一次性进度</span><span role="columnheader">任务</span><span role="columnheader">状态</span><span role="columnheader">操作</span></div>
     {goals.map(goal => <div role="rowgroup" key={goal.id}>
       <div role="row" className="goal-console-row" draggable={!blocked && goal.status === 'active' && !!goal.capabilities.reorder?.allowed}
         onDragStart={event => { dragged.current = goal; event.dataTransfer.setData('text/plain', goal.id); event.dataTransfer.effectAllowed = 'move' }}
@@ -27,8 +27,8 @@ export function PrototypeGoals({ goals, blocked, action, openGoal, toggleGoal, e
           if (goal.capabilities[direction === 'up' ? 'moveUp' : 'moveDown']?.allowed) move(goal, direction)
         }}><GripVertical size={15} aria-hidden="true" /></button>}<button className="goal-console-title-button" type="button" disabled={blocked} onClick={() => toggleGoal(goal.id)}>{goal.title}</button></strong>
         <span role="cell" className="goal-console-category-cell">{goal.categoryLabel ? <span className="goal-console-category">{goal.categoryLabel}</span> : '—'}</span>
-        <span role="cell" className="goal-console-progress">{goal.progress.ratio === null ? '暂无可统计任务' : <><Progress value={goal.progress.ratio} label={`目标 ${goal.title} 任务进度`} /><span>{goal.progress.completed} / {goal.progress.total}</span></>}</span>
-        <span role="cell" className="goal-console-task-count">{goal.progress.total} 项</span><span role="cell" className="goal-console-status-cell"><span className={`goal-status goal-status-${goal.status}`}>{goal.status === 'active' ? '进行中' : goal.status === 'achieved' ? '已达成' : '已结束'}</span></span>
+        <span role="cell" className="goal-console-progress">{goal.progress.ratio === null ? '暂无一次性任务' : <><Progress value={goal.progress.ratio} label={`目标 ${goal.title} 任务进度`} /><span><span className="recurring-goal-progress-label">一次性 </span>{goal.progress.completed} / {goal.progress.total}</span></>}</span>
+        <span role="cell" className="goal-console-task-count">{goal.taskCount ?? goal.progress.total} 项</span><span role="cell" className="goal-console-status-cell"><span className={`goal-status goal-status-${goal.status}`}>{goal.status === 'active' ? '进行中' : goal.status === 'achieved' ? '已达成' : '已结束'}</span></span>
         <div role="cell" className="goal-console-actions">
           <button className="goal-relation-open" type="button" disabled={blocked} aria-expanded={openGoal === goal.id} aria-controls={`goal-detail-${goal.id}`} onClick={() => toggleGoal(goal.id)}><List size={14} aria-hidden="true" />关系卡片</button>
           {goal.status === 'active' && <><button type="button" disabled={blocked || !goal.capabilities.achieve?.allowed} title={goal.capabilities.achieve?.reason} onClick={() => achieve(goal)}>达成</button>

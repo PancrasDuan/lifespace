@@ -1,0 +1,1 @@
+feat(adventure): integrate recurring tasks and verify lifecycle end to end

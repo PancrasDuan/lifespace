@@ -1,0 +1,470 @@
+[
+  {
+    "state": "child-desktop-1440",
+    "viewport": [
+      1440,
+      1000
+    ],
+    "actualImageSize": [
+      1440,
+      1000
+    ],
+    "prototypeImageSize": [
+      1440,
+      1000
+    ],
+    "identicalToReviewedFrontend": true,
+    "meanChannelDifferenceAgainstPrototype": 1.0171201388888889,
+    "sha256": "548bcd459c0f56f5acc96b9e4fb8f397cda040175a89ca8d2bff452af81b92f9"
+  },
+  {
+    "state": "child-mobile-390",
+    "viewport": [
+      390,
+      844
+    ],
+    "actualImageSize": [
+      390,
+      844
+    ],
+    "prototypeImageSize": [
+      390,
+      844
+    ],
+    "identicalToReviewedFrontend": true,
+    "meanChannelDifferenceAgainstPrototype": 3.152100295702192,
+    "sha256": "39dc8aa75f0d11ae3ddb1ff9c8b1f4af55750604b39ea7035ce60e253ba5cfd9"
+  },
+  {
+    "state": "completed-date-desktop-1440",
+    "viewport": [
+      1440,
+      1000
+    ],
+    "actualImageSize": [
+      1440,
+      1028
+    ],
+    "prototypeImageSize": [
+      1440,
+      1149
+    ],
+    "identicalToReviewedFrontend": true,
+    "meanChannelDifferenceAgainstPrototype": 0.6721566958495461,
+    "sha256": "8044aeb242f242a5c68edc39e975a7cba5439d95fa9ae7f23ace28c74c54a7b5"
+  },
+  {
+    "state": "create-desktop-1440",
+    "viewport": [
+      1440,
+      1000
+    ],
+    "actualImageSize": [
+      1440,
+      1000
+    ],
+    "prototypeImageSize": [
+      1440,
+      1000
+    ],
+    "identicalToReviewedFrontend": true,
+    "meanChannelDifferenceAgainstPrototype": 0.2154886574074074,
+    "sha256": "219ac57ce9bc6f6a9895daf30636522d623cd20c3667ae996b2d2eb3f55028c1"
+  },
+  {
+    "state": "create-mobile-390",
+    "viewport": [
+      390,
+      844
+    ],
+    "actualImageSize": [
+      390,
+      844
+    ],
+    "prototypeImageSize": [
+      390,
+      844
+    ],
+    "identicalToReviewedFrontend": false,
+    "meanChannelDifferenceAgainstPrototype": 0.28552173208571313,
+    "sha256": "3b80c8b02d8d61cbeccbab9a1de66b461a5caa998d1e2cb95808d4b7d60e3234"
+  },
+  {
+    "state": "crossday-desktop-1440",
+    "viewport": [
+      1440,
+      1000
+    ],
+    "actualImageSize": [
+      1440,
+      1225
+    ],
+    "prototypeImageSize": [
+      1440,
+      1794
+    ],
+    "identicalToReviewedFrontend": true,
+    "meanChannelDifferenceAgainstPrototype": 3.812136432350718,
+    "sha256": "540779d035c5fc578fa64ce096e9b5581f23d751d68f4787fa0e2236a78dabd3"
+  },
+  {
+    "state": "delete-desktop-1440",
+    "viewport": [
+      1440,
+      1000
+    ],
+    "actualImageSize": [
+      1440,
+      1000
+    ],
+    "prototypeImageSize": [
+      1440,
+      1000
+    ],
+    "identicalToReviewedFrontend": true,
+    "meanChannelDifferenceAgainstPrototype": 0.3584761574074074,
+    "sha256": "3efa53991c310f169916feed086dbdec4bd08ac3fb97f8c7702c6f5d2d97d8a3"
+  },
+  {
+    "state": "edit-desktop-1440",
+    "viewport": [
+      1440,
+      1000
+    ],
+    "actualImageSize": [
+      1440,
+      1000
+    ],
+    "prototypeImageSize": [
+      1440,
+      1000
+    ],
+    "identicalToReviewedFrontend": true,
+    "meanChannelDifferenceAgainstPrototype": 0.21550925925925926,
+    "sha256": "9a4463b5afe4b562565866bf3f425ba7c2294edf393b774c184920209edb0566"
+  },
+  {
+    "state": "edit-mobile-390",
+    "viewport": [
+      390,
+      844
+    ],
+    "actualImageSize": [
+      390,
+      844
+    ],
+    "prototypeImageSize": [
+      390,
+      844
+    ],
+    "identicalToReviewedFrontend": true,
+    "meanChannelDifferenceAgainstPrototype": 0.030416818568477336,
+    "sha256": "eadc09b814a6c5e9023eaf068b186439c8b2acf0fd1820034ec125a13e771c54"
+  },
+  {
+    "state": "end-desktop-1440",
+    "viewport": [
+      1440,
+      1000
+    ],
+    "actualImageSize": [
+      1440,
+      1000
+    ],
+    "prototypeImageSize": [
+      1440,
+      1000
+    ],
+    "identicalToReviewedFrontend": true,
+    "meanChannelDifferenceAgainstPrototype": 0.2729877314814815,
+    "sha256": "670b18dfaf53d74c5ea78447689d72f08cfb2b51d90b19661486ef0efdfb265a"
+  },
+  {
+    "state": "end-mobile-390",
+    "viewport": [
+      390,
+      844
+    ],
+    "actualImageSize": [
+      390,
+      844
+    ],
+    "prototypeImageSize": [
+      390,
+      844
+    ],
+    "identicalToReviewedFrontend": true,
+    "meanChannelDifferenceAgainstPrototype": 0.3673218698100215,
+    "sha256": "731e36634a348f9e4306b901a7f20376fbe477d88ca71e8f7b7e366be903e887"
+  },
+  {
+    "state": "ended-date-desktop-1440",
+    "viewport": [
+      1440,
+      1000
+    ],
+    "actualImageSize": [
+      1440,
+      1129
+    ],
+    "prototypeImageSize": [
+      1440,
+      1250
+    ],
+    "identicalToReviewedFrontend": true,
+    "meanChannelDifferenceAgainstPrototype": 0.44150387101007116,
+    "sha256": "4ed8c7557fa4ee229ef917e38a2bee7f4f5237a06efa01976e8cf66cc5cba2a8"
+  },
+  {
+    "state": "ended-date-mobile-390",
+    "viewport": [
+      390,
+      844
+    ],
+    "actualImageSize": [
+      390,
+      1666
+    ],
+    "prototypeImageSize": [
+      390,
+      1786
+    ],
+    "identicalToReviewedFrontend": true,
+    "meanChannelDifferenceAgainstPrototype": 0.38471388555422165,
+    "sha256": "01cc5e652e473732b13d57567bf46672f7ae7e25efc6afe3875ef237b4654995"
+  },
+  {
+    "state": "ended-detail-desktop-1440",
+    "viewport": [
+      1440,
+      1000
+    ],
+    "actualImageSize": [
+      1440,
+      1000
+    ],
+    "prototypeImageSize": [
+      1440,
+      1000
+    ],
+    "identicalToReviewedFrontend": true,
+    "meanChannelDifferenceAgainstPrototype": 1.5230599537037037,
+    "sha256": "7a6bc08c2c0f32172560db068f243d8c4a0664e8d5f13886f224736e4b7eed7d"
+  },
+  {
+    "state": "goals-desktop-1440",
+    "viewport": [
+      1440,
+      1000
+    ],
+    "actualImageSize": [
+      1440,
+      1008
+    ],
+    "prototypeImageSize": [
+      1440,
+      1128
+    ],
+    "identicalToReviewedFrontend": true,
+    "meanChannelDifferenceAgainstPrototype": 0.4950327932098766,
+    "sha256": "24fd6a801fb0ef1caf1ee92e9f03d155740edd31103e83dff3da95455c47be83"
+  },
+  {
+    "state": "goals-mobile-390",
+    "viewport": [
+      390,
+      844
+    ],
+    "actualImageSize": [
+      390,
+      1286
+    ],
+    "prototypeImageSize": [
+      390,
+      1406
+    ],
+    "identicalToReviewedFrontend": true,
+    "meanChannelDifferenceAgainstPrototype": 0.4647060387340325,
+    "sha256": "2afbbd9696f0981acc0135228c9449282728c32c7e3358e05bed10388fbd4b32"
+  },
+  {
+    "state": "lowered-requirement-desktop-1440",
+    "viewport": [
+      1440,
+      1000
+    ],
+    "actualImageSize": [
+      1440,
+      1000
+    ],
+    "prototypeImageSize": [
+      1440,
+      1000
+    ],
+    "identicalToReviewedFrontend": true,
+    "meanChannelDifferenceAgainstPrototype": 6.051323611111111,
+    "sha256": "f488aa94a84cfe3488fdb245a2abac126512e7288e45f4a545560aef02b55f0a"
+  },
+  {
+    "state": "parent-desktop-1440",
+    "viewport": [
+      1440,
+      1000
+    ],
+    "actualImageSize": [
+      1440,
+      1000
+    ],
+    "prototypeImageSize": [
+      1440,
+      1000
+    ],
+    "identicalToReviewedFrontend": true,
+    "meanChannelDifferenceAgainstPrototype": 1.507172685185185,
+    "sha256": "983b284872f98997f2ed3b1fb4d9e9e7228e54a496f5bf39cec22653b7cebc6d"
+  },
+  {
+    "state": "parent-mobile-390",
+    "viewport": [
+      390,
+      844
+    ],
+    "actualImageSize": [
+      390,
+      844
+    ],
+    "prototypeImageSize": [
+      390,
+      844
+    ],
+    "identicalToReviewedFrontend": true,
+    "meanChannelDifferenceAgainstPrototype": 2.833010288815976,
+    "sha256": "300610dc9346e1a2f16c97e0b6098cbbb3dab8efaf67ffcf85809332571ddda9"
+  },
+  {
+    "state": "record-toast-desktop-1440",
+    "viewport": [
+      1440,
+      1000
+    ],
+    "actualImageSize": [
+      1440,
+      1664
+    ],
+    "prototypeImageSize": [
+      1440,
+      1787
+    ],
+    "identicalToReviewedFrontend": true,
+    "meanChannelDifferenceAgainstPrototype": 0.657558899795228,
+    "sha256": "846eeb2c12da1de9fbdab03908758acd3e3afdd33cc43f87b900273061d68ae0"
+  },
+  {
+    "state": "revoked-filtered-desktop-1440",
+    "viewport": [
+      1440,
+      1000
+    ],
+    "actualImageSize": [
+      1440,
+      1000
+    ],
+    "prototypeImageSize": [
+      1440,
+      1000
+    ],
+    "identicalToReviewedFrontend": true,
+    "meanChannelDifferenceAgainstPrototype": 1.7430898148148148,
+    "sha256": "27d48e31341e07c747155b6b5f257f6eb8c51089e3f22c905667bc8c4ad08cad"
+  },
+  {
+    "state": "today-desktop-1440",
+    "viewport": [
+      1440,
+      1000
+    ],
+    "actualImageSize": [
+      1440,
+      1599
+    ],
+    "prototypeImageSize": [
+      1440,
+      1721
+    ],
+    "identicalToReviewedFrontend": true,
+    "meanChannelDifferenceAgainstPrototype": 0.49019526092696825,
+    "sha256": "e9baba691638cb834f6a7c709c75b27b6a124463e298b531e7c9e20f2741d1f5"
+  },
+  {
+    "state": "today-mobile-390",
+    "viewport": [
+      390,
+      844
+    ],
+    "actualImageSize": [
+      390,
+      2280
+    ],
+    "prototypeImageSize": [
+      390,
+      2400
+    ],
+    "identicalToReviewedFrontend": true,
+    "meanChannelDifferenceAgainstPrototype": 0.43449242765032237,
+    "sha256": "3bea4fed02d5bb1daff1cd1ee84aaea37a60407dd5835324bc9bd72e6f406427"
+  },
+  {
+    "state": "unstarted-date-desktop-1440",
+    "viewport": [
+      1440,
+      1000
+    ],
+    "actualImageSize": [
+      1440,
+      1008
+    ],
+    "prototypeImageSize": [
+      1440,
+      1128
+    ],
+    "identicalToReviewedFrontend": true,
+    "meanChannelDifferenceAgainstPrototype": 0.4375243422986479,
+    "sha256": "bd593f2920997e945a38c413283bec8d71ee1e2bfb2c63e7fa374f04ee08d807"
+  },
+  {
+    "state": "unstarted-date-mobile-390",
+    "viewport": [
+      390,
+      844
+    ],
+    "actualImageSize": [
+      390,
+      1537
+    ],
+    "prototypeImageSize": [
+      390,
+      1657
+    ],
+    "identicalToReviewedFrontend": true,
+    "meanChannelDifferenceAgainstPrototype": 0.3704886308659894,
+    "sha256": "37a000780c598b8c8df3b800239c2a70a3ffbc8d4a12f1e071903b7bd5fdc19e"
+  },
+  {
+    "state": "unstarted-detail-desktop-1440",
+    "viewport": [
+      1440,
+      1000
+    ],
+    "actualImageSize": [
+      1440,
+      1000
+    ],
+    "prototypeImageSize": [
+      1440,
+      1000
+    ],
+    "identicalToReviewedFrontend": true,
+    "meanChannelDifferenceAgainstPrototype": 3.0755805555555558,
+    "sha256": "60867f6db66c59992aca138ad806db57520ced3298746c1009bd717f2fee32e9"
+  }
+]

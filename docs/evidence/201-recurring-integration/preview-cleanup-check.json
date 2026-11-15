@@ -1,0 +1,35 @@
+{
+  "scope": "Disposable local preview only; production app code unchanged",
+  "oldFailure": {
+    "signal": "SIGTERM",
+    "exit": 143,
+    "cause": "Vite standalone SIGTERM callback calls process.exit before asynchronous PG cleanup finishes",
+    "recovery": "Matched previous preview metadata pgPort to postmaster.pid line 4 under /tmp/lifespace-201-preview-*; stopped only that exact cluster with pg_ctl; other services untouched"
+  },
+  "fix": {
+    "vite": "middlewareMode:true; own loopback HTTP listener; hmr:false",
+    "environment": "envDir:false; independent .cache/recurring-preview-vite",
+    "shutdown": "await HTTP/Vite/PostgREST/PG cleanup before process exit"
+  },
+  "normal": {
+    "previewPort": 5234,
+    "realBrowserRecordAndParentReadExit": 0,
+    "shutdownSignal": "SIGTERM",
+    "exit": 0,
+    "httpRestPgPortsAllClosed": true,
+    "temporaryDataDirectoryRemoved": true
+  },
+  "startupFailure": {
+    "injection": "new process tries to bind a random loopback port held by this validator",
+    "expectedChildExit": 1,
+    "error": "EADDRINUSE",
+    "validatorExit": 0,
+    "temporaryDirectoryAndClusterRemoved": true,
+    "existingServicesStopped": false
+  },
+  "notes": [
+    "Initial sandbox socket verification raised EPERM; repeated outside sandbox and all three closed-port assertions passed.",
+    "Existing 5230 acceptance preview remained available during isolated 5234 and startup-failure checks."
+  ],
+  "coverageCorrection": "b1 covers only ready shutdown and startup failure; pre-READY interruption still failed. See preview-lifecycle-before.json and the follow-up preview-lifecycle-after.json."
+}

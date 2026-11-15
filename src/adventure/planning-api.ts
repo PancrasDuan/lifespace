@@ -1,16 +1,24 @@
 import { z } from 'zod'
 import { growthPageSchema, rewardSourceSchema } from '../shared/adventure-growth'
 import { authorizedFetch, authorizedMutation } from '../auth/request'
-import { adventureClientVersion, adventureClientVersionHeader } from '../shared/adventure-client-version'
+import { adventureClientVersion, adventureClientVersionHeader, adventureReceiptModel, planningCompatibilitySchema, recurringAdventureClientVersion } from '../shared/adventure-client-version'
+import {
+  dateTaskListInputSchema, dateTaskListSchema, recurringChildrenInputSchema, recurringChildrenSchema,
+  recurringChildDetailSchema, recurringDefinitiveErrors, recurringDetailInputSchema, recurringListInputSchema,
+  recurringListSchema, recurringParentDetailSchema,
+  type DateTaskListInput, type RecurringChildrenInput, type RecurringDetailInput, type RecurringListInput,
+} from '../shared/adventure-recurring'
 import type { StoredPlanningEnvelope } from '../shared/adventure-recovery'
-import { taskListSchema, type TaskListInput, taskHistorySchema, migrationOptionsSchema, planningPageSchema, planningReceiptSchema, planningPreviewSchema, type PlanningEnvelope, type PlanningCommand, type PlanningQuery } from '../shared/adventure-planning'
+import { recurringCommandSchema, taskListSchema, type TaskListInput, taskHistorySchema, migrationOptionsSchema, planningPageSchema, planningReceiptSchema, planningPreviewSchema, type PlanningEnvelope, type PlanningCommand, type PlanningQuery } from '../shared/adventure-planning'
 
 export class PlanningError extends Error {
-  constructor(message: string, readonly status: number, readonly uncertain = false) { super(message) }
+  constructor(message: string, readonly status: number, readonly uncertain = false, readonly code?: string) { super(message) }
+  get requiresRefresh() { return !this.uncertain && (this.code === 'PLANNING_DATE_CHANGED' || this.code === 'VERSION_CONFLICT' || this.code === 'COMPLETION_CHANGED') }
 }
 // A first response with one of these codes proves the new command did not commit.
 // Authentication, reused IDs, malformed responses and unknown errors remain pending.
 const definitiveErrors: Record<string, number> = {
+  ...recurringDefinitiveErrors,
   PENDING_TASKS: 400, VERSION_CONFLICT: 409, SAME_DESTINATION: 400, NOT_FOUND: 404,
   READ_ONLY: 400, RESCHEDULE_PAST: 400, SAME_DATE: 400, DATE_LOCKED: 400,
   TASK_NOT_PENDING: 400, DATE_STARTED: 400, COMPLETION_CHANGED: 409,
@@ -42,11 +50,17 @@ async function read<T>(response: Response, schema: z.ZodType<T>, mutation = fals
     const parsed = z.object({ error: z.object({ message: z.string(), code: z.string().optional() }) }).safeParse(value)
     const code = parsed.success ? parsed.data.error.code : undefined
     const definitive = code !== undefined && Object.hasOwn(definitiveErrors, code) && definitiveErrors[code] === response.status
-    throw new PlanningError(parsed.success ? parsed.data.error.message : '连接暂时不可用，请重试', response.status, mutation && !definitive)
+    throw new PlanningError(parsed.success ? parsed.data.error.message : '连接暂时不可用，请重试', response.status, mutation && !definitive, code)
   }
   const parsed = schema.safeParse(value)
   if (!parsed.success) throw new PlanningError('返回数据不完整，请重新读取', 502, mutation)
   return parsed.data
+}
+async function readPinned<T extends { version: number; today: string }>(response: Response, schema: z.ZodType<T>, basis: { expectedVersion: number; today: string }) {
+  const result = await read(response, schema)
+  if (result.today !== basis.today) throw new PlanningError('规划日期已变化，请重新读取后主动操作', 409, false, 'PLANNING_DATE_CHANGED')
+  if (result.version !== basis.expectedVersion) throw new PlanningError('数据已更新，请重新读取', 409, false, 'VERSION_CONFLICT')
+  return result
 }
 export const planningApi = {
   async lookupReceipt(owner: string, envelope: StoredPlanningEnvelope, signal: AbortSignal) {
@@ -54,11 +68,11 @@ export const planningApi = {
     try {
       const compatibility = await authorizedFetch('/api/adventure/compatibility', signal, owner)
       const model: unknown = await compatibility.json().catch(() => null)
-      const supported = z.strictObject({ model: z.literal('goal-categories'), version: z.literal(1), receiptLookup: z.literal(true), legacyRetry: z.literal(false) }).safeParse(model).success
-      if (!compatibility.ok || !noStore(compatibility) || !supported) throw uncertain()
+      const supported = planningCompatibilitySchema.safeParse(model)
+      if (!compatibility.ok || !noStore(compatibility) || !supported.success) throw uncertain()
       const nonce = Array.from(crypto.getRandomValues(new Uint8Array(32)), byte => byte.toString(16).padStart(2, '0')).join('')
       const response = await authorizedMutation('/api/adventure/receipts/lookup', JSON.stringify({ ...envelope, nonce }), signal, owner)
-      if (!response.ok || response.headers.get('X-Lifespace-Adventure-Model') !== adventureClientVersion || !noStore(response)) throw uncertain()
+      if (!response.ok || response.headers.get('X-Lifespace-Adventure-Model') !== adventureReceiptModel || !noStore(response)) throw uncertain()
       const result = await read(response, z.strictObject({ requestId: z.string(), nonce: z.string(), receipt: planningReceiptSchema }), true)
       if (result.requestId !== envelope.requestId || result.nonce !== nonce) throw uncertain()
       return result.receipt
@@ -66,6 +80,26 @@ export const planningApi = {
   },
   async taskList(owner: string, filters: TaskListInput, signal: AbortSignal) {
     return read(await authorizedMutation('/api/adventure/tasks/list', JSON.stringify(filters), signal, owner), taskListSchema)
+  },
+  async dateTaskList(owner: string, filters: DateTaskListInput, signal: AbortSignal) {
+    const value = dateTaskListInputSchema.parse(filters)
+    return readPinned(await authorizedMutation('/api/adventure/date-tasks/list', JSON.stringify(value), signal, owner), dateTaskListSchema, value)
+  },
+  async recurringList(owner: string, filters: RecurringListInput, signal: AbortSignal) {
+    const value = recurringListInputSchema.parse(filters)
+    return readPinned(await authorizedMutation('/api/adventure/recurring/list', JSON.stringify(value), signal, owner), recurringListSchema, value)
+  },
+  async recurringParent(owner: string, filters: RecurringDetailInput, signal: AbortSignal) {
+    const value = recurringDetailInputSchema.parse(filters)
+    return readPinned(await authorizedMutation('/api/adventure/recurring/detail', JSON.stringify(value), signal, owner), recurringParentDetailSchema, value)
+  },
+  async recurringChildren(owner: string, filters: RecurringChildrenInput, signal: AbortSignal) {
+    const value = recurringChildrenInputSchema.parse(filters)
+    return readPinned(await authorizedMutation('/api/adventure/recurring/children', JSON.stringify(value), signal, owner), recurringChildrenSchema, value)
+  },
+  async recurringChild(owner: string, filters: RecurringDetailInput, signal: AbortSignal) {
+    const value = recurringDetailInputSchema.parse(filters)
+    return readPinned(await authorizedMutation('/api/adventure/recurring/child', JSON.stringify(value), signal, owner), recurringChildDetailSchema, value)
   },
   async growth(owner: string, signal: AbortSignal, version?: number, cursor?: string) {
     const query = new URLSearchParams()
@@ -94,7 +128,8 @@ export const planningApi = {
   },
   async send(owner: string, envelope: PlanningEnvelope, signal: AbortSignal) {
     try {
-      return await read(await authorizedMutation('/api/adventure/commands', JSON.stringify(envelope), signal, owner, 'POST', { [adventureClientVersionHeader]: adventureClientVersion }), planningReceiptSchema, true)
+      const clientVersion = recurringCommandSchema.safeParse(envelope.command).success ? recurringAdventureClientVersion : adventureClientVersion
+      return await read(await authorizedMutation('/api/adventure/commands', JSON.stringify(envelope), signal, owner, 'POST', { [adventureClientVersionHeader]: clientVersion }), planningReceiptSchema, true)
     } catch (error) {
       if (error instanceof PlanningError) throw error
       throw new PlanningError('连接中断，尚不能确认是否保存。请安全重试同一次操作。', 0, true)

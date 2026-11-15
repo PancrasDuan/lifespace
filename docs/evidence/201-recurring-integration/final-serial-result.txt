@@ -1,0 +1,46 @@
+PostgreSQL 17.11 (Debian 17.11-0+deb13u1); isolated loopback cluster
+PASS: empty install/nonempty upgrade equivalence, full old-row/receipt reconciliation, injected failure rollback, repeat rejected without effects
+PASS: synthetic once/recurring backup restored; schema/functions/FK/index/RLS/ACL/data/XP/revision/receipt hashes exactly equal; globals not independently restored
+PASS SQL: first-account concurrent snapshots (15 RPCs, 600 reads, 0 mixed/failed/skipped): {"recurring/list":{"empty":40,"committed":0,"rejected":0},"date-tasks/list":{"empty":40,"committed":0,"rejected":0},"recurring/detail":{"empty":0,"committed":0,"rejected":40},"recurring/child":{"empty":0,"committed":0,"rejected":40},"recurring/children":{"empty":0,"committed":0,"rejected":40},"planning/read":{"empty":38,"committed":2,"rejected":0},"workspace/read":{"empty":35,"committed":2,"rejected":3},"workspace/goal":{"empty":0,"committed":4,"rejected":36},"tasks/list":{"empty":37,"committed":0,"rejected":3},"task/history":{"empty":0,"committed":4,"rejected":36},"migration/options":{"empty":0,"committed":2,"rejected":38},"growth/read":{"empty":37,"committed":0,"rejected":3},"reward/source":{"empty":0,"committed":0,"rejected":40},"preview/end-parent":{"empty":0,"committed":0,"rejected":40},"preview/cancel-child":{"empty":0,"committed":0,"rejected":40}}
+PASS SQL: original month-end/leap/quarter/year anchors, Wednesday weeks and constant long jump
+PASS SQL: 4/5 down to 4/3 preserves immutable snapshots, one contribution, higher requirement and cancellation reverse it
+PASS SQL: start-day lifecycle, future start edit/delete, no read mutations and strict dates/counts
+PASS SQL: migration preserves attribution; target blockers include future/full parents; goal reward counts child identities
+PASS SQL: owner composite FK, RLS and RPC grants; no old task/RPC mutation path into child
+PASS SQL: receipt replay wins over stale date/version/full/ended state; changed summary rejected; failed writes have no side effects
+PASS SQL: real simultaneous transactions cannot exceed quota, replay same request only once
+PASS SQL: cross-period history stays frozen without per-period rows, long unused skip and exact audit reconciliation
+PASS SQL: real lock wait across injected server midnight rejects stale intent, success receipt still replays first
+PASS SQL: XP/revision/date overflow and post-write failure roll back all facts/counters/receipts
+PASS SQL: global child/event identity, historical audit sum, XP and revision/request reconciliation
+SQL verification: 11 cases, 0 skipped
+JSON report written to /home/lighthouse/orca/workspaces/lifespace/201-recurring-integration/.cache/recurring-http-report.json
+PASS: real RPC + Worker HTTP 99 tests, 0 skipped
+[WebServer] (node:2726243) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+[WebServer] (node:2726258) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+[WebServer] ▲ [WARNING] Missing required secrets: DNSHE_API_KEY, DNSHE_API_SECRET, AUTH_HOOK_SECRET, ALAPI_TOKEN. Add them to .dev.vars, .env, or set as environment variables.
+[WebServer]
+[WebServer]
+
+
+Running 9 tests using 1 worker
+
+(node:2726365) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+
+[1/9] tests/browser/adventure-recurring-database.spec.ts:49:5 › 周期集成：真实浏览器 → Node app.request Worker → HTTP PostgREST → 隔离PG › 1440: 周月季年与一次性UI创建、共用搜索、原生dialog键盘
+[2/9] tests/browser/adventure-recurring-database.spec.ts:83:5 › 周期集成：真实浏览器 → Node app.request Worker → HTTP PostgREST → 隔离PG › 1440: 真实4/3、快照冻结、上调和撤销至空态
+[3/9] tests/browser/adventure-recurring-database.spec.ts:49:5 › 周期集成：真实浏览器 → Node app.request Worker → HTTP PostgREST → 隔离PG › 390: 周月季年与一次性UI创建、共用搜索、原生dialog键盘
+[4/9] tests/browser/adventure-recurring-database.spec.ts:83:5 › 周期集成：真实浏览器 → Node app.request Worker → HTTP PostgREST → 隔离PG › 390: 真实4/3、快照冻结、上调和撤销至空态
+[5/9] tests/browser/adventure-recurring-database.spec.ts:116:3 › 周期集成：真实浏览器 → Node app.request Worker → HTTP PostgREST → 隔离PG › 父迁移不动旧子、一次性进度/taskCount/奖励N和成长null安排
+[6/9] tests/browser/adventure-recurring-database.spec.ts:151:3 › 周期集成：真实浏览器 → Node app.request Worker → HTTP PostgREST → 隔离PG › 真实提交丢响应后刷新只读恢复、同封套/异摘要、成功后只重读
+[7/9] tests/browser/adventure-recurring-database.spec.ts:196:3 › 周期集成：真实浏览器 → Node app.request Worker → HTTP PostgREST → 隔离PG › 真实关联分页、撤销第11项后返回父、全量进度和空页返回
+[8/9] tests/browser/adventure-recurring-database.spec.ts:215:3 › 周期集成：真实浏览器 → Node app.request Worker → HTTP PostgREST → 隔离PG › 未开始编辑/日期/删除、未来及满额父阻断目标、结束后父子只读
+[9/9] tests/browser/adventure-recurring-database.spec.ts:249:3 › 周期集成：真实浏览器 → Node app.request Worker → HTTP PostgREST → 隔离PG › 实际日期入口、历史不展开父/待办、服务端拒绝过期today且不补交
+  9 passed (54.3s)
+PASS: real browser + Worker + RPC 9 tests, 0 skipped
