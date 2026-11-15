@@ -5,6 +5,7 @@ import { spawn, spawnSync } from 'node:child_process'
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { once } from 'node:events'
 import { createServer as netServer } from 'node:net'
+import { createServer as httpServer } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { createServer } from 'vite'
@@ -28,9 +29,10 @@ const port = Number(process.env.PLAYWRIGHT_PORT || 5230)
 const pgPort = await freePort(), rpcPort = await freePort()
 const owner = crypto.randomUUID(), email = 'integration@example.invalid'
 const user = { id: owner, email, role: 'authenticated', aud: 'authenticated', email_confirmed_at: '2026-11-15', app_metadata: {}, user_metadata: {}, created_at: '2026-11-15' }
-let client, rest, server, database, started = false, closing = false
+let client, rest, server, listener, database, started = false, closing = false
 async function close() {
   if (closing) return; closing = true
+  if (listener) await new Promise(resolve => listener.close(resolve))
   await server?.close(); database?.restore()
   if (rest && rest.exitCode === null) { rest.kill('SIGTERM'); await once(rest, 'exit') }
   await client?.end()
@@ -52,7 +54,7 @@ try {
   if (!ready) throw new Error('Local PostgREST not ready')
   process.env.ADVENTURE_LOCAL_RPC_URL = rpc
   server = await createServer({
-    configFile: false, envFile: false, root,
+    configFile: false, envDir: false, root, cacheDir: '.cache/recurring-preview-vite',
     resolve: { alias: { 'cloudflare:workers': join(root, 'tests/support/cloudflare-workers.ts') } },
     ssr: { noExternal: ['@cloudflare/workers-oauth-provider'] },
     plugins: [react(), {
@@ -77,7 +79,9 @@ try {
         })
       },
     }],
-    server: { host: '127.0.0.1', port, strictPort: true, watch: { ignored: ['**/.cache/**', '**/docs/evidence/**'] }, fs: { deny: ['.env', '.env.*', '**/.dev.vars*', '**/.cache/**', '**/.git/**', '**/.aws/**', '**/.codex/**', '**/dist/lifespace/**'] } },
+    // Own the HTTP listener so Vite's standalone SIGTERM handler cannot exit
+    // before the PostgREST/PG cleanup finishes. No HMR needed for acceptance.
+    server: { middlewareMode: true, hmr: false, watch: { ignored: ['**/.cache/**', '**/docs/evidence/**'] }, fs: { deny: ['.env', '.env.*', '**/.dev.vars*', '**/.cache/**', '**/.git/**', '**/.aws/**', '**/.codex/**', '**/dist/lifespace/**'] } },
   })
   const support = await server.ssrLoadModule('/tests/support/planning-database.ts')
   database = support.planningDatabase(email); database.install({ browserOwner: owner })
@@ -86,8 +90,9 @@ try {
   const recurring = (await database.command(owner, { type: 'createRecurringTask', title: '刷 LeetCode', description: '本地隔离验收数据', destination: goal, requiredCount: 5, periodType: 'week', startOn: today, today })).result.entityId
   await database.command(owner, { type: 'recordRecurringCompletion', id: recurring, today })
   await database.command(owner, { type: 'createTask', title: '出门散步三十分钟', description: '', destination: goal, plannedOn: today })
-  await server.listen()
-  await writeFile(join(root, '.cache/201-preview.json'), JSON.stringify({ url: `http://127.0.0.1:${port}/adventure`, database: 'new disposable cluster', pgPort, rpcPort, identity: 'synthetic test bridge', worker: 'production worker/index via Node app.request; not workerd' }, null, 2) + '\n')
+  listener = httpServer(server.middlewares)
+  await new Promise((resolve, reject) => { listener.once('error', reject); listener.listen(port, '127.0.0.1', resolve) })
+  await writeFile(join(root, `.cache/201-preview-${port}.json`), JSON.stringify({ pid: process.pid, url: `http://127.0.0.1:${port}/adventure`, database: 'new disposable cluster', dataDirectory: work, pgPort, rpcPort, identity: 'synthetic test bridge', worker: 'production worker/index via Node app.request; not workerd' }, null, 2) + '\n')
   console.log(`ISOLATED_PREVIEW_READY http://127.0.0.1:${port}/adventure (synthetic identity, real Worker app.request and new local PostgreSQL)`)
   for (const signal of ['SIGINT', 'SIGTERM']) process.once(signal, () => { void close().then(() => process.exit(0)) })
 } catch (error) { console.error(error.message); await close(); process.exitCode = 1 }

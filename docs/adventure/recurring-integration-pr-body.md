@@ -15,6 +15,7 @@
   **After:** 新隔离PG的新库/非空升级/故障回滚/全旧行和回执对账、11组SQL、15RPC600并发读取、99项真实Worker/HTTP、9项真实数据库浏览器均通过，无跳过。浏览器业务经Node app.request认证桥与真实HTTP RPC；未验收线上Auth或业务请求的workerd部署。
 - 26个同视口状态已重捕获，25张与独立复审前端逐像素一致，另1张仅两像素差；18项周期fixture与68项旧页面/恢复/外围浏览器通过。[截图与逐状态比较](https://github.com/PancrasDuan/lifespace/blob/codex/201-recurring-integration/docs/evidence/201-recurring-integration/README.md)。真实4/3、旧快照、同ID恢复、异摘要、父子分页/撤销空态及结束只读均验证。
 - 普通API383通过/219数据库跳过（单列）；类型/构建、portable安全4项、主安全7项、全历史及当前文件密钥扫描通过。初轮非零/失败的触发和修正保留在[完整验收记录](https://github.com/PancrasDuan/lifespace/blob/codex/201-recurring-integration/docs/adventure/recurring-integration-validation.md)，没有放宽冻结业务预期。
+- 提交后86项浏览器再次通过；并行复核中旧成长HTTP触及原20秒超时，原非零日志保留，原条件串行整个runner重跑99HTTP+9真库浏览器全部通过。测试专用预览的SIGTERM清理修正另通过新实例真实记录、正常退出0及端口冲突预期退出1/无残留验证；不改产品逻辑。
 - 合成代表库pg_dump/pg_restore新数据库恢复后，schema/45函数/FK/索引/RLS/ACL/数据/XP/revision/hash全部一致。复用同cluster角色，没有独立globals恢复或生产备份证明。
 - **待补充门禁：** 本次最终HEAD独立双轴评审；远端推送/PR与必需validate全部CI；用户界面验收和具体合并/生产迁移/部署授权。当前CI尚未运行，不以本地通过替代。
 

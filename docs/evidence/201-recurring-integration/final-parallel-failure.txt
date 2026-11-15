@@ -1,0 +1,39 @@
+PostgreSQL 17.11 (Debian 17.11-0+deb13u1); isolated loopback cluster
+PASS: empty install/nonempty upgrade equivalence, full old-row/receipt reconciliation, injected failure rollback, repeat rejected without effects
+PASS: synthetic once/recurring backup restored; schema/functions/FK/index/RLS/ACL/data/XP/revision/receipt hashes exactly equal; globals not independently restored
+PASS SQL: first-account concurrent snapshots (15 RPCs, 600 reads, 0 mixed/failed/skipped): {"recurring/list":{"empty":38,"committed":0,"rejected":2},"date-tasks/list":{"empty":39,"committed":0,"rejected":1},"recurring/detail":{"empty":0,"committed":0,"rejected":40},"recurring/child":{"empty":0,"committed":0,"rejected":40},"recurring/children":{"empty":0,"committed":0,"rejected":40},"planning/read":{"empty":39,"committed":1,"rejected":0},"workspace/read":{"empty":36,"committed":2,"rejected":2},"workspace/goal":{"empty":0,"committed":1,"rejected":39},"tasks/list":{"empty":38,"committed":0,"rejected":2},"task/history":{"empty":0,"committed":1,"rejected":39},"migration/options":{"empty":0,"committed":1,"rejected":39},"growth/read":{"empty":36,"committed":0,"rejected":4},"reward/source":{"empty":0,"committed":0,"rejected":40},"preview/end-parent":{"empty":0,"committed":0,"rejected":40},"preview/cancel-child":{"empty":0,"committed":0,"rejected":40}}
+PASS SQL: original month-end/leap/quarter/year anchors, Wednesday weeks and constant long jump
+PASS SQL: 4/5 down to 4/3 preserves immutable snapshots, one contribution, higher requirement and cancellation reverse it
+PASS SQL: start-day lifecycle, future start edit/delete, no read mutations and strict dates/counts
+PASS SQL: migration preserves attribution; target blockers include future/full parents; goal reward counts child identities
+PASS SQL: owner composite FK, RLS and RPC grants; no old task/RPC mutation path into child
+PASS SQL: receipt replay wins over stale date/version/full/ended state; changed summary rejected; failed writes have no side effects
+PASS SQL: real simultaneous transactions cannot exceed quota, replay same request only once
+PASS SQL: cross-period history stays frozen without per-period rows, long unused skip and exact audit reconciliation
+PASS SQL: real lock wait across injected server midnight rejects stale intent, success receipt still replays first
+PASS SQL: XP/revision/date overflow and post-write failure roll back all facts/counters/receipts
+PASS SQL: global child/event identity, historical audit sum, XP and revision/request reconciliation
+SQL verification: 11 cases, 0 skipped
+JSON report written to /home/lighthouse/orca/workspaces/lifespace/201-recurring-integration/.cache/recurring-http-report.json
+正式 Worker HTTP → 本机真实 PostgREST → 独立 PostgreSQL 成长记录 七个成就均按全部有效事实实时点亮，100 次行动和 10 个目标不额外发经验，取消可熄灭 Error: Test timed out in 20000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+    at task (file:///home/lighthouse/orca/workspaces/lifespace/201-recurring-integration/node_modules/vitest/dist/chunks/run.BTlFXlnv.js:2681:43)
+    at Object.<anonymous> (file:///home/lighthouse/orca/workspaces/lifespace/201-recurring-integration/node_modules/vitest/dist/chunks/run.BTlFXlnv.js:2698:16)
+    at Object.<anonymous> (file:///home/lighthouse/orca/workspaces/lifespace/201-recurring-integration/node_modules/vitest/dist/chunks/run.BTlFXlnv.js:2471:28)
+    at chain (file:///home/lighthouse/orca/workspaces/lifespace/201-recurring-integration/node_modules/vitest/dist/chunks/run.BTlFXlnv.js:1859:14)
+    at /home/lighthouse/orca/workspaces/lifespace/201-recurring-integration/tests/api/adventure-growth-database.test.ts:121:3
+    at file:///home/lighthouse/orca/workspaces/lifespace/201-recurring-integration/node_modules/vitest/dist/chunks/run.BTlFXlnv.js:2763:52
+    at runWithSuite (file:///home/lighthouse/orca/workspaces/lifespace/201-recurring-integration/node_modules/vitest/dist/chunks/run.BTlFXlnv.js:3250:8)
+    at Object.collect (file:///home/lighthouse/orca/workspaces/lifespace/201-recurring-integration/node_modules/vitest/dist/chunks/run.BTlFXlnv.js:2763:22)
+    at Object.collect (file:///home/lighthouse/orca/workspaces/lifespace/201-recurring-integration/node_modules/vitest/dist/chunks/run.BTlFXlnv.js:2768:51)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+file:///home/lighthouse/orca/workspaces/lifespace/201-recurring-integration/tests/support/run-recurring-database.mjs:25
+  if (r.error || r.status !== 0) throw new Error(`${name} failed (${r.status}): ${r.error?.message || r.stderr}`)
+                                       ^
+
+Error: /home/lighthouse/.nvm/versions/node/v24.22.1/bin/node failed (1): null
+    at run (file:///home/lighthouse/orca/workspaces/lifespace/201-recurring-integration/tests/support/run-recurring-database.mjs:25:40)
+    at file:///home/lighthouse/orca/workspaces/lifespace/201-recurring-integration/tests/support/run-recurring-database.mjs:135:9
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+Node.js v24.22.1

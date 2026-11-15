@@ -30,3 +30,7 @@
 `real/` 来自9项真实Worker/HTTP RPC/新隔离PG浏览器场景，日期和时间由实际服务端决定，事实与fixture示例数值不同，不能据此硬编码时钟或重写数据。包括 [桌面](real/today-1440.png) / [手机](real/today-390.png)、[父](real/parent-1440.png) / [手机父](real/parent-390.png)、[4/3](real/lowered-1440.png) / [手机4/3](real/lowered-390.png)、[子](real/child-1440.png) / [手机子](real/child-390.png)、[撤销空态](real/revoked-empty-1440.png)、[真实分页撤销](real/children-after-revoke-1440.png)、[成长历史归属](real/growth-attribution-1440.png)、[回执恢复](real/receipt-recovered-1440.png)、[历史日期](real/history-date-1440.png) 和 [结束确认](real/end-confirm-1440.png)。
 
 `SHA256SUMS` 固定26张fixture及17张真库截图；[test-summary.json](test-summary.json) 仅保存统计，不上传轨迹；[恢复报告](recurring-restore-report.json) 明确同cluster globals及合成迁移history限制；[SQL制品](sql-artifacts.json) 记录实际字节/摘要。报告里的本机路径仅供同一工作环境复查，不代表远端制品存在。
+
+提交后复核另见 [最终统计](final-recheck.json)、[并行超时的原非零日志](final-parallel-failure.txt)、[原条件串行整个runner的成功日志](final-serial-result.txt) 和 [预览正常/异常退出清理](preview-cleanup-check.json)。这些增量须随新的最终SHA复审，失败没有从证据中移除。
+
+输出文本归档仅去除行尾空白；完整原始日志仍保留在本工作区忽略的.cache中。

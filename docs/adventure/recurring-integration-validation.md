@@ -95,3 +95,17 @@ SQL日界检查使用两个真实PG connection阻塞/等待账户锁，另一个
 Agent浏览器自验、fixture截图、真实数据库验证均已单独记录；用户界面验收、合并后独立规范/需求双轴评审尚待主会话。远端push/PR和必需 `validate` CI尚未执行，不能以本地全部通过冒充CI成功。最终PR目标main，但须主会话核对具体远端授权；没有自动关闭关键词。生产备份/通道限额/停流/迁移/同版本部署/恢复流量的门禁见[发布计划](recurring-release-plan.md)，这些阶段均未执行。
 
 Modern Web Guidance本轮查询并读取 `dialog` / `accessibility`，用于检验已有原生modal、键盘及toast；没有新增产品平台代码。Impeccable沿用已确认视觉，不重设计；React既有请求key/取消/迟到响应通过本次68项恢复与18项周期回归，未引入组件改动。
+
+## 43a6b7e 提交后复核及预览清理增量
+
+对已提交候选 `43a6b7e6ca603ad6b784e5d6bd3075567315fb6e` 再次执行最终回执时，构建、383API/219数据库跳过、portable安全4项、主安全7项与全历史密钥扫描通过；86项浏览器（18周期+68原页面/恢复）合批通过，0失败/0跳过/0flaky，约262秒。完整结果见 [final-recheck.json](../evidence/201-recurring-integration/final-recheck.json)。
+
+同一轮并行运行build/API/浏览器/数据库时，旧 `adventure-growth-database.test.ts:121` 的100行动/10目标场景触及已有20000ms超时：HTTP98通过/1失败、runner退出1，未进入真库浏览器阶段。这轮不能计作通过；[原始非零日志](../evidence/201-recurring-integration/final-parallel-failure.txt) 保留。待重型浏览器完成后，以**相同maxWorkers=2、相同原超时和全部业务断言**独立串行重跑整个runner，退出0：新库/非空升级/恢复、15RPC600并发、11组SQL、99HTTP、9真库浏览器（约54秒）均通过，0失败/0跳过。[完整串行回执](../evidence/201-recurring-integration/final-serial-result.txt) 已纳入跟踪材料。该对比支持资源争用导致超时的判断，没有以增加超时或删除场景掩盖失败。
+
+另在将最早的exec预览移入持久Orca终端时发现辅助脚本清理缺陷：Vite standalone的SIGTERM回调先执行process.exit，原进程退出143且其临时PG仍在。恢复时只匹配当时 `.cache/201-preview.json` 的pgPort与 `/tmp/lifespace-201-preview-*/postmaster.pid` 第4行端口，再对该唯一目录执行 `pg_ctl ... stop`；工具回执确认server stopped，其他任务服务未动。该早期元数据后被新预览覆盖，未把当前元数据冒充旧实例留档。
+
+修正仅在 `tests/support/start-recurring-preview.mjs`：使用Vite middleware模式与自管loopback HTTP listener，关闭时依次等待HTTP/Vite/PostgREST/PG；使用独立Vite缓存和envDir:false，不再共享测试优化缓存或读取环境文件。生产前后端/Worker/SQL/契约、浏览器及DB业务测试均未改。
+
+独立5234新实例通过正常浏览器网络真实记录、今日进度2/3、父2项读取；SIGTERM退出0，确认HTTP/PostgREST/PG三端口全关闭及临时目录删除。初次端口核查在沙箱被EPERM阻止，沙箱外重跑断言通过，没有把受限检查计通过。异常启动另用本验证器自占随机loopback端口，子进程按预期EADDRINUSE退出1；外层验证退出0且新临时目录/PG/PostgREST全清理，未停止原有服务。具体正负结果见 [preview-cleanup-check.json](../evidence/201-recurring-integration/preview-cleanup-check.json)，负例子进程的1不记为正常启动成功。
+
+5230在这些独立检查期间保持运行；随后对本工作区唯一旧预览用SIGINT完成正常清理，在同一Orca terminal重启修正版。重启仅重建合成验收数据，正式业务代码相同，继续保持5230供用户验收。此增量及本节新增证据须由原两轴针对新的最终SHA复审；不能把43a6b7e的旧评审或本worker自检称为增量独立通过。
