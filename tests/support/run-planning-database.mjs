@@ -9,6 +9,7 @@ import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { seedLedgerScale, verifyLedgerReadLocks } from './ledger-scale.mjs'
 import { seedLedgerRefundScale } from './ledger-refund-scale.mjs'
+import { verifyAgentBindingsRetirement } from '../database/agent-bindings-retirement.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
 const ledgerOnly = process.argv.includes('--ledger')
@@ -144,12 +145,13 @@ try {
   }
   await sql('create role anon; create role authenticated; create role service_role bypassrls; grant usage on schema public to service_role;')
   if (ledgerOnly) await sql('create schema auth; create table auth.users (id uuid primary key);')
-  const setup = ledgerOnly ? ['db/ledger/create-ledger.sql', 'db/ledger/list-ledger.sql', 'db/ledger/refunds.sql', 'db/ledger/delete.sql', 'db/ledger/accounts.sql', 'db/ledger/account-entries.sql', 'db/ledger/transfers.sql', 'db/ledger/migrations/20261105002135_remove_legacy_ledger_account_name_v1.sql', 'db/ledger/migrations/20261106000000_ledger_account_filter.sql', 'db/agent/migrations/20261106031343_agent_access_bindings.sql', 'db/agent/migrations/20261114130000_agent_oauth_grants.sql', 'tests/database/agent-oauth-grants.sql', 'tests/database/ledger.sql', 'tests/database/ledger-accounts.sql', 'tests/database/ledger-transfers.sql', 'tests/database/agent-bindings.sql']
+  const setup = ledgerOnly ? ['db/ledger/create-ledger.sql', 'db/ledger/list-ledger.sql', 'db/ledger/refunds.sql', 'db/ledger/delete.sql', 'db/ledger/accounts.sql', 'db/ledger/account-entries.sql', 'db/ledger/transfers.sql', 'db/ledger/migrations/20261105002135_remove_legacy_ledger_account_name_v1.sql', 'db/ledger/migrations/20261106000000_ledger_account_filter.sql', 'db/agent/migrations/20261106031343_agent_access_bindings.sql', 'db/agent/migrations/20261114130000_agent_oauth_grants.sql', 'tests/database/agent-oauth-grants.sql', 'tests/database/ledger.sql', 'tests/database/ledger-accounts.sql', 'tests/database/ledger-transfers.sql']
     : goalsOnly ? legacySchema
     : legacyModel ? [...legacySchema, 'tests/database/goal-migration-fixture.sql']
     : legacyRegression ? [...legacySchema, ...legacyChecks]
     : ['db/adventure/create-planning.sql', 'db/adventure/list-tasks.sql', 'tests/database/adventure-goal-model-transaction.sql', 'tests/database/adventure-goal-model-history-seed.sql']
   for (const path of setup) await sql(await readFile(join(root, path), 'utf8'))
+  if (ledgerOnly) await verifyAgentBindingsRetirement(client, await readFile(join(root, 'db/agent/migrations/20261115151152_retire_legacy_agent_bindings.sql'), 'utf8'))
   if (goalModel) await sql(await readFile(join(root, 'tests/database/adventure-future-completion.sql'), 'utf8'))
   if (legacyRegression) console.log(`通过：旧五表 SQL 回归（${legacyChecks.length} 个脚本）`)
   let migratedFixture
@@ -269,9 +271,7 @@ try {
     console.log('通过：非空五表函数升级可重复执行，旧结束任务、完成奖励与成功回执均保留')
   }
   if (ledgerOnly) await sql(`insert into auth.users (id) values ('00000000-0000-4000-8000-000000000007'),
-    ('00000000-0000-4000-8000-000000000001');
-    insert into public.agent_identity_bindings (client_id, owner_id, enabled)
-      values ('synthetic-http-active.access', '00000000-0000-4000-8000-000000000007', true);`)
+    ('00000000-0000-4000-8000-000000000001');`)
   if (!ledgerOnly && !legacyModel && !goalsOnly && !legacyRegression) await sql(`create function pg_temp.fail_reschedule_http() returns trigger language plpgsql as $$
     begin
       if new.kind='task_rescheduled' and new.snapshot->>'title'='reschedule-http-failpoint' then raise exception 'RESCHEDULE_HTTP_FAILPOINT'; end if;

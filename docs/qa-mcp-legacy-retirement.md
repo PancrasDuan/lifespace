@@ -31,3 +31,8 @@
 ## 生产与客户端未验证项
 
 Cloudflare 和 Supabase 只做了明确目标的只读核验，未改任何外部对象。生产仍存在旧开关、两条 enabled 绑定、两枚 token 及 legacy Access 应用；3 条有效 OAuth grant 保持原状态。标准生产入口/退役行为须在最终部署 SHA 后验收，真实 Supabase Auth、WorkBuddy/Codex 既有连接、多地区及用户验收尚未完成。没有用模拟 KV/Auth、隔离运行时或测试通过替代这些验收。
+
+
+## 用户追加的空表/RPC 删除
+
+PR #207 的记录对应初次退役；用户随后追加删除空的 `agent_identity_bindings`。新迁移删除旧表与 `agent_resolve_owner(text)`，历史创建迁移保留。当前隔离数据库从历史创建迁移升级到删表版本，验证非空拒绝、字符串函数引用拒绝、视图依赖导致整体回滚、成功删除及幂等重放，并在对象缺失状态跑原 OAuth/三个工具回归；PostgREST 对各角色的旧RPC及旧表均返回404。本轮本机PG17/PostgREST/workerd回归17项通过、0跳过，迁移拒绝/回滚/重放探针通过；另以实际生产定义生成的恢复脚本在一次性PG17中恢复，列、约束、索引、RLS/原策略、表/函数owner和ACL、函数正文/配置/注释逐项一致。生产具体迁移版本和前后摘要结果由后续PR固定记录。
