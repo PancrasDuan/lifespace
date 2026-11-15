@@ -63,9 +63,12 @@ export async function recurringFixture(context: BrowserContext, supplied = initi
       return route.fulfill({ json: { ...basis, ...body, pageSize: 10, total: parents.length, parents: parents.slice((body.page - 1) * 10, body.page * 10) } })
     }
     if (path === '/api/adventure/date-tasks/list') {
-      const tasks = [...state.workspace.tasks.filter(task => task.status === 'completed' ? task.completedOn === body.date : task.plannedOn === body.date).map(task => ({ ...task, kind: 'once' })), ...state.children.filter(child => child.status === 'completed' && child.snapshot.occurredOn === body.date)]
+      const tasks = [...state.workspace.tasks.filter(task => task.status === 'completed' ? task.completedOn === body.date
+        : task.status === 'pending' && body.date >= state.workspace.today && (body.date === state.workspace.today ? task.plannedOn <= body.date : task.plannedOn === body.date)).map(task => ({ ...task, kind: 'once' })), ...state.children.filter(child => child.status === 'completed' && child.snapshot.occurredOn === body.date)]
         .filter(task => `${'snapshot' in task ? `${task.snapshot.title} ${task.snapshot.description} ${task.snapshot.goalTitle}` : `${task.title} ${task.description} ${task.goalTitle}`}`.includes(body.search))
-      return route.fulfill({ json: { ...basis, ...body, pageSize: 10, total: tasks.length, tasks: tasks.slice((body.page - 1) * 10, body.page * 10), progress: state.workspace.todayTaskProgress } })
+      const completed = tasks.filter(task => task.status === 'completed').length
+      const progress = body.date === state.workspace.today && !body.search ? state.workspace.todayTaskProgress : { completed, total: tasks.length, ratio: tasks.length ? completed / tasks.length : null }
+      return route.fulfill({ json: { ...basis, ...body, pageSize: 10, total: tasks.length, tasks: tasks.slice((body.page - 1) * 10, body.page * 10), progress } })
     }
     if (path === '/api/adventure/preview') return route.fulfill({ json: { version: state.workspace.version, today: state.workspace.today, allowed: true, message: '请确认', operation: body.command.type, entityId: body.command.id, title: state.parents.find(parent => parent.id === body.command.id)?.title, requiresConfirmation: true, effectiveChildren: 3, completedPeriods: 1 } })
     if (path === '/api/adventure/commands') {

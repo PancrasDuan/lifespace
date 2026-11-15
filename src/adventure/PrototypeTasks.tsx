@@ -91,7 +91,7 @@ export function PrototypeTasks({ data, blocked, reload, openTask, toggleTask, ed
       {result && <>
         {isToday && <div className="today-progress"><div role="group" aria-label="今日任务进度"><span>今日进度</span><strong>{result.progress.completed} / {result.progress.total}</strong></div>{result.progress.ratio === null ? <small>暂无可统计任务</small> : <Progress value={result.progress.ratio} label="今日任务进度" />}</div>}
         {recurring.value && <RecurringTasks list={recurring.value.parents} blocked={rowBlocked} open={openRecurring} record={recordRecurring} changePage={setParentPage} />}
-        {filtered.length === 0 ? recurring.value?.parents.parents.length ? null : <p className="today-empty">{term ? '没有找到匹配的行动。' : date < data.today ? '这一天没有完成记录。' : '这一天没有待完成的任务。'}</p> : groups.filter(group => group.tasks.length).map(group => <section className="today-task-group" key={group.title}><h3>{group.title}<span>{recurringEnabled && (recurring.value?.actions.total ?? 0) > 10 ? `本页 ${group.total}` : group.total}</span></h3><div className="today-task-list">{group.tasks.map(task => {
+        {filtered.length === 0 ? recurring.value?.parents.parents.length ? null : <p className="today-empty">{activePage > 1 ? '本页暂无任务，请返回上一页。' : term ? '没有找到匹配的行动。' : date < data.today ? '这一天没有完成记录。' : '这一天没有待完成的任务。'}</p> : groups.filter(group => group.tasks.length).map(group => <section className="today-task-group" key={group.title}><h3>{group.title}<span>{recurringEnabled && (recurring.value?.actions.total ?? 0) > 10 ? `本页 ${group.total}` : group.total}</span></h3><div className="today-task-list">{group.tasks.map(task => {
           if (task.kind === 'recurring_child') {
             const child = task
             const snapshot = child.snapshot
@@ -119,7 +119,7 @@ export function PrototypeTasks({ data, blocked, reload, openTask, toggleTask, ed
             {open && <div className="today-task-details" id={detailsId}><p>{task.description || '这次行动没有填写说明。'}</p></div>}
           </article>
         })}</div></section>)}
-        {(recurringEnabled ? (recurring.value?.actions.total ?? 0) > 10 : filtered.length > 20) && <footer className="planning-pagination"><small>共 {recurringEnabled ? recurring.value?.actions.total : filtered.length} 项 · 第 {activePage} 页</small><div><button disabled={activePage <= 1} onClick={() => { preserveSpace(); setPage(activePage - 1) }}>上一页任务</button><button disabled={activePage >= pageCount} onClick={() => { preserveSpace(); setPage(activePage + 1) }}>下一页任务</button></div></footer>}
+        {(recurringEnabled ? (recurring.value?.actions.total ?? 0) > 10 || activePage > 1 : filtered.length > 20) && <footer className="planning-pagination"><small>共 {recurringEnabled ? recurring.value?.actions.total : filtered.length} 项 · 第 {activePage} 页</small><div><button disabled={activePage <= 1} onClick={() => { preserveSpace(); setPage(activePage - 1) }}>上一页任务</button><button disabled={activePage >= pageCount} onClick={() => { preserveSpace(); setPage(activePage + 1) }}>下一页任务</button></div></footer>}
       </>}
     </div>
   </section>

@@ -63,7 +63,7 @@ export function RecurringTaskForm({ parent, workspace, blocked, action, close }:
     </select></label>
     {!candidates && <p role="status">{candidateError || '正在读取任务归属…'}</p>}
     {candidateError && <button type="button" onClick={() => setAttempt(value => value + 1)}>重试任务归属</button>}
-    {candidates && candidates.totalGoals > candidates.pageSize && <div className="planning-pagination"><small>目标候选 · 第 {candidates.page} 页</small><div><button type="button" disabled={candidates.page <= 1} onClick={() => setCandidatePage(value => value - 1)}>上一页目标</button><button type="button" disabled={candidates.page * candidates.pageSize >= candidates.totalGoals} onClick={() => setCandidatePage(value => value + 1)}>下一页目标</button></div></div>}
+    {candidates && (candidates.totalGoals > candidates.pageSize || candidates.page > 1) && <div className="planning-pagination"><small>目标候选 · 第 {candidates.page} 页</small><div><button type="button" disabled={candidates.page <= 1} onClick={() => setCandidatePage(value => value - 1)}>上一页目标</button><button type="button" disabled={candidates.page * candidates.pageSize >= candidates.totalGoals} onClick={() => setCandidatePage(value => value + 1)}>下一页目标</button></div></div>}
     {draftError && <p role="alert">{draftError}</p>}
     <div className="adventure-form-footer"><button type="button" onClick={close}>取消</button><button type="submit" className="adventure-primary" disabled={blocked || !candidates}>{blocked ? '正在保存…' : parent ? '保存任务' : '创建任务'}</button></div>
   </fieldset></form>

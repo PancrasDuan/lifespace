@@ -1,31 +1,31 @@
 {
   "heading": {
-    "mean_channel_difference": 0.40138888888888885,
-    "changed_pixels": 119327,
+    "mean_channel_difference": 0.40143229166666666,
+    "changed_pixels": 119328,
     "pixels": 161280
   },
   "create-intro": {
-    "mean_channel_difference": 0.4223939039448885,
-    "changed_pixels": 31147,
+    "mean_channel_difference": 0.4223532852407877,
+    "changed_pixels": 31148,
     "pixels": 41032
   },
   "growth": {
-    "mean_channel_difference": 0.055483490566037734,
-    "changed_pixels": 18034,
+    "mean_channel_difference": 0.055497529200359386,
+    "changed_pixels": 18026,
     "pixels": 118720
   },
   "tabs": {
-    "mean_channel_difference": 0.4915145502645502,
-    "changed_pixels": 41184,
+    "mean_channel_difference": 0.4906415343915344,
+    "changed_pixels": 41153,
     "pixels": 50400
   },
   "calendar": {
-    "mean_channel_difference": 0.0012305905807154381,
+    "mean_channel_difference": 0.0012074688370276741,
     "changed_pixels": 208,
     "pixels": 129748
   },
   "aside": {
-    "mean_channel_difference": 0.24797464130797464,
+    "mean_channel_difference": 0.2466266266266266,
     "changed_pixels": 36339,
     "pixels": 99900
   }

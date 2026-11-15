@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-11-15T08:42:08.562504+00:00",
+  "capturedAt": "2026-11-15T09:12:16.453630+00:00",
   "implementationBase": "503eac4d20740976017b75dbf50eba7ae55d6e34",
   "prototypeMaterial": "d2a0fa4ccb0b52edc44595fd2fc2dff27364df97",
   "prototypeCode": "6db3bdcbda54b12241bd5d2dd8d3247557f1e9c4",
@@ -37,5 +37,18 @@
   ],
   "source": "Formal /adventure UI with frozen HTTP contract fixture; not a real backend/database acceptance",
   "productClock": "Server response today; fixture date is test-only",
-  "pageErrors": []
+  "pageErrors": [],
+  "reviewedCandidate": "c38de78f15d568e953c2a414e73045c96257e37f",
+  "revision": "Independent review fixes: page-return controls, historical-date fixture and adjacent row dividers",
+  "crossdayAssertions": {
+    "selectedDate": "2026-11-15",
+    "serverToday": "2026-11-16",
+    "historicalCompletions": 4,
+    "historicalPending": 0,
+    "automaticResubmissions": 0,
+    "backToTodayProgress": {
+      "completed": 0,
+      "total": 1
+    }
+  }
 }

@@ -31,7 +31,7 @@ export function RecurringTasks({ list, blocked, open, record, changePage }: {
             <button type="button" className="recurring-danger" disabled={blocked || !parent.capabilities.deleteRecurringTask.allowed} title={parent.capabilities.deleteRecurringTask.reason} onClick={() => open({ type: 'delete', id: parent.id })}>删除</button></>}</div>}
       </article>)}
     </section>
-  })}{list.total > list.pageSize && <footer className="planning-pagination"><small>周期任务共 {list.total} 项 · 第 {list.page} 页</small><div>
+  })}{(list.total > list.pageSize || list.page > 1) && <footer className="planning-pagination"><small>周期任务共 {list.total} 项 · 第 {list.page} 页</small><div>
     <button type="button" disabled={blocked || list.page <= 1} onClick={() => changePage(list.page - 1)}>上一页周期任务</button>
     <button type="button" disabled={blocked || list.page * list.pageSize >= list.total} onClick={() => changePage(list.page + 1)}>下一页周期任务</button>
   </div></footer>}</>
