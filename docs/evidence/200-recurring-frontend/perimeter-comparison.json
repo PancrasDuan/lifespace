@@ -1,0 +1,32 @@
+{
+  "heading": {
+    "mean_channel_difference": 0.40138888888888885,
+    "changed_pixels": 119327,
+    "pixels": 161280
+  },
+  "create-intro": {
+    "mean_channel_difference": 0.4223939039448885,
+    "changed_pixels": 31147,
+    "pixels": 41032
+  },
+  "growth": {
+    "mean_channel_difference": 0.055483490566037734,
+    "changed_pixels": 18034,
+    "pixels": 118720
+  },
+  "tabs": {
+    "mean_channel_difference": 0.4915145502645502,
+    "changed_pixels": 41184,
+    "pixels": 50400
+  },
+  "calendar": {
+    "mean_channel_difference": 0.0012305905807154381,
+    "changed_pixels": 208,
+    "pixels": 129748
+  },
+  "aside": {
+    "mean_channel_difference": 0.24797464130797464,
+    "changed_pixels": 36339,
+    "pixels": 99900
+  }
+}

@@ -14,6 +14,8 @@ import { PrototypeGoalDetail } from './PrototypeGoalDetail'
 import { PrototypeGoals } from './PrototypeGoals'
 import { PrototypeTasks } from './PrototypeTasks'
 import { Progress } from './PrototypeRecord'
+import { RecurringDialog } from './RecurringDialog'
+import type { RecurringView } from './RecurringTasks'
 import { PlanningToast } from './PlanningToast'
 import { PlanningLifecycle, lifecycleTitles } from './PlanningLifecycle'
 import { saveTerminalPreference } from './planning-preferences'
@@ -23,9 +25,10 @@ import './planning.css'
 import './prototype-parity.css'
 import './redesign.css'
 import './goal-console.css'
+import './recurring.css'
 
 type PlanningDialog = { kind: 'goal'; goal?: PlanningGoal } | { kind: 'detail'; id: string }
-type Dialog = PlanningDialog | { kind: 'taskHistory'; id: string } | { kind: 'achieve'; id: string } | { kind: 'lifecycle'; operation: LifecyclePreview['operation'] } | { kind: 'task'; task?: PlanningTask }
+type Dialog = { kind: 'recurring'; view: RecurringView } | PlanningDialog | { kind: 'taskHistory'; id: string } | { kind: 'achieve'; id: string } | { kind: 'lifecycle'; operation: LifecyclePreview['operation'] } | { kind: 'task'; task?: PlanningTask }
 type Action = (command: PlanningCommand) => Promise<boolean>
 
 function PlanningForm({ dialog, data, action, busy, close, saved }: {
@@ -155,7 +158,7 @@ function Workspace() {
     }
     const capability = createCapability(kind)
     if (!capability?.allowed) { setCreateError(capability?.reason || '暂时无法新建，请稍后重试。'); return }
-    openDialog({ kind })
+    openDialog(kind === 'task' && data.recurring ? { kind: 'recurring', view: { type: 'create' } } : { kind })
   }
   useEffect(() => {
     if (!pendingCreate || !data || blocked) return
@@ -168,11 +171,16 @@ function Workspace() {
     close()
     if (created) selectTab('planning')
   }
+  const openRecurring = (view: RecurringView) => openDialog({ kind: 'recurring', view })
+  const recovered = () => {
+    if (dialog?.kind === 'recurring' && dialog.view.type === 'child') openRecurring({ type: 'parent', id: dialog.view.parentId })
+    else close()
+  }
   const recovery = (uncertain || model.readRequired) && !busy ? <button type="button" onClick={() => {
-    void model.recover(close).then(type => {
+    void model.recover(recovered).then(type => {
       if (type === 'createGoal') selectTab('planning')
     })
-  }}>{uncertain ? model.recoveryLabel : '重新读取'}</button> : null
+  }}>{uncertain ? model.recoveryLabel : '重新读取'}</button> : model.dateChanged && dialog ? <button type="button" disabled={busy} onClick={() => { void model.refreshDate() }}>刷新日期</button> : null
   const cancelTask = async (task: PlanningTask) => {
     if (!task.completionId) return
     await model.command({ type: 'cancelTaskCompletion', completionId: task.completionId })
@@ -212,14 +220,14 @@ function Workspace() {
   const dismissTaskDeletion = () => { if (blocked) close(); else model.confirmation.invalidate() }
   const title = taskDeletion ? '删除任务' : !dialog ? '' : dialog.kind === 'detail' ? '目标详情'
     : dialog.kind === 'taskHistory' ? '任务安排历史' : dialog.kind === 'achieve' ? '确认目标达成' : dialog.kind === 'lifecycle' ? lifecycleTitles[dialog.operation] : dialog.kind === 'task' ? dialog.task ? '编辑任务' : '创建任务'
-    : dialog.goal ? '编辑目标' : '创建目标'
+    : dialog.kind === 'goal' && dialog.goal ? '编辑目标' : '创建目标'
   const goals = data?.goals
   const goalDetails = data && detailGoal && <PrototypeGoalDetail key={detailGoal.id} goal={detailGoal} detail={data.goalDetail?.goal.id === detailGoal.id ? data.goalDetail : null} pageSize={data.pageSize} blocked={blocked}
     changePage={page => { void model.load({ goalTaskPage: page }) }} />
 
   const growth = growthSnapshot && (!data || growthSnapshot.version >= data.version) ? growthSnapshot.growth : data?.growth
   const growthUnavailable = tab === 'growth' ? growthStatus === 'error' : !busy && model.readRequired && (!!model.error || planningReadFailed)
-  return <AppLayout page="adventure"><div className="adventure-page planning-page prototype-page">
+  return <AppLayout page="adventure"><div className={`adventure-page planning-page prototype-page${data?.recurring ? ' recurring-ui' : ''}`}>
     <header className="page-heading">
       <div className="page-kicker"><span className="live-dot" aria-hidden="true" />LifeSpace · 人生规划</div>
       <h1 id="page-title" tabIndex={-1}>人生冒险</h1><p>把想做的事，慢慢变成现实。</p>
@@ -249,14 +257,16 @@ function Workspace() {
       <button aria-current={tab === 'planning' ? 'page' : undefined} onClick={() => selectTab('planning')}>目标</button>
       <button disabled={busy || uncertain} aria-current={tab === 'growth' ? 'page' : undefined} onClick={() => selectTab('growth')}>成长记录</button></nav>
 
+    {model.dateChanged && <div className="recurring-notice" role="status"><span>日期已变化，本次操作未保存。请刷新日期后重新确认。</span><button type="button" disabled={busy || uncertain} onClick={() => { void model.refreshDate() }}>刷新日期</button></div>}
     {(tab !== 'growth' || uncertain) && (!dialog || !data) && recovery && <div className="planning-recovery">{recovery}</div>}
-    {(tab !== 'growth' || uncertain || dialog) && (model.error ? <PlanningToast key={model.error} tone="error" withinDialog={!!dialog && !!data} message={model.error} close={model.clearError} /> : !model.readRequired && model.notice && <PlanningToast key={model.notice.id} message={model.notice.message} close={model.clearNotice} />)}
+    {(tab !== 'growth' || uncertain || dialog) && (model.error ? <PlanningToast key={model.error} tone="error" withinDialog={!!dialog && !!data} message={model.error} close={model.clearError} /> : !model.readRequired && model.notice && <PlanningToast key={model.notice.id} withinDialog={!!dialog && !!data} message={model.notice.message} close={model.clearNotice} />)}
     {dialog && !data && !busy && <div className="planning-recovery"><button onClick={() => { close(); void model.load() }}>返回冒险</button></div>}
     {tab !== 'growth' && !data && busy && <p role="status" className="adventure-empty">正在读取你的冒险…</p>}
     {tab === 'growth' && <PlanningGrowth onGrowthChange={setGrowthSnapshot} onGrowthStatusChange={setGrowthStatus} />}
 
     {data && tab !== 'growth' && <div className={`adventure-proto-workspace${tab === 'planning' ? ' adventure-proto-map' : ''}`}>
         {tab === 'overview' && (data.capabilities.createTask?.allowed ? <PrototypeTasks data={data} reload={() => model.load()} blocked={blocked} openTask={openRecord?.startsWith('task:') ? openRecord.slice(5) : undefined} toggleTask={toggleTask}
+          openRecurring={openRecurring} recordRecurring={parent => { void model.command({ type: 'recordRecurringCompletion', id: parent.id, today: data.today }, data.version) }} cancelRecurring={child => { void model.command({ type: 'cancelRecurringCompletion', completionId: child.completionId, today: data.today }, data.version) }}
           edit={task => openDialog({ kind: 'task', task })} complete={task => { void model.command({ type: 'completeTask', id: task.id }) }} cancel={task => { void cancelTask(task) }} />
           : <section className="content-section"><header className="section-heading"><div><span className="section-context">今天要做的事</span><h2>一次性任务</h2></div></header><p className="adventure-hint">{data.capabilities.createTask?.reason}</p></section>)}
 
@@ -276,7 +286,8 @@ function Workspace() {
         </>}
     </div>}
 
-    {dialog && data && <Modal title={title} subtitle={dialog.kind === 'detail' && detailGoal ? [detailGoal.categoryLabel, detailGoal.title].filter(Boolean).join(' · ') : dialog.kind === 'achieve' ? '达成后只读保留，不能恢复或再次变更。' : dialog.kind === 'lifecycle' && dialog.operation === 'endGoal' ? '结束表示未达成而停止推进，不是达成。' : undefined} close={taskDeletion ? dismissTaskDeletion : close} restoreFocus={inlineOrigin.current} id={dialog.kind === 'detail' ? `goal-detail-${dialog.id}` : undefined} className={dialog.kind === 'task' ? 'task-dialog' : dialog.kind === 'detail' ? 'goal-relation-dialog' : dialog.kind === 'achieve' || (dialog.kind === 'lifecycle' && dialog.operation === 'endGoal') ? 'goal-confirmation-dialog' : undefined}>
+    {dialog?.kind === 'recurring' && data && <RecurringDialog view={dialog.view} workspace={data} blocked={blocked} action={model.command} confirmation={model.confirmation} change={openRecurring} close={close} reload={() => model.load()} recovery={recovery}/>}
+    {dialog && dialog.kind !== 'recurring' && data && <Modal title={title} subtitle={dialog.kind === 'detail' && detailGoal ? [detailGoal.categoryLabel, detailGoal.title].filter(Boolean).join(' · ') : dialog.kind === 'achieve' ? '达成后只读保留，不能恢复或再次变更。' : dialog.kind === 'lifecycle' && dialog.operation === 'endGoal' ? '结束表示未达成而停止推进，不是达成。' : undefined} close={taskDeletion ? dismissTaskDeletion : close} restoreFocus={inlineOrigin.current} id={dialog.kind === 'detail' ? `goal-detail-${dialog.id}` : undefined} className={dialog.kind === 'task' ? 'task-dialog' : dialog.kind === 'detail' ? 'goal-relation-dialog' : dialog.kind === 'achieve' || (dialog.kind === 'lifecycle' && dialog.operation === 'endGoal') ? 'goal-confirmation-dialog' : undefined}>
       {dialog.kind === 'detail' ? goalDetails ?? <p role="status">正在读取目标详情…</p>
       : dialog.kind === 'taskHistory' ? <PlanningTaskHistory key={dialog.id} id={dialog.id} />
       : dialog.kind === 'achieve' ? preview && 'goalId' in preview && preview.operation === 'achieveGoal' && <GoalAchievement preview={preview} goal={data.goals.find(goal => goal.id === preview.goalId)} confirmation={model.confirmation} saved={() => { openDialog({ kind: 'detail', id: dialog.id }); void model.load({ goalId: dialog.id, goalTaskPage: 1 }) }} cancel={close} />
