@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import { listLedger, detailLedger, createLedger, createLedgerEntry, createLedgerRefund, createLedgerTransfer, refundLedger, previewLedgerDelete, deleteLedger, listLedgerAccounts, readLedgerAccounts, createLedgerAccount, updateLedgerAccount } from './ledger'
-import { readTaskList, readRewardSource, readGrowth, readTaskHistory, readMigrationOptions, readPlanning, previewPlanning, commandPlanning, lookupPlanningReceipt, oldClientUnavailable } from './adventure/planning'
+import { readRecurringList, readRecurringParent, readRecurringChildren, readRecurringChild, readDateTaskList, readTaskList, readRewardSource, readGrowth, readTaskHistory, readMigrationOptions, readPlanning, previewPlanning, commandPlanning, lookupPlanningReceipt, oldClientUnavailable } from './adventure/planning'
 import { adventureClientVersion, adventureClientVersionHeader, planningCompatibility } from '../src/shared/adventure-client-version'
 import { readHoroscope } from './horoscope'
 import { readTasks } from './tasks'
@@ -157,6 +157,11 @@ app.get('/api/ledger/entries/:id/delete-preview', previewLedgerDelete)
 app.post('/api/ledger/entries/:id/delete', deleteLedger)
 app.get('/api/adventure', readPlanning)
 app.post('/api/adventure/tasks/list', readTaskList)
+app.post('/api/adventure/recurring/list', readRecurringList)
+app.post('/api/adventure/recurring/detail', readRecurringParent)
+app.post('/api/adventure/recurring/children', readRecurringChildren)
+app.post('/api/adventure/recurring/child', readRecurringChild)
+app.post('/api/adventure/date-tasks/list', readDateTaskList)
 app.get('/api/adventure/migration-options', readMigrationOptions)
 app.get('/api/adventure/task-history', readTaskHistory)
 app.get('/api/adventure/growth', readGrowth)

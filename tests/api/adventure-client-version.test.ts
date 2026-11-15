@@ -15,12 +15,12 @@ it('旧客户端不能执行仍合法的写入，新客户端可以发送同一�
     return Response.json({ version: 1, result: { entityId: owner, message: '已创建' } })
   })
   const body = JSON.stringify({ requestId: 'client-version-test', expectedVersion: 0, command: { type: 'createTask', title: '行动', description: '', plannedOn: '2026-11-12', destination: '' } })
-  for (const version of [undefined, 'old', '']) {
+  for (const version of [undefined, 'old', '', 'goal-categories-1']) {
     const response = await app.request('/api/adventure/commands', { method: 'POST', headers: { ...headers, ...(version === undefined ? {} : { 'X-Adventure-Client-Version': version }) }, body }, env)
     expect(response.status).toBe(503)
     expect(await response.json()).toMatchObject({ error: { code: 'CLIENT_UPDATE_REQUIRED', message: expect.stringContaining('不要刷新') } })
   }
   expect(writes).toBe(0)
-  expect((await app.request('/api/adventure/commands', { method: 'POST', headers: { ...headers, 'X-Adventure-Client-Version': 'goal-categories-1' }, body }, env)).status).toBe(200)
+  expect((await app.request('/api/adventure/commands', { method: 'POST', headers: { ...headers, 'X-Adventure-Client-Version': 'recurring-1' }, body }, env)).status).toBe(200)
   expect(writes).toBe(1)
 })

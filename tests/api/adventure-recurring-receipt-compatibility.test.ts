@@ -5,12 +5,7 @@ import { planningApi } from '../../src/adventure/planning-api'
 import { authorizedFetch, authorizedMutation } from '../../src/auth/request'
 import { adventureClientVersion, recurringAdventureClientVersion } from '../../src/shared/adventure-client-version'
 
-// Model #199's future write-gate switch through the existing module seam.
-// The production read protocol must stay unchanged; no runtime test switch exists.
-vi.mock('../../src/shared/adventure-client-version', async importOriginal => {
-  const actual = await importOriginal<typeof import('../../src/shared/adventure-client-version')>()
-  return { ...actual, adventureClientVersion: actual.recurringAdventureClientVersion }
-})
+// Exercise the activated production write gate; the recovery protocol stays frozen.
 vi.mock('../../src/auth/request', () => ({ authorizedFetch: vi.fn(), authorizedMutation: vi.fn() }))
 
 const owner = '00000000-0000-4000-8000-000000000054'

@@ -3,9 +3,8 @@ import { z } from 'zod'
 // Bump when an older adventure client must no longer submit writes.
 export const adventureClientVersionHeader = 'X-Adventure-Client-Version'
 export const legacyAdventureClientVersion = 'goal-categories-1'
-export const adventureClientVersion = legacyAdventureClientVersion
-// #199 activates this gate for ALL new writes in the coordinated release.
-// #198 keeps the currently deployed once-task gate unchanged.
+export const adventureClientVersion = 'recurring-1'
+// Every once-task and recurring write uses the coordinated recurring gate.
 export const recurringAdventureClientVersion = 'recurring-1'
 // This read-only protocol must outlive write-gate upgrades: old pending pages
 // parse the probe strictly and compare this exact response header value.
