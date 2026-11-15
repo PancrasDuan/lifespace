@@ -328,8 +328,8 @@ test('systemd/launchd plans use absolute paths, escape special characters, prese
     const removed = calls.length; await applySchedule(linux, false, run); expect(calls.length).toBe(removed)
     const mac = schedulePlan('macos', state + '&', hours, home, '/node path/node', '/install/cli.js', 123)
     expect(mac.files[0].content).toContain('&amp;'); expect(mac.files[0].content).toContain(`<integer>${hours * 3600}</integer>`)
-    await applySchedule(mac, true, run); const n = calls.filter((c: any) => c.args[0] === 'bootstrap').length
-    await applySchedule(mac, true, run); expect(calls.filter((c: any) => c.args[0] === 'bootstrap').length).toBe(n)
+    await applySchedule(mac, true, run); const written = await readFile(mac.files[0].path, 'utf8')
+    await applySchedule(mac, true, run); expect(await readFile(mac.files[0].path, 'utf8')).toBe(written)
     await applySchedule(mac, false, run)
     const unloaded = calls.length; await applySchedule(mac, false, run); expect(calls.length).toBe(unloaded)
   }
@@ -345,4 +345,28 @@ test('launchd bootstrap failure is retried even when the written plist is unchan
   await expect(applySchedule(plan, true, execute)).rejects.toThrow('synthetic bootstrap failure')
   await applySchedule(plan, true, execute)
   expect(loaded).toBe(true); expect(attempts).toBe(2)
+})
+test('launchd configuration update recovers after plist write interruption and failed unload of the previous interval', async () => {
+  const home = await root(), state = join(home, 'state')
+  const old = schedulePlan('macos', state, 1, home, '/node', '/cli.js', 123), next = schedulePlan('macos', state, 3, home, '/node', '/cli.js', 123)
+  let loadedSeconds = 0, failUnload = false
+  const execute = async (command: { args: string[] }) => {
+    if (command.args[0] === 'print' && !loadedSeconds) throw new Error('not loaded')
+    if (command.args[0] === 'bootout') { if (failUnload) throw new Error('synthetic unload failure'); loadedSeconds = 0 }
+    if (command.args[0] === 'bootstrap') {
+      if (loadedSeconds) throw new Error('old job still loaded')
+      const content = await readFile(next.files[0].path, 'utf8')
+      loadedSeconds = Number(/StartInterval<\/key><integer>(\d+)/.exec(content)![1])
+    }
+  }
+  await applySchedule(old, true, execute); expect(loadedSeconds).toBe(3600)
+  // Simulate a crash after the new plist was written, before old job unload.
+  await writeFile(next.files[0].path, next.files[0].content)
+  await applySchedule(next, true, execute); expect(loadedSeconds).toBe(10800)
+  await applySchedule(old, true, execute); expect(loadedSeconds).toBe(3600)
+  failUnload = true
+  await expect(applySchedule(next, true, execute)).rejects.toThrow('old job still loaded')
+  expect(loadedSeconds).toBe(3600)
+  failUnload = false
+  await applySchedule(next, true, execute); expect(loadedSeconds).toBe(10800)
 })

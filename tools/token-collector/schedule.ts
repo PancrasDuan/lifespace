@@ -45,24 +45,19 @@ export async function applySchedule(plan: SchedulePlan, install: boolean, execut
     for (const command of plan.uninstall.slice(1)) await execute(command)
     return
   }
-  let changed = false
   for (const file of plan.files) {
     let old: string | undefined
     try { old = await readFile(file.path, 'utf8') } catch (e) { if (!isMissing(e)) throw e }
     if (old === file.content) continue
-    changed = true
     await ensureParent(file.path)
     const temp = join(dirname(file.path), `.${label}.${process.pid}.tmp`)
     await writeFile(temp, file.content, { mode: 0o600, flag: 'wx' }); await rename(temp, file.path)
   }
-  // Repeated installation is idempotent. For launchd a changed interval needs
-  // bootout/bootstrap. An unchanged plist is successful only when the job is
-  // actually loaded: a previous bootstrap may have failed after writing it.
+  // The on-disk plist cannot prove which configuration is loaded. Always
+  // bootout/bootstrap, including retries after an interrupted interval update.
+  // Repeating installation preserves the file and leaves one current job.
   if (plan.install[0].file === '/bin/launchctl') {
-    if (!changed) {
-      try { await execute({ file: '/bin/launchctl', args: ['print', plan.uninstall[0].args[1]] }); return }
-      catch { /* Retry bootstrap of an existing but not loaded plist. */ }
-    } else { try { await execute(plan.uninstall[0]) } catch { /* Not installed yet. */ } }
+    try { await execute(plan.uninstall[0]) } catch { /* A missing job is normal; bootstrap must still succeed. */ }
   }
   for (const command of plan.install) await execute(command)
 }
