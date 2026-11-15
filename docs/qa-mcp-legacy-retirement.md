@@ -1,6 +1,6 @@
 # #204 旧 MCP 通道退役验证
 
-本记录对应任务分支 `codex/204-retire-legacy-mcp`；起点及目标 main 为 `ae138f4c029c6bd79c74c4c885f819e726a3b4a7`。最终评审 HEAD、独立双轴结果及 CI 在关联 PR 固定记录。涉及鉴权、公开接口和生产配置，属于需确认的变更；本地实现和 PR 准备已授权，生产发布/清理尚未授权或执行。
+本记录对应任务分支 `codex/204-retire-legacy-mcp`；起点及目标 main 为 `ae138f4c029c6bd79c74c4c885f819e726a3b4a7`。最终评审 HEAD、独立双轴结果及 CI 在 [PR #207](https://github.com/PancrasDuan/lifespace/pull/207) 固定记录。涉及鉴权、公开接口和生产配置，属于需确认的变更；本地实现和 PR 准备已授权，生产发布/清理尚未授权或执行。
 
 ## 行为与范围
 
@@ -14,7 +14,7 @@
 
 | 验证 | 结果与边界 |
 | --- | --- |
-| `npm run test:api` | 379 项通过、219 项数据库环境相关测试跳过；之后新增一项旧 Access/REST 隔离断言，退役测试文件单独 9 项通过；最终完整数量以 PR CI 为准。跳过不计为通过 |
+| `npm run test:api` | 最终全量 380 项通过、219 项数据库环境相关测试跳过；退役测试文件单独 9 项通过。跳过不计为通过 |
 | 退役拒绝 | GET/HEAD/POST/PUT/PATCH/DELETE/OPTIONS × 空配置/残留 true 配置 × 五类凭据，均 404；有效测试 OAuth/网页登录 token 也 404，原 Request.bodyUsed=false，KV/get、上游和业务未调用；旧头不能访问网页 REST/其他 Agent 路径 |
 | 真实隔离数据库 | 4 文件 17 项全部通过、0 跳过；含 10 项迁移到 OAuth 的原账单 MCP 契约、4 项 OAuth 数据库、2 项历史绑定权限、1 项真实 workerd/KV 贯通。一次性 PG17/PostgREST 真正执行授权和账单事务，Auth 服务为合成边界 |
 | 真实 Worker 构建 | 对 `dist/lifespace` 生产构建注入遗留开关/Access 配置，workerd+真实 KV 跑 DCR/同意/PKCE/刷新/撤销；有效两类 token/无凭据的旧路径 GET/POST/OPTIONS 均 404，未调用 outboundService |
