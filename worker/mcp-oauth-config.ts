@@ -8,7 +8,6 @@ export type OAuthEnv = AuthEnv & {
   OAUTH_KV?: KVNamespace
   MCP_OAUTH_ISSUER?: string
   MCP_OAUTH_DCR_ENABLED?: string
-  MCP_LEGACY_ENABLED?: string
   MCP_ALLOWED_ORIGINS?: string
 }
 export const oauthUnavailable = () => new ApiError('AUTH_UNAVAILABLE', '授权服务暂时不可用，请稍后重试', 503)

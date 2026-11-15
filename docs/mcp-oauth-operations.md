@@ -1,6 +1,6 @@
 # MCP OAuth 接入与运维
 
-实现对应 [#193](https://github.com/PancrasDuan/lifespace/issues/193)、[ADR 0012](adr/0012-mcp-oauth-grants.md)。账单工具字段、结果、退款事实、requestId 重试和业务错误见 [MCP 接口](agent-mcp.md)。标准 OAuth 入口与旧 Service Token 通道分离；具体部署版本和线上验证结果记录在 [PR #194](https://github.com/PancrasDuan/lifespace/pull/194)。
+实现对应 [#193](https://github.com/PancrasDuan/lifespace/issues/193)、[ADR 0012](adr/0012-mcp-oauth-grants.md)。账单工具字段、结果、退款事实、requestId 重试和业务错误见 [MCP 接口](agent-mcp.md)。标准 OAuth 是唯一 MCP 接入方式；旧 Service Token 通道按 [#204 退役清单](mcp-legacy-retirement.md) 下线；具体部署版本和线上验证结果记录在 [PR #194](https://github.com/PancrasDuan/lifespace/pull/194)。
 
 ## 客户端与用户
 
@@ -46,7 +46,7 @@ WorkBuddy 官方动态 OAuth 流程依赖 RFC 7591 客户端注册。生产配�
 - `global_fetch_strictly_public`：CIMD 必需，配合官方库的 HTTPS、大小、超时及 redirect 校验防 SSRF；不加载客户端 logo 或任意脚本。
 - `MCP_OAUTH_DCR_ENABLED=true`：生产为 WorkBuddy 的动态 OAuth 接入显式开启 `/oauth/register`；其他环境未配置时仍关闭，预注册和 CIMD 继续可用。注册结果、scope 和回调仍由官方库及用户同意验证。
 - `MCP_ALLOWED_ORIGINS`：可选的精确 Origin 逗号列表，不含通配符；同源网页自动允许。其他带 Origin 的请求（含 OPTIONS）拒绝。metadata、token 与 MCP 的 CORS 仅回显已允许 Origin，不使用 `*`。非浏览器客户端可以不带 Origin。
-- `MCP_LEGACY_ENABLED=true`：按实际旧客户端需要开启 `/api/agent/legacy/mcp`；其 `CF_ACCESS_TEAM_DOMAIN`、`CF_ACCESS_AUD` 和绑定沿用 [旧通道管理](agent-access-bindings.md)，不自动创建或迁移真实绑定。
+旧 `/api/agent/legacy/mcp` 在任何环境下均于业务鉴权前返回 404。`MCP_LEGACY_ENABLED`、`CF_ACCESS_TEAM_DOMAIN`、`CF_ACCESS_AUD` 已退出运行时契约，残留配置不能开启兼容模式；生产配置清理按 [退役清单](mcp-legacy-retirement.md) 执行。
 
 Wrangler 的 `run_worker_first` 包含 `/api/*`、`/.well-known/*`、`/oauth/*`。AS metadata、token、register 由服务端处理；授权和管理页才返回 SPA，未知服务端路径返回 404 JSON。认证与授权响应为 `no-store`，授权页禁止 framing，并使用 no-referrer；不削弱已有静态资源的完整 CSP。浏览器 token 只在同源 API 请求 Authorization 头内发送。
 
@@ -60,7 +60,9 @@ Wrangler 的 `run_worker_first` 包含 `/api/*`、`/.well-known/*`、`/oauth/*`�
 
 官方 RFC 7009 revocation endpoint 与 token endpoint 同为 `/oauth/token`，按官方库要求提交 token 与客户端鉴权信息。单枚 access token 撤销不撤销整条连接；refresh token 撤销撤销该库 grant，均受 KV 传播窗口影响。本站管理页的数据库撤销才提供上述新解析拒绝边界。异地真实传播验收与模拟旧 KV 测试分开记录。
 
-## 生产阶段与回退门禁
+## OAuth 初次上线的历史阶段与回退门禁
+
+以下记录 #193 的初次上线及当时的回退方案，保留追溯，不是当前执行指令。#204 已替代其中保留/启用旧通道的决定；本次发布、清理与回退以 [退役清单](mcp-legacy-retirement.md) 为准，不得重新开放旧入口。
 
 发布准备前的只读基线（2026-11-14）：Cloudflare 账户为仓库 Wrangler 账户，Access 应用 `e334ecac-3f93-4650-a0eb-39ab1fe02437`（LifeSpace Agent MCP）精确保护 `lifespace.onepeace.cc.cd/api/agent/mcp`；destination 相同，存在两条 `non_identity` 策略，`options_preflight_bypass=false`。这会拦截标准 MCP 首次请求。当时 Supabase 项目 `zvdcjzjfhkjasikchceo` 已有启用 RLS 的 `agent_identity_bindings`，OAuth 表/函数尚不存在。
 

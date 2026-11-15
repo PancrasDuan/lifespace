@@ -1,41 +1,31 @@
-import { generateKeyPairSync, sign } from 'node:crypto'
-import { afterEach, expect, test, vi } from 'vitest'
-import app from '../../worker/index'
+import { afterEach, beforeEach, expect, test, vi } from 'vitest'
+import { oauthFixture, oauthOwner } from '../support/mcp-oauth'
 
-const owner = '00000000-0000-4000-8000-000000000001'
-const team = 'https://agent-test.cloudflareaccess.com'
-const audience = 'test-agent-audience'
-const clientId = 'agent-test-client.access'
-const env = {
-  MCP_LEGACY_ENABLED: 'true',
-  CF_ACCESS_TEAM_DOMAIN: team, CF_ACCESS_AUD: audience,
-  SUPABASE_URL: 'https://auth-test.supabase.co', SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_test-only',
-  SUPABASE_SECRET_KEY: 'sb_secret_test-only', AUTH_ALLOWED_EMAILS: 'agent@example.invalid',
-}
-const pair = generateKeyPairSync('rsa', { modulusLength: 2048 })
-const jwk = { ...pair.publicKey.export({ format: 'jwk' }), kid: 'test-key', alg: 'RS256', use: 'sig' }
-const encode = (value: unknown) => Buffer.from(JSON.stringify(value)).toString('base64url')
-function assertion() {
-  const message = `${encode({ alg: 'RS256', kid: 'test-key' })}.${encode({ iss: team, aud: audience, exp: Math.floor(Date.now() / 1000) + 300, sub: '', common_name: clientId })}`
-  return `${message}.${sign('RSA-SHA256', Buffer.from(message), pair.privateKey).toString('base64url')}`
-}
+const owner = oauthOwner
+let fixture: ReturnType<typeof oauthFixture>
+let accessToken: string
+let oauthFetch: typeof fetch
+beforeEach(async () => {
+  fixture = oauthFixture()
+  accessToken = (await fixture.issue((await fixture.client()).clientId)).access_token
+  oauthFetch = globalThis.fetch
+})
 function upstream(extra?: (url: string, init?: RequestInit) => Response | undefined) {
   vi.stubGlobal('fetch', vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
     const url = String(input)
-    if (url === `${team}/cdn-cgi/access/certs`) return Response.json({ keys: [jwk] })
-    if (url === `${env.SUPABASE_URL}/rest/v1/rpc/agent_resolve_owner`) return Response.json({ ownerId: owner })
-    if (url === `${env.SUPABASE_URL}/auth/v1/admin/users/${owner}` || url === `${env.SUPABASE_URL}/auth/v1/user`) return Response.json({ id: owner, email: 'agent@example.invalid', email_confirmed_at: '2026-11-01T00:00:00Z', is_anonymous: false })
-    const value = extra?.(url, init)
-    if (value) return value
-    throw new Error('unexpected upstream')
+    if (url.includes('/rpc/ledger_')) {
+      const value = extra?.(url, init)
+      if (value) return value
+      throw new Error('unexpected synthetic ledger RPC')
+    }
+    return oauthFetch(input, init)
   }))
 }
 function request(body: unknown, headers: HeadersInit = {}) {
-  return app.request('/api/agent/legacy/mcp', { method: 'POST', headers: { 'Cf-Access-Jwt-Assertion': assertion(), 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream', ...headers }, body: JSON.stringify(body) }, env)
+  return fixture.request('/api/agent/mcp', { method: 'POST', headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream', ...headers }, body: JSON.stringify(body) })
 }
 function restRequest(path: string, body?: unknown) {
-  const token = encode({ alg: 'HS256' }) + '.' + encode({ sub: owner, session_id: owner, exp: 4102444800 }) + '.synthetic'
-  return app.request(path, { method: body === undefined ? 'GET' : 'POST', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) }, env)
+  return fixture.browser(path, body)
 }
 function restRefund(args: Record<string, unknown>) {
   const { id, ...body } = args
@@ -301,9 +291,10 @@ test.each(['valid', 'invalid', 'unknown'] as const)('普通创建也统一使用
 
 test.each(['create_ledger_refund'])('%s 仍需 Agent 鉴权与在线准入，Agent 凭据不能访问网页退款接口', async name => {
   upstream()
-  const headers = { 'Cf-Access-Jwt-Assertion': assertion(), 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream' }
+  const headers = { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream' }
   const body = JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name, arguments: refund } })
-  expect((await app.request('/api/agent/legacy/mcp', { method: 'POST', headers, body }, { ...env, AUTH_ALLOWED_EMAILS: 'removed@example.invalid' })).status).toBe(403)
-  expect((await app.request('/api/agent/legacy/mcp', { method: 'POST', headers: { ...headers, 'Cf-Access-Jwt-Assertion': '' }, body }, env)).status).toBe(401)
-  expect((await app.request('/api/ledger/entries/' + refund.id + '/refunds', { method: 'POST', headers, body: JSON.stringify(refund) }, env)).status).toBe(401)
+  fixture.env.AUTH_ALLOWED_EMAILS = 'removed@example.invalid'
+  expect((await fixture.request('/api/agent/mcp', { method: 'POST', headers, body })).status).toBe(403)
+  expect((await fixture.request('/api/agent/mcp', { method: 'POST', headers: { ...headers, Authorization: '' }, body })).status).toBe(401)
+  expect((await fixture.request('/api/ledger/entries/' + refund.id + '/refunds', { method: 'POST', headers, body: JSON.stringify(refund) })).status).toBe(401)
 })

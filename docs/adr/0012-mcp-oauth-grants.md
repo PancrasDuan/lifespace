@@ -1,5 +1,7 @@
 # MCP 使用独立 OAuth 授权，网页登录继续由 Supabase 管理
 
+> #204 后续决定：[ADR 0015](0015-retire-legacy-mcp.md) 替代本文保留旧兼容通道的部分；其余 OAuth 决定继续有效。
+
 Issue [#193](https://github.com/PancrasDuan/lifespace/issues/193) 已获方案实施授权。标准 `/api/agent/mcp` 改用 Cloudflare 官方 `@cloudflare/workers-oauth-provider@1.2.4` 的授权码 + PKCE S256，签发仅面向该 MCP resource 的不透明令牌。授权服务器与现有 Hono API 在同一 Worker，使用库的 `OAuthAuthorizationServer` 与 token/consent helpers，复用原账单服务；固定 issuer 来自服务端配置，不能由请求 Host 或客户端参数决定。
 
 此决定替代 [ADR 0009](0009-agent-service-token-access.md) 中“优先手动发放 Service Token、不建设用户同意和管理页面”的选择，保留其独立凭据、逐请求在线准入、owner 隔离和在途边界。旧机器凭据仅可用于显式开启的 `/api/agent/legacy/mcp`，仍使用原绑定和 Access 校验。OAuth `client_id` 表示应用，同一应用可由多个用户授权；owner 从经过验证的 grant 取得，不经过机器绑定表。

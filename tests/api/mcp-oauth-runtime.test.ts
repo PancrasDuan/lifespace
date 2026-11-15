@@ -10,15 +10,18 @@ test.skipIf(!rpc)('生产构建配置驱动真实 workerd + KV + 隔离 PostgreS
   const owner = '00000000-0000-4000-8000-000000000007'
   const user = { id: owner, email: 'runtime@example.invalid', email_confirmed_at: '2026-01-01T00:00:00Z', is_anonymous: false }
   const productionConfig = JSON.parse(await readFile(resolve('dist/lifespace/wrangler.json'), 'utf8'))
-  const env = { MCP_OAUTH_DCR_ENABLED: productionConfig.vars?.MCP_OAUTH_DCR_ENABLED ?? 'false', MCP_OAUTH_ISSUER: issuer, SUPABASE_URL: 'https://runtime-auth.supabase.co', SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_runtime-test-only', SUPABASE_SECRET_KEY: 'sb_secret_runtime-test-only', AUTH_ALLOWED_EMAILS: user.email }
+  // Deliberately inject obsolete configuration into the built Worker.
+  const env = { MCP_LEGACY_ENABLED: 'true', CF_ACCESS_TEAM_DOMAIN: 'https://retired.cloudflareaccess.com', CF_ACCESS_AUD: 'synthetic-retired-audience', MCP_OAUTH_DCR_ENABLED: productionConfig.vars?.MCP_OAUTH_DCR_ENABLED ?? 'false', MCP_OAUTH_ISSUER: issuer, SUPABASE_URL: 'https://runtime-auth.supabase.co', SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_runtime-test-only', SUPABASE_SECRET_KEY: 'sb_secret_runtime-test-only', AUTH_ALLOWED_EMAILS: user.email }
   const workerFiles = await readdir(resolve('dist/lifespace'), { recursive: true })
   const modules = ['index.js', ...workerFiles.filter(path => path.endsWith('.js') && path !== 'index.js')].map(path => ({ type: 'ESModule' as const, path: resolve('dist/lifespace', path) }))
+  let upstreamCalls = 0
   const runtime = new Miniflare(convertV4MiniflareOptions({ workers: [{
     name: 'lifespace-oauth-runtime-test', modules, modulesRoot: resolve('dist/lifespace'),
     compatibilityDate: '2026-10-01', compatibilityFlags: ['nodejs_compat', 'global_fetch_strictly_public'], bindings: env,
     kvNamespaces: ['OAUTH_KV', 'HOROSCOPE_KV'],
     assets: { directory: resolve('dist/client'), binding: 'ASSETS', run_worker_first: ['/api/*', '/oauth/*', '/.well-known/*'], routerConfig: { has_user_worker: true }, assetConfig: { not_found_handling: 'single-page-application' } },
     outboundService: async request => {
+      upstreamCalls++
       const url = new URL(request.url)
       if (url.origin !== env.SUPABASE_URL) throw new Error('runtime test forbids external upstreams')
       if (url.pathname === '/auth/v1/user' || url.pathname === '/auth/v1/admin/users/' + owner) return new RuntimeResponse(JSON.stringify(user), { headers: { 'Content-Type': 'application/json' } })
@@ -58,6 +61,14 @@ test.skipIf(!rpc)('生产构建配置驱动真实 workerd + KV + 隔离 PostgreS
     const credentials = await issued.json() as { access_token: string; refresh_token: string }
     const mcp = () => request('/api/agent/mcp', { method: 'POST', headers: { Origin: issuer, Authorization: `Bearer ${credentials.access_token}`, 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' }) })
     expect((await mcp()).status).toBe(200)
+    const beforeRetired = upstreamCalls
+    for (const method of ['GET', 'POST', 'OPTIONS']) for (const authorization of ['', `Bearer ${token}`, `Bearer ${credentials.access_token}`]) {
+      const retired = await request('/api/agent/legacy/mcp', { method, headers: { Authorization: authorization, 'Cf-Access-Jwt-Assertion': 'synthetic.retired.assertion', Origin: issuer } })
+      expect(retired.status).toBe(404)
+      expect(retired.headers.get('Cache-Control')).toBe('no-store')
+      expect(await retired.json()).toEqual({ error: { code: 'NOT_FOUND', message: '接口不存在' } })
+    }
+    expect(upstreamCalls).toBe(beforeRetired)
     expect((await request('/api/ledger/accounts', { headers: { Authorization: `Bearer ${credentials.access_token}` } })).status).toBe(401)
     expect((await exchange({ grant_type: 'refresh_token', client_id: clientId, refresh_token: credentials.refresh_token })).status).toBe(200)
     const grants = await (await browser('/api/oauth/grants')).json() as { grants: { id: string; clientId: string }[] }
