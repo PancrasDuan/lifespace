@@ -70,6 +70,7 @@ export function McpAuthorization() {
       setBusy(false)
     }
   }
+  const allSelected = selected.length === mcpScopes.length
   function submit(event: FormEvent) { event.preventDefault(); void decide('approve') }
   return <AuthLayout title="客户端授权">
     <div className="mcp-authorization">
@@ -81,7 +82,7 @@ export function McpAuthorization() {
         <form onSubmit={submit} action="/api/oauth/consent/finish" method="post">
           <fieldset disabled={busy} className="mcp-permissions">
             <legend>选择允许的操作</legend>
-            <button type="button" className="auth-link mcp-select-all" onClick={() => { setSelected([...mcpScopes]); setError('') }}>全选</button>
+            <button type="button" className="auth-link mcp-select-all" onClick={() => { setSelected(allSelected ? [] : [...mcpScopes]); setError('') }}>{allSelected ? '取消全选' : '全选'}</button>
             {mcpScopes.map(scope => <div className="mcp-permission" key={scope}>
               <input id={`permission-${scope}`} type="checkbox" name="scope" value={scope} checked={selected.includes(scope)}
                 aria-labelledby={`name-${scope}`} aria-describedby={`description-${scope}`} onChange={event => {
