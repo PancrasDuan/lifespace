@@ -6,7 +6,26 @@ const categoryLabel = z.string().trim().refine(value => [...value].length <= 200
 const standards = z.array(z.string().trim().max(4000)).min(1).max(50)
   .transform(values => values.filter(Boolean))
   .pipe(z.array(z.string().min(1)).min(1).max(50))
+export const recurringPeriodTypeSchema = z.enum(['week', 'month', 'quarter', 'year'])
+export const recurringCountSchema = version.refine(value => value >= 1)
+export const recurringDateSchema = z.iso.date().refine(value => value >= '0001-01-01')
+const recurringBasis = { today: recurringDateSchema }
+// today is copied from a server read, never from the selected date or device clock.
+export const recurringCommandSchema = z.discriminatedUnion('type', [
+  z.strictObject({ type: z.literal('createRecurringTask'), title: name, description: z.string().trim().max(4000),
+    periodType: recurringPeriodTypeSchema, startOn: recurringDateSchema, requiredCount: recurringCountSchema,
+    destination: z.union([z.literal(''), z.uuid()]), ...recurringBasis }),
+  z.strictObject({ type: z.literal('editRecurringTask'), id: z.uuid(), title: name, description: z.string().trim().max(4000),
+    requiredCount: recurringCountSchema, startOn: recurringDateSchema.optional(),
+    destination: z.union([z.literal(''), z.uuid()]).optional(), ...recurringBasis }),
+  z.strictObject({ type: z.literal('recordRecurringCompletion'), id: z.uuid(), ...recurringBasis }),
+  z.strictObject({ type: z.literal('cancelRecurringCompletion'), completionId: z.uuid(), ...recurringBasis }),
+  z.strictObject({ type: z.literal('endRecurringTask'), id: z.uuid(), ...recurringBasis }),
+  z.strictObject({ type: z.literal('deleteRecurringTask'), id: z.uuid(), ...recurringBasis }),
+])
+export type RecurringCommand = z.infer<typeof recurringCommandSchema>
 export const planningCommandSchema = z.discriminatedUnion('type', [
+  ...recurringCommandSchema.options,
   z.strictObject({ type: z.literal('createMainline'), name }),
   z.strictObject({ type: z.literal('renameMainline'), id: z.uuid(), name }),
   z.strictObject({ type: z.literal('endMainline'), id: z.uuid() }),
@@ -85,11 +104,12 @@ export const planningGoalSchema = z.object({
     categoryLabel: z.string().nullable(), focused: z.boolean(), sortOrder: version,
     status: z.enum(['active', 'achieved', 'ended']).default('active'), terminatedAt: z.string().nullable().default(null),
     achievement: z.object({ id: z.uuid(), occurredOn: z.iso.date(), reflection: z.string(), reward: goalRewardSchema }).nullable().default(null),
-    createdAt: z.string(), progress: planningProgressSchema, capabilities,
+    createdAt: z.string(), progress: planningProgressSchema, taskCount: version.optional(), capabilities,
   })
 export const planningPageSchema = z.object({
   version,
   today: z.iso.date(),
+  recurring: z.object({ version: z.literal(1), timeZone: z.literal('Asia/Shanghai'), clientVersion: z.literal('recurring-1') }).optional(),
   includeTerminal: z.boolean().default(false),
   page: z.number().int().positive(),
   pageSize: z.number().int().positive().max(50),
@@ -115,7 +135,12 @@ export const planningReceiptSchema = z.object({
   version,
   result: z.object({ entityId: receiptUuid, message: z.string(),
     completionId: receiptUuid.nullable().optional(), reward: z.union([receiptTaskReward, receiptGoalReward]).nullable().optional(), achievementId: receiptUuid.optional(),
-    source: z.object({ goalId: receiptUuid.nullable().optional(), goalTitle: z.string().nullable().optional(), title: z.string().optional(), description: z.string().optional(), plannedOn: z.iso.date().optional(), occurredOn: z.iso.date().optional(), categoryLabel: z.string().nullable().optional() }).optional(),
+    source: z.object({ goalId: receiptUuid.nullable().optional(), goalTitle: z.string().nullable().optional(), title: z.string().optional(), description: z.string().optional(), plannedOn: z.iso.date().optional(), occurredOn: z.iso.date().optional(), categoryLabel: z.string().nullable().optional(),
+      taskKind: z.enum(['once', 'recurring_child']).optional(), parentId: receiptUuid.optional(), childId: receiptUuid.optional(),
+      occurredAt: z.iso.datetime({ offset: true }).optional(),
+      periodType: recurringPeriodTypeSchema.optional(), anchorOn: recurringDateSchema.optional(), periodNumber: recurringCountSchema.optional(),
+      periodStartOn: recurringDateSchema.optional(), periodEndOn: recurringDateSchema.optional(), requiredCount: recurringCountSchema.optional(),
+    }).optional(),
     growthChange: z.object({ xpDelta: z.number().int().min(-Number.MAX_SAFE_INTEGER).max(Number.MAX_SAFE_INTEGER), before: growthSchema, after: growthSchema, unlocked: z.array(z.string()), lost: z.array(z.string()) }).optional(),
   }),
 })
@@ -142,6 +167,10 @@ export const reschedulePreviewSchema = z.object({
 })
 export type ReschedulePreview = z.infer<typeof reschedulePreviewSchema>
 export const planningPreviewSchema = z.union([
+  z.object({ ...previewBase, requiresConfirmation: z.literal(true), operation: z.enum(['endRecurringTask', 'deleteRecurringTask']),
+    entityId: z.uuid(), title: z.string(), effectiveChildren: version, completedPeriods: version }),
+  z.object({ ...previewBase, requiresConfirmation: z.literal(true), operation: z.literal('cancelRecurringCompletion'),
+    completionId: z.uuid(), parentId: z.uuid(), childId: z.uuid(), reward: taskRewardSchema, growthBefore: growthSchema, growthAfter: growthSchema }),
   reschedulePreviewSchema,
   lifecyclePreviewSchema,
   goalAchievementPreviewSchema,

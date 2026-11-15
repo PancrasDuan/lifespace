@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { achievementSchema, growthSchema } from './adventure-planning'
+import { recurringCompletionSnapshotSchema } from './adventure-recurring'
 
 const version = z.number().int().nonnegative().safe()
 const origin = {
@@ -8,6 +9,7 @@ const origin = {
 export const rewardEntrySchema = z.object({
   id: z.uuid(), kind: z.enum(['task_completed', 'goal_achieved']), entityId: z.uuid(), title: z.string(),
   occurredAt: z.string(), occurredOn: z.iso.date(), amount: version.refine(value => value > 0), ...origin,
+  recurring: recurringCompletionSnapshotSchema.optional(),
   calculation: z.discriminatedUnion('type', [
     z.object({ type: z.literal('fixed_task'), completionId: z.uuid(), count: z.literal(1), coefficient: z.literal(1) }),
     z.object({ type: z.literal('goal_actions'), count: version, coefficient: z.number().int().min(1).max(3), fallback: z.boolean() }),
@@ -24,7 +26,8 @@ export const rewardSourceSchema = z.object({
   standards: z.array(z.string()).max(50), reflection: z.string().nullable(),
   page: z.number().int().positive(), pageSize: z.literal(5), totalSources: version,
   actionSources: z.array(z.object({ taskId: z.uuid(), completionId: z.uuid(), occurredOn: z.iso.date(),
-    title: z.string(), description: z.string(), plannedOn: z.iso.date(), ...origin })).max(5),
+    title: z.string(), description: z.string(), plannedOn: z.iso.date().nullable(), ...origin,
+    recurring: recurringCompletionSnapshotSchema.optional() })).max(5),
 })
 export type RewardSource = z.infer<typeof rewardSourceSchema>
 export const growthQuerySchema = z.strictObject({ version: z.coerce.number().int().nonnegative().safe().optional(), cursor: z.uuid().optional() })
