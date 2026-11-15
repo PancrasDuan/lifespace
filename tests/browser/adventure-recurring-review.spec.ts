@@ -1,0 +1,92 @@
+import { test, expect } from './authenticated-test'
+import { workspace, parent, future, makeChild, uuid, recurringFixture } from './adventure-recurring-fixture'
+
+const elevenChildren = () => Array.from({ length: 11 }, (_, index) => makeChild(600 + index, parent, workspace.today, `10:${String(index).padStart(2, '0')}`, true))
+const withElevenActions = () => ({ ...workspace, tasks: [], totalTasks: 0, taskProgress: { completed: 11, total: 11, ratio: 1 }, todayTaskProgress: { completed: 11, total: 11, ratio: 1 } })
+const withElevenChildren = () => ({ ...parent, requiredCount: 20, effectiveChildren: 11, currentPeriod: { ...parent.currentPeriod!, completed: 11, required: 20, ratio: .55, satisfied: false } })
+
+test('第2页撤销第11项后保留行动上一页入口，不必切换日期', async ({ page, context }) => {
+  const children = elevenChildren(), current = withElevenChildren(), data = withElevenActions()
+  const fixture = await recurringFixture(context, { workspace: data, parents: [current], children })
+  await page.goto('/adventure'); await page.getByRole('button', { name: '下一页任务', exact: true }).click()
+  await expect(page.locator('.today-task-record')).toHaveCount(1)
+  fixture.saved({ workspace: { ...data, version: 21, taskProgress: { completed: 10, total: 10, ratio: 1 }, todayTaskProgress: { completed: 10, total: 10, ratio: 1 } },
+    parents: [{ ...current, effectiveChildren: 10, currentPeriod: { ...current.currentPeriod, completed: 10, ratio: .5 } }], children: children.slice(0, 10) })
+  await page.getByRole('button', { name: '取消完成', exact: true }).click()
+  await expect(page.getByRole('group', { name: '今日任务进度', exact: true })).toHaveText('今日进度10 / 10')
+  await expect(page.locator('.today-task-record')).toHaveCount(0)
+  await expect(page.getByRole('button', { name: '上一页任务', exact: true })).toBeEnabled()
+  await expect(page.getByRole('button', { name: '下一页任务', exact: true })).toBeDisabled()
+  await page.getByRole('button', { name: '上一页任务', exact: true }).click()
+  await expect(page.locator('.today-task-record')).toHaveCount(10)
+  await expect(page.getByRole('button', { name: `选择日期 ${workspace.today}`, exact: true })).toHaveAttribute('aria-pressed', 'true')
+  expect(fixture.envelopes).toHaveLength(1)
+})
+
+test('第2页删除第11个未开始父后保留父分页返回入口', async ({ page, context }) => {
+  const parents = Array.from({ length: 11 }, (_, index) => ({ ...future, id: uuid(700 + index), title: `未来周期${index}` }))
+  const fixture = await recurringFixture(context, { workspace, parents, children: [] })
+  await page.goto('/adventure')
+  for (let index = 0; index < 3; index++) await page.getByRole('button', { name: '下一周', exact: true }).click()
+  await page.getByRole('button', { name: '选择日期 2026-12-01', exact: true }).click()
+  await page.getByRole('button', { name: '下一页周期任务', exact: true }).click()
+  await expect(page.getByRole('button', { name: '未来周期10', exact: true })).toBeVisible()
+  await page.getByRole('button', { name: '删除', exact: true }).click()
+  fixture.saved({ workspace: { ...workspace, version: 21 }, parents: parents.slice(0, 10), children: [] })
+  await page.getByRole('dialog').getByRole('button', { name: '确认删除', exact: true }).click()
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+  await expect(page.locator('.recurring-row')).toHaveCount(0)
+  await expect(page.getByRole('button', { name: '上一页周期任务', exact: true })).toBeEnabled()
+  await expect(page.getByRole('button', { name: '下一页周期任务', exact: true })).toBeDisabled()
+  await page.getByRole('button', { name: '上一页周期任务', exact: true }).click()
+  await expect(page.locator('.recurring-row')).toHaveCount(10)
+  await expect(page.getByRole('button', { name: '选择日期 2026-12-01', exact: true })).toHaveAttribute('aria-pressed', 'true')
+  expect(fixture.envelopes).toHaveLength(1)
+})
+
+test('关联子第2页在其他操作缩减总量后仍可返回第1页', async ({ page, context }) => {
+  const children = elevenChildren(), current = withElevenChildren()
+  const fixture = await recurringFixture(context, { workspace, parents: [current], children })
+  await page.goto('/adventure'); await page.getByRole('button', { name: parent.title, exact: true }).click()
+  await page.getByRole('dialog').getByRole('button', { name: '下一页子任务', exact: true }).click()
+  await expect(page.getByRole('dialog').getByRole('button', { name: /查看子任务/ })).toHaveCount(1)
+  fixture.saved({ workspace: { ...workspace, version: 21 }, parents: [{ ...current, effectiveChildren: 10, currentPeriod: { ...current.currentPeriod, completed: 10, ratio: .5 } }], children: children.slice(0, 10) })
+  fixture.fail(409, 'VERSION_CONFLICT')
+  await page.getByRole('dialog').getByRole('button', { name: '记录一次', exact: true }).click()
+  await expect(page.getByRole('dialog').getByText('10 项', { exact: true })).toBeVisible()
+  await expect(page.getByRole('dialog').getByRole('button', { name: /查看子任务/ })).toHaveCount(0)
+  await expect(page.getByRole('dialog').getByRole('button', { name: '上一页子任务', exact: true })).toBeEnabled()
+  await expect(page.getByRole('dialog').getByRole('button', { name: '下一页子任务', exact: true })).toBeDisabled()
+  await page.getByRole('dialog').getByRole('button', { name: '上一页子任务', exact: true }).click()
+  await expect(page.getByRole('dialog').getByRole('button', { name: /查看子任务/ })).toHaveCount(10)
+  expect(fixture.envelopes).toHaveLength(1)
+})
+
+for (const width of [1440, 390]) test(`${width}px 周期相邻行保留approved-v1分隔线`, async ({ page, context }) => {
+  await recurringFixture(context)
+  await page.setViewportSize({ width, height: width === 1440 ? 1000 : 844 })
+  await page.goto('/adventure')
+  const second = page.locator('.recurring-section .recurring-row').nth(1)
+  await expect(second).toHaveCSS('border-top-width', '1px')
+  await expect(second).toHaveCSS('border-top-style', 'solid')
+  await expect(second).toHaveCSS('border-top-color', 'rgb(237, 241, 235)')
+})
+
+test('目标候选第2页因总数缩减为空时仍可返回第1页', async ({ page, context }) => {
+  await recurringFixture(context)
+  let shrunk = false
+  const goals = Array.from({ length: 20 }, (_, index) => ({ ...workspace.goals[0], id: uuid(1800 + index), title: `候选目标${index}` }))
+  await context.route(/\/api\/adventure\?/, route => {
+    const requestedPage = Number(new URL(route.request().url()).searchParams.get('page') ?? 1)
+    if (requestedPage === 2) shrunk = true
+    return route.fulfill({ json: { ...workspace, page: requestedPage, goals: requestedPage === 2 ? [] : goals, totalGoals: shrunk ? 20 : 21 } })
+  })
+  await page.goto('/adventure'); await page.getByRole('button', { name: '新建行动', exact: true }).click()
+  const dialog = page.getByRole('dialog')
+  await dialog.getByRole('button', { name: '下一页目标', exact: true }).click()
+  await expect(dialog.getByText('目标候选 · 第 2 页', { exact: true })).toBeVisible()
+  await expect(dialog.getByRole('button', { name: '上一页目标', exact: true })).toBeEnabled()
+  await expect(dialog.getByRole('button', { name: '下一页目标', exact: true })).toBeDisabled()
+  await dialog.getByRole('button', { name: '上一页目标', exact: true }).click()
+  await expect(dialog.getByRole('combobox', { name: '任务归属', exact: true }).locator('option')).toHaveCount(21)
+})

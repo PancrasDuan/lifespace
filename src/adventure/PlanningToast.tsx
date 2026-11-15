@@ -5,7 +5,7 @@ import { Check, CircleAlert, X } from 'lucide-react'
 export function PlanningToast({ message, close, tone = 'success', withinDialog = false }: { message: string; close: () => void; tone?: 'success' | 'error'; withinDialog?: boolean }) {
   const [target, setTarget] = useState<Element>(document.body)
   useLayoutEffect(() => {
-    setTarget(withinDialog ? document.querySelector('.planning-page [role="dialog"]') ?? document.body : document.body)
+    setTarget(withinDialog ? document.querySelector('dialog.recurring-dialog, .planning-page [role="dialog"]') ?? document.body : document.body)
   }, [withinDialog])
   useEffect(() => {
     if (tone === 'error') return

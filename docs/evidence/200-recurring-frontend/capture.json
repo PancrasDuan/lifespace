@@ -1,0 +1,54 @@
+{
+  "capturedAt": "2026-11-15T09:12:16.453630+00:00",
+  "implementationBase": "503eac4d20740976017b75dbf50eba7ae55d6e34",
+  "prototypeMaterial": "d2a0fa4ccb0b52edc44595fd2fc2dff27364df97",
+  "prototypeCode": "6db3bdcbda54b12241bd5d2dd8d3247557f1e9c4",
+  "viewports": [
+    "1440x1000",
+    "390x844"
+  ],
+  "captures": [
+    "child-desktop-1440",
+    "child-mobile-390",
+    "completed-date-desktop-1440",
+    "create-desktop-1440",
+    "create-mobile-390",
+    "crossday-desktop-1440",
+    "delete-desktop-1440",
+    "edit-desktop-1440",
+    "edit-mobile-390",
+    "end-desktop-1440",
+    "end-mobile-390",
+    "ended-date-desktop-1440",
+    "ended-date-mobile-390",
+    "ended-detail-desktop-1440",
+    "goals-desktop-1440",
+    "goals-mobile-390",
+    "lowered-requirement-desktop-1440",
+    "parent-desktop-1440",
+    "parent-mobile-390",
+    "record-toast-desktop-1440",
+    "revoked-filtered-desktop-1440",
+    "today-desktop-1440",
+    "today-mobile-390",
+    "unstarted-date-desktop-1440",
+    "unstarted-date-mobile-390",
+    "unstarted-detail-desktop-1440"
+  ],
+  "source": "Formal /adventure UI with frozen HTTP contract fixture; not a real backend/database acceptance",
+  "productClock": "Server response today; fixture date is test-only",
+  "pageErrors": [],
+  "reviewedCandidate": "c38de78f15d568e953c2a414e73045c96257e37f",
+  "revision": "Independent review fixes: page-return controls, historical-date fixture and adjacent row dividers",
+  "crossdayAssertions": {
+    "selectedDate": "2026-11-15",
+    "serverToday": "2026-11-16",
+    "historicalCompletions": 4,
+    "historicalPending": 0,
+    "automaticResubmissions": 0,
+    "backToTodayProgress": {
+      "completed": 0,
+      "total": 1
+    }
+  }
+}
