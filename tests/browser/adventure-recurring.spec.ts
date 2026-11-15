@@ -171,7 +171,7 @@ test('新建类型切换、真实目标ID、正整数校验及键盘操作', asy
   await modal(page).getByRole('button', { name: '创建任务' }).click()
   expect(fixture.envelopes).toHaveLength(0)
   await modal(page).getByLabel('每期次数').fill('3')
-  await modal(page).getByLabel('开始日期').fill('2026-12-01')
+  await modal(page).getByLabel('开始日期', { exact: true }).fill('2026-12-01')
   await modal(page).getByRole('button', { name: '创建任务' }).click(); await expect(modal(page)).toHaveCount(0)
   expect(fixture.envelopes[0].command).toMatchObject({ type: 'createRecurringTask', periodType: 'quarter', requiredCount: 3, destination: uuid(11), startOn: '2026-12-01', today: workspace.today })
   await page.getByRole('button', { name: '新建行动', exact: true }).click(); await modal(page).getByRole('button', { name: '一次性任务', exact: true }).click()
@@ -202,7 +202,7 @@ test('父/子/行动独立服务端分页，共用搜索且全量进度不按本
 test('未开始改日后入口移动、删除与结束保留确认，无历史/未来运行中预测', async ({ page, context }) => {
   const fixture = await recurringFixture(context)
   await page.goto('/adventure'); await choose(page, '2026-12-01'); await page.getByRole('button', { name: '季度作品复盘', exact: true }).click()
-  await modal(page).getByRole('button', { name: '编辑任务', exact: true }).click(); await modal(page).getByLabel('开始日期').fill('2026-12-02')
+  await modal(page).getByRole('button', { name: '编辑任务', exact: true }).click(); await modal(page).getByLabel('开始日期', { exact: true }).fill('2026-12-02')
   fixture.saved(after({ workspace: version(), parents: [parent, ...initial.parents.slice(1, 2), { ...future, startOn: '2026-12-02' }, initial.parents[3]] }))
   await modal(page).getByRole('button', { name: '保存任务' }).click(); await expect(page.getByRole('button', { name: '季度作品复盘', exact: true })).toHaveCount(0)
   await page.getByRole('button', { name: '选择日期 2026-12-02', exact: true }).click(); await page.getByRole('button', { name: '季度作品复盘', exact: true }).click()

@@ -8,7 +8,7 @@
   --adventure-accent: #49643e;
 }
 .adventure-page button,
-.adventure-dialog button {
+.adventure-dialog button:not(:where(.task-date-picker *)) {
   font: inherit;
   cursor: pointer;
   border: 1px solid #d7e1cc;
@@ -22,16 +22,16 @@
   gap: 6px;
 }
 .adventure-page button:disabled,
-.adventure-dialog button:disabled {
+.adventure-dialog button:disabled:not(:where(.task-date-picker *)) {
   opacity: 0.46;
   cursor: not-allowed;
 }
 .adventure-page button:hover:not(:disabled),
-.adventure-dialog button:hover:not(:disabled) {
+.adventure-dialog button:hover:not(:disabled):not(:where(.task-date-picker *)) {
   background: #edf2e5;
 }
 .adventure-page button:focus-visible,
-.adventure-dialog :focus-visible {
+.adventure-dialog :focus-visible:not(:where(.task-date-picker, .task-date-picker *)) {
   outline: 3px solid #c5a47b;
   outline-offset: 3px;
 }
@@ -694,7 +694,7 @@
   gap: 8px;
   margin: 19px 0;
 }
-.adventure-dialog input:not([type='checkbox']),
+.adventure-dialog input:not([type='checkbox']):not(:where(.task-date-picker *)),
 .adventure-dialog select,
 .adventure-dialog textarea {
   font: inherit;

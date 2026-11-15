@@ -48,7 +48,7 @@ export function TaskForm({ task, data: workspace, action, busy, close, remove, d
     <label>任务名称<input required maxLength={data.limits.name} autoComplete="off" value={title} onChange={event => setTitle(event.target.value)} /></label>
     <label>任务说明<textarea aria-label="任务说明" maxLength={4000} rows={3} value={description} onChange={event => setDescription(event.target.value)} /></label>
     <>
-      <TaskDateField value={plannedOn} onChange={setPlannedOn} today={workspace.today} originalDate={task?.plannedOn} />
+      <TaskDateField value={plannedOn} onChange={setPlannedOn} today={workspace.today} originalDate={task?.plannedOn} disabled={busy} />
       <label>任务归属<select aria-label="任务归属" className={destination ? undefined : 'planning-destination-placeholder'} value={destination} onChange={event => { setDestination(event.target.value); setSelectedLabel(event.target.selectedOptions[0].text) }}>
         <option value="">默认独立任务</option>
         {destination && !data.goals.some(goal => goal.id === destination) && <option value={destination}>{selectedLabel}</option>}
