@@ -5,6 +5,7 @@ import type { PlanningCommand, PlanningPage } from '../shared/adventure-planning
 import type { RecurringParent } from '../shared/adventure-recurring'
 import { planningApi } from './planning-api'
 import { recurringDate, periodLabels } from './RecurringTasks'
+import { TaskDateField } from './TaskDateField'
 
 type PeriodType = RecurringParent['periodType']
 export function RecurringTaskForm({ parent, workspace, blocked, action, close }: {
@@ -47,7 +48,8 @@ export function RecurringTaskForm({ parent, workspace, blocked, action, close }:
       : { type: 'createTask', ...common, plannedOn: startOn, destination }
     if (await action(command, workspace.version) && mounted.current) close()
   }
-  return <form onSubmit={event => { void submit(event) }}><fieldset disabled={blocked || (!!parent && !parent.capabilities.editRecurringTask.allowed)}>
+  const disabled = blocked || (!!parent && !parent.capabilities.editRecurringTask.allowed)
+  return <form onSubmit={event => { void submit(event) }}><fieldset disabled={disabled}>
     {parent ? <div className="recurring-fixed-kind"><Repeat2 size={16} aria-hidden="true"/>周期任务</div> : <div className="recurring-editor-type" role="group" aria-label="任务类型">{(['once', 'recurring'] as const).map(value => <button key={value} type="button" aria-pressed={kind === value} onClick={() => setKind(value)}>{value === 'once' ? <ListTodo size={16} aria-hidden="true"/> : <Repeat2 size={16} aria-hidden="true"/>}{value === 'once' ? '一次性任务' : '周期任务'}</button>)}</div>}
     <label>任务名称<input autoFocus data-initial-focus="" required pattern=".*\S.*" maxLength={workspace.limits.name} autoComplete="off" value={title} onChange={event => setTitle(event.target.value)} placeholder="例如：刷 LeetCode"/></label>
     <label>任务说明<textarea rows={2} maxLength={4000} value={description} onChange={event => setDescription(event.target.value)}/></label>
@@ -55,7 +57,7 @@ export function RecurringTaskForm({ parent, workspace, blocked, action, close }:
       : <label>周期<select aria-label="周期" value={periodType} onChange={event => setPeriodType(event.target.value as PeriodType)}>{Object.entries(periodLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>}
       <label>每期次数<input required type="number" min={1} max={Number.MAX_SAFE_INTEGER} step={1} value={required} onChange={event => setRequired(event.target.value)}/></label></div>}
     {parent && !parent.capabilities.changeStartOn.allowed ? <div className="recurring-fixed-field"><span>开始日期</span><div><time dateTime={parent.startOn}>{recurringDate(parent.startOn)}</time><LockKeyhole size={14} role="img" aria-label="开始日期不可修改"/></div></div>
-      : <label>{kind === 'recurring' ? '开始日期' : '计划日期'}<input type="date" required min={workspace.today} max="9999-12-31" value={startOn} onChange={event => setStartOn(event.target.value)}/></label>}
+      : <TaskDateField label={kind === 'recurring' ? '开始日期' : '计划日期'} value={startOn} onChange={setStartOn} today={workspace.today} max="9999-12-31" disabled={disabled}/>}
     <label>任务归属<select aria-label="任务归属" value={destination} disabled={blocked || (!!parent && !parent.capabilities.changeDestination.allowed)} onChange={event => { setDestination(event.target.value); setDestinationLabel(event.target.selectedOptions[0].text) }}>
       <option value="">独立任务</option>
       {destination && !candidates?.goals.some(goal => goal.id === destination) && <option value={destination}>{destinationLabel}</option>}

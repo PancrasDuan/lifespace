@@ -2,7 +2,7 @@
 .planning-page .adventure-heading { margin-bottom: 18px; }
 .planning-page .adventure-heading h1 { font: 500 36px "Iowan Old Style", "Songti SC", serif; margin: 8px 0; }
 .planning-page .adventure-heading p { font-size: 13px; }
-.planning-page button, .adventure-dialog button { font-size: 12px; padding: 5px 10px; min-height: 30px; }
+.planning-page button, .adventure-dialog button:not(:where(.task-date-picker *)) { font-size: 12px; padding: 5px 10px; min-height: 30px; }
 .planning-page .adventure-heading-actions .adventure-primary { background: #fffff980; border-color: #b8c8af; color: #435c3b; }
 .planning-page .adventure-primary:hover:not(:disabled), .adventure-dialog .adventure-primary:hover:not(:disabled) { background: #304d3a; color: #fff; }
 .planning-workbench { display: grid; grid-template-columns: minmax(0,1fr) 260px; gap: 26px; align-items: start; }
@@ -192,7 +192,7 @@
 
 @media (pointer: coarse) {
   .lifespace-app .adventure-dialog > header > button,.lifespace-app .adventure-dialog.task-dialog > header > button { min-width: 44px; min-height: 44px; }
-  .lifespace-app .adventure-dialog input:not([type=checkbox],[type=radio]),.lifespace-app .adventure-dialog textarea,.lifespace-app .adventure-dialog select { font-size: max(1rem, 1em); }
-  .lifespace-app .adventure-dialog input:not([type=checkbox],[type=radio]),.lifespace-app .adventure-dialog select { min-height: 48px; }
+  .lifespace-app .adventure-dialog input:not([type=checkbox],[type=radio]):not(:where(.task-date-picker *)),.lifespace-app .adventure-dialog textarea,.lifespace-app .adventure-dialog select { font-size: max(1rem, 1em); }
+  .lifespace-app .adventure-dialog input:not([type=checkbox],[type=radio]):not(:where(.task-date-picker *)),.lifespace-app .adventure-dialog select { min-height: 48px; }
   .planning-toast > button { min-width: 44px; min-height: 44px; }
 }
