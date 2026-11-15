@@ -8,4 +8,4 @@
 
 后续本地 SQLite 保存最新结果及不可变待传快照；应用专用设备标识由系统标识派生，hostname 仅作显示名。设备码与网页登录确认领取独立上传凭据，登记/授权由 Worker 承载，日常上传直达 Supabase HTTPS RPC。现有通用 Worker+pg/Hyperdrive 访问方式不改变此方向。本阶段不操作数据库、权限、凭据、定时任务或正式页面。
 
-实现与可复现样本见 [统计契约](../token-usage-contract.md)、[固定上游调查](../tokscale-206-upstream-research.md)。源工作区未提交 ADR 的编号 0011 在 main 已被其他决策占用，故以当前编号新增，不覆盖既有决策。
+实现与可复现样本见 [统计契约](../token-usage-contract.md)、[固定上游调查](../tokscale-206-upstream-research.md)。源工作区未提交 ADR 的编号 0011 及实现期间 main 新增的 0015 均已被其他决策占用，故以当前编号新增，不覆盖既有决策。
