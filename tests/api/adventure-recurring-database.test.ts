@@ -27,6 +27,22 @@ describe.skipIf(!localPlanningRpc)('周期任务真实 Worker → RPC → Postgr
   const actions = async (owner: string, date: string, extra = {}) => dateTaskListSchema.parse(await json(await db.request(owner, '/api/adventure/date-tasks/list', { ...await basis(owner), date, ...extra })))
   const error = async (response: Response, status: number, code: string) => { expect(response.status).toBe(status); expect(await response.json()).toMatchObject({ error: { code } }) }
 
+  it('首次空账户读取固定空投影，父子详情和关联不存在，创建预览保持可用', async () => {
+    const owner = crypto.randomUUID(), state = await basis(owner), id = crypto.randomUUID()
+    expect(await list(owner, state.today)).toMatchObject({ version: 0, total: 0, parents: [] })
+    expect(await actions(owner, state.today)).toMatchObject({ version: 0, total: 0, tasks: [], progress: { total: 0, ratio: null } })
+    for (const [path, body] of [
+      ['/api/adventure/recurring/detail', { ...state, id }],
+      ['/api/adventure/recurring/child', { ...state, id }],
+      ['/api/adventure/recurring/children', { ...state, parentId: id }],
+    ] as const) await error(await db.request(owner, path, body), 404, 'NOT_FOUND')
+    const preview = planningPreviewSchema.parse(await json(await db.request(owner, '/api/adventure/preview', {
+      expectedVersion: 0, command: { type: 'createRecurringTask', title: '首次创建', description: '', periodType: 'week', startOn: state.today, requiredCount: 1, destination: '', today: state.today },
+    })))
+    expect(preview).toMatchObject({ version: 0, requiresConfirmation: false })
+    expect(await basis(owner)).toEqual(state)
+  })
+
   it('升级前一次性旧页面以原始封套恢复大额历史奖励，所有旧新写仍拦截', async () => {
     const fixture = JSON.parse(process.env.ADVENTURE_RECURRING_OLD_RECEIPT!) as { owner: string; envelope: ReturnType<typeof db.envelope>; receipt: unknown; retired: { owner: string; envelope: ReturnType<typeof db.envelope>; receipt: unknown } }
     const before = await db.read(fixture.owner)

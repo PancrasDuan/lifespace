@@ -103,6 +103,7 @@ try {
   assert.deepEqual(await schema(fresh),await schema(upgrade))
   assert.deepEqual((await upgrade.query('select public.adventure_receipt_lookup($1,$2,$3) r',[owner,'old-create-task',oldEnvelope])).rows[0].r,oldCreate)
   console.log('PASS: empty install/nonempty upgrade equivalence, full old-row/receipt reconciliation, injected failure rollback, repeat rejected without effects')
+  await (await import('../database/adventure-first-account-read.mjs')).verifyFirstAccountReads({client:upgrade,connect:()=>connect('recurring_upgrade'),command,today,assert})
   await (await import('../database/adventure-recurring.mjs')).verifyRecurring({client:upgrade,connect:()=>connect('recurring_upgrade'),command,today,assert,root})
   await upgrade.query(await readFile(join(root,'tests/database/adventure-goal-model-history-seed.sql'),'utf8'))
   await upgrade.query(`create function pg_temp.fail_reschedule_http() returns trigger language plpgsql as $$ begin

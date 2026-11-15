@@ -344,13 +344,15 @@ end $$;
 -- Every new read takes the same account share lock, then captures Beijing time.
 create function public.adventure_recurring_read_basis(p_owner uuid,p_expected_version bigint,p_today date)
 returns jsonb language plpgsql security invoker set search_path='' set lock_timeout='3s' as $$
-declare v bigint; d date;
+declare v bigint; d date; v_exists boolean;
 begin
  if p_owner is null or p_expected_version is null or p_expected_version not between 0 and 9007199254740991 or p_today is null or p_today not between date '0001-01-01' and date '9999-12-31' then raise exception 'INVALID_COMMAND'; end if;
  select revision into v from public.adventure_accounts where owner_id=p_owner for share;
- v:=coalesce(v,0);d:=(clock_timestamp() at time zone 'Asia/Shanghai')::date;
+ v_exists:=found;v:=coalesce(v,0);d:=(clock_timestamp() at time zone 'Asia/Shanghai')::date;
  if d<>p_today then raise exception 'PLANNING_DATE_CHANGED'; end if;
  if v<>p_expected_version then raise exception 'VERSION_CONFLICT'; end if;
+ -- No row was locked: callers must use a fixed empty result or NOT_FOUND.
+ if not v_exists then return null; end if;
  return jsonb_build_object('version',v,'today',d,'timeZone','Asia/Shanghai');
 end $$;
 create function public.adventure_recurring_bounded(p_result jsonb) returns jsonb language plpgsql immutable security invoker set search_path='' as $$
@@ -363,6 +365,9 @@ declare basis jsonb; total bigint; items jsonb;
 begin
  if p_date is null or p_date not between date '0001-01-01' and date '9999-12-31' or p_scope is null or p_scope not in ('all','focus') or p_search is null or length(btrim(p_search))>100 or p_page is null or p_page not between 1 and 1000000 then raise exception 'INVALID_COMMAND'; end if;
  basis:=public.adventure_recurring_read_basis(p_owner,p_expected_version,p_today);
+ if basis is null then
+   return jsonb_build_object('version',0,'today',p_today,'timeZone','Asia/Shanghai','date',p_date,'scope',p_scope,'search',btrim(p_search),'page',p_page,'pageSize',10,'total',0,'parents','[]'::jsonb);
+ end if;
  with filtered as materialized (
   select p.*,case when p.status='ended' then 2 when p.start_on>p_today then 1 else 0 end rank
   from public.adventure_recurring_tasks p join public.adventure_goals g on (g.owner_id,g.id)=(p.owner_id,p.goal_id)
@@ -378,6 +383,7 @@ returns jsonb language plpgsql security invoker set search_path='' set lock_time
 declare basis jsonb;
 begin
  basis:=public.adventure_recurring_read_basis(p_owner,p_expected_version,p_today);
+ if basis is null then raise exception 'NOT_FOUND'; end if;
  return public.adventure_recurring_bounded(basis||jsonb_build_object('parent',public.adventure_recurring_parent_view(p_owner,p_id,p_today)));
 end $$;
 create function public.adventure_recurring_child(p_owner uuid,p_expected_version bigint,p_today date,p_id uuid)
@@ -385,6 +391,7 @@ returns jsonb language plpgsql security invoker set search_path='' set lock_time
 declare basis jsonb;
 begin
  basis:=public.adventure_recurring_read_basis(p_owner,p_expected_version,p_today);
+ if basis is null then raise exception 'NOT_FOUND'; end if;
  return public.adventure_recurring_bounded(basis||jsonb_build_object('child',public.adventure_recurring_child_view(p_owner,p_id,p_today)));
 end $$;
 create function public.adventure_recurring_children(p_owner uuid,p_expected_version bigint,p_today date,p_parent_id uuid,p_page integer default 1)
@@ -393,6 +400,7 @@ declare basis jsonb; total bigint; items jsonb;
 begin
  if p_page is null or p_page not between 1 and 1000000 then raise exception 'INVALID_COMMAND'; end if;
  basis:=public.adventure_recurring_read_basis(p_owner,p_expected_version,p_today);
+ if basis is null then raise exception 'NOT_FOUND'; end if;
  perform public.adventure_recurring_state(p_owner,p_parent_id,p_today);
  select count(*) into total from public.adventure_events where owner_id=p_owner and recurring_parent_id=p_parent_id and kind='task_completed' and invalidated_at is null;
  select coalesce(jsonb_agg(item order by occurred_at desc,id desc),'[]'::jsonb) into items from (
@@ -407,6 +415,9 @@ declare basis jsonb; total bigint; completed bigint; items jsonb;
 begin
  if p_date is null or p_date not between date '0001-01-01' and date '9999-12-31' or p_scope is null or p_scope not in ('all','focus') or p_search is null or length(btrim(p_search))>100 or p_page is null or p_page not between 1 and 1000000 then raise exception 'INVALID_COMMAND'; end if;
  basis:=public.adventure_recurring_read_basis(p_owner,p_expected_version,p_today);
+ if basis is null then
+   return jsonb_build_object('version',0,'today',p_today,'timeZone','Asia/Shanghai','date',p_date,'scope',p_scope,'search',btrim(p_search),'page',p_page,'pageSize',10,'total',0,'tasks','[]'::jsonb , 'progress',jsonb_build_object('completed',0,'total',0,'ratio',null));
+ end if;
  with filtered as materialized (
   select t.id,t.kind,t.status,case when t.status='completed' then 2 when t.planned_on<p_today then 0 else 1 end rank,
    case when t.status='completed' then e.occurred_at else t.planned_on::timestamp at time zone 'Asia/Shanghai' end sort_at,t.created_at
@@ -560,6 +571,7 @@ declare v_revision bigint; v_options jsonb; v_total bigint; v_result jsonb;
 begin
   if p_owner is null or p_id is null or p_kind is distinct from 'task' or p_page is null or p_page not between 1 and 1000000 then raise exception 'INVALID_COMMAND'; end if;
   select revision into v_revision from public.adventure_accounts where owner_id=p_owner for share;
+  if not found then raise exception 'NOT_FOUND'; end if;
   if not exists(select 1 from public.adventure_tasks where kind='once' and owner_id=p_owner and id=p_id and deleted_at is null) then raise exception 'NOT_FOUND'; end if;
   with candidates as materialized (
     select ''::text id,'独立任务'::text name,0 rank
@@ -579,6 +591,7 @@ declare v_version bigint; v_title text; v_items jsonb; v_total bigint; v_result 
 begin
   if p_owner is null or p_page is null or p_page not between 1 and 1000000 then raise exception 'INVALID_COMMAND'; end if;
   select revision into v_version from public.adventure_accounts where owner_id=p_owner for share;
+  if not found then raise exception 'NOT_FOUND'; end if;
   select title into v_title from public.adventure_tasks where kind='once' and owner_id=p_owner and id=p_task and deleted_at is null;
   if not found then raise exception 'NOT_FOUND'; end if;
   select count(*) into v_total from public.adventure_events where owner_id=p_owner and task_id=p_task and kind in ('task_created','task_rescheduled');
@@ -721,6 +734,7 @@ create or replace function public.adventure_workspace_read(p_owner uuid,p_page i
 returns jsonb language plpgsql security invoker set search_path = '' set lock_timeout='3s' as $$
 declare
   v_result jsonb;
+  v_revision bigint;
   v_today date;
   v_tasks jsonb;
   v_progress jsonb;
@@ -733,6 +747,18 @@ begin
     or p_task_scope is null or p_task_scope not in ('all','focus') or p_search is null or length(btrim(p_search))>100 then raise exception 'INVALID_COMMAND'; end if;
   v_result:=public.adventure_planning_read(p_owner,p_page,p_page_size,p_include_terminal);
   v_today:=(v_result->>'today')::date;
+  -- The nested base read may have returned an absent-owner snapshot. Reacquire
+  -- a real row lock or finish that empty snapshot without querying owner facts.
+  select revision into v_revision from public.adventure_accounts where owner_id=p_owner for share;
+  if not found then
+    if p_goal_id is not null then raise exception 'NOT_FOUND'; end if;
+    return v_result||jsonb_build_object('tasks','[]'::jsonb,'totalTasks',0,'taskPage',p_task_page,'taskRange',p_task_range,
+      'includeTerminal',p_include_terminal,'taskScope',p_task_scope,'search',btrim(p_search),
+      'taskProgress',jsonb_build_object('completed',0,'total',0,'ratio',null),
+      'todayTaskProgress',jsonb_build_object('completed',0,'total',0,'ratio',null),
+      'recurring',jsonb_build_object('version',1,'timeZone','Asia/Shanghai','clientVersion','recurring-1'));
+  end if;
+  if v_revision<>(v_result->>'version')::bigint then raise exception 'VERSION_CONFLICT'; end if;
   with filtered as materialized (
     select t.* from public.adventure_tasks t join public.adventure_goals g on (g.owner_id,g.id)=(t.owner_id,t.goal_id)
     where t.kind='once' and t.owner_id=p_owner and t.deleted_at is null and
@@ -778,6 +804,7 @@ create or replace function public.adventure_task_list(p_owner uuid,p_date date,p
 returns jsonb language plpgsql security invoker set search_path='' set lock_timeout='3s' as $$
 declare
   v_version bigint;
+  v_has_account boolean;
   v_today date;
   v_result jsonb;
   v_tasks jsonb;
@@ -788,9 +815,12 @@ begin
     or p_expected_version is null or p_expected_version not between 0 and 9007199254740991
     or p_page is null or p_page not between 1 and 1000000 then raise exception 'INVALID_COMMAND'; end if;
   select revision into v_version from public.adventure_accounts where owner_id=p_owner for share;
-  v_version:=coalesce(v_version,0);
+  v_has_account:=found;v_version:=coalesce(v_version,0);
   v_today:=(clock_timestamp() at time zone 'Asia/Shanghai')::date;
   if v_version<>p_expected_version or v_today<>p_today then raise exception 'VERSION_CONFLICT'; end if;
+  if not v_has_account then
+    return jsonb_build_object('version',0,'today',v_today,'date',p_date,'scope',p_scope,'page',p_page,'pageSize',10,'total',0,'tasks','[]'::jsonb,'progress',jsonb_build_object('completed',0,'total',0,'ratio',null));
+  end if;
   with filtered as materialized (
     select t.*,case when t.status='completed' then 2 when t.planned_on<v_today then 0 else 1 end rank
     from public.adventure_tasks t join public.adventure_goals g on (g.owner_id,g.id)=(t.owner_id,t.goal_id)
@@ -818,7 +848,13 @@ begin
   if p_owner is null or p_page is null or p_page not between 1 and 1000000 or p_page_size is null or p_page_size not between 1 and 50
     or p_include_terminal is null then raise exception 'INVALID_COMMAND'; end if;
   select * into v_account from public.adventure_accounts where owner_id=p_owner for share;
-  if not found then v_account.revision:=0;v_account.total_xp:=0;end if;
+  if not found then
+    -- Pin the absent-owner snapshot; later statements may see its first commit.
+    return jsonb_build_object('version',0,'today',(clock_timestamp() at time zone 'Asia/Shanghai')::date,
+      'page',p_page,'pageSize',p_page_size,'totalGoals',0,'goals','[]'::jsonb,'growth',public.adventure_growth(null),
+      'capabilities',jsonb_build_object('createGoal','{"allowed":true}'::jsonb,'createTask','{"allowed":true}'::jsonb,'growth','{"allowed":true}'::jsonb,'progress','{"allowed":true}'::jsonb),
+      'limits',jsonb_build_object('name',200,'standard',4000,'standards',50));
+  end if;
   if v_account.total_xp<>(select coalesce(sum(amount),0) from public.adventure_events where owner_id=p_owner and kind in ('task_completed','goal_achieved') and invalidated_at is null) then raise exception 'INCONSISTENT_REWARDS'; end if;
   select jsonb_build_object('version',v_account.revision,'today',(clock_timestamp() at time zone 'Asia/Shanghai')::date,
     'page',p_page,'pageSize',p_page_size,
@@ -840,6 +876,7 @@ returns jsonb language plpgsql security invoker set search_path='' set lock_time
 declare
   v_account public.adventure_accounts; v_prior public.adventure_events; v_goal public.adventure_goals;
   v_hash text:=encode(sha256(convert_to(p_command::text,'UTF8')),'hex'); v_type text:=p_command->>'type';
+  v_recurring boolean:=v_type in ('createRecurringTask','editRecurringTask','recordRecurringCompletion','cancelRecurringCompletion','endRecurringTask','deleteRecurringTask');
   v_kind text; v_before jsonb; v_after jsonb; v_now timestamptz; v_order bigint; v_result jsonb;
 begin
   if octet_length(p_command::text)>32768 then raise exception 'COMMAND_TOO_LARGE'; end if;
@@ -859,13 +896,13 @@ begin
   end if;
   if v_type is null or v_type not in ('createGoal','editGoal','reorderGoals','endGoal','achieveGoal','createTask','editTask','completeTask','cancelTaskCompletion','deleteTask','createRecurringTask','editRecurringTask','recordRecurringCompletion','cancelRecurringCompletion','endRecurringTask','deleteRecurringTask') then raise exception 'INVALID_COMMAND'; end if;
   v_now:=clock_timestamp();
-  if v_type in ('createRecurringTask','editRecurringTask','recordRecurringCompletion','cancelRecurringCompletion','endRecurringTask','deleteRecurringTask') then
+  if v_recurring then
     if jsonb_typeof(p_command->'today') is distinct from 'string' or p_command->>'today' !~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' then raise exception 'INVALID_COMMAND'; end if;
     if (p_command->>'today')::date<>(v_now at time zone 'Asia/Shanghai')::date then raise exception 'PLANNING_DATE_CHANGED'; end if;
   end if;
   if v_account.revision<>p_expected_version then raise exception 'VERSION_CONFLICT'; end if;
   if v_account.revision>=9007199254740991 then raise exception 'CAPACITY_REACHED'; end if;
-  if v_type in ('createRecurringTask','editRecurringTask','recordRecurringCompletion','cancelRecurringCompletion','endRecurringTask','deleteRecurringTask') then
+  if v_recurring then
     return public.adventure_recurring_apply(p_owner,p_request_id,v_account.revision,p_command,v_now);
   end if;
   -- Execute only after the account lock, receipt and version checks above.
@@ -1108,6 +1145,9 @@ create or replace function public.adventure_planning_preview(p_owner uuid, p_exp
 returns jsonb language plpgsql security invoker set search_path = '' set lock_timeout = '3s' as $$
 declare
   v_revision bigint;
+  v_has_account boolean;
+  v_type text:=p_command->>'type';
+  v_recurring boolean:=v_type in ('createRecurringTask','editRecurringTask','recordRecurringCompletion','cancelRecurringCompletion','endRecurringTask','deleteRecurringTask');
   v_before jsonb;
   v_after jsonb;
   v_today date;
@@ -1120,14 +1160,21 @@ begin
   if p_owner is null or p_expected_version is null or p_expected_version not between 0 and 9007199254740991
     then raise exception 'INVALID_COMMAND'; end if;
   select revision into v_revision from public.adventure_accounts where owner_id = p_owner for share;
+  v_has_account:=found;
   v_revision := coalesce(v_revision,0);
   v_today:=(clock_timestamp() at time zone 'Asia/Shanghai')::date;
-  if p_command->>'type' in ('createRecurringTask','editRecurringTask','recordRecurringCompletion','cancelRecurringCompletion','endRecurringTask','deleteRecurringTask') then
+  if v_recurring then
     if jsonb_typeof(p_command->'today') is distinct from 'string' then raise exception 'INVALID_COMMAND'; end if;
     if (p_command->>'today')::date<>v_today then raise exception 'PLANNING_DATE_CHANGED'; end if;
   end if;
   if v_revision <> p_expected_version then raise exception 'VERSION_CONFLICT'; end if;
-  if p_command->>'type' in ('createRecurringTask','editRecurringTask','recordRecurringCompletion','cancelRecurringCompletion','endRecurringTask','deleteRecurringTask') then
+  if not v_has_account and (
+    v_type in ('editGoal','reorderGoals','endGoal','achieveGoal','editTask','completeTask','cancelTaskCompletion','deleteTask',
+      'editRecurringTask','recordRecurringCompletion','cancelRecurringCompletion','endRecurringTask','deleteRecurringTask')
+    or (v_type in ('createTask','createRecurringTask') and coalesce(p_command->>'destination','')<>'')) then
+    raise exception 'NOT_FOUND';
+  end if;
+  if v_recurring then
     v_plan:=public.adventure_recurring_check(p_owner,p_command,v_today);
     if p_command->>'type' in ('endRecurringTask','deleteRecurringTask') then
       v_plan:=public.adventure_recurring_parent_view(p_owner,(p_command->>'id')::uuid,v_today);
