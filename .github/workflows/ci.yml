@@ -72,6 +72,8 @@ jobs:
           POSTGRES_BIN: /usr/lib/postgresql/17/bin
           POSTGREST_BIN: ${{ github.workspace }}/.cache/token-postgrest/postgrest
         run: npm run test:token-database
+      - name: Pack and install collector outside repository; scan and upgrade
+        run: npm run test:collector-package
 
   build:
     needs: secrets

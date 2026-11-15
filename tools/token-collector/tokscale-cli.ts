@@ -74,6 +74,9 @@ export async function collectTokscaleUsage(input: TokscaleOptions, context: Toke
       snapshots,
       // Preserve that a diagnostic exists, without returning private stderr.
       diagnostics: result.stderr.trim() ? ['tokscale_diagnostic'] : [],
+      // Only this exact pinned-version warning is known to concern prices.
+      // Every other stderr line makes source completeness unproven.
+      sourceDiagnostic: result.stderr.split('\n').filter(line => line.trim()).some(line => line.trim() !== 'tokscale: some usage is partial, unpriced, or has stale pricing; cost totals may be incomplete. Run `tokscale pricing explain --json --no-spinner` for local billing-channel details.'),
     }
   } catch {
     throw new Error('Tokscale 输出不符合已验证契约；未生成汇总')

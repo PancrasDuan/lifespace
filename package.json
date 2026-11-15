@@ -9,7 +9,11 @@
   "scripts": {
     "postinstall": "node scripts/patch-oauth-provider.mjs",
     "prebuild": "node scripts/patch-oauth-provider.mjs",
-    "pretest:api": "node scripts/patch-oauth-provider.mjs",
+    "pretest:api": "node scripts/patch-oauth-provider.mjs && npm run build:collector",
+    "build:collector": "tsc -p tools/token-collector/tsconfig.json",
+    "test:collector-package": "npm run build:collector && node tests/support/token-collector-package.mjs",
+    "test:collector-pricing": "npm run build:collector && node tests/support/token-collector-pricing.mjs",
+    "pretest:token-database": "npm run build:collector",
     "dev": "WRANGLER_LOG_PATH=./.cache/wrangler.log CLOUDFLARE_DEV_REGISTRY_PATH=./.cache/registry vite --host 127.0.0.1 --port 5174 --strictPort",
     "prototype:ledger": "vite --config vite.ledger-prototype.config.ts",
     "types": "WRANGLER_LOG_PATH=./.cache/wrangler.log wrangler types --env-interface CloudflareEnv --include-runtime false --strict-vars false",
@@ -68,6 +72,7 @@
     "miniflare": "5.20261101.0-beta",
     "pg": "8.23.1",
     "typescript": "7.0.2",
+    "undici": "7.30.1",
     "vite": "8.3.5",
     "vitest": "5.0.3",
     "wrangler": "4.156.1"

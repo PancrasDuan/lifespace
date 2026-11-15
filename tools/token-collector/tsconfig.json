@@ -1,0 +1,9 @@
+{
+  "compilerOptions": {
+    "target": "ES2022", "lib": ["ES2022", "DOM"], "module": "NodeNext", "moduleResolution": "NodeNext",
+    "strict": true, "skipLibCheck": true, "types": ["node"], "rootDir": "../..", "outDir": "dist",
+    "rewriteRelativeImportExtensions": true
+  },
+  "include": ["*.ts", "../../src/shared/token-usage-contract.ts", "../../src/shared/token-backend-contract.ts"],
+  "exclude": ["dist", "node_modules"]
+}

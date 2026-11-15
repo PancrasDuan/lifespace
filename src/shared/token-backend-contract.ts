@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { tokenCostSchema, tokenMetricsSchema, tokenModelSchema, tokenUsageIdentitySchema, tokenUsageSnapshotSchema } from './token-usage-contract'
+import { tokenCostSchema, tokenMetricsSchema, tokenModelSchema, tokenUsageIdentitySchema, tokenUsageSnapshotSchema } from './token-usage-contract.ts'
 
 const deviceId = tokenUsageIdentitySchema.shape.deviceId
 const generation = z.string().regex(/^[1-9]\d{0,18}$/)
