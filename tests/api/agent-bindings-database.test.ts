@@ -18,19 +18,19 @@ async function resolveOwner(role: string, clientId: string) {
   })
 }
 
-describe.skipIf(!rpcUrl || !signingKey)('Agent 绑定的真实 PostgREST RPC 边界', () => {
-  it('服务端凭据能解析已启用的合成绑定，未知凭据返回 null', async () => {
-    const active = await resolveOwner('service_role', 'synthetic-http-active.access')
-    expect(active.status).toBe(200)
-    expect(await active.json()).toEqual({ ownerId: '00000000-0000-4000-8000-000000000007' })
-    const missing = await resolveOwner('service_role', 'synthetic-http-missing.access')
-    expect(missing.status).toBe(200)
-    expect(await missing.json()).toBeNull()
-  })
-  it('匿名与普通登录角色不能调用绑定解析 RPC', async () => {
-    for (const role of ['anon', 'authenticated']) {
-      const response = await resolveOwner(role, 'synthetic-http-active.access')
-      expect([401, 403, 404]).toContain(response.status)
+describe.skipIf(!rpcUrl || !signingKey)('已退役绑定在真实 PostgREST 中不可访问', () => {
+  it('所有角色都不能调用已删除的旧解析 RPC', async () => {
+    for (const role of ['service_role', 'anon', 'authenticated']) {
+      const response = await resolveOwner(role, 'synthetic-retired.access')
+      expect(response.status).toBe(404)
+      expect(await response.json()).toMatchObject({ code: 'PGRST202' })
     }
+  })
+  it('服务端角色也不能查询已删除的旧绑定表', async () => {
+    const response = await fetch(new URL('/agent_identity_bindings?select=client_id', rpcUrl), {
+      headers: { Authorization: `Bearer ${roleToken('service_role')}` },
+    })
+    expect(response.status).toBe(404)
+    expect(await response.json()).toMatchObject({ code: 'PGRST205' })
   })
 })

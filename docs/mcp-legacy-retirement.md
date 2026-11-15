@@ -1,6 +1,6 @@
 # 旧 MCP Service Token 通道退役清单（#204）
 
-本清单是待执行的生产变更方案。实现及本地验证不等于生产已退役；合并发布与下列写操作须取得针对最终 PR/本清单的授权。Issue 在部署和清理全部验收前保持开放。决策见 [ADR 0015](adr/0015-retire-legacy-mcp.md)。
+本清单保留 #204 / PR #207 的分阶段生产执行依据。#207 已完成上线、删除两条绑定、撤销专用 token 及 Access/配置清理；具体证据见 PR。用户随后明确要求删除空表及旧 RPC，按 [ADR 0016](adr/0016-remove-legacy-agent-bindings.md) 和下方“空表与 RPC 收尾”执行，替代本文初版保留空表/RPC/记录的决定。实现及本地验证不等于生产已退役；合并发布与下列写操作须取得针对最终 PR/本清单的授权。Issue 在部署和清理全部验收前保持开放。决策见 [ADR 0015](adr/0015-retire-legacy-mcp.md)。
 
 ## 对象与只读基线
 
@@ -39,4 +39,13 @@ Cloudflare [Service Token 文档](https://developers.cloudflare.com/cloudflare-o
 
 自动回归覆盖所有 HTTP 方法、无凭据/伪造 Access 断言/Service Token 头/浏览器 cookie/无效 Bearer，以及真正由测试官方库签发的有效 OAuth 与网页登录凭据；残留 true 开关仍 404，且不读取请求 body、KV、身份/账单上游。原工具契约与真实隔离账单数据库改从 OAuth 入口验证，保留用户在线准入与 REST 隔离。模拟 Auth/KV、真实隔离 PostgreSQL/PostgREST、真实 workerd/KV、生产平台与真实客户端分别记录，不能互相替代。
 
-本 PR 只实现和准备清单。上述生产写入尚未执行，原客户端/异地验收尚未完成，当前生产仍处于旧通道启用状态；最新证据以 PR/Issue 为准。
+PR #207 的生产退役与旧数据/配置清理已完成。真实客户端/异地验收未执行；后续空表/RPC 收尾的执行版本、备份、验证及结果继续记录在 #204 的后续 PR。
+
+
+## 空表与 RPC 收尾
+
+用户在上线后明确要求删除 `agent_identity_bindings`。应用迁移 [20261115151152_retire_legacy_agent_bindings.sql](../db/agent/migrations/20261115151152_retire_legacy_agent_bindings.sql) 前，核对固定 404 Worker 已在生产、表为空、所有 SQL/PLpgSQL 函数/视图/外键引用，安全备份真实列/约束/索引/RLS/策略/ACL、旧函数定义及迁移历史，并在隔离库验证恢复脚本。
+
+迁移使用单事务、5秒锁等待与15秒语句超时：锁定旧表、拒绝非空、拒绝其他字符串函数引用，先 `DROP FUNCTION ... RESTRICT` 再 `DROP TABLE ... RESTRICT`，最后通知 PostgREST 重载。任何依赖冲突整体回滚，不使用 CASCADE，不删除历史创建迁移。数据库与 Worker 发布互不依赖：新旧已退役 Worker 均不访问这两个对象。执行后验证对象不存在、原 OAuth 授权/用户/账单摘要未变，正式域名旧路径仍404、OAuth发现/401保持正确。
+
+回退仅在需要时恢复安全备份的这两个空对象及权限；不恢复旧入口、凭据或已删除数据。备份是限定对象的恢复资料，不是完整数据库备份。
