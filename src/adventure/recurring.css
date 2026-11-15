@@ -1,5 +1,5 @@
 /* Approved-v1: only the recurring task surface and its dialogs. */
-.recurring-dialog button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; border: 1px solid #dce5d9; border-radius: 6px; padding: 7px 10px; background: #fbfcf7; color: #385b3d; font: inherit; cursor: pointer; }
+.recurring-dialog button:not(:where(.task-date-picker *)) { display: inline-flex; align-items: center; justify-content: center; gap: 6px; border: 1px solid #dce5d9; border-radius: 6px; padding: 7px 10px; background: #fbfcf7; color: #385b3d; font: inherit; cursor: pointer; }
 
 .recurring-ui ::selection, .recurring-dialog ::selection { background: #dcebd6; color: #263f34; }
 .recurring-ui input, .recurring-dialog input, .recurring-dialog textarea { caret-color: #385b3d; }
@@ -59,7 +59,9 @@
 .recurring-dialog-content { padding: 24px; }
 .recurring-dialog.adventure-dialog label { color: #385b3d; display: block; font-size: 13px; font-weight: 500; margin: 18px 0 9px; }
 .recurring-dialog label:first-child { margin-top: 0; }
-.recurring-dialog input, .recurring-dialog textarea, .recurring-dialog select { width: 100%; margin-top: 9px; padding: 11px 12px; border: 1px solid #b7c6b1; border-radius: 9px; background: #fff; color: #263f34; font: inherit; font-size: 14px; }
+.recurring-dialog input:not(:where(.task-date-picker *)), .recurring-dialog textarea, .recurring-dialog select { width: 100%; margin-top: 9px; padding: 11px 12px; border: 1px solid #b7c6b1; border-radius: 9px; background: #fff; color: #263f34; font: inherit; font-size: 14px; }
+.recurring-dialog .task-date-field { margin: 18px 0 9px; }
+.recurring-dialog .task-date-field .lp-time-native { margin-top: 0; }
 .recurring-dialog textarea { resize: vertical; }
 .recurring-dialog input:disabled, .recurring-dialog select:disabled { opacity: 1; color: #52695a; background: #f2f5ef; }
 .recurring-dialog input::placeholder, .recurring-dialog textarea::placeholder { color: #52695a; }
@@ -92,7 +94,7 @@
   .recurring-dialog.adventure-dialog { width: calc(100vw - 24px); max-height: calc(100dvh - 24px); }
   .recurring-dialog > header { padding: 18px; }
   .recurring-dialog-content { padding: 18px; }
-  .recurring-dialog input, .recurring-dialog textarea, .recurring-dialog select { font-size: 16px; }
+  .recurring-dialog input:not(:where(.task-date-picker *)), .recurring-dialog textarea, .recurring-dialog select { font-size: 16px; }
   .recurring-dialog .recurring-facts > div { grid-template-columns: 85px 1fr; }
   .recurring-notice { flex-wrap: wrap; }
 }
@@ -114,17 +116,17 @@
 .recurring-form-pair .recurring-fixed-field { margin-bottom: 0; }
 .recurring-dialog input:user-invalid { border-color: #914f43; }
 @media (max-width: 720px) {
-  .recurring-dialog .adventure-form-footer button, .recurring-dialog select, .recurring-dialog input { min-height: 48px; }
+  .recurring-dialog .adventure-form-footer button, .recurring-dialog select, .recurring-dialog input:not(:where(.task-date-picker *)) { min-height: 48px; }
 }
 
 .recurring-dialog .recurring-form-pair { margin: 18px 0; align-items: start; }
 .recurring-dialog .recurring-form-pair > label, .recurring-dialog .recurring-form-pair > .recurring-fixed-field { margin: 0; }
 .recurring-dialog .recurring-form-pair .recurring-fixed-field > span { line-height: 20px; margin-bottom: 9px; }
 
-.recurring-dialog button:disabled { cursor: default; opacity: .5; }
+.recurring-dialog button:disabled:not(:where(.task-date-picker *)) { cursor: default; opacity: .5; }
 .recurring-dialog .adventure-primary { background: #435d3d; border-color: #435d3d; color: #fff; }
 .recurring-dialog fieldset { min-width: 0; border: 0; margin: 0; padding: 0; }
-.recurring-dialog :focus-visible { outline: 3px solid #c5a47b; outline-offset: 3px; }
+.recurring-dialog :focus-visible:not(:where(.task-date-picker, .task-date-picker *)) { outline: 3px solid #c5a47b; outline-offset: 3px; }
 .recurring-dialog .recurring-fixed-field > div { box-sizing: border-box; }
 
 .recurring-goal-progress-label { display: none; }

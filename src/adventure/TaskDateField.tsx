@@ -11,7 +11,9 @@ function shiftMonth(month: string, delta: number) {
   return `${date.getUTCFullYear()}-${pad(date.getUTCMonth() + 1)}`
 }
 
-export function TaskDateField({ value, onChange, today, originalDate }: { value: string; onChange: (value: string) => void; today: string; originalDate?: string }) {
+export function TaskDateField({ value, onChange, today, originalDate, label = '执行日期', max }: {
+  value: string; onChange: (value: string) => void; today: string; originalDate?: string; label?: string; max?: string
+}) {
   const inputId = useId()
   const [open, setOpen] = useState(false)
   const [draft, setDraft] = useState(value)
@@ -63,13 +65,14 @@ export function TaskDateField({ value, onChange, today, originalDate }: { value:
   const first = new Date(`${month}-01T12:00:00Z`)
   const offset = (first.getUTCDay() + 6) % 7
   const count = new Date(Date.UTC(first.getUTCFullYear(), first.getUTCMonth() + 1, 0)).getUTCDate()
-  return <div className="task-date-field"><label htmlFor={inputId}>执行日期</label><div className="lp-time-control" ref={control} onClick={event => { if (event.target === event.currentTarget) setOpen(current => !current) }}>
-    <input ref={input} id={inputId} className="lp-time-native" type="date" required value={value} min={originalDate && originalDate < today ? undefined : today} onClick={() => setOpen(true)} onChange={event => { const next = event.target.value; event.target.setCustomValidity(next && next < today && next !== originalDate ? '请选择今天或未来的日期' : ''); onChange(next) }}/>
-    <button type="button" ref={trigger} className="lp-time-trigger" aria-label="选择执行日期" aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen(current => !current)}><CalendarDays size={16}/></button>
-  </div>{open && createPortal(<div ref={popover} popover="manual" role="dialog" tabIndex={-1} aria-label="选择执行日期" className="lp-time-popover task-date-picker">
-    <header className="lp-tp-header"><h3>选择执行日期</h3><button type="button" aria-label="关闭日期选择" onClick={close}><X size={17}/></button></header>
-    <div className="lp-tp-body"><section className="lp-tp-calendar" aria-label="执行日期日历"><div className="lp-tp-month-nav"><button type="button" aria-label="上个月" onClick={() => setMonth(shiftMonth(month, -1))}><ChevronLeft size={16}/></button><input type="month" aria-label="显示月份" value={month} onChange={event => { if (event.target.value) setMonth(event.target.value) }}/><button type="button" aria-label="下个月" onClick={() => setMonth(shiftMonth(month, 1))}><ChevronRight size={16}/></button></div>
-      <div className="lp-tp-weekdays" aria-hidden="true">{['一','二','三','四','五','六','日'].map(day => <span key={day}>{day}</span>)}</div><div className="lp-tp-days">{Array.from({ length: 42 }, (_, index) => { const day = index - offset + 1; if (day < 1 || day > count) return <span key={index} aria-hidden="true"/>; const date = `${month}-${pad(day)}`; return <button key={date} type="button" className={`lp-tp-day ${date === draft ? 'is-selected' : ''} ${date === today ? 'is-today' : ''}`} aria-label={date} aria-pressed={date === draft} aria-current={date === today ? 'date' : undefined} disabled={date < today && date !== originalDate} onClick={() => setDraft(date)}>{day}</button> })}</div>
-    </section></div><footer className="lp-tp-footer"><strong>{draft}</strong><button type="button" className="lp-tp-cancel" onClick={close}>取消</button><button type="button" className="lp-tp-confirm" onClick={() => { input.current?.setCustomValidity(''); onChange(draft); close() }}>确认日期</button></footer>
-  </div>, document.body)}</div>
+  // A body portal is inert outside a native modal dialog; keep its calendar inside.
+  return <div className="task-date-field"><label htmlFor={inputId}>{label}</label><div className="lp-time-control" ref={control} onClick={event => { if (event.target === event.currentTarget) setOpen(current => !current) }}>
+    <input ref={input} id={inputId} className="lp-time-native" type="date" required value={value} min={originalDate && originalDate < today ? undefined : today} max={max} onClick={() => setOpen(true)} onChange={event => { const next = event.target.value; event.target.setCustomValidity(next && next < today && next !== originalDate ? '请选择今天或未来的日期' : ''); onChange(next) }}/>
+    <button type="button" ref={trigger} className="lp-time-trigger" aria-label={`选择${label}`} aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen(current => !current)}><CalendarDays size={16}/></button>
+  </div>{open && createPortal(<div ref={popover} popover="manual" role="dialog" tabIndex={-1} aria-label={`选择${label}`} className="lp-time-popover task-date-picker">
+    <header className="lp-tp-header"><h3>选择{label}</h3><button type="button" aria-label="关闭日期选择" onClick={close}><X size={17}/></button></header>
+    <div className="lp-tp-body"><section className="lp-tp-calendar" aria-label={`${label}日历`}><div className="lp-tp-month-nav"><button type="button" aria-label="上个月" onClick={() => setMonth(shiftMonth(month, -1))}><ChevronLeft size={16}/></button><input type="month" aria-label="显示月份" value={month} max={max?.slice(0, 7)} onChange={event => { const next = event.target.value; if (next && (!max || (/^\d{4}-\d{2}$/.test(next) && next <= max.slice(0, 7)))) setMonth(next) }}/><button type="button" aria-label="下个月" disabled={!!max && month >= max.slice(0, 7)} onClick={() => setMonth(shiftMonth(month, 1))}><ChevronRight size={16}/></button></div>
+      <div className="lp-tp-weekdays" aria-hidden="true">{['一','二','三','四','五','六','日'].map(day => <span key={day}>{day}</span>)}</div><div className="lp-tp-days">{Array.from({ length: 42 }, (_, index) => { const day = index - offset + 1; if (day < 1 || day > count) return <span key={index} aria-hidden="true"/>; const date = `${month}-${pad(day)}`; return <button key={date} type="button" className={`lp-tp-day ${date === draft ? 'is-selected' : ''} ${date === today ? 'is-today' : ''}`} aria-label={date} aria-pressed={date === draft} aria-current={date === today ? 'date' : undefined} disabled={(date < today && date !== originalDate) || (!!max && date > max)} onClick={() => setDraft(date)}>{day}</button> })}</div>
+    </section></div><footer className="lp-tp-footer"><strong>{draft}</strong><button type="button" className="lp-tp-cancel" onClick={close}>取消</button><button type="button" className="lp-tp-confirm" disabled={!/^\d{4}-\d{2}-\d{2}$/.test(draft) || (draft < today && draft !== originalDate) || (!!max && draft > max)} onClick={() => { input.current?.setCustomValidity(''); onChange(draft); close() }}>确认日期</button></footer>
+  </div>, control.current?.closest('dialog') ?? document.body)}</div>
 }
