@@ -56,10 +56,13 @@ export async function applySchedule(plan: SchedulePlan, install: boolean, execut
     await writeFile(temp, file.content, { mode: 0o600, flag: 'wx' }); await rename(temp, file.path)
   }
   // Repeated installation is idempotent. For launchd a changed interval needs
-  // bootout/bootstrap; an unchanged plist needs no duplicate bootstrap.
+  // bootout/bootstrap. An unchanged plist is successful only when the job is
+  // actually loaded: a previous bootstrap may have failed after writing it.
   if (plan.install[0].file === '/bin/launchctl') {
-    if (!changed) return
-    try { await execute(plan.uninstall[0]) } catch { /* Not installed yet. */ }
+    if (!changed) {
+      try { await execute({ file: '/bin/launchctl', args: ['print', plan.uninstall[0].args[1]] }); return }
+      catch { /* Retry bootstrap of an existing but not loaded plist. */ }
+    } else { try { await execute(plan.uninstall[0]) } catch { /* Not installed yet. */ } }
   }
   for (const command of plan.install) await execute(command)
 }

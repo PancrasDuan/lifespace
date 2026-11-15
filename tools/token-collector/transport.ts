@@ -86,8 +86,16 @@ export async function uploadPending(store: Store, hostname: string, now = Date.n
   const config = store.config(); validateCredential(credential, config)
   const url = endpoint(credential.upload.url, config.loopback)
   const headers = { apikey: credential.upload.publishableKey, [credential.upload.header]: credential.uploadToken }
-  let uploaded = 0
-  for (const task of store.tasks().filter(t => t.generation === credential.generation && t.next_at <= now).slice(0, limit)) {
+  let uploaded = 0, attempted = 0
+  const deferred = new Set<string>()
+  for (const task of store.tasks()) {
+    if (task.generation !== credential.generation) continue
+    const key = JSON.stringify([task.date, task.agent])
+    if (deferred.has(key)) continue
+    // A later version must never overtake an unconfirmed predecessor merely
+    // because that predecessor is backing off. Other identities may proceed.
+    if (task.next_at > now) { deferred.add(key); continue }
+    if (attempted++ >= limit) break
     try {
       const value = await request(url, task.body, headers)
       if (!store.acknowledge(task, value)) throw new TransportError('RECEIPT_MISMATCH', false)

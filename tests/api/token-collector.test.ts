@@ -1,5 +1,5 @@
 import { afterEach, expect, test } from 'vitest'
-import { mkdtemp, mkdir, writeFile, readFile, rm, chmod, symlink, rename, stat } from 'node:fs/promises'
+import { mkdtemp, mkdir, writeFile, readFile, rm, chmod, symlink, rename, stat, copyFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { spawn, execFile } from 'node:child_process'
@@ -148,6 +148,25 @@ test('registration persists before claim, pending/slow_down survives restart, te
     expect(await claimRegistration(p.store, 601001)).toMatchObject({ status: 'expired' })
   } finally { await new Promise<void>(r => server.close(() => r())) }
 })
+test('backoff of an older immutable task prevents a newer same-key version from overtaking it', async () => {
+  const p = await profile(); const sent: string[] = []
+  const server = createServer(async (req, res) => {
+    const chunks: Buffer[] = []; for await (const chunk of req) chunks.push(chunk)
+    const body = JSON.parse(Buffer.concat(chunks).toString()), upload = req.url?.endsWith('token_usage_upload')
+    if (upload) sent.push(body.p_snapshot.metadata.snapshotVersion)
+    res.setHeader('Content-Type', 'application/json')
+    res.end(JSON.stringify(upload ? { persisted: true, ...body.p_snapshot.identity, generation: body.p_generation, snapshotVersion: body.p_snapshot.metadata.snapshotVersion, contentHash: body.p_hash, result: 'replaced', receivedAt: '2026-11-15' } : { persisted: true, deviceId: body.p_device, generation: body.p_generation, receivedAt: '2026-11-15' }))
+  })
+  server.listen(0, '127.0.0.1'); await once(server, 'listening')
+  p.store.set('config', { ...p.store.config(), loopback: true })
+  p.store.activate({ ...credential(), upload: { ...credential().upload, url: `http://127.0.0.1:${(server.address() as any).port}/rest/v1/rpc/token_usage_upload` } })
+  try {
+    await save(p.store, snapshot()); p.store.retry(p.store.tasks()[0], 'NETWORK_UNCONFIRMED', 1000)
+    await save(p.store, snapshot(200))
+    expect((await uploadPending(p.store, 'synthetic-host', 1001)).uploaded).toBe(0); expect(sent).toEqual([])
+    expect((await uploadPending(p.store, 'synthetic-host', 7000)).pending).toBe(0); expect(sent).toEqual(['1', '2'])
+  } finally { await new Promise<void>(r => server.close(() => r())) }
+})
 
 test('actual Tokscale: initial unknown prices, incremental scan and full rescan stay equal without manufacturing costs', async () => {
   const p = await profile(); await writeFile(join(p.home, '.codex/sessions/source.jsonl'), syntheticCodexLog())
@@ -196,6 +215,36 @@ test('malformed/unfinished tail and scan race cannot advance checkpoints or over
   const race = await assessCoverage(prior, before, await inventory(p.home), ['2026-11-14', '2026-11-15'])
   expect(race.diagnostics).toContain('SOURCE_CHANGED_DURING_SCAN')
   await writeFile(file, syntheticCodexLog()); expect((await scan(p.store, p.state, { offline: true })).blockedDates).toEqual([])
+})
+test('actual Tokscale started_at date is covered even when every envelope timestamp is on the next Beijing day', async () => {
+  const p = await profile(), file = join(p.home, '.codex/sessions/late.jsonl'), timestamp = '2026-11-16T02:00:00Z'
+  const usage = { input_tokens: 100, output_tokens: 10, total_tokens: 110 }
+  const rows = [
+    { timestamp, type: 'session_meta', payload: { id: 'synthetic-started-at-213', model_provider: 'openai' } },
+    { timestamp, type: 'turn_context', payload: { model: 'gpt-5.5' } },
+    { timestamp, type: 'event_msg', payload: { type: 'task_started', turn_id: 'synthetic-late-turn', started_at: Date.parse('2026-11-15T12:00:00Z') / 1000 } },
+    { timestamp, type: 'event_msg', payload: { type: 'token_count', info: { total_token_usage: usage, last_token_usage: usage } } },
+  ]
+  await writeFile(file, rows.map(r => JSON.stringify(r)).join('\n') + '\n')
+  await scan(p.store, p.state, { offline: true })
+  expect(p.store.dates()).toContain('2026-11-15')
+  expect(p.store.sources()[0].dates).toContain('2026-11-15')
+  await rm(file)
+  await writeFile(join(p.home, '.codex/sessions/larger.jsonl'), syntheticUnknownModelLog().replace(/40/g, '4000').replace(/50/g, '4010'))
+  expect((await scan(p.store, p.state, { offline: true })).blockedDates).toContain('2026-11-15')
+  expect(JSON.parse(String(p.store.db.prepare("SELECT snapshot FROM rollups WHERE date='2026-11-15'").get()!.snapshot)).content.metrics.total).toBe(110)
+})
+test('moving/restoring identical bytes or a parent directory during a scan invalidates its filesystem stability proof', async () => {
+  const p = await profile(), source = join(p.home, '.codex/sessions/source.jsonl')
+  await writeFile(source, syntheticCodexLog()); await scan(p.store, p.state, { offline: true })
+  const before = await inventory(p.home), prior = p.store.sources()
+  await rename(source, join(p.dir, 'temporary.jsonl')); await copyFile(join(p.dir, 'temporary.jsonl'), source)
+  const after = await inventory(p.home)
+  expect(before.files[0].hash).toBe(after.files[0].hash)
+  expect((await assessCoverage(prior, before, after, ['2026-11-14', '2026-11-15'])).blocked.has('2026-11-15')).toBe(true)
+  const stable = await inventory(p.home)
+  await rename(join(p.home, '.codex'), join(p.dir, 'temporarily-away')); await rename(join(p.dir, 'temporarily-away'), join(p.home, '.codex'))
+  expect((await assessCoverage(prior, stable, await inventory(p.home), ['2026-11-14', '2026-11-15'])).blocked.has('2026-11-15')).toBe(true)
 })
 test('price cache correction recomputes actual CLI estimates downwards while retaining unknown buckets', async () => {
   const p = await profile(); await writeFile(join(p.home, '.codex/sessions/source.jsonl'), syntheticCodexLog())
@@ -279,8 +328,21 @@ test('systemd/launchd plans use absolute paths, escape special characters, prese
     const removed = calls.length; await applySchedule(linux, false, run); expect(calls.length).toBe(removed)
     const mac = schedulePlan('macos', state + '&', hours, home, '/node path/node', '/install/cli.js', 123)
     expect(mac.files[0].content).toContain('&amp;'); expect(mac.files[0].content).toContain(`<integer>${hours * 3600}</integer>`)
-    await applySchedule(mac, true, run); const n = calls.length; await applySchedule(mac, true, run); expect(calls.length).toBe(n)
+    await applySchedule(mac, true, run); const n = calls.filter((c: any) => c.args[0] === 'bootstrap').length
+    await applySchedule(mac, true, run); expect(calls.filter((c: any) => c.args[0] === 'bootstrap').length).toBe(n)
     await applySchedule(mac, false, run)
     const unloaded = calls.length; await applySchedule(mac, false, run); expect(calls.length).toBe(unloaded)
   }
+})
+test('launchd bootstrap failure is retried even when the written plist is unchanged', async () => {
+  const home = await root(), plan = schedulePlan('macos', join(home, 'state'), 1, home, '/node', '/cli.js', 123)
+  let loaded = false, attempts = 0
+  const execute = async (command: { args: string[] }) => {
+    if (command.args[0] === 'print' && !loaded) throw new Error('not loaded')
+    if (command.args[0] === 'bootout') loaded = false
+    if (command.args[0] === 'bootstrap') { attempts++; if (attempts === 1) throw new Error('synthetic bootstrap failure'); loaded = true }
+  }
+  await expect(applySchedule(plan, true, execute)).rejects.toThrow('synthetic bootstrap failure')
+  await applySchedule(plan, true, execute)
+  expect(loaded).toBe(true); expect(attempts).toBe(2)
 })

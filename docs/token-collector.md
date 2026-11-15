@@ -16,7 +16,7 @@ offline 未授权扫描可保存最新内容（generation=0，仅本地，不发
 
 ## 覆盖和价格证据
 
-固定上游 [scanner](https://github.com/junhoyeo/tokscale/blob/5569a0397b52c6c445e346814747a772fc3c0a11/crates/tokscale-core/src/scanner.rs) 默认 Codex roots、`.jsonl*`（排除 sidecar/checkpoint）和 zstd 形式与本地清单一致。扫描前后两份清单核对源字节，追加须保持已保存完整前缀；移动/归档可由另一完整内容副本或包含旧完整前缀的来源证明。只检查 JSONL envelope 和日期，不解释 counters、fork 或费用；实际统计/去重全部来自固定 CLI。
+固定上游 [scanner](https://github.com/junhoyeo/tokscale/blob/5569a0397b52c6c445e346814747a772fc3c0a11/crates/tokscale-core/src/scanner.rs) 默认 Codex roots、`.jsonl*`（排除 sidecar/checkpoint）和 zstd 形式与本地清单一致。扫描前后两份清单核对源字节、文件inode/ctime/mtime及全部扫描目录/祖先目录状态；即使移出后恢复相同内容，也不沿用发生过变化的目录证明。追加须保持已保存完整前缀；移动/归档可由另一完整内容副本或包含旧完整前缀的来源证明。日期覆盖还包括上游用于归属恢复回合的 `task_started.started_at` Unix秒，不仅是外层 timestamp；证明有独立coverageVersion，缺失旧版未知范围时保守保护全部日期。只检查来源时间与格式，不解释 counters、fork 或费用；实际统计/去重全部来自固定 CLI。
 
 文件删除、截断、改写不会更新旧证明，受影响日期保持最新可信结果；新增日志再大也不放行该日期，未受影响日期继续。损坏/未完成行没有可靠日期范围，故全部已知日期暂缓；读失败/未知上游 stderr 同样保护。恢复原来源后再重扫。完全缺失的 graph 日不制造零快照，保留历史并记 GRAPH_DAY_ABSENT。规则/价格修正时来源仍完整可正常减少数值、移除模型，不因总量下降一律冻结。
 
@@ -26,6 +26,6 @@ offline 未授权扫描可保存最新内容（generation=0，仅本地，不发
 
 `npm run test:api` 包含文件 SQLite/Tokscale/模板测试；`POSTGRES_BIN=... POSTGREST_BIN=... npm run test:token-database` 必须建立独立 PG/PostgREST，实跑 Worker 授权与独立设备头直传，不能用环境跳过代替该门禁。TLS 网关使用本次临时生成的受信任测试证书，在 TCP connector 将标准 HTTPS loopback 地址路由到随机端口；API 请求真实经过 TLS/HTTP/PostgREST/SQL，未 mock fetch，也未放松生产 URL 校验。测试网关只模拟托管 apikey→PostgREST role 和 Auth user，不能替代托管 Supabase 网关或真实网页登录。
 
-`npm run test:collector-package` 在 `/tmp` 的独立目录实际 npm pack/install、只从安装包运行 CLI、真实扫描并保留队列、实际本地升级同包验证 SQLite 不变；不依赖 repo devDependencies/绝对路径。包白名单只含 CLI JS、两份 shared schema、manifest 和说明。该门禁随 token_database 纳入 validate，不上传构建/测试 artifacts。
+`npm run test:collector-package` 在 `/tmp` 的独立目录实际 npm pack/install、只从安装包运行 CLI、真实扫描并保留队列、实际本地升级同包验证 SQLite 不变；不依赖 repo devDependencies/绝对路径。包白名单只含 CLI JS、两份 shared schema、manifest 和说明。该门禁随 token_database 纳入 validate，不上传构建/测试 artifacts。额外 `npm run test:collector-pricing` 在线探针实跑公开目录初始化/再次更新与真实CLI计价，区分外部源暂时失败及未知/部分刷新。
 
 最终仍需真实 macOS ioreg/launchd、Linux 用户 systemd 实际启用、用户真实来源/客户端版本、双设备独立对账、正式确认页/看板原型对照、托管 gateway 和生产发布验收。这里仅实际运行合成数据与临时目录，timer 使用模板及替身；没有安装或启用本机真实任务。代码回退重装已验证旧包并保留私有状态；若未来 schema 升级不兼容需显式迁移/备份，本版本不自动删除数据。

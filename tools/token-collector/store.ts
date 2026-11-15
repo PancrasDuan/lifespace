@@ -11,7 +11,7 @@ export type Config = z.infer<typeof configSchema>
 export const credentialSchema = z.strictObject({ deviceId: z.string(), generation: z.string().regex(/^[1-9]\d{0,18}$/), uploadToken: z.string().regex(/^[A-Za-z0-9_-]{43}$/),
   upload: z.strictObject({ url: z.string(), publishableKey: z.string().regex(/^sb_publishable_[A-Za-z0-9_-]+$/), header: z.literal('X-LifeSpace-Device-Token') }) })
 export type Credential = z.infer<typeof credentialSchema>
-export type SourceProof = { path: string; hash: string; size: number; dates: string[] }
+export type SourceProof = { path: string; hash: string; size: number; dates: string[]; coverageVersion?: 1 }
 export type QueueTask = { id: number; date: string; agent: string; generation: string; version: string; hash: string; body: string; attempts: number; next_at: number; error: string | null }
 
 export class Store {

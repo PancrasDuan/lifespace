@@ -7,8 +7,11 @@ import { join } from 'node:path'
 import { isMissing, LocalError, noSymlinkPath } from './local.ts'
 import type { SourceProof } from './store.ts'
 
-type Observation = SourceProof & { valid: boolean }
-export type Inventory = { files: Observation[]; uncertain: boolean }
+type Observation = SourceProof & { valid: boolean; stamp: string }
+export type Inventory = { files: Observation[]; uncertain: boolean; directories: Record<string, string> }
+function stamp(value: { dev: bigint; ino: bigint; size: bigint; mtimeNs: bigint; ctimeNs: bigint }) {
+  return [value.dev, value.ino, value.size, value.mtimeNs, value.ctimeNs].join(':')
+}
 const roots = ['.codex/sessions', '.codex/archived_sessions', '.config/tokscale/headless/codex', 'Library/Application Support/tokscale/headless/codex']
 function sourceStream(path: string) { return path.endsWith('.zst') ? compose(createReadStream(path), createZstdDecompress()) : createReadStream(path) }
 function transcript(path: string) {
@@ -28,7 +31,7 @@ function date(value: unknown): string | undefined {
   return dateFormatter.format(new Date(ms))
 }
 async function observe(path: string): Promise<Observation> {
-  const initial = await lstat(path)
+  const initial = await lstat(path, { bigint: true })
   if (!initial.isFile() || initial.isSymbolicLink()) throw new LocalError('SOURCE_UNREADABLE')
   const hash = createHash('sha256'), dates = new Set<string>()
   let size = 0, line = '', valid = true, lastByte = -1
@@ -47,6 +50,15 @@ async function observe(path: string): Promise<Observation> {
         if (!envelope || typeof envelope !== 'object' || !('timestamp' in envelope) || !('type' in envelope)) { valid = false; continue }
         const day = date(envelope.timestamp)
         if (day) dates.add(day); else valid = false
+        // Tokscale may anchor a resumed turn to started_at (Unix seconds),
+        // which can belong to a different day than every envelope timestamp.
+        // This is coverage metadata only; counters still come from Tokscale.
+        const p = 'payload' in envelope ? envelope.payload : undefined
+        if (envelope.type === 'event_msg' && p && typeof p === 'object' && 'type' in p && p.type === 'task_started' && 'started_at' in p && typeof p.started_at === 'number') {
+          const seconds = Math.trunc(p.started_at), ms = seconds * 1000
+          if (!Number.isSafeInteger(seconds) || !Number.isFinite(ms) || Math.abs(ms) > 8640000000000000) valid = false
+          else { const anchored = date(new Date(ms).toISOString()); if (anchored) dates.add(anchored); else valid = false }
+        }
       } catch { valid = false }
     }
   }
@@ -57,9 +69,9 @@ async function observe(path: string): Promise<Observation> {
   }
   consume(decoder.decode())
   if (line.length || (size > 0 && lastByte !== 10)) valid = false
-  const end = await lstat(path)
-  if (initial.size !== end.size || initial.mtimeMs !== end.mtimeMs || initial.ctimeMs !== end.ctimeMs || initial.ino !== end.ino) valid = false
-  return { path, hash: hash.digest('hex'), size, dates: [...dates].sort(), valid }
+  const end = await lstat(path, { bigint: true })
+  if (stamp(initial) !== stamp(end)) valid = false
+  return { path, hash: hash.digest('hex'), size, dates: [...dates].sort(), valid, stamp: stamp(initial) }
 }
 export async function inventory(home: string): Promise<Inventory> {
   await noSymlinkPath(home)
@@ -73,20 +85,33 @@ export async function inventory(home: string): Promise<Inventory> {
     } catch (e) { if (!isMissing(e)) throw new LocalError(e instanceof LocalError ? e.code : 'SCANNER_SETTINGS_INVALID') }
   }
   const files: Observation[] = []
+  const directories: Record<string, string> = {}
   let uncertain = false
   async function walk(path: string) {
     try {
-      const stat = await lstat(path)
+      const stat = await lstat(path, { bigint: true })
       if (stat.isSymbolicLink()) { uncertain = true; return }
       if (stat.isDirectory()) {
+        directories[path] = stamp(stat)
         for (const child of (await readdir(path)).sort()) await walk(join(path, child))
       } else if (transcript(path)) {
         try { files.push(await observe(path)) } catch { uncertain = true }
       }
     } catch (e) { if (!isMissing(e)) uncertain = true }
   }
-  for (const root of roots) { await noSymlinkPath(join(home, root)); await walk(join(home, root)) }
-  return { files, uncertain }
+  for (const root of roots) {
+    const target = join(home, root); await noSymlinkPath(target)
+    // Moving an entire ancestor can leave every child's inode/ctime intact.
+    // Include all ancestors and directory entries, including absent roots.
+    let cursor = home
+    for (const part of ['', ...root.split('/')]) {
+      if (part) cursor = join(cursor, part)
+      try { directories[cursor] = stamp(await lstat(cursor, { bigint: true })) }
+      catch (e) { directories[cursor] = 'absent'; if (!isMissing(e)) uncertain = true }
+    }
+    await walk(target)
+  }
+  return { files, uncertain, directories }
 }
 async function prefixMatches(current: Observation, prior: SourceProof): Promise<boolean> {
   if (!current.valid || current.size < prior.size) return false
@@ -107,6 +132,7 @@ export async function assessCoverage(prior: SourceProof[], before: Inventory, af
   const blocked = new Set<string>(), diagnostics = new Set<string>(), accepted: SourceProof[] = []
   const block = (dates: string[], code: string) => { dates.forEach(d => blocked.add(d)); diagnostics.add(code) }
   if (before.uncertain || after.uncertain || sourceDiagnostic) block(allDates, 'SOURCE_SCOPE_UNPROVEN')
+  if (JSON.stringify(Object.entries(before.directories).sort()) !== JSON.stringify(Object.entries(after.directories).sort())) block(allDates, 'SOURCE_TREE_CHANGED_DURING_SCAN')
   const afterByPath = new Map(after.files.map(f => [f.path, f]))
   for (const f of before.files) {
     const end = afterByPath.get(f.path)
@@ -114,17 +140,17 @@ export async function assessCoverage(prior: SourceProof[], before: Inventory, af
       // A malformed row has no trustworthy date. Freeze the full known scope.
       block(allDates, 'SOURCE_INCOMPLETE'); continue
     }
-    if (f.hash !== end.hash) { block([...f.dates, ...end.dates], 'SOURCE_CHANGED_DURING_SCAN'); continue }
+    if (f.hash !== end.hash || f.stamp !== end.stamp) { block([...f.dates, ...end.dates], 'SOURCE_CHANGED_DURING_SCAN'); continue }
     const old = prior.find(p => p.path === f.path)
     if (old && !await prefixMatches(f, old)) { block([...old.dates, ...f.dates], 'SOURCE_REWRITTEN_OR_TRUNCATED'); continue }
-    accepted.push({ path: f.path, hash: f.hash, size: f.size, dates: f.dates })
+    accepted.push({ path: f.path, hash: f.hash, size: f.size, dates: f.dates, coverageVersion: 1 })
   }
   for (const old of prior) {
     const current = before.files.find(f => f.path === old.path)
     if (current && await prefixMatches(current, old)) continue
     // Exact moves, archive copies and append-only relocated files preserve proof.
     const replacement = (await Promise.all(before.files.map(f => prefixMatches(f, old)))).some(Boolean)
-    if (!replacement) block([...old.dates, ...(current?.dates ?? [])], 'SOURCE_MISSING_OR_CHANGED')
+    if (!replacement) block(old.coverageVersion === 1 ? [...old.dates, ...(current?.dates ?? [])] : allDates, old.coverageVersion === 1 ? 'SOURCE_MISSING_OR_CHANGED' : 'SOURCE_LEGACY_SCOPE_UNPROVEN')
   }
   // Files newly appearing during execution were not in the graph's stable scope.
   for (const f of after.files) if (!before.files.some(b => b.path === f.path)) block(f.dates.length ? f.dates : allDates, 'SOURCE_CHANGED_DURING_SCAN')

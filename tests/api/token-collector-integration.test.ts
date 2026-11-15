@@ -137,4 +137,17 @@ describe.skipIf(!process.env.TOKEN_DB_URL)('collector actual Worker HTTPS gatewa
     expect(await uploadPending(store, 'synthetic')).toMatchObject({ uploaded: 2, pending: 0 })
     expect((await db.query('select distinct generation::text from token_private.rollups')).rows).toEqual([{ generation: '2' }])
   })
+  test('real PostgreSQL never sees a newer same-key snapshot overtake its backed-off predecessor', async () => {
+    const base = JSON.parse(String(store.db.prepare("select snapshot from rollups where date='2026-11-15'").get()!.snapshot)) as TokenUsageSnapshot
+    base.content.metrics = { input: 81, output: 0, total: 81 }; base.content.models.items[0].metrics = base.content.metrics
+    store.saveScan(await store.prepareSnapshots([base]), [], new Set(), [])
+    const now = Date.now(); store.retry(store.tasks()[0], 'NETWORK_UNCONFIRMED', now)
+    base.content.metrics = { input: 82, output: 0, total: 82 }; base.content.models.items[0].metrics = base.content.metrics
+    store.saveScan(await store.prepareSnapshots([base]), [], new Set(), [])
+    const calls = uploadCalls
+    expect(await uploadPending(store, 'synthetic', now + 1)).toMatchObject({ uploaded: 0, pending: 2, heartbeat: true })
+    expect(uploadCalls).toBe(calls)
+    expect(await uploadPending(store, 'synthetic', now + 10000)).toMatchObject({ uploaded: 2, pending: 0, heartbeat: true })
+    expect((await db.query("select metrics from token_private.rollups where date='2026-11-15'")).rows[0].metrics.total).toBe(82)
+  })
 })

@@ -27,7 +27,7 @@ lifespace-usage upgrade --archive /absolute/next-release.tgz --prefix /absolute/
 
 来源丢失/截断/非追加改写时，受影响日期保持最后可信值；新增其他完整日期继续推进。即使当前总量更大，也不会越过覆盖保护。文件原始内容恢复、或完整副本移到上游可扫描的归档目录后，再 `sync --rescan`。不完整末行应等来源程序写完，损坏来源应从自己的备份恢复；无法恢复时保留历史与诊断，不能仅凭最新汇总重建来源。没有“忽略缺失强制覆盖”开关。未知范围、损坏行或未分类上游诊断会保守保护全部已知日期。单行最多 16 MiB、单文件解压后最多 512 MiB，超限记录未确认扫描，不上传不完整替换。
 
-SQLite 持有进程运行锁，无超时抢锁；已有活进程返回 `COLLECTOR_BUSY`，崩溃由 OS/SQLite 自动释放。上传失败持久保存原始快照，5 秒起、最多 1 小时退避；每次最多处理 100 项，首次失败停止此轮队列，再发独立心跳。`status` 的 pending/errors 给出积压与固定分类。`TOKEN_CREDENTIAL_INVALID`/`CREDENTIAL_REJECTED` 需要重新批准授权，`TOKEN_VERSION_CONFLICT`/`TOKEN_STALE_VERSION` 保留任务，先检查是否复制过状态库；必要时重新浏览器批准新代际，不能删 SQLite 后凭旧 ID 续权。
+SQLite 持有进程运行锁，无超时抢锁；已有活进程返回 `COLLECTOR_BUSY`，崩溃由 OS/SQLite 自动释放。上传失败持久保存原始快照，5 秒起、最多 1 小时退避；同主键的新版本等旧任务确认后才发送，其他主键可继续。每次最多处理 100 项，首次失败停止此轮队列，再发独立心跳。`status` 的 pending/errors 给出积压与固定分类。`TOKEN_CREDENTIAL_INVALID`/`CREDENTIAL_REJECTED` 需要重新批准授权，`TOKEN_VERSION_CONFLICT`/`TOKEN_STALE_VERSION` 保留任务，先检查是否复制过状态库；必要时重新浏览器批准新代际，不能删 SQLite 后凭旧 ID 续权。
 
 定时默认 1 小时，支持 1/3/6/8/12/24。`timer install/uninstall` 默认只打印计划，`--apply` 才写用户级 systemd/launchd 并调用管理命令；实际执行路径包含 Node 和已安装 CLI 的绝对路径，凭据不在单元/env/参数里。Linux 需要可用的 user systemd，注销后持续运行取决于主机用户管理策略。`timer status` 展示本机记录与模板，OS 实际启用情况仍以 `systemctl --user status com.lifespace.token-collector.timer` / `launchctl print gui/$(id -u)/com.lifespace.token-collector` 核对。升级后用新 CLI 的同一 `--state-dir` 重装 timer。
 
