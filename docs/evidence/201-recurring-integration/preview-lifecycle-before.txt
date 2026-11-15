@@ -1,0 +1,11 @@
+{"mode":"startup-SIGTERM","trigger":"PG ready and pg_ctl returned, before preview READY","childExit":null,"signal":"SIGTERM","directoryExists":true}
+FAIL startup-SIGTERM: Expected values to be strictly equal:
+
+null !== 0
+
+{"mode":"startup-SIGINT","trigger":"PG ready and pg_ctl returned, before preview READY","childExit":null,"signal":"SIGINT","directoryExists":true}
+FAIL startup-SIGINT: Expected values to be strictly equal:
+
+null !== 0
+
+Preview lifecycle: 3/5 passed

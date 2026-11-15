@@ -34,3 +34,5 @@
 提交后复核另见 [最终统计](final-recheck.json)、[并行超时的原非零日志](final-parallel-failure.txt)、[原条件串行整个runner的成功日志](final-serial-result.txt) 和 [预览正常/异常退出清理](preview-cleanup-check.json)。这些增量须随新的最终SHA复审，失败没有从证据中移除。
 
 输出文本归档仅去除行尾空白；完整原始日志仍保留在本工作区忽略的.cache中。
+
+b1预览仍存在的启动中断P2及本轮修复：同一生命周期回归 [before JSON](preview-lifecycle-before.json) / [输出](preview-lifecycle-before.txt) 为3/5、退出1，[after JSON](preview-lifecycle-after.json) / [输出](preview-lifecycle-after.txt) 为5/5、退出0。前一份preview-cleanup-check仅证明READY后关闭/端口冲突，不能冒充覆盖启动中断；新的完整范围及旧业务证据映射见验收报告末节。

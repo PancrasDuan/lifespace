@@ -2,7 +2,7 @@
 // Browser -> loopback Vite middleware -> production Hono app.request -> local
 // PostgREST -> a newly created PostgreSQL cluster. Not a workerd/Auth rehearsal.
 import { spawn, spawnSync } from 'node:child_process'
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { access, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { once } from 'node:events'
 import { createServer as netServer } from 'node:net'
 import { createServer as httpServer } from 'node:http'
@@ -12,8 +12,15 @@ import { createServer } from 'vite'
 import react from '@vitejs/plugin-react'
 import pg from 'pg'
 import { buildRecurringInstall } from '../../scripts/build-adventure-recurring-install.mjs'
+import { setTimeout as delay } from 'node:timers/promises'
 
 const root = resolve(import.meta.dirname, '../..')
+// A signal only cancels startup. The same control flow owns cleanup, after the
+// in-flight initializer has settled and registered any resource it created.
+const cancellation = new AbortController()
+const signalHandlers = new Map(['SIGINT', 'SIGTERM'].map(signal => [signal, () => cancellation.abort(signal)]))
+for (const [signal, handler] of signalHandlers) process.on(signal, handler)
+const checkCancelled = () => cancellation.signal.throwIfAborted()
 const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('PG') && !/SUPABASE|ADVENTURE_/.test(key)))
 const bin = name => join(process.env.POSTGRES_BIN || join(root, '.cache/recurring-tools/bin'), name)
 const run = (name, args) => {
@@ -24,33 +31,57 @@ const freePort = async () => {
   const s = netServer().listen(0, '127.0.0.1'); await once(s, 'listening')
   const port = s.address().port; await new Promise(resolve => s.close(resolve)); return port
 }
-const work = await mkdtemp(join(tmpdir(), 'lifespace-201-preview-'))
 const port = Number(process.env.PLAYWRIGHT_PORT || 5230)
-const pgPort = await freePort(), rpcPort = await freePort()
 const owner = crypto.randomUUID(), email = 'integration@example.invalid'
 const user = { id: owner, email, role: 'authenticated', aud: 'authenticated', email_confirmed_at: '2026-11-15', app_metadata: {}, user_metadata: {}, created_at: '2026-11-15' }
-let client, rest, server, listener, database, started = false, closing = false
+let work, pgPort, rpcPort, client, rest, server, listener, database, started = false
 async function close() {
-  if (closing) return; closing = true
-  if (listener) await new Promise(resolve => listener.close(resolve))
-  await server?.close(); database?.restore()
-  if (rest && rest.exitCode === null) { rest.kill('SIGTERM'); await once(rest, 'exit') }
-  await client?.end()
-  if (started) run(bin('pg_ctl'), ['-D', work, '-m', 'fast', '-w', 'stop'])
-  await rm(work, { recursive: true, force: true })
+  const attempt = async action => {
+    try { await action() } catch (error) { console.error(`Preview cleanup: ${error.message}`); process.exitCode = 1 }
+  }
+  if (listener?.listening) await attempt(() => new Promise((resolve, reject) => listener.close(error => error ? reject(error) : resolve())))
+  await attempt(() => server?.close())
+  await attempt(() => database?.restore())
+  if (rest && rest.exitCode === null && rest.signalCode === null) await attempt(async () => {
+    const exited = once(rest, 'exit'); rest.kill('SIGTERM'); await exited
+  })
+  await attempt(() => client?.end())
+  // pg_ctl can fail after starting PG; inspect only our freshly created data
+  // directory too. Never delete a live cluster if its shutdown failed.
+  const hasPid = work && await access(join(work, 'postmaster.pid')).then(() => true, () => false)
+  let stopped = !started && !hasPid
+  if (started || hasPid) await attempt(() => { run(bin('pg_ctl'), ['-D', work, '-m', 'fast', '-w', 'stop']); stopped = true })
+  if (work && stopped) await attempt(() => rm(work, { recursive: true, force: true }))
 }
 try {
+  checkCancelled()
+  work = await mkdtemp(join(tmpdir(), 'lifespace-201-preview-')); checkCancelled()
+  pgPort = await freePort(); checkCancelled()
+  rpcPort = await freePort(); checkCancelled()
   run(bin('initdb'), ['-D', work, '-U', 'postgres', '-A', 'trust', '--no-locale', '--encoding=UTF8'])
+  checkCancelled()
   run(bin('pg_ctl'), ['-D', work, '-l', join(work, 'postgres.log'), '-o', `-h 127.0.0.1 -p ${pgPort} -c unix_socket_directories=''`, '-w', 'start']); started = true
+  checkCancelled()
   client = new pg.Client({ host: '127.0.0.1', port: pgPort, user: 'postgres', database: 'postgres', ssl: false }); await client.connect()
+  checkCancelled()
   await client.query('create role anon;create role authenticated;create role service_role bypassrls;grant usage on schema public to service_role')
-  await client.query(await buildRecurringInstall())
+  checkCancelled()
+  const install = await buildRecurringInstall(); checkCancelled()
+  await client.query(install); checkCancelled()
   rest = spawn(process.env.POSTGREST_BIN || join(root, '.cache/recurring-tools/postgrest'), [], {
     cwd: work, env: { ...env, PGRST_DB_URI: `postgres://postgres@127.0.0.1:${pgPort}/postgres`, PGRST_DB_ANON_ROLE: 'service_role', PGRST_DB_SCHEMAS: 'public', PGRST_SERVER_HOST: '127.0.0.1', PGRST_SERVER_PORT: String(rpcPort), PGRST_LOG_LEVEL: 'crit' }, stdio: ['ignore', 'ignore', 'inherit'],
   })
+  let restError
+  rest.on('error', error => { restError = error })
   const rpc = `http://127.0.0.1:${rpcPort}`
   let ready = false
-  for (let i = 0; i < 50; i++) { try { if ((await fetch(rpc)).ok) { ready = true; break } } catch {} await new Promise(resolve => setTimeout(resolve, 100)) }
+  for (let i = 0; i < 50; i++) {
+    checkCancelled()
+    if (restError) throw restError
+    try { if ((await fetch(rpc, { signal: AbortSignal.any([cancellation.signal, AbortSignal.timeout(500)]) })).ok) { ready = true; break } } catch { checkCancelled() }
+    await delay(100, undefined, { signal: cancellation.signal })
+  }
+  checkCancelled()
   if (!ready) throw new Error('Local PostgREST not ready')
   process.env.ADVENTURE_LOCAL_RPC_URL = rpc
   server = await createServer({
@@ -83,16 +114,35 @@ try {
     // before the PostgREST/PG cleanup finishes. No HMR needed for acceptance.
     server: { middlewareMode: true, hmr: false, watch: { ignored: ['**/.cache/**', '**/docs/evidence/**'] }, fs: { deny: ['.env', '.env.*', '**/.dev.vars*', '**/.cache/**', '**/.git/**', '**/.aws/**', '**/.codex/**', '**/dist/lifespace/**'] } },
   })
+  checkCancelled()
   const support = await server.ssrLoadModule('/tests/support/planning-database.ts')
+  checkCancelled()
   database = support.planningDatabase(email); database.install({ browserOwner: owner })
   const today = (await database.read(owner)).today
+  checkCancelled()
   const goal = (await database.command(owner, { type: 'createGoal', title: '提升编程能力', standards: ['完成一项可衡量的成果'] })).result.entityId
+  checkCancelled()
   const recurring = (await database.command(owner, { type: 'createRecurringTask', title: '刷 LeetCode', description: '本地隔离验收数据', destination: goal, requiredCount: 5, periodType: 'week', startOn: today, today })).result.entityId
+  checkCancelled()
   await database.command(owner, { type: 'recordRecurringCompletion', id: recurring, today })
+  checkCancelled()
   await database.command(owner, { type: 'createTask', title: '出门散步三十分钟', description: '', destination: goal, plannedOn: today })
+  checkCancelled()
   listener = httpServer(server.middlewares)
   await new Promise((resolve, reject) => { listener.once('error', reject); listener.listen(port, '127.0.0.1', resolve) })
+  checkCancelled()
   await writeFile(join(root, `.cache/201-preview-${port}.json`), JSON.stringify({ pid: process.pid, url: `http://127.0.0.1:${port}/adventure`, database: 'new disposable cluster', dataDirectory: work, pgPort, rpcPort, identity: 'synthetic test bridge', worker: 'production worker/index via Node app.request; not workerd' }, null, 2) + '\n')
+  checkCancelled()
   console.log(`ISOLATED_PREVIEW_READY http://127.0.0.1:${port}/adventure (synthetic identity, real Worker app.request and new local PostgreSQL)`)
-  for (const signal of ['SIGINT', 'SIGTERM']) process.once(signal, () => { void close().then(() => process.exit(0)) })
-} catch (error) { console.error(error.message); await close(); process.exitCode = 1 }
+  await new Promise(resolve => {
+    if (cancellation.signal.aborted) resolve()
+    else cancellation.signal.addEventListener('abort', resolve, { once: true })
+  })
+} catch (error) {
+  if (error !== cancellation.signal.reason && !(cancellation.signal.aborted && error?.name === 'AbortError')) {
+    console.error(error?.message ?? String(error)); process.exitCode = 1
+  }
+} finally {
+  await close()
+  for (const [signal, handler] of signalHandlers) process.off(signal, handler)
+}

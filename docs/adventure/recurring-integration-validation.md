@@ -109,3 +109,15 @@ Modern Web Guidance本轮查询并读取 `dialog` / `accessibility`，用于检�
 独立5234新实例通过正常浏览器网络真实记录、今日进度2/3、父2项读取；SIGTERM退出0，确认HTTP/PostgREST/PG三端口全关闭及临时目录删除。初次端口核查在沙箱被EPERM阻止，沙箱外重跑断言通过，没有把受限检查计通过。异常启动另用本验证器自占随机loopback端口，子进程按预期EADDRINUSE退出1；外层验证退出0且新临时目录/PG/PostgREST全清理，未停止原有服务。具体正负结果见 [preview-cleanup-check.json](../evidence/201-recurring-integration/preview-cleanup-check.json)，负例子进程的1不记为正常启动成功。
 
 5230在这些独立检查期间保持运行；随后对本工作区唯一旧预览用SIGINT完成正常清理，在同一Orca terminal重启修正版。重启仅重建合成验收数据，正式业务代码相同，继续保持5230供用户验收。此增量及本节新增证据须由原两轴针对新的最终SHA复审；不能把43a6b7e的旧评审或本worker自检称为增量独立通过。
+
+## b1d817d 启动中断 P2 的定向修复
+
+独立规范复审证明 b1 的退出清理仅在 READY 后闭环：PG已ready、pg_ctl返回但预览尚未READY时，信号处理器还没注册，SIGTERM退出143并留下PG/目录；原“就绪关闭/端口冲突通过”不能代表启动中断通过。评审者已精确清理自己的复现实例，5230未动。
+
+先新增实际入口回归 `tests/support/check-recurring-preview.mjs`：在新的 `/tmp/lifespace-preview-check-*` 中复制当前源码、复用只读工具程序并为每个实例设置独立TMPDIR/随机loopback端口；不复用5230或其他数据库。直接观察 `postmaster.pid` ready和pg_ctl子进程退出，确认预览metadata尚未出现后发送信号。未修复b1的同一回归退出1、3/5通过；启动SIGTERM/SIGINT均实际被信号终止、目录保留。Node子进程记录为exit=null和对应signal，shell的SIGTERM返回143；没有将该非零称为通过。[修复前JSON](../evidence/201-recurring-integration/preview-lifecycle-before.json) 和 [输出](../evidence/201-recurring-integration/preview-lifecycle-before.txt) 均保留；回归只清理自身TMPDIR内的残留，停止失败不删除数据目录。
+
+修复将信号注册移到第一个资源await之前。信号只设置AbortController取消状态，不能直接与启动并发执行close；启动路径等待当前初始化操作结束/登记资源，再检查取消并进入唯一finally。PG连接/安装、PostgREST就绪、Vite/SSR、初始真实命令、HTTP监听和metadata写入之后均检查取消，因此清理完成后没有遗留的启动异步分支继续创建资源。就绪状态同样等待取消后进入该finally，不使用强制process.exit。清理继续尝试全部已登记资源，清理错误保留非零；只有确认PG停止后才删除数据目录，兼顾pg_ctl启动后报错但PID已存在的情况。
+
+同一回归修复后退出0、5/5通过：启动SIGTERM与SIGINT退出0/目录删除/PG端口关闭；就绪后SIGTERM与SIGINT在真实HTTP完成记录、XP2/进度2:3后退出0，HTTP/RPC/PG全关闭且目录删除；自占随机端口导致EADDRINUSE的子进程按预期退出1、外层断言通过、无残留。见 [修复后JSON](../evidence/201-recurring-integration/preview-lifecycle-after.json) 和 [输出](../evidence/201-recurring-integration/preview-lifecycle-after.txt)。正负场景及两个脚本语法检查通过；没有新增生产时钟/身份/生命周期入口。
+
+本轮仅预览辅助脚本、上述可重跑生命周期检查及证据变更。`src`、`worker`、`db`、`tests/api`、`tests/browser`、`tests/database` 以及真实数据库runner/backup/身份桥的Git对象与b1相同，故沿用b1的99HTTP/9真实业务浏览器/11SQL/600并发、新库/升级/恢复和此前相同业务对象的86浏览器/构建/安全结果；不冒充本轮重新执行了这些完整检查。本轮新提交扫描和原两轴增量独立复审另行记录。5230保持原进程、HEAD业务代码和合成验收数据不变，未推送或进行生产操作。

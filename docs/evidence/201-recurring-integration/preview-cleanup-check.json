@@ -30,5 +30,6 @@
   "notes": [
     "Initial sandbox socket verification raised EPERM; repeated outside sandbox and all three closed-port assertions passed.",
     "Existing 5230 acceptance preview remained available during isolated 5234 and startup-failure checks."
-  ]
+  ],
+  "coverageCorrection": "b1 covers only ready shutdown and startup failure; pre-READY interruption still failed. See preview-lifecycle-before.json and the follow-up preview-lifecycle-after.json."
 }
