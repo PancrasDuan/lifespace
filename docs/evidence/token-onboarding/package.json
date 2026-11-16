@@ -1,0 +1,36 @@
+{
+  "archive": "test-results/token223/onboarding-0.1.1/lifespace-token-collector-0.1.1.tgz",
+  "version": "0.1.1",
+  "sha256": "22629b51edcbd493fbb8a58e1c1f3b2f54c79e05de15fc08e3a273afb1feb8d4",
+  "bytes": 27410,
+  "files": 14,
+  "runtime": "Node24.x; macOS/Linux; @tokscale/cli4.23.0 and zod4.6.7 unchanged",
+  "sourceSha256": "c86d9006b3a5046200e20f99b7f6141de5ba78d7cf8fd62dbbb4bf229f7f8b14",
+  "sourceFiles": [
+    "src/shared/token-backend-contract.ts",
+    "src/shared/token-usage-contract.ts",
+    "tools/token-collector/README.md",
+    "tools/token-collector/cli.ts",
+    "tools/token-collector/collector.ts",
+    "tools/token-collector/coverage.ts",
+    "tools/token-collector/local.ts",
+    "tools/token-collector/package-lock.json",
+    "tools/token-collector/package.json",
+    "tools/token-collector/prices.ts",
+    "tools/token-collector/schedule.ts",
+    "tools/token-collector/store.ts",
+    "tools/token-collector/tokscale-adapter.ts",
+    "tools/token-collector/tokscale-cli.ts",
+    "tools/token-collector/transport.ts"
+  ],
+  "sourceAlgorithm": "Ordered UTF8 relative path + raw bytes, no separator",
+  "supersedes": {
+    "version": "0.1.0",
+    "sha256": "557c6b47f52b0acd556c2a7cff91bbd39712f7f5a446b53988a351a4cad54712",
+    "bytes": 26706,
+    "sourceSha256": "9e278aed3af82ddc2f5a5da9b1a048a9f0d82b7c19bc42278f860038482287d5",
+    "preserved": true
+  },
+  "reason": "Bounded compressed prefix reads now own and await stream cleanup; genuine decode/read errors still fail closed",
+  "verification": "14 archive files equal current build/source; local package upgrade and final CI recorded separately, never inferred from 0.1.0 evidence"
+}

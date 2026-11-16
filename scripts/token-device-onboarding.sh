@@ -201,7 +201,7 @@ finish() {
 run_wizard() {
   TOTAL_STAGES=8
   local server='https://lifespace.onepeace.cc.cd'
-  local expected='557c6b47f52b0acd556c2a7cff91bbd39712f7f5a446b53988a351a4cad54712'
+  local expected='22629b51edcbd493fbb8a58e1c1f3b2f54c79e05de15fc08e3a273afb1feb8d4'
   local wizard_dir node_path npm_path collector status_json scan_json
   local TOKEN_ARCHIVE TOKEN_INSTALL TOKEN_STATE TOKEN_SOURCE
   # No wizard profile, ambient .env, or secrets are read or written.
@@ -226,7 +226,7 @@ run_wizard() {
   export PATH="$(dirname "$node_path"):$PATH"
   node -e 'if (!["linux","darwin"].includes(process.platform)) process.exit(1)' || { warn '只支持 macOS/Linux。'; return 1; }
   wizard_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
-  TOKEN_ARCHIVE="${2:-$wizard_dir/lifespace-token-collector-0.1.0.tgz}"
+  TOKEN_ARCHIVE="${2:-$wizard_dir/lifespace-token-collector-0.1.1.tgz}"
   banner 'LifeSpace 正式设备接入（需已指定实际设备/来源）'
 
   stage '检查最终原包'
@@ -238,10 +238,10 @@ try {
   const [archive, expected] = process.argv.slice(2)
   if (!isAbsolute(archive)) throw 0
   const stat = await lstat(archive)
-  if (!stat.isFile() || stat.isSymbolicLink() || stat.size !== 26706) throw 0
+  if (!stat.isFile() || stat.isSymbolicLink() || stat.size !== 27410) throw 0
   const bytes = await readFile(archive)
-  if (bytes.length !== 26706 || createHash('sha256').update(bytes).digest('hex') !== expected) throw 0
-  console.log('  包校验通过：26,706 字节 / 557c6b47… / Node ' + process.versions.node + ' / ' + process.platform + '/' + process.arch)
+  if (bytes.length !== 27410 || createHash('sha256').update(bytes).digest('hex') !== expected) throw 0
+  console.log('  包校验通过：27,410 字节 / 22629b51… / Node ' + process.versions.node + ' / ' + process.platform + '/' + process.arch)
 } catch { console.error('ARCHIVE_UNCONFIRMED'); process.exitCode = 1 }
 JS
   say '私有本地包，未发布 npm；安装需要联网取得固定依赖，不使用 --omit=optional。'

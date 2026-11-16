@@ -6,17 +6,19 @@
 
 ## 同一包和私有传输
 
-发行包未发布 npm；不使用 `npm install @lifespace/token-collector`。两设备使用同一原始归档，不重新 pack 或改写：
+发行包未发布 npm；不使用 `npm install @lifespace/token-collector`。两设备使用同一份 0.1.1 补丁归档，不在设备端重新 pack：
 
 | 项目 | 固定值 |
 | --- | --- |
-| 包 | `lifespace-token-collector-0.1.0.tgz`，26,706 字节，14 个文件 |
-| SHA-256 | `557c6b47f52b0acd556c2a7cff91bbd39712f7f5a446b53988a351a4cad54712` |
-| 声明源码 | `docs/evidence/token-integration/package.json` 中的 15 项；摘要 `9e278aed3af82ddc2f5a5da9b1a048a9f0d82b7c19bc42278f860038482287d5` |
+| 包 | `lifespace-token-collector-0.1.1.tgz`，27,410 字节，14 个文件 |
+| SHA-256 | `22629b51edcbd493fbb8a58e1c1f3b2f54c79e05de15fc08e3a273afb1feb8d4` |
+| 声明源码 | `docs/evidence/token-onboarding/package.json` 中的 15 项；摘要 `c86d9006b3a5046200e20f99b7f6141de5ba78d7cf8fd62dbbb4bf229f7f8b14` |
 | 运行时 | Node 24；安装自动取得固定 Tokscale 4.23.0 和 Zod 4.6.7，保留 optional dependencies |
-| 私有副本 | 当前工作区 `test-results/token223/onboarding/lifespace-token-collector-0.1.0.tgz` |
+| 私有副本 | 当前工作区 `test-results/token223/onboarding-0.1.1/lifespace-token-collector-0.1.1.tgz` |
 
-可分发目录 `test-results/token223/onboarding/` 还包含向导 `token-device-onboarding.sh`、只读对账辅助 `token-local-evidence.mjs`、本说明 `README.md`、`SHA256SUMS` 和包来源记录。只传这个目录，不能传 `.env`、用户状态、原始 JSONL 或整个工作区。
+0.1.1 修复了真实 CI 揭示的压缩来源追加前缀校验退出时的未处理异步错误；仍在读够旧前缀后停止，并等待内部流关闭，不靠再次解压整个归档解决。损坏、截断、读取失败和来源变化继续保护旧可信结果。原 0.1.0 / 26,706 字节 / SHA256 `557c6b47f52b0acd556c2a7cff91bbd39712f7f5a446b53988a351a4cad54712` 及旧六文件目录 `onboarding/` 保留为历史材料，未改写；新包需自己的安装/升级和 CI 证据。
+
+当前可分发目录 `test-results/token223/onboarding-0.1.1/` 还包含向导 `token-device-onboarding.sh`、只读对账辅助 `token-local-evidence.mjs`、本说明 `README.md`、`SHA256SUMS` 和包来源记录。只传这个目录，不能传 `.env`、用户状态、原始 JSONL 或整个工作区。
 
 已发现的 Orca CLI 提供本地文件打开和浏览器 upload/download，但没有通用的主机间文件传输命令，当前也没有远程目标。操作者能直接读本机文件时复制上述目录；远端设备则由总控取得已有受控 SSH/SFTP/文件传输目标后，先列出准确源目录和目标目录，再通过该已有连接复制。缺少连接时由用户以自己的受控文件渠道取得这几个非敏感发行文件。尚未进行跨主机传输，不公开 npm、GitHub Release、生产下载路由或临时公网服务。
 

@@ -1,7 +1,7 @@
 import { constants, createReadStream } from 'node:fs'
 import { createHash } from 'node:crypto'
 import { createZstdDecompress } from 'node:zlib'
-import { compose } from 'node:stream'
+import { finished, pipeline } from 'node:stream/promises'
 import { lstat, open, readdir, readFile, type FileHandle } from 'node:fs/promises'
 import { join } from 'node:path'
 import { isMissing, LocalError, noSymlinkPath } from './local.ts'
@@ -13,9 +13,30 @@ function stamp(value: { dev: bigint; ino: bigint; size: bigint; mtimeNs: bigint;
   return [value.dev, value.ino, value.size, value.mtimeNs, value.ctimeNs].join(':')
 }
 const roots = ['.codex/sessions', '.codex/archived_sessions', '.config/tokscale/headless/codex', 'Library/Application Support/tokscale/headless/codex']
-function sourceStream(path: string, handle?: FileHandle) {
+async function* sourceStream(path: string, handle?: FileHandle) {
   const input = handle ? handle.createReadStream({ autoClose: false }) : createReadStream(path)
-  return path.endsWith('.zst') ? compose(input, createZstdDecompress()) : input
+  if (!path.endsWith('.zst')) { yield* input; return }
+  const decompress = createZstdDecompress()
+  // Own both streams until pipeline cleanup finishes, including a caller that
+  // stops after its bounded prefix. Observe failures immediately, then rethrow
+  // them below; a late decoder error must never become an unhandled event.
+  const closed = [input, decompress].map(stream => new Promise<void>(resolve => stream.once('close', resolve)))
+  const settled = [pipeline(input, decompress), finished(input), finished(decompress)]
+    .map(promise => promise.then(() => undefined, (error: unknown) => error))
+  const cancellation = new LocalError('SOURCE_PREFIX_READ_COMPLETE')
+  let complete = false, failed = false
+  try { yield* decompress.iterator({ destroyOnReturn: false }); complete = true }
+  catch (error) { failed = true; throw error }
+  finally {
+    const cancelled = !complete && !failed
+    if (cancelled) { input.destroy(cancellation); decompress.destroy(cancellation) }
+    else { input.destroy(); decompress.destroy() }
+    const errors = await Promise.all(settled)
+    await Promise.all(closed)
+    // Only the return initiated by our own prefix consumer may cancel the
+    // pipeline. Decode/read failures and unexpected aborts remain failures.
+    for (const error of errors) if (error !== undefined && !(cancelled && error === cancellation)) throw error
+  }
 }
 function transcript(path: string) {
   const name = path.split('/').at(-1)!, marker = name.indexOf('.jsonl')
@@ -127,13 +148,18 @@ async function prefixMatches(current: Observation, prior: SourceProof): Promise<
     // Bind this later prefix read to the exact object inventoried around the
     // graph. A restored/replaced path must not lend bytes to an older report.
     if (stamp(await handle.stat({ bigint: true })) !== current.stamp) return false
-    let remaining = prior.size
+    let remaining = prior.size, matches = false
     for await (const chunk of sourceStream(current.path, handle)) {
       const bytes = chunk as Buffer; hash.update(bytes.subarray(0, remaining)); remaining -= Math.min(bytes.length, remaining)
-      if (remaining === 0) break
+      if (remaining === 0) {
+        // Validate the still-open descriptor after the last prefix byte.
+        // Returning the iterator then awaits pipeline cleanup, which can close
+        // that descriptor; only confirm the result after cleanup has finished.
+        matches = stamp(await handle.stat({ bigint: true })) === current.stamp && hash.digest('hex') === prior.hash
+        break
+      }
     }
-    if (remaining) return false
-    return stamp(await handle.stat({ bigint: true })) === current.stamp && hash.digest('hex') === prior.hash
+    return matches
   } catch { return false }
   finally { await handle?.close().catch(() => {}) }
 }

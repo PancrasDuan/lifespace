@@ -1,6 +1,8 @@
 # LifeSpace 本地采集器
 
-Node **24**，macOS/Linux；`@tokscale/cli@4.23.0` 与 `zod@4.6.7` 是精确 runtime dependencies，随包安装。使用 `npm install --prefix /absolute/installation /absolute/lifespace-token-collector-0.1.0.tgz` 安装本阶段构建的包，通过 `/absolute/installation/node_modules/.bin/lifespace-usage` 执行。无需单独安装 Tokscale；不要使用 `--omit=optional`，其平台二进制由 optional dependency 提供。本阶段不发布 npm，不全局安装。
+Node **24**，macOS/Linux；`@tokscale/cli@4.23.0` 与 `zod@4.6.7` 是精确 runtime dependencies，随包安装。使用 `npm install --prefix /absolute/installation /absolute/lifespace-token-collector-0.1.1.tgz` 安装本阶段构建的包，通过 `/absolute/installation/node_modules/.bin/lifespace-usage` 执行。无需单独安装 Tokscale；不要使用 `--omit=optional`，其平台二进制由 optional dependency 提供。本阶段不发布 npm，不全局安装。
+
+0.1.1 修复 `.zst` 追加来源的前缀校验提前退出时，内部解压流可能产生未处理异步错误的问题。仍只读取需要的前缀，等待内部流关闭，真实读取/解码失败继续保护既有统计；不改变统计契约或 SQLite schema。0.1.0 原归档保留为历史材料，新接入使用独立的 0.1.1 归档及其校验值。
 
 ```sh
 lifespace-usage init --server https://your-lifespace.example

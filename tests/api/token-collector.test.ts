@@ -9,7 +9,7 @@ import { randomBytes } from 'node:crypto'
 import { Store, type Credential } from '../../tools/token-collector/store'
 import { deriveDeviceId, privateDirectory, systemDeviceId } from '../../tools/token-collector/local'
 import { endpoint, request, startRegistration, claimRegistration, uploadPending } from '../../tools/token-collector/transport'
-import { scan } from '../../tools/token-collector/collector'
+import { scan, synchronize } from '../../tools/token-collector/collector'
 import { inventory, assessCoverage } from '../../tools/token-collector/coverage'
 import { applySchedule, schedulePlan } from '../../tools/token-collector/schedule'
 import { priceFingerprint, refreshPrices } from '../../tools/token-collector/prices'
@@ -299,6 +299,23 @@ test('actual Tokscale recognizes compressed archive/backup suffixes; disappearan
   expect((await scan(p.store, p.state, { offline: true })).blockedDates).toEqual([])
   await rm(join(archive, 'backup.jsonl.pre-doctor-synthetic.bak'))
   expect((await scan(p.store, p.state, { offline: true })).blockedDates).toContain('2026-11-15')
+})
+test('compressed prefix checks close their pipeline without late unhandled errors and still reject changed or corrupt sources', async () => {
+  const result = await promisify(execFile)(process.execPath, ['tests/support/token-coverage-stream-check.mjs'], { timeout: 12000, maxBuffer: 65536 })
+  expect(JSON.parse(result.stdout)).toEqual({ iterations: 100, appendAccepted: true, wrongPrefixRejected: true, prefixReadBounded: true, malformedCompressedSourceRejected: true, truncatedCompressedSourceRejected: true, readFailureRejected: true, fileDescriptorsClosed: true })
+}, 15000)
+test('truncated compressed source keeps the trusted snapshot, queue and coverage proof unchanged', async () => {
+  const p = await profile(), file = join(p.home, '.codex/sessions/synthetic.jsonl.zst')
+  const compressed = zstdCompressSync(Buffer.from(syntheticCodexLog()))
+  p.store.activate(credential())
+  await writeFile(file, compressed)
+  await scan(p.store, p.state, { offline: true })
+  const snapshots = p.store.db.prepare('SELECT * FROM rollups ORDER BY date').all(), tasks = p.store.tasks(), proofs = p.store.sources()
+  await writeFile(file, compressed.subarray(0, compressed.length - 2))
+  const result = await synchronize(p.store, p.state, { offline: true })
+  expect(result.scanFailed || ('blockedDates' in result.scan && result.scan.blockedDates.includes('2026-11-15'))).toBe(true)
+  expect(p.store.db.prepare('SELECT * FROM rollups ORDER BY date').all()).toEqual(snapshots)
+  expect(p.store.tasks()).toEqual(tasks); expect(p.store.sources()).toEqual(proofs)
 })
 test('actual Tokscale fork inherited cumulative prefix contributes only the child delta', async () => {
   const p = await profile()
