@@ -39,7 +39,7 @@ export async function planningFixture(context: BrowserContext, initial = emptyPl
   const previews: unknown[] = []
   let previewResult: PlanningPreview | undefined
   await context.route('**/api/adventure**', async route => {
-    const recovery = new URL(route.request().url()).pathname === '/api/adventure/recovery'
+    if (new URL(route.request().url()).pathname === '/api/adventure/compatibility') return route.fulfill({ headers: { 'Cache-Control': 'no-store' }, json: { model: 'goal-categories', version: 1, receiptLookup: true, legacyRetry: false } })
     if (new URL(route.request().url()).pathname === '/api/adventure/task-history') {
       const query = new URL(route.request().url()).searchParams
       const task = page.tasks.find(item => item.id === query.get('id'))
@@ -66,17 +66,14 @@ export async function planningFixture(context: BrowserContext, initial = emptyPl
       if (!previewResult) throw new Error('必须显式配置预览结果')
       return route.fulfill({ json: previewResult })
     }
-    const { nonce, ...envelope } = route.request().postDataJSON()
-    envelopes.push(envelope)
+    envelopes.push(route.request().postDataJSON())
     const delay = commandDelay
     commandDelay = 0
     if (delay) await new Promise(resolve => setTimeout(resolve, delay))
     page = saved
     if (conflict) {
       conflict = false
-      return recovery
-        ? route.fulfill({ headers: { 'Cache-Control': 'no-store', 'X-Lifespace-Adventure-Recovery': '1' }, json: { requestId: envelope.requestId, nonce, outcome: 'review', code: 'VERSION_CONFLICT' } })
-        : route.fulfill({ status: 409, json: { error: { code: 'VERSION_CONFLICT', message: '版本已变化' } } })
+      return route.fulfill({ status: 409, json: { error: { code: 'VERSION_CONFLICT', message: '版本已变化' } } })
     }
     if (loseResponse) {
       loseResponse = false
@@ -84,10 +81,7 @@ export async function planningFixture(context: BrowserContext, initial = emptyPl
     }
     const command = envelopes.at(-1)!.command
     const entityId = 'id' in command ? command.id : mainlineId
-    const receipt = { version: saved.version, result: { entityId, message: '已保存' } }
-    return recovery
-      ? route.fulfill({ headers: { 'Cache-Control': 'no-store', 'X-Lifespace-Adventure-Recovery': '1' }, json: { requestId: envelope.requestId, nonce, outcome: 'confirmed', receipt } })
-      : route.fulfill({ json: receipt })
+    return route.fulfill({ json: { version: saved.version, result: { entityId, message: '已保存' } } })
   })
   return {
     envelopes, previews,

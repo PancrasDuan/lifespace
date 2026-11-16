@@ -148,9 +148,9 @@ test('未知响应保留封套，原封套恢复不生成新命令', async ({ pa
   await page.goto('/adventure'); fixture.loseResponse(); await page.getByRole('button', { name: '记录一次', exact: true }).click()
   await expect(page.getByRole('button', { name: '安全重试同一次操作', exact: true })).toBeVisible()
   await page.getByRole('button', { name: '安全重试同一次操作', exact: true }).click()
-  await expect.poll(() => fixture.lookups.length).toBe(1)
-  expect(fixture.envelopes).toHaveLength(1)
-  expect(fixture.lookups[0]).toMatchObject(fixture.envelopes[0])
+  await expect.poll(() => fixture.envelopes.length).toBe(2)
+  expect(fixture.lookups).toEqual([])
+  expect(fixture.envelopes[1]).toEqual(fixture.envelopes[0])
 })
 
 test('未激活能力不开放周期写，保持旧一次性创建', async ({ page, context }) => {

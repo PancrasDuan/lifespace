@@ -12,15 +12,10 @@ test.describe('持久化恢复：真实浏览器 → Worker → PostgREST → Po
       let original: PlanningEnvelope | undefined
       const retries: unknown[] = []
       await context.route('**/api/adventure/commands', async route => {
+        if (original) { retries.push(route.request().postDataJSON()); await route.fallback(); return }
         original = route.request().postDataJSON()
         if (scenario === 'lost-response') expect((await db.request('/api/adventure/commands', original)).status).toBe(200)
         await route.abort('failed')
-      })
-      page.on('request', request => {
-        if (new URL(request.url()).pathname === '/api/adventure/recovery') {
-          const { nonce: _nonce, ...envelope } = request.postDataJSON()
-          retries.push(envelope)
-        }
       })
       await page.goto('/adventure?view=planning')
       await page.getByRole('button', { name: '新建目标', exact: true }).click()

@@ -8,12 +8,18 @@ import {
   recurringListSchema, recurringParentDetailSchema,
   type DateTaskListInput, type RecurringChildrenInput, type RecurringDetailInput, type RecurringListInput,
 } from '../shared/adventure-recurring'
-import { canRetryPlanningEnvelope, planningRecoveryHeader, planningRecoverySchema, planningRecoveryVersion, type StoredPlanningEnvelope } from '../shared/adventure-recovery'
+import type { StoredPlanningEnvelope } from '../shared/adventure-recovery'
 import { recurringCommandSchema, taskListSchema, type TaskListInput, taskHistorySchema, migrationOptionsSchema, planningPageSchema, planningReceiptSchema, planningPreviewSchema, type PlanningEnvelope, type PlanningCommand, type PlanningQuery } from '../shared/adventure-planning'
 
 export class PlanningError extends Error {
   constructor(message: string, readonly status: number, readonly uncertain = false, readonly code?: string) { super(message) }
   get requiresRefresh() { return !this.uncertain && (this.code === 'PLANNING_DATE_CHANGED' || this.code === 'VERSION_CONFLICT' || this.code === 'COMPLETION_CHANGED') }
+  // These business rejections occur after the locked receipt check. Input/body
+  // errors happen earlier and cannot resolve a previously unknown submission.
+  get allowsPendingReview() {
+    return !this.uncertain && this.code !== undefined && Object.hasOwn(definitiveErrors, this.code)
+      && definitiveErrors[this.code] === this.status && this.code !== 'INVALID_COMMAND' && this.code !== 'COMMAND_TOO_LARGE'
+  }
 }
 // A first response with one of these codes proves the new command did not commit.
 // Authentication, reused IDs, malformed responses and unknown errors remain pending.
@@ -63,19 +69,6 @@ async function readPinned<T extends { version: number; today: string }>(response
   return result
 }
 export const planningApi = {
-  async recover(owner: string, envelope: StoredPlanningEnvelope, signal: AbortSignal) {
-    const uncertain = () => new PlanningError('操作结果尚未确认，请稍后再次确认；如仍无法确认，请联系管理员核对，暂勿重复操作。', 0, true)
-    try {
-      const nonce = Array.from(crypto.getRandomValues(new Uint8Array(32)), byte => byte.toString(16).padStart(2, '0')).join('')
-      const response = await authorizedMutation('/api/adventure/recovery', JSON.stringify({ ...envelope, nonce }), signal, owner, 'POST', { [adventureClientVersionHeader]: adventureClientVersion })
-      if (!response.ok || response.headers.get(planningRecoveryHeader) !== planningRecoveryVersion || !noStore(response)) throw uncertain()
-      const result = await read(response, planningRecoverySchema, true)
-      if (result.requestId !== envelope.requestId || result.nonce !== nonce) throw uncertain()
-      // A current envelope can never be classified as a missing legacy receipt.
-      if (result.outcome === 'review' && (result.code === 'LEGACY_RECEIPT_MISSING') === canRetryPlanningEnvelope(envelope)) throw uncertain()
-      return result
-    } catch { throw uncertain() }
-  },
   async lookupReceipt(owner: string, envelope: StoredPlanningEnvelope, signal: AbortSignal) {
     const uncertain = () => new PlanningError('操作结果尚未确认，请稍后再次确认；如仍无法确认，请联系管理员核对，暂勿重复操作。', 0, true)
     try {
@@ -85,11 +78,20 @@ export const planningApi = {
       if (!compatibility.ok || !noStore(compatibility) || !supported.success) throw uncertain()
       const nonce = Array.from(crypto.getRandomValues(new Uint8Array(32)), byte => byte.toString(16).padStart(2, '0')).join('')
       const response = await authorizedMutation('/api/adventure/receipts/lookup', JSON.stringify({ ...envelope, nonce }), signal, owner)
+      if (response.status === 404 && noStore(response)) {
+        const missing = z.strictObject({ requestId: z.literal(envelope.requestId), nonce: z.literal(nonce),
+          error: z.strictObject({ code: z.literal('RECEIPT_UNKNOWN'), message: z.string() }) }).safeParse(await response.json().catch(() => null))
+        if (missing.success) throw new PlanningError(missing.data.error.message, 404, true, 'RECEIPT_UNKNOWN')
+        throw uncertain()
+      }
       if (!response.ok || response.headers.get('X-Lifespace-Adventure-Model') !== adventureReceiptModel || !noStore(response)) throw uncertain()
       const result = await read(response, z.strictObject({ requestId: z.string(), nonce: z.string(), receipt: planningReceiptSchema }), true)
       if (result.requestId !== envelope.requestId || result.nonce !== nonce) throw uncertain()
       return result.receipt
-    } catch { throw uncertain() }
+    } catch (error) {
+      if (error instanceof PlanningError && error.code === 'RECEIPT_UNKNOWN') throw error
+      throw uncertain()
+    }
   },
   async taskList(owner: string, filters: TaskListInput, signal: AbortSignal) {
     return read(await authorizedMutation('/api/adventure/tasks/list', JSON.stringify(filters), signal, owner), taskListSchema)

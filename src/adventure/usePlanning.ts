@@ -227,19 +227,9 @@ export function usePlanning(enabled = true) {
         if (active.current) return false
         active.current = true; setBusy(true); setError(''); setPendingReview(undefined)
         try {
-          const result = await planningApi.recover(identity.ownerId, stored, signal())
-          epoch.signal.throwIfAborted(); identity.signal.throwIfAborted()
-          if (result.outcome === 'review') {
-            const reason = result.code === 'VERSION_CONFLICT' ? '数据版本已变化，原操作未在本次重试中执行。'
-              : result.code === 'PLANNING_DATE_CHANGED' ? '规划日期已变化，原操作未在本次重试中执行。'
-              : result.code === 'LEGACY_RECEIPT_MISSING' ? '旧版操作没有可用回执，当前版本无法安全重试；这不能证明原操作未保存。'
-              : `${result.message ?? '原操作已无法按原条件执行'}。本次重试未保存。`
-            setPendingReview({ envelope: stored, reason, read: false })
-            setReadRequired(true)
-            setError(reason + '请先重新读取并核对事实，再决定是否解除本地待确认状态。')
-            return false
-          }
-          const receipt = result.receipt
+          const receipt = canRetryPlanningEnvelope(stored)
+            ? await planningApi.send(identity.ownerId, stored, signal())
+            : await planningApi.lookupReceipt(identity.ownerId, stored, signal())
           epoch.signal.throwIfAborted(); identity.signal.throwIfAborted()
           await clearPending(identity.ownerId, stored, AbortSignal.any([identity.signal, epoch.signal]))
           epoch.signal.throwIfAborted(); identity.signal.throwIfAborted()
@@ -251,7 +241,18 @@ export function usePlanning(enabled = true) {
           catch { if (!epoch.signal.aborted && !identity.signal.aborted) setError('操作已成功，页面更新失败。请重新读取。') }
           return true
         } catch (failure) {
-          if (!epoch.signal.aborted && !identity.signal.aborted) { setUncertain(true); setError(failure instanceof PlanningError ? failure.message : '无法确认本地保存状态，请保留此页面并稍后重试。') }
+          if (!epoch.signal.aborted && !identity.signal.aborted) {
+            setUncertain(true)
+            if (failure instanceof PlanningError && (canRetryPlanningEnvelope(stored) ? failure.allowsPendingReview : failure.code === 'RECEIPT_UNKNOWN')) {
+              const reason = failure.code === 'VERSION_CONFLICT' ? '数据版本已变化，原操作未在本次重试中执行。'
+                : failure.code === 'PLANNING_DATE_CHANGED' ? '规划日期已变化，原操作未在本次重试中执行。'
+                : failure.code === 'RECEIPT_UNKNOWN' ? '旧版操作没有可用回执，当前版本无法安全重试；这不能证明原操作未保存。'
+                : `${failure.message}。本次重试未保存。`
+              setPendingReview({ envelope: stored, reason, read: false })
+              setReadRequired(true)
+              setError(reason + '请先重新读取并核对事实，再决定是否解除本地待确认状态。')
+            } else setError(failure instanceof PlanningError ? failure.message : '无法确认本地保存状态，请保留此页面并稍后重试。')
+          }
           return false
         } finally {
           if (lifecycle.current === epoch && !epoch.signal.aborted && !identity.signal.aborted) { active.current = false; setBusy(false) }

@@ -7,7 +7,7 @@ const legacyEnvelope = { requestId: 'legacy-goal-create-001', expectedVersion: 2
 const currentEnvelope = { requestId: 'pending-recovery-224', expectedVersion: 2, command: { type: 'createGoal', title: '恢复目标', standards: ['标准'] } }
 const linkedReceipt = (route: import('@playwright/test').Route, message = '已保存') => {
   const { requestId, nonce } = route.request().postDataJSON()
-  return { requestId, nonce, outcome: 'confirmed' as const, receipt: { version: 3, result: { entityId: goal, message } } }
+  return { requestId, nonce, receipt: { version: 3, result: { entityId: goal, message } } }
 }
 
 async function putPending(page: import('@playwright/test').Page, key: string, value: unknown) {
@@ -47,14 +47,11 @@ async function getPending(page: import('@playwright/test').Page, key: string) {
 test('RECEIPT_UNKNOWN 后重载的 pending 可按原封套恢复，不再永久冻结', async ({ page, context }) => {
   const fixture = await planningFixture(context)
   const retries: unknown[] = []
-  await context.route('**/api/adventure/recovery', route => route.fulfill({ status: 404, json: { error: { code: 'RECEIPT_UNKNOWN', message: '未知' } } }))
-  await context.route('**/api/adventure/recovery', route => {
-    const { nonce, ...envelope } = route.request().postDataJSON()
-    retries.push(envelope)
+  await context.route('**/api/adventure/receipts/lookup', route => route.fulfill({ status: 404, json: { error: { code: 'RECEIPT_UNKNOWN', message: '未知' } } }))
+  await context.route('**/api/adventure/commands', route => {
+    retries.push(route.request().postDataJSON())
     fixture.show({ ...emptyPlanning, version: 3 })
-    return route.fulfill({ headers: { 'Cache-Control': 'no-store', 'X-Lifespace-Adventure-Recovery': '1' }, json: {
-      requestId: envelope.requestId, nonce, outcome: 'confirmed', receipt: { version: 3, result: { entityId: goal, message: '已恢复目标' } },
-    } })
+    return route.fulfill({ json: { version: 3, result: { entityId: goal, message: '已恢复目标' } } })
   })
   await page.goto('/adventure')
   await putPending(page, owner, currentEnvelope)
@@ -66,6 +63,30 @@ test('RECEIPT_UNKNOWN 后重载的 pending 可按原封套恢复，不再永久�
   expect(fixture.envelopes).toEqual([])
 })
 
+for (const code of ['network', 'RECEIPT_UNKNOWN', 'REQUEST_ID_REUSED', 'REPLAY_UNAVAILABLE', 'INVALID_COMMAND', 'COMMAND_TOO_LARGE', 'bad-receipt']) {
+  test(`当前原封套重试 ${code} 保留 pending 且不允许人工解除`, async ({ page, context }) => {
+    await planningFixture(context)
+    const retries: unknown[] = []
+    await context.route('**/api/adventure/commands', route => {
+      retries.push(route.request().postDataJSON())
+      if (code === 'network') return route.abort()
+      if (code === 'bad-receipt') return route.fulfill({ json: { version: 3, result: {} } })
+      return route.fulfill({ status: code === 'RECEIPT_UNKNOWN' ? 404 : ['INVALID_COMMAND', 'COMMAND_TOO_LARGE'].includes(code) ? 400 : 409,
+        json: { error: { code, message: '无法确认' } } })
+    })
+    await page.goto('/adventure')
+    await putPending(page, owner, currentEnvelope)
+    await page.reload()
+    await page.evaluate(() => { crypto.randomUUID = () => { throw new Error('恢复不得创建 requestId') } })
+    await page.getByRole('button', { name: '安全重试同一次操作' }).click()
+    await expect.poll(() => retries).toEqual([currentEnvelope])
+    await expect(page.getByRole('button', { name: '安全重试同一次操作' })).toBeEnabled()
+    expect(await getPending(page, owner)).toEqual(currentEnvelope)
+    await expect(page.getByRole('button', { name: '新建目标', exact: true })).toBeDisabled()
+    await expect(page.getByRole('button', { name: '解除本地待确认状态', exact: true })).toHaveCount(0)
+  })
+}
+
 for (const [code, stored] of [
   ['VERSION_CONFLICT', currentEnvelope], ['PLANNING_DATE_CHANGED', currentEnvelope], ['LEGACY_RECEIPT_MISSING', legacyEnvelope],
   ['RESCHEDULE_PAST', currentEnvelope], ['DATE_LOCKED', currentEnvelope],
@@ -74,10 +95,12 @@ for (const [code, stored] of [
     const fixture = await planningFixture(context, withGoal)
     let attempts = 0, reads = 0
     page.on('request', request => { if (request.method() === 'GET' && /\/api\/adventure\?/.test(request.url())) reads++ })
-    await context.route('**/api/adventure/recovery', route => {
+    await context.route(code === 'LEGACY_RECEIPT_MISSING' ? '**/api/adventure/receipts/lookup' : '**/api/adventure/commands', route => {
       attempts++
       const { requestId, nonce } = route.request().postDataJSON()
-      return route.fulfill({ headers: { 'Cache-Control': 'no-store', 'X-Lifespace-Adventure-Recovery': '1' }, json: { requestId, nonce, outcome: 'review', code } })
+      return route.fulfill({ status: code === 'LEGACY_RECEIPT_MISSING' ? 404 : ['VERSION_CONFLICT', 'PLANNING_DATE_CHANGED'].includes(code) ? 409 : 400,
+        headers: { 'Cache-Control': 'no-store' }, json: { ...(code === 'LEGACY_RECEIPT_MISSING' ? { requestId, nonce } : {}),
+          error: { code: code === 'LEGACY_RECEIPT_MISSING' ? 'RECEIPT_UNKNOWN' : code, message: '原操作已无法执行' } } })
     })
     await page.goto('/adventure')
     await putPending(page, owner, stored)
@@ -119,9 +142,9 @@ test('人工核对可显示终态、分页和详情，写入仍被冻结', async
       totalGoals: params.get('includeTerminal') === 'true' ? 21 : 20, goals: second ? [target] : active,
       goalDetail: params.has('goalId') ? { goal: target, tasks: [], taskPage: 1, totalTasks: 0, relatedTasks: [], totalRelatedTasks: 0 } : null } })
   })
-  await context.route('**/api/adventure/recovery', route => {
+  await context.route('**/api/adventure/receipts/lookup', route => {
     const { requestId, nonce } = route.request().postDataJSON()
-    return route.fulfill({ headers: { 'Cache-Control': 'no-store', 'X-Lifespace-Adventure-Recovery': '1' }, json: { requestId, nonce, outcome: 'review', code: 'LEGACY_RECEIPT_MISSING' } })
+    return route.fulfill({ status: 404, headers: { 'Cache-Control': 'no-store' }, json: { requestId, nonce, error: { code: 'RECEIPT_UNKNOWN', message: '缺少历史回执' } } })
   })
   await page.goto('/adventure?view=planning')
   await putPending(page, owner, legacyEnvelope)
@@ -141,9 +164,9 @@ test('人工核对可显示终态、分页和详情，写入仍被冻结', async
 
 test('成长页人工读取期间不能切换生命周期，读取后可看目标并解除', async ({ page, context }) => {
   const fixture = await planningFixture(context, withGoal)
-  await context.route('**/api/adventure/recovery', route => {
+  await context.route('**/api/adventure/receipts/lookup', route => {
     const { requestId, nonce } = route.request().postDataJSON()
-    return route.fulfill({ headers: { 'Cache-Control': 'no-store', 'X-Lifespace-Adventure-Recovery': '1' }, json: { requestId, nonce, outcome: 'review', code: 'LEGACY_RECEIPT_MISSING' } })
+    return route.fulfill({ status: 404, headers: { 'Cache-Control': 'no-store' }, json: { requestId, nonce, error: { code: 'RECEIPT_UNKNOWN', message: '缺少历史回执' } } })
   })
   await page.goto('/adventure?view=growth')
   await putPending(page, owner, legacyEnvelope)
@@ -165,9 +188,9 @@ for (const width of [1440, 390]) {
   test(`人工核对状态 ${width}px 保留既有页面且没有横向溢出`, async ({ page, context }) => {
     await page.setViewportSize({ width, height: 950 })
     await planningFixture(context, withGoal)
-    await context.route('**/api/adventure/recovery', route => {
+    await context.route('**/api/adventure/receipts/lookup', route => {
       const { requestId, nonce } = route.request().postDataJSON()
-      return route.fulfill({ headers: { 'Cache-Control': 'no-store', 'X-Lifespace-Adventure-Recovery': '1' }, json: { requestId, nonce, outcome: 'review', code: 'LEGACY_RECEIPT_MISSING' } })
+      return route.fulfill({ status: 404, headers: { 'Cache-Control': 'no-store' }, json: { requestId, nonce, error: { code: 'RECEIPT_UNKNOWN', message: '缺少历史回执' } } })
     })
     await page.goto('/adventure')
     await putPending(page, owner, legacyEnvelope)
@@ -183,9 +206,9 @@ for (const width of [1440, 390]) {
 for (const failure of ['delete', 'changed', 'locked'] as const) {
   test(`人工解除遇到 ${failure} 时保留记录并撤销已核对资格`, async ({ page, context }) => {
     await planningFixture(context, withGoal)
-    await context.route('**/api/adventure/recovery', route => {
+    await context.route('**/api/adventure/receipts/lookup', route => {
       const { requestId, nonce } = route.request().postDataJSON()
-      return route.fulfill({ headers: { 'Cache-Control': 'no-store', 'X-Lifespace-Adventure-Recovery': '1' }, json: { requestId, nonce, outcome: 'review', code: 'LEGACY_RECEIPT_MISSING' } })
+      return route.fulfill({ status: 404, headers: { 'Cache-Control': 'no-store' }, json: { requestId, nonce, error: { code: 'RECEIPT_UNKNOWN', message: '缺少历史回执' } } })
     })
     await page.goto('/adventure')
     await putPending(page, owner, legacyEnvelope)
@@ -221,9 +244,9 @@ test('新页面保留旧目标封套，在服务端恢复确认后解除冻结',
   const fixture = await planningFixture(context)
   const lookups: unknown[] = []
   await context.route('**/api/adventure/compatibility', route => route.fulfill({ headers: { 'Cache-Control': 'no-store, extension="quoted, \\"value\\""' }, json: { model: 'goal-categories', version: 1, receiptLookup: true, legacyRetry: false } }))
-  await context.route('**/api/adventure/recovery', route => {
+  await context.route('**/api/adventure/receipts/lookup', route => {
     lookups.push(route.request().postDataJSON())
-    return route.fulfill({ headers: { 'Cache-Control': 'extension="quoted, \\"value\\"", no-store', 'X-Lifespace-Adventure-Recovery': '1' }, json: linkedReceipt(route, '已创建目标') })
+    return route.fulfill({ headers: { 'Cache-Control': 'extension="quoted, \\"value\\"", no-store', 'X-Lifespace-Adventure-Model': 'goal-categories-1' }, json: linkedReceipt(route, '已创建目标') })
   })
   await page.goto('/adventure')
   await putPending(page, owner, legacyEnvelope)
@@ -240,10 +263,10 @@ for (const scenario of ['missing', 'conflict', 'unsafe', 'bad-model', 'missing-m
   test(`待决回执 ${scenario} 时保留封套并阻止新写入`, async ({ page, context }) => {
     const fixture = await planningFixture(context)
     let lookups = 0
-    await context.route('**/api/adventure/recovery', route => {
+    await context.route('**/api/adventure/receipts/lookup', route => {
       lookups++
       if (scenario === 'missing' || scenario === 'conflict' || scenario === 'unsafe') return route.fulfill({ status: scenario === 'missing' ? 404 : 409, json: { error: { code: scenario === 'missing' ? 'RECEIPT_UNKNOWN' : scenario === 'conflict' ? 'REQUEST_ID_REUSED' : 'REPLAY_UNAVAILABLE', message: '无法确认' } } })
-      return route.fulfill({ headers: { ...(scenario === 'missing-cache' ? {} : { 'Cache-Control': scenario === 'bad-cache' ? 'x-no-store' : scenario === 'incomplete-cache' ? 'no-store, extension=' : 'no-store' }), ...(scenario === 'missing-model' ? {} : { 'X-Lifespace-Adventure-Recovery': scenario === 'bad-model' ? 'legacy' : '1' }) }, json: scenario === 'invalid-receipt' ? { version: 3, result: {} } : linkedReceipt(route, '已创建目标') })
+      return route.fulfill({ headers: { ...(scenario === 'missing-cache' ? {} : { 'Cache-Control': scenario === 'bad-cache' ? 'x-no-store' : scenario === 'incomplete-cache' ? 'no-store, extension=' : 'no-store' }), ...(scenario === 'missing-model' ? {} : { 'X-Lifespace-Adventure-Model': scenario === 'bad-model' ? 'legacy' : 'goal-categories-1' }) }, json: scenario === 'invalid-receipt' ? { version: 3, result: {} } : linkedReceipt(route, '已创建目标') })
     })
     await page.goto('/adventure')
     await putPending(page, owner, legacyEnvelope)
@@ -265,12 +288,12 @@ for (const mismatch of ['requestId', 'nonce', 'previous-response'] as const) {
     const nonces: string[] = []
     let previous: ReturnType<typeof linkedReceipt> | undefined
     await context.route('**/api/adventure/compatibility', route => route.fulfill({ headers: { 'Cache-Control': 'no-store' }, json: { model: 'goal-categories', version: 1, receiptLookup: true, legacyRetry: false } }))
-    await context.route('**/api/adventure/recovery', route => {
+    await context.route('**/api/adventure/receipts/lookup', route => {
       const current = linkedReceipt(route)
       nonces.push(current.nonce)
       const value = mismatch === 'requestId' ? { ...current, requestId: 'another-request' } : mismatch === 'nonce' ? { ...current, nonce: '0'.repeat(64) } : previous ?? { ...current, nonce: '0'.repeat(64) }
       previous = current
-      return route.fulfill({ headers: { 'Cache-Control': 'no-store', 'X-Lifespace-Adventure-Recovery': '1' }, json: value })
+      return route.fulfill({ headers: { 'Cache-Control': 'no-store', 'X-Lifespace-Adventure-Model': 'goal-categories-1' }, json: value })
     })
     await page.goto('/adventure')
     await putPending(page, owner, legacyEnvelope)
@@ -292,7 +315,7 @@ test('安全随机数不可用时保留封套并不查询', async ({ page, conte
   await planningFixture(context)
   let lookups = 0
   await context.route('**/api/adventure/compatibility', route => route.fulfill({ headers: { 'Cache-Control': 'no-store' }, json: { model: 'goal-categories', version: 1, receiptLookup: true, legacyRetry: false } }))
-  await context.route('**/api/adventure/recovery', route => { lookups++; return route.abort() })
+  await context.route('**/api/adventure/receipts/lookup', route => { lookups++; return route.abort() })
   await page.goto('/adventure')
   await putPending(page, owner, legacyEnvelope)
   await page.reload()
@@ -338,7 +361,7 @@ test('浏览器存储不可用时停止操作而非假定没有待决记录', as
 test('回执已确认但删除本地封套失败时仍保持冻结', async ({ page, context }) => {
   const fixture = await planningFixture(context)
   await context.route('**/api/adventure/compatibility', route => route.fulfill({ headers: { 'Cache-Control': 'no-store' }, json: { model: 'goal-categories', version: 1, receiptLookup: true, legacyRetry: false } }))
-  await context.route('**/api/adventure/recovery', route => route.fulfill({ headers: { 'Cache-Control': 'no-store', 'X-Lifespace-Adventure-Recovery': '1' }, json: linkedReceipt(route) }))
+  await context.route('**/api/adventure/receipts/lookup', route => route.fulfill({ headers: { 'Cache-Control': 'no-store', 'X-Lifespace-Adventure-Model': 'goal-categories-1' }, json: linkedReceipt(route) }))
   await page.addInitScript(() => {
     const original = IDBObjectStore.prototype.delete
     IDBObjectStore.prototype.delete = function (key) {
@@ -367,9 +390,9 @@ for (const command of [
     const envelope = { requestId: `old-${command.type}-001`, expectedVersion: 3, command }
     const seen: unknown[] = []
     await context.route('**/api/adventure/compatibility', route => route.fulfill({ headers: { 'Cache-Control': 'no-store' }, json: { model: 'goal-categories', version: 1, receiptLookup: true, legacyRetry: false } }))
-    await context.route('**/api/adventure/recovery', route => {
+    await context.route('**/api/adventure/receipts/lookup', route => {
       seen.push(route.request().postDataJSON())
-      return route.fulfill({ headers: { 'Cache-Control': 'no-store', 'X-Lifespace-Adventure-Recovery': '1' }, json: linkedReceipt(route) })
+      return route.fulfill({ headers: { 'Cache-Control': 'no-store', 'X-Lifespace-Adventure-Model': 'goal-categories-1' }, json: linkedReceipt(route) })
     })
     await page.goto('/adventure')
     await putPending(page, owner, envelope)
@@ -384,7 +407,7 @@ for (const command of [
 test('认证拒绝卸载页面时不删除待决封套', async ({ page, context }) => {
   await planningFixture(context)
   await context.route('**/api/adventure/compatibility', route => route.fulfill({ headers: { 'Cache-Control': 'no-store' }, json: { model: 'goal-categories', version: 1, receiptLookup: true, legacyRetry: false } }))
-  await context.route('**/api/adventure/recovery', route => route.fulfill({ status: 403, json: { error: { code: 'AUTH_DENIED', message: '无权访问' } } }))
+  await context.route('**/api/adventure/receipts/lookup', route => route.fulfill({ status: 403, json: { error: { code: 'AUTH_DENIED', message: '无权访问' } } }))
   await page.goto('/adventure')
   await putPending(page, owner, legacyEnvelope)
   await page.reload()

@@ -6,7 +6,7 @@ import { readBoundedBody, BodyLimitError } from '../read-body'
 import { ApiError } from '../upstream'
 import { traceUpstreamFailure, traceUpstreamStatus, upstreamFailureType } from '../trace'
 import { adventureClientVersion, adventureClientVersionHeader, adventureReceiptModel } from '../../src/shared/adventure-client-version'
-import { canRetryPlanningEnvelope, planningRecoveryHeader, planningRecoveryInputSchema, planningRecoveryVersion, recoveryRejectionCodeSchema, storedPlanningEnvelopeSchema } from '../../src/shared/adventure-recovery'
+import { storedPlanningEnvelopeSchema } from '../../src/shared/adventure-recovery'
 import {
   recurringListInputSchema, recurringDetailInputSchema, recurringChildrenInputSchema,
   recurringListSchema, recurringParentDetailSchema, recurringChildrenSchema, recurringChildDetailSchema,
@@ -138,40 +138,21 @@ export async function lookupPlanningReceipt(c: PlanningContext) {
     if (!parsed.success) { ctx.addIssue({ code: 'custom', message: 'Invalid envelope' }); return z.NEVER }
     return { ...parsed.data, nonce: value.nonce }
   })
-  const value = await input(c, lookupSchema)
+  const value = await input(c, lookupSchema, 32_768 + 128)
   // Historical receipts do not store expectedVersion; lookup binds only the
   // authenticated owner, request ID and normalized command digest.
-  const receipt = await rpc(c, 'adventure_receipt_lookup', {
-    p_request_id: value.requestId, p_command: value.command,
-  }, planningReceiptSchema)
+  let receipt
+  try {
+    receipt = await rpc(c, 'adventure_receipt_lookup', {
+      p_request_id: value.requestId, p_command: value.command,
+    }, planningReceiptSchema)
+  } catch (failure) {
+    if (!(failure instanceof ApiError) || failure.code !== 'RECEIPT_UNKNOWN') throw failure
+    return c.json({ requestId: value.requestId, nonce: value.nonce,
+      error: { code: failure.code, message: failure.message } }, 404)
+  }
   c.header('X-Lifespace-Adventure-Model', adventureReceiptModel)
   return c.json({ requestId: value.requestId, nonce: value.nonce, receipt })
-}
-
-export async function recoverPlanning(c: PlanningContext) {
-  if (c.req.header(adventureClientVersionHeader) !== adventureClientVersion) throw oldClientUnavailable()
-  // Preserve the entire normal-envelope budget, plus fixed recovery metadata.
-  const { nonce, ...envelope } = await input(c, planningRecoveryInputSchema, 32_768 + 128)
-  const retryable = canRetryPlanningEnvelope(envelope)
-  const binding = { requestId: envelope.requestId, nonce }
-  let result
-  try {
-    // The RPC locks the account, reads the original receipt BEFORE date/version
-    // validation and applies at most once. Never upgrade a legacy command.
-    const receipt = retryable
-      ? await rpc(c, 'adventure_planning_command', { p_request_id: envelope.requestId, p_expected_version: envelope.expectedVersion, p_command: envelope.command }, planningReceiptSchema)
-      : await rpc(c, 'adventure_receipt_lookup', { p_request_id: envelope.requestId, p_command: envelope.command }, planningReceiptSchema)
-    result = { ...binding, outcome: 'confirmed' as const, receipt }
-  } catch (failure) {
-    if (!(failure instanceof ApiError)) throw failure
-    if (retryable && recoveryRejectionCodeSchema.safeParse(failure.code).success)
-      result = { ...binding, outcome: 'review' as const, code: failure.code, message: failure.message }
-    else if (!retryable && failure.code === 'RECEIPT_UNKNOWN')
-      result = { ...binding, outcome: 'review' as const, code: 'LEGACY_RECEIPT_MISSING' }
-    else throw failure
-  }
-  c.header(planningRecoveryHeader, planningRecoveryVersion)
-  return c.json(result)
 }
 
 export async function readMigrationOptions(c: PlanningContext) {

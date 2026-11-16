@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { planningEnvelopeSchema, planningReceiptSchema } from './adventure-planning'
+import { planningEnvelopeSchema, type PlanningEnvelope } from './adventure-planning'
 
 // Five-table envelopes remain valid only for read-only historical receipt lookup.
 const legacyName = z.string().trim().min(1).max(200)
@@ -23,37 +23,9 @@ const retryableTypes = new Set([
   'createRecurringTask', 'editRecurringTask', 'recordRecurringCompletion',
   'cancelRecurringCompletion', 'endRecurringTask', 'deleteRecurringTask',
 ])
-export function canRetryPlanningEnvelope(envelope: StoredPlanningEnvelope) {
+export function canRetryPlanningEnvelope(envelope: StoredPlanningEnvelope): envelope is PlanningEnvelope {
   if (!planningEnvelopeSchema.safeParse(envelope).success || !retryableTypes.has(envelope.command.type)) return false
   // These fields were optional in historical edits, but are mandatory in the
   // current task model. Never fill them in using today's page.
   return envelope.command.type !== 'editTask' || (envelope.command.plannedOn !== undefined && envelope.command.destination !== undefined)
 }
-
-// Separate from the frozen lookup protocol understood by pre-migration pages.
-export const planningRecoveryVersion = '1'
-export const planningRecoveryHeader = 'X-Lifespace-Adventure-Recovery'
-export const planningRecoveryInputSchema = z.strictObject({
-  requestId: z.string(), expectedVersion: z.number(), command: z.unknown(),
-  nonce: z.string().regex(/^[0-9a-f]{64}$/),
-}).transform((value, ctx) => {
-  const parsed = storedPlanningEnvelopeSchema.safeParse({ requestId: value.requestId, expectedVersion: value.expectedVersion, command: value.command })
-  if (!parsed.success) { ctx.addIssue({ code: 'custom', message: 'Invalid envelope' }); return z.NEVER }
-  return { ...parsed.data, nonce: value.nonce }
-})
-// Only failures checked after the database's account lock and receipt check
-// can authorize review. In particular INVALID_COMMAND and REPLAY_UNAVAILABLE
-// cannot establish that an earlier unknown write did not commit.
-export const recoveryRejectionCodeSchema = z.enum([
-  'VERSION_CONFLICT', 'PLANNING_DATE_CHANGED', 'COMPLETION_CHANGED',
-  'RESCHEDULE_PAST', 'DATE_LOCKED', 'DATE_STARTED', 'TASK_NOT_PENDING',
-  'PENDING_TASKS', 'PENDING_RECURRING_TASKS', 'PERIOD_FULL', 'RECURRING_NOT_STARTED',
-  'RECURRING_ALREADY_STARTED', 'RECURRING_START_PAST', 'SAME_DESTINATION', 'SAME_DATE',
-  'NOT_FOUND', 'READ_ONLY', 'CAPACITY_REACHED',
-])
-export const recoveryReviewCodeSchema = z.union([recoveryRejectionCodeSchema, z.literal('LEGACY_RECEIPT_MISSING')])
-const recoveryBinding = { requestId: z.string(), nonce: z.string().regex(/^[0-9a-f]{64}$/) }
-export const planningRecoverySchema = z.discriminatedUnion('outcome', [
-  z.strictObject({ ...recoveryBinding, outcome: z.literal('confirmed'), receipt: planningReceiptSchema }),
-  z.strictObject({ ...recoveryBinding, outcome: z.literal('review'), code: recoveryReviewCodeSchema, message: z.string().max(500).optional() }),
-])

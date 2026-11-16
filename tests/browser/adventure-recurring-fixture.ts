@@ -48,7 +48,6 @@ export async function recurringFixture(context: BrowserContext, supplied = initi
     const basis = { version: state.workspace.version, today: state.workspace.today, timeZone: 'Asia/Shanghai' }
     if (path === '/api/adventure/compatibility') return route.fulfill({ headers: { 'Cache-Control': 'no-store' }, json: { model: 'goal-categories', version: 1, receiptLookup: true, legacyRetry: false } })
     if (path === '/api/adventure/receipts/lookup') { lookups.push(body); return route.fulfill({ headers: { 'Cache-Control': 'no-store', 'X-Lifespace-Adventure-Model': 'goal-categories-1' }, json: { requestId: body.requestId, nonce: body.nonce, receipt: lastReceipt } }) }
-    if (path === '/api/adventure/recovery') { lookups.push(body); return route.fulfill({ headers: { 'Cache-Control': 'no-store', 'X-Lifespace-Adventure-Recovery': '1' }, json: { requestId: body.requestId, nonce: body.nonce, outcome: 'confirmed', receipt: lastReceipt } }) }
     if (path === '/api/adventure') {
       if (queryFailure) { queryFailure = false; return route.fulfill({ status: 503, json: { error: { message: '读取失败' } } }) }
       return route.fulfill({ json: state.workspace })
