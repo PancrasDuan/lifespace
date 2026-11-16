@@ -188,7 +188,7 @@ test.describe('周期集成：真实浏览器 → Node app.request Worker → HT
     await expect(page.getByText('操作已成功，页面更新失败。请重新读取。')).toBeVisible()
     await page.getByRole('button', { name: '重新读取', exact: true }).click()
     await expect.poll(async () => (await parent(id)).effectiveChildren).toBe(2)
-    expect(envelopes).toHaveLength(2)
+    expect(envelopes).toHaveLength(3) // original + same-envelope recovery + the user's next operation
     await capture(page, 'receipt-recovered-1440')
   })
 
