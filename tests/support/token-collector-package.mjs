@@ -73,6 +73,18 @@ try {
   assert((await readFile(join(state, 'state.sqlite'))).equals(before), 'SQLite bytes changed during status/timer preview/upgrade')
   assert.equal(JSON.parse(await readFile(join(packageRoot, 'package.json'), 'utf8')).version, expected.version)
   assert((await run(process.execPath, [cli, '--version'])).stdout.includes(`collector ${expected.version}`))
+  // Exercise synthetic aggregate residues from the installed release,
+  // without accessing a user graph or resolving repository modules.
+  const costs = `import assert from 'node:assert/strict';import {adaptTokscaleGraph} from ${JSON.stringify(pathToFileURL(join(packageRoot, 'dist/tools/token-collector/tokscale-adapter.js')).href)};
+    const tokens={input:1,output:0,cacheRead:0,cacheWrite:0,reasoning:0};
+    const context={deviceId:'synthetic-pack-cost',metadata:{schemaVersion:1,statisticsVersion:'tokscale-codex-1',tool:{name:'tokscale',version:'4.23.0'},priceVersion:null,scannedAt:'2030-01-03T00:00:00Z'}};
+    for(const unit of [0.01,0.1,0.001]){
+      const total=Array.from({length:10000},()=>unit).reduce((sum,cost)=>sum+cost,0),sum=unit*10000;
+      const graph={meta:{version:'4.23.0'},summary:{totalTokens:2,totalCost:total},contributions:[{date:'2030-01-02',totals:{tokens:2,cost:total},tokenBreakdown:{...tokens,input:2},clients:[0,1].map(i=>({client:'codex',modelId:'synthetic-model-'+i,tokens,cost:sum/2,costProvenance:{kind:'estimated'}}))}]};
+      assert.equal(adaptTokscaleGraph(graph,context)[0].content.models.items[0].cost.apiEstimate,String(sum/2));
+      graph.contributions[0].totals.cost+=0.001;assert.throws(()=>adaptTokscaleGraph(graph,context));
+    }`
+  await run(process.execPath, ['--input-type=module', '-e', costs])
   const rescanned = JSON.parse((await run(process.execPath, [cli, 'sync', '--offline', '--rescan', '--state-dir', state])).stdout)
   assert.equal(rescanned.pending, 1); assert.equal(rescanned.scanFailed, false); assert.deepEqual(rescanned.scan.retainedDates, [])
   const totals = await run(process.execPath, ['--input-type=module', '-e', `import {DatabaseSync} from 'node:sqlite';const db=new DatabaseSync(process.argv[1],{readOnly:true});console.log(JSON.parse(db.prepare('SELECT snapshot FROM rollups').get().snapshot).content.metrics.total);db.close()`, join(state, 'state.sqlite')])
@@ -87,5 +99,5 @@ try {
   assert.equal((await stat(join(state, 'state.sqlite'))).mode & 0o777, 0o600)
   const tokscale = JSON.parse(await readFile(join(prefix, 'node_modules/@tokscale/cli/package.json'), 'utf8'))
   assert.equal(tokscale.version, '4.23.0')
-  console.log(JSON.stringify({ packedFiles: result.files.length, archiveSha256: createHash('sha256').update(await readFile(archive)).digest('hex'), package: `${expected.name}@${expected.version}`, runtimeTokscale: tokscale.version, platform: process.platform, systemIdentity: 'real read-only probe stable; value not logged', outsideRepository: true, actualScan: '12 tokens before/after upgrade, unknown cost, pending task preserved', upgrade: { from: initialVersion, to: expected.version, sqlitePreserved: true }, warnings: 'accepted/redacted; legacy source proof preserved without use', timer: 'plan only; no system timer installed' }))
+  console.log(JSON.stringify({ packedFiles: result.files.length, archiveSha256: createHash('sha256').update(await readFile(archive)).digest('hex'), package: `${expected.name}@${expected.version}`, runtimeTokscale: tokscale.version, platform: process.platform, systemIdentity: 'real read-only probe stable; value not logged', outsideRepository: true, actualScan: '12 tokens before/after upgrade, unknown cost, pending task preserved', upgrade: { from: initialVersion, to: expected.version, sqlitePreserved: true }, costResidues: 'three independent repeated-sum scenarios accepted; significant errors rejected', warnings: 'accepted/redacted; legacy source proof preserved without use', timer: 'plan only; no system timer installed' }))
 } finally { await rm(work, { recursive: true, force: true }) }

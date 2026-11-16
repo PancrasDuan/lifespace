@@ -24,10 +24,12 @@ offline 未授权扫描可保存最新内容（generation=0，不上传）；正
 
 [固定上游 pricing refresh](https://github.com/junhoyeo/tokscale/blob/5569a0397b52c6c445e346814747a772fc3c0a11/crates/tokscale-core/src/pricing/refresh.rs)只下载公开目录，失败保留旧缓存。Tokscale 使用应用独立 TOKSCALE_CONFIG_DIR 和干净环境；首次／每日及手动可刷新价格，graph 始终 offline。priceVersion 是 catalog data 逻辑内容摘要、排除更新时间，不是历史价格序列。estimated 保持 unverified，unknown 不补零。0.1.3 保持已测稳定 Node24.22.1 基线，不以删除来源审计为由扩展运行时。
 
+0.1.4 仅为上游 f64 费用聚合对账设置 `max(1e-12 USD, 1e-12 × max(总额, 分项和))` 的绝对／相对误差预算，覆盖事件按不同顺序分组累加的残差；不以模型数估计事件数，不舍入或重算上游模型金额。零与正数仍不相等，明显超差／非有限数／负数／溢出仍失败。Token 整数、模型金额的最短往返十进制展开、共享契约的精确字符串合计、规范化和 SHA 全部继续精确比较。
+
 ## 验证与交付
 
 `npm run test:api` 覆盖警告不拦、有效降值／模型移除、缺席日保留、失败／无效输出不改旧统计或待传任务、敏感 stderr 不泄露，以及既有身份／锁／回执／重试。旧 inventory／压缩前缀测试随已授权职责调整删除，不以改宽坏帧断言伪装原策略继续通过。
 
 `npm run test:collector-package` 在仓库外实际 pack/install，只从安装包运行，合成扫描、旧→新升级保留 SQLite／身份／待传任务及旧 sources 行。`TOKEN_PACKAGE_PREVIOUS_ARCHIVE` 可显式指定映射中已保留的旧归档；不拉 latest。`test:collector-evidence` 继续只读白名单对账；一次性OS任务、隔离PG/PostgREST/TLS和完整12CI门禁继续保留，合成或本地网关不冒充托管／真实来源／用户验收。
 
-独立0.1.3包及源码映射见 `docs/evidence/token-onboarding/package.json`；0.1.0–0.1.2原包和旧分发目录保持。正式state仍由总控单写，先审新包再升级本机。正常网页登录批准／领取、首机生产回执与四方对账、真实macOS第二实例、长期任务和桌面手机人工各自待实际证据；#223／#205保持开放。
+独立0.1.4包及源码映射见 `docs/evidence/token-onboarding/package.json`；0.1.0–0.1.3原包和旧分发目录保持。正式state仍由总控单写，先审新包再升级指定设备。实际设备／新扫描、获准HTTP／页面及四方对账、双设备、长期任务和桌面手机人工分别留证，不从旧队列上传成功推定新扫描成功；实际运行证据保存在受控私有文件，不公开真实用量、设备状态、回执hash或托管数据。#223／#205是否完成以总控的完整验收记录为准。

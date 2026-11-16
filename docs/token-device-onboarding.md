@@ -2,23 +2,25 @@
 
 正式看板已在 `https://lifespace.onepeace.cc.cd/token` 上线，本阶段使用现有生产。阶段06的隔离目标讨论是历史资料；真实设备、正常网页登录、有效设备直传、长期任务与用户人工仍分别待验。
 
-用户已指定当前 Linux 本机为首个正式实例，安装／正常登记已完成，网页登录批准与有效领取仍待；本机正式 state 由总控单写，worker 不读取真实来源或正式 state。第二台 macOS 仍需具体设备、操作者和 source-home。source-home 是包含 `.codex` 的 home，不是 `.codex` 本身；来源格式／roots 由固定 Tokscale 及该 home 的 scanner 配置决定，不再运行独立 `coverage.ts` 审计。**扫描和同步覆盖所指定来源的全部历史，固定日期 D 只限定对账，不限制上传范围。**
+每台macOS/Linux实际设备均须由操作者明确设备、受控连接与source-home；正式state由总控单写，worker不读取真实来源或正式state。运行证据仅保存在受控私有文件，公共文档不记录真实用量、设备状态、回执hash或托管数据。source-home 是包含 `.codex` 的 home，不是 `.codex` 本身；来源格式／roots 由固定 Tokscale 及该 home 的 scanner 配置决定，不再运行独立 `coverage.ts` 审计。**扫描和同步覆盖所指定来源的全部历史，固定日期 D 只限定对账，不限制上传范围。**
 
 ## 同一包和私有传输
 
-发行包未发布 npm；不使用 `npm install @lifespace/token-collector`。两设备使用同一份 0.1.3 归档，不在设备端重新 pack：
+发行包未发布 npm；不使用 `npm install @lifespace/token-collector`。两设备使用同一份 0.1.4 归档，不在设备端重新 pack：
 
 | 项目 | 固定值 |
 | --- | --- |
-| 包 | `lifespace-token-collector-0.1.3.tgz`，24,030 字节，13 个文件 |
-| SHA-256 | `bb1ecc681f88b61862f739dc7f36768c742eaf28360cbdaf165aad15dd161792` |
-| 声明源码 | `docs/evidence/token-onboarding/package.json` 中的 14 项；摘要 `32728ec14c6871251f42e5dae87429814153b77d1d09d09d1307073c9b244f84` |
+| 包 | `lifespace-token-collector-0.1.4.tgz`，24,802 字节，13 个文件 |
+| SHA-256 | `c5c9a05373b34037bcf6519a7d26d1df7917172112ec75064f9c9cba83a44168` |
+| 声明源码 | `docs/evidence/token-onboarding/package.json` 中的 14 项；摘要 `54d6391bf0433fd62e60f6883332ab752a941e07a9c2ad371d5e62524f5a78d0` |
 | 运行时 | Node >=24.22.1 <25；仓库CI固定24.22.1；安装自动取得固定 Tokscale 4.23.0 和 Zod 4.6.7，保留 optional dependencies |
-| 私有副本 | 当前工作区 `test-results/token223/onboarding-0.1.3/lifespace-token-collector-0.1.3.tgz` |
+| 私有副本 | 当前工作区 `test-results/token223/onboarding-0.1.4/lifespace-token-collector-0.1.4.tgz` |
 
 0.1.3 按[ADR0020](adr/0020-token-recorded-usage-authority.md)接受固定 Tokscale 成功且通过输出校验的已记录用量。missing-usage／价格／未知告警只保留固定脱敏类别，不再逐文件审计或冻结有效统计；真正失败、无效输出、版本／时区冲突继续保留旧统计与待传请求。有效更正可增可减或移除模型，graph缺席的旧日期保留，不补未知为0。Node >=24.22.1 <25的已测基线保持。
 
-原0.1.0的 `onboarding/`、0.1.1的 `onboarding-0.1.1/`、0.1.2的 `onboarding-0.1.2/` 及各自原归档／校验值均保留，未覆盖。0.1.3有独立归档、来源映射和六文件目录 `test-results/token223/onboarding-0.1.3/`，包括包、向导、只读对账辅助、本说明、SHA256SUMS和来源记录。只传该目录，不传 `.env`、用户状态、原始日志或整个工作区。
+0.1.4修复费用f64聚合误判，仅聚合比较使用`max(1e-12 USD, 1e-12 × max(总额, 分项和))`绝对／相对误差预算；零与正数及明显差额仍拒绝，Token整数、规范十进制金额与内容SHA保持精确。已有0.1.3安装先校验归档，再用原CLI的`upgrade --archive /absolute/lifespace-token-collector-0.1.4.tgz --prefix /absolute/installation --apply --state-dir /absolute/private/state`保持原state升级，不重跑全新接入向导。无需因升级重绑有效授权；先手动核对新扫描成功和实际回执，再按指定设备授权安排timer。旧队列成功上传不能代替`scanFailed=false`。
+
+0.1.0–0.1.3各自的原归档及 `onboarding/`、`onboarding-0.1.1/`、`onboarding-0.1.2/`、`onboarding-0.1.3/` 目录和校验值均保留，未覆盖。0.1.4有独立归档、来源映射和六文件目录 `test-results/token223/onboarding-0.1.4/`，包括包、向导、只读对账辅助、本说明、SHA256SUMS和来源记录。只传该目录，不传 `.env`、用户状态、原始日志或整个工作区。
 
 已发现的 Orca CLI 提供本地文件打开和浏览器 upload/download，但没有通用的主机间文件传输命令，当前也没有远程目标。操作者能直接读本机文件时复制上述目录；远端设备则由总控取得已有受控 SSH/SFTP/文件传输目标后，先列出准确源目录和目标目录，再通过该已有连接复制。缺少连接时由用户以自己的受控文件渠道取得这几个非敏感发行文件。尚未进行跨主机传输，不公开 npm、GitHub Release、生产下载路由或临时公网服务。
 

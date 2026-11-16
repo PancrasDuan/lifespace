@@ -1,8 +1,10 @@
 # LifeSpace 本地采集器
 
-Node **>=24.22.1 <25**，macOS/Linux；`@tokscale/cli@4.23.0` 与 `zod@4.6.7` 是精确 runtime dependencies，随包安装。使用 `npm install --prefix /absolute/installation /absolute/lifespace-token-collector-0.1.3.tgz` 安装本阶段构建的包，通过 `/absolute/installation/node_modules/.bin/lifespace-usage` 执行。无需单独安装 Tokscale；不要使用 `--omit=optional`，其平台二进制由 optional dependency 提供。本阶段不发布 npm，不全局安装。
+Node **>=24.22.1 <25**，macOS/Linux；`@tokscale/cli@4.23.0` 与 `zod@4.6.7` 是精确 runtime dependencies，随包安装。使用 `npm install --prefix /absolute/installation /absolute/lifespace-token-collector-0.1.4.tgz` 安装本阶段构建的包，通过 `/absolute/installation/node_modules/.bin/lifespace-usage` 执行。无需单独安装 Tokscale；不要使用 `--omit=optional`，其平台二进制由 optional dependency 提供。本阶段不发布 npm，不全局安装。
 
-0.1.3 按用户在 #223 确认的职责接受 Tokscale 的有效已记录用量，移除采集器自己的逐日志来源审计和告警冻结。固定稳定 Node24.22.1 基线继续在打开状态前检查，不扩展运行时支持范围。0.1.0–0.1.2 归档和旧分发目录保留；旧压缩前缀证明的实现／测试属于已取代策略，新包不再包含这些代码。升级不改变 SQLite schema，身份、旧汇总、未确认请求和旧 sources 表保留。
+0.1.3 起按用户在 #223 确认的职责接受 Tokscale 的有效已记录用量，移除采集器自己的逐日志来源审计和告警冻结。0.1.4 修复上游费用按不同顺序累加产生的 f64 残差被误判为费用不一致：仅费用聚合校验使用 `max(1e-12 USD, 1e-12 × max(总额, 分项和))` 误差预算，分别为万亿分之一美元和万亿分之一相对误差；模型数不能代表上游事件累加次数。零与正数、明显超差、负数、NaN、Infinity 和累加溢出仍拒绝。Token 整数对账、上游模型金额的十进制展开、精确金额字符串合计与规范化 SHA 均不使用容差，不四舍五入或重新计价。
+
+固定稳定 Node24.22.1 基线继续在打开状态前检查，不扩展运行时支持范围。0.1.0–0.1.3 归档和旧分发目录保留；旧压缩前缀证明的实现／测试属于已取代策略，新包不再包含这些代码。升级不改变 SQLite schema，身份、旧汇总、未确认请求和旧 sources 表保留。
 
 ```sh
 lifespace-usage init --server https://your-lifespace.example
@@ -34,5 +36,7 @@ SQLite 持有进程运行锁，无超时抢锁；已有活进程返回 `COLLECTO
 定时默认 1 小时，支持 1/3/6/8/12/24。`timer install/uninstall` 默认只打印计划，`--apply` 才写用户级 systemd/launchd 并调用管理命令；实际执行路径包含 Node 和已安装 CLI 的绝对路径，凭据不在单元/env/参数里。Linux 需要可用的 user systemd，注销后持续运行取决于主机用户管理策略。`timer status` 展示本机记录与模板，OS 实际启用情况仍以 `systemctl --user status com.lifespace.token-collector.timer` / `launchctl print gui/$(id -u)/com.lifespace.token-collector` 核对。升级后用新 CLI 的同一 `--state-dir` 重装 timer。
 
 升级只接受本地明确指定的发行 `.tgz` 与安装 prefix，默认展示命令，加 `--apply` 执行本地 npm 安装（不运行 lifecycle scripts、不操作状态数据库）。不在同步时拉取 latest。发行维护者固定上游版本后跑统计输出、持久化、实际链路和包安装门禁，再发布下一份采集器；用户安装新包之前可备份私有状态目录。代码回退可重装原包并恢复 timer；不删除 SQLite、设备身份或未确认任务。
+
+已有0.1.3安装可用同一CLI的 `upgrade --archive /absolute/lifespace-token-collector-0.1.4.tgz --prefix /absolute/installation --apply`，保持原 `--state-dir`，无需为软件升级重新批准正常有效凭据。升级后先手动同步并核对 `scanFailed=false`、实际回执与最终价格／hash／版本，再安装或恢复已获准的timer。旧队列可能在新扫描失败时仍成功上传，因此 `uploaded>0`／`pending=0` 不单独证明最新扫描成功。
 
 Linux 合成来源、实际 SQLite/Tokscale、隔离 TLS/Worker/PostgREST/PostgreSQL 与仓库外安装由本阶段测试覆盖；macOS ioreg/launchd、用户真实来源、真实双设备和托管 Supabase HTTPS 网关仍需要最终集成验收。
