@@ -96,7 +96,7 @@ describe.skipIf(!process.env.TOKEN_DB_URL)('collector actual Worker HTTPS gatewa
     await db.query("update token_private.registrations set polled_at=now()-interval '6 seconds'")
     expect(await claimRegistration(store)).toEqual({ status: 'claimed' })
     expect(store.credential()!.uploadToken).toBe(lost.uploadToken); expect(store.credential()!.generation).toBe(lost.generation)
-    expect((await scan(store, state, { offline: true })).blockedDates).toEqual([])
+    expect((await scan(store, state, { offline: true })).retainedDates).toEqual([])
     expect(await uploadPending(store, 'synthetic-renamed')).toMatchObject({ uploaded: 2, pending: 0, heartbeat: true })
     expect(hadCorrectHeaders).toBe(true)
     const rows = (await db.query('select date::text,metrics from token_private.rollups order by date')).rows
@@ -110,7 +110,7 @@ describe.skipIf(!process.env.TOKEN_DB_URL)('collector actual Worker HTTPS gatewa
     const base = JSON.parse(String(store.db.prepare("select snapshot from rollups where date='2026-11-15'").get()!.snapshot)) as TokenUsageSnapshot
     base.content.metrics = { input: 90, output: 0, total: 90 }
     base.content.models = { coverage: 'complete', items: [{ modelId: 'new-model', providerId: null, metrics: base.content.metrics, cost: base.content.cost }] }
-    store.saveScan(await store.prepareSnapshots([base]), [], new Set(), [])
+    store.saveScan(await store.prepareSnapshots([base]), [])
     const original = store.tasks()[0].body; dropUpload = true
     expect((await uploadPending(store, 'synthetic')).pending).toBe(1)
     expect((await db.query("select metrics from token_private.rollups where date='2026-11-15'")).rows[0].metrics.total).toBe(90)
@@ -121,7 +121,7 @@ describe.skipIf(!process.env.TOKEN_DB_URL)('collector actual Worker HTTPS gatewa
     const current = store.credential()!
     store.set('credential', { ...current, upload: { ...current.upload, url: 'http://127.0.0.1:1/rest/v1/rpc/token_usage_upload' } })
     base.content.metrics = { input: 80, output: 0, total: 80 }; base.content.models.items[0].metrics = base.content.metrics
-    store.saveScan(await store.prepareSnapshots([base]), [], new Set(), [])
+    store.saveScan(await store.prepareSnapshots([base]), [])
     expect(await uploadPending(store, 'synthetic')).toMatchObject({ uploaded: 0, pending: 1, heartbeat: false })
     store.set('credential', current)
     expect(await uploadPending(store, 'synthetic', Date.now() + 10000)).toMatchObject({ uploaded: 1, pending: 0 })
@@ -143,10 +143,10 @@ describe.skipIf(!process.env.TOKEN_DB_URL)('collector actual Worker HTTPS gatewa
   test('real PostgreSQL never sees a newer same-key snapshot overtake its backed-off predecessor', async () => {
     const base = JSON.parse(String(store.db.prepare("select snapshot from rollups where date='2026-11-15'").get()!.snapshot)) as TokenUsageSnapshot
     base.content.metrics = { input: 81, output: 0, total: 81 }; base.content.models.items[0].metrics = base.content.metrics
-    store.saveScan(await store.prepareSnapshots([base]), [], new Set(), [])
+    store.saveScan(await store.prepareSnapshots([base]), [])
     const now = Date.now(); store.retry(store.tasks()[0], 'NETWORK_UNCONFIRMED', now)
     base.content.metrics = { input: 82, output: 0, total: 82 }; base.content.models.items[0].metrics = base.content.metrics
-    store.saveScan(await store.prepareSnapshots([base]), [], new Set(), [])
+    store.saveScan(await store.prepareSnapshots([base]), [])
     const calls = uploadCalls
     expect(await uploadPending(store, 'synthetic', now + 1)).toMatchObject({ uploaded: 0, pending: 2, heartbeat: true })
     expect(uploadCalls).toBe(calls)
@@ -207,7 +207,7 @@ describe.skipIf(!process.env.TOKEN_DB_URL)('collector actual Worker HTTPS gatewa
         await page.getByRole('button', { name: '批准连接' }).click()
         await browserExpect(page.getByRole('status')).toContainText('已批准')
         expect(await claimRegistration(second)).toEqual({ status: 'claimed' })
-        expect((await scan(second, secondState, { offline: true })).blockedDates).toEqual([])
+        expect((await scan(second, secondState, { offline: true })).retainedDates).toEqual([])
         expect(await uploadPending(second, 'synthetic-second-state')).toMatchObject({ uploaded: 1, pending: 0, heartbeat: true })
         await page.goto('/token')
         await browserExpect(page.getByTestId('token-total')).toHaveAttribute('data-value', '830')

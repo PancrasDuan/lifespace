@@ -1,5 +1,5 @@
 import { afterEach, expect, test } from 'vitest'
-import { mkdtemp, mkdir, writeFile, readFile, rm, chmod, symlink, rename, stat, copyFile } from 'node:fs/promises'
+import { mkdtemp, mkdir, writeFile, readFile, rm, chmod, symlink, rename, stat } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { spawn, execFile } from 'node:child_process'
@@ -7,10 +7,9 @@ import { once } from 'node:events'
 import { promisify } from 'node:util'
 import { randomBytes } from 'node:crypto'
 import { Store, type Credential } from '../../tools/token-collector/store'
-import { deriveDeviceId, privateDirectory, systemDeviceId } from '../../tools/token-collector/local'
+import { deriveDeviceId, privateDirectory, requireNode24, systemDeviceId } from '../../tools/token-collector/local'
 import { endpoint, request, startRegistration, claimRegistration, uploadPending } from '../../tools/token-collector/transport'
-import { scan } from '../../tools/token-collector/collector'
-import { inventory, assessCoverage } from '../../tools/token-collector/coverage'
+import { scan, synchronize } from '../../tools/token-collector/collector'
 import { applySchedule, schedulePlan } from '../../tools/token-collector/schedule'
 import { priceFingerprint, refreshPrices } from '../../tools/token-collector/prices'
 import { tokenUsageContentHash, type TokenUsageSnapshot } from '../../src/shared/token-usage-contract'
@@ -35,9 +34,13 @@ async function profile() {
 }
 const credential = (generation = '1'): Credential => ({ deviceId: 'synthetic-device-213', generation, uploadToken: randomBytes(32).toString('base64url'), upload: { url: 'https://example.invalid/rest/v1/rpc/token_usage_upload', publishableKey: 'sb_publishable_synthetic', header: 'X-LifeSpace-Device-Token' } })
 const snapshot = (n = 130, model = 'model-a'): TokenUsageSnapshot => ({ identity: { deviceId: 'synthetic-device-213', date: '2026-11-15', agent: 'codex' }, content: { metrics: { input: n, output: 0, total: n }, cost: { currency: 'USD', coverage: 'unknown' }, models: { coverage: 'complete', items: [{ modelId: model, providerId: null, metrics: { input: n, output: 0, total: n }, cost: { currency: 'USD', coverage: 'unknown' } }] } }, metadata: { schemaVersion: 1, statisticsVersion: 'tokscale-codex-1', tool: { name: 'tokscale', version: '4.23.0' }, priceVersion: null, scannedAt: '2026-11-15T00:00:00Z' } })
-async function save(store: Store, s: TokenUsageSnapshot) { store.saveScan(await store.prepareSnapshots([s]), [], new Set(), []) }
+async function save(store: Store, s: TokenUsageSnapshot) { store.saveScan(await store.prepareSnapshots([s]), []) }
 function receipt(task: ReturnType<Store['tasks']>[number]) { return { persisted: true, deviceId: 'synthetic-device-213', date: task.date, agent: task.agent, generation: task.generation, snapshotVersion: task.version, contentHash: task.hash, result: 'replaced', receivedAt: '2026-11-15T00:00:00Z' } }
 
+test('collector keeps its tested stable Node24 runtime boundary', () => {
+  for (const version of ['24.22.1', '24.23.0', '24.99.0']) expect(() => requireNode24(version)).not.toThrow()
+  for (const version of ['22.22.0', '24.0.0', '24.18.0', '24.20.0', '24.22.0', '25.0.0', '24.22.1-rc.1', 'invalid']) expect(() => requireNode24(version)).toThrow('NODE_24_22_1_REQUIRED')
+})
 test('SQLite file persists latest + immutable A→B→A, deduplicates latest only, exact receipt deletes only its task', async () => {
   const p = await profile(); p.store.activate(credential())
   await save(p.store, snapshot()); const a = p.store.tasks()[0]
@@ -56,12 +59,12 @@ test('SQLite file persists latest + immutable A→B→A, deduplicates latest onl
   expect(reopened.acknowledge(b, receipt(b))).toBe(true)
   expect(reopened.tasks().map(t => t.version)).toEqual(['3'])
 })
-test('transaction failure rolls back source checkpoint, latest and queued upload together', async () => {
+test('transaction failure rolls back latest, queued upload and diagnostics together', async () => {
   const { store } = await profile(); store.activate(credential())
   store.db.exec("CREATE TRIGGER abort_queue BEFORE INSERT ON queue BEGIN SELECT RAISE(ABORT,'synthetic failure'); END")
   const prepared = await store.prepareSnapshots([snapshot()])
-  expect(() => store.saveScan(prepared, [{ path: '/synthetic', hash: 'a', size: 0, dates: [] }], new Set(), [])).toThrow()
-  expect(store.dates()).toEqual([]); expect(store.sources()).toEqual([]); expect(store.get('scan')).toBeUndefined(); expect(store.tasks()).toEqual([])
+  expect(() => store.saveScan(prepared, [])).toThrow()
+  expect(store.dates()).toEqual([]); expect(store.get('scan')).toBeUndefined(); expect(store.tasks()).toEqual([])
 })
 test('invalid PostgreSQL strings cannot partially update latest state or enqueue a transport request', async () => {
   const { store } = await profile(); store.activate(credential())
@@ -170,7 +173,7 @@ test('backoff of an older immutable task prevents a newer same-key version from 
 
 test('actual Tokscale: initial unknown prices, incremental scan and full rescan stay equal without manufacturing costs', async () => {
   const p = await profile(); await writeFile(join(p.home, '.codex/sessions/source.jsonl'), syntheticCodexLog())
-  const first = await scan(p.store, p.state, { offline: true }); expect(first.blockedDates).toEqual([])
+  const first = await scan(p.store, p.state, { offline: true }); expect(first.retainedDates).toEqual([])
   expect(p.store.dates()).toEqual(['2026-11-14', '2026-11-15'])
   const rows = p.store.db.prepare('SELECT snapshot FROM rollups ORDER BY date').all().map(r => JSON.parse(String(r.snapshot)))
   expect(rows.map(r => r.content.metrics.total)).toEqual([130, 650]); expect(rows.every(r => r.content.cost.coverage === 'unknown')).toBe(true)
@@ -178,88 +181,52 @@ test('actual Tokscale: initial unknown prices, incremental scan and full rescan 
   await scan(p.store, p.state, { offline: true }); await scan(p.store, p.state, { offline: true, rescan: true })
   expect(p.store.db.prepare('SELECT * FROM rollups').all()).toEqual(before)
 })
-test('actual Tokscale missing old file + larger new usage freezes affected date while safe new date advances; restoration unblocks', async () => {
-  const p = await profile(), old = join(p.home, '.codex/sessions/old.jsonl')
-  await writeFile(old, syntheticCodexLog()); await scan(p.store, p.state, { offline: true })
-  await rm(old)
-  const larger = syntheticUnknownModelLog().replace(/40/g, '4000').replace(/50/g, '4010')
-  await writeFile(join(p.home, '.codex/sessions/new.jsonl'), larger)
-  await writeFile(join(p.home, '.codex/sessions/safe.jsonl'), syntheticUnknownModelLog().replace(/2026-11-15/g, '2026-11-16').replace(/synthetic-unknown-206/g, 'synthetic-safe-213'))
-  const result = await scan(p.store, p.state, { offline: true })
-  expect(result.blockedDates).toContain('2026-11-15')
-  expect(p.store.db.prepare("SELECT snapshot FROM rollups WHERE date='2026-11-15'").get()!.snapshot).toContain('650')
-  expect(p.store.dates()).toContain('2026-11-16')
-  await writeFile(old, syntheticCodexLog())
-  expect((await scan(p.store, p.state, { offline: true })).blockedDates).toEqual([])
-  expect(JSON.parse(String(p.store.db.prepare("SELECT snapshot FROM rollups WHERE date='2026-11-15'").get()!.snapshot)).content.metrics.total).toBeGreaterThan(650)
+test('actual Tokscale accepts corrected lower totals and removes models while retaining absent dates', async () => {
+  const p = await profile(), file = join(p.home, '.codex/sessions/source.jsonl')
+  p.store.activate(credential())
+  await writeFile(file, syntheticCodexLog() + syntheticUnknownModelLog())
+  await scan(p.store, p.state, { offline: true })
+  const before = p.store.tasks(), oldDay = p.store.db.prepare("SELECT * FROM rollups WHERE date='2026-11-14'").get()
+  await writeFile(file, syntheticUnknownModelLog())
+  const result = await scan(p.store, p.state, { offline: true, rescan: true })
+  expect(result.retainedDates).toEqual(['2026-11-14'])
+  expect(result.diagnostics).toContain('GRAPH_DAY_ABSENT')
+  expect(p.store.db.prepare("SELECT * FROM rollups WHERE date='2026-11-14'").get()).toEqual(oldDay)
+  const latest = JSON.parse(String(p.store.db.prepare("SELECT snapshot FROM rollups WHERE date='2026-11-15'").get()!.snapshot))
+  expect(latest.content.metrics.total).toBe(50)
+  expect(latest.content.models.items.map((item: { modelId: string | null }) => item.modelId)).toEqual([null])
+  expect(latest.metadata.snapshotVersion).toBe('2')
+  expect(p.store.tasks().slice(0, before.length)).toEqual(before)
+  const assigned = p.store.tasks()
+  await scan(p.store, p.state, { offline: true, rescan: true })
+  expect(p.store.tasks()).toEqual(assigned)
+  await rm(file)
+  expect((await scan(p.store, p.state, { offline: true, rescan: true })).retainedDates).toEqual(['2026-11-14', '2026-11-15'])
+  expect(p.store.tasks()).toEqual(assigned)
 })
-test('actual Tokscale archive move/copy dedup; append remains safe and truncation protects stored history', async () => {
+test('actual Tokscale warnings and an unfinished active tail do not block valid recorded usage', async () => {
+  const p = await profile(), file = join(p.home, '.codex/sessions/source.jsonl')
+  await writeFile(file, syntheticCodexLog())
+  await writeFile(join(p.home, '.codex/sessions/interrupted.jsonl'), JSON.stringify({ timestamp: '2026-11-15T00:00:00Z', type: 'response_item', payload: { type: 'message', content: [{ text: 'synthetic-private-text' }] } }) + '\n')
+  const result = await scan(p.store, p.state, { offline: true })
+  expect(result.diagnostics).toContain('TOKSCALE_MISSING_USAGE')
+  expect(p.store.dates()).toEqual(['2026-11-14', '2026-11-15'])
+  expect(JSON.stringify(p.store.status())).not.toContain('synthetic-private-text')
+  await writeFile(file, syntheticCodexLog() + syntheticUnknownModelLog() + '{"timestamp":')
+  await scan(p.store, p.state, { offline: true, rescan: true })
+  expect(JSON.parse(String(p.store.db.prepare("SELECT snapshot FROM rollups WHERE date='2026-11-15'").get()!.snapshot)).content.metrics.total).toBe(700)
+  expect(p.store.db.prepare('SELECT count(*) n FROM sources').get()!.n).toBe(0)
+})
+test('actual Tokscale owns archive-copy dedup and accepts normal appended usage', async () => {
   const p = await profile(), active = join(p.home, '.codex/sessions/active.jsonl'), archive = join(p.home, '.codex/archived_sessions')
   await writeFile(active, syntheticCodexLog()); await scan(p.store, p.state, { offline: true })
   await mkdir(archive); await rename(active, join(archive, 'archive.jsonl'))
-  await writeFile(join(p.home, '.codex/sessions/copy.jsonl'), syntheticCodexLog())
-  expect((await scan(p.store, p.state, { offline: true })).blockedDates).toEqual([])
-  expect(JSON.parse(String(p.store.db.prepare("SELECT snapshot FROM rollups WHERE date='2026-11-15'").get()!.snapshot)).content.metrics.total).toBe(650)
-  await rm(join(p.home, '.codex/sessions/copy.jsonl'))
-  await writeFile(join(archive, 'archive.jsonl'), syntheticCodexLog() + syntheticUnknownModelLog())
-  expect((await scan(p.store, p.state, { offline: true })).blockedDates).toEqual([])
-  expect(JSON.parse(String(p.store.db.prepare("SELECT snapshot FROM rollups WHERE date='2026-11-15'").get()!.snapshot)).content.metrics.total).toBe(700)
-  await writeFile(join(archive, 'archive.jsonl'), syntheticCodexLog().split('\n').slice(0, 6).join('\n') + '\n')
-  expect((await scan(p.store, p.state, { offline: true })).blockedDates).toContain('2026-11-15')
-})
-test('malformed/unfinished tail and scan race cannot advance checkpoints or overwrite trusted totals', async () => {
-  const p = await profile(), file = join(p.home, '.codex/sessions/source.jsonl')
-  await writeFile(file, syntheticCodexLog()); await scan(p.store, p.state, { offline: true })
-  const prior = p.store.sources(), before = await inventory(p.home)
-  await writeFile(file, syntheticCodexLog() + '{"timestamp":')
-  const incomplete = await scan(p.store, p.state, { offline: true })
-  expect(incomplete.blockedDates).toContain('2026-11-14'); expect(p.store.sources()).toEqual(prior)
-  await writeFile(file, syntheticCodexLog() + syntheticUnknownModelLog())
-  const race = await assessCoverage(prior, before, await inventory(p.home), ['2026-11-14', '2026-11-15'])
-  expect(race.diagnostics).toContain('SOURCE_CHANGED_DURING_SCAN')
-  await writeFile(file, syntheticCodexLog()); expect((await scan(p.store, p.state, { offline: true })).blockedDates).toEqual([])
-})
-test('actual Tokscale started_at date is covered even when every envelope timestamp is on the next Beijing day', async () => {
-  const p = await profile(), file = join(p.home, '.codex/sessions/late.jsonl'), timestamp = '2026-11-16T02:00:00Z'
-  const usage = { input_tokens: 100, output_tokens: 10, total_tokens: 110 }
-  const rows = [
-    { timestamp, type: 'session_meta', payload: { id: 'synthetic-started-at-213', model_provider: 'openai' } },
-    { timestamp, type: 'turn_context', payload: { model: 'gpt-5.5' } },
-    { timestamp, type: 'event_msg', payload: { type: 'task_started', turn_id: 'synthetic-late-turn', started_at: Date.parse('2026-11-15T12:00:00Z') / 1000 } },
-    { timestamp, type: 'event_msg', payload: { type: 'token_count', info: { total_token_usage: usage, last_token_usage: usage } } },
-  ]
-  await writeFile(file, rows.map(r => JSON.stringify(r)).join('\n') + '\n')
+  await writeFile(active, syntheticCodexLog())
   await scan(p.store, p.state, { offline: true })
-  expect(p.store.dates()).toContain('2026-11-15')
-  expect(p.store.sources()[0].dates).toContain('2026-11-15')
-  await rm(file)
-  await writeFile(join(p.home, '.codex/sessions/larger.jsonl'), syntheticUnknownModelLog().replace(/40/g, '4000').replace(/50/g, '4010'))
-  expect((await scan(p.store, p.state, { offline: true })).blockedDates).toContain('2026-11-15')
-  expect(JSON.parse(String(p.store.db.prepare("SELECT snapshot FROM rollups WHERE date='2026-11-15'").get()!.snapshot)).content.metrics.total).toBe(110)
-})
-test('moving/restoring identical bytes or a parent directory during a scan invalidates its filesystem stability proof', async () => {
-  const p = await profile(), source = join(p.home, '.codex/sessions/source.jsonl')
-  await writeFile(source, syntheticCodexLog()); await scan(p.store, p.state, { offline: true })
-  const before = await inventory(p.home), prior = p.store.sources()
-  await rename(source, join(p.dir, 'temporary.jsonl')); await copyFile(join(p.dir, 'temporary.jsonl'), source)
-  const after = await inventory(p.home)
-  expect(before.files[0].hash).toBe(after.files[0].hash)
-  expect((await assessCoverage(prior, before, after, ['2026-11-14', '2026-11-15'])).blocked.has('2026-11-15')).toBe(true)
-  const stable = await inventory(p.home)
-  await rename(join(p.home, '.codex'), join(p.dir, 'temporarily-away')); await rename(join(p.dir, 'temporarily-away'), join(p.home, '.codex'))
-  expect((await assessCoverage(prior, stable, await inventory(p.home), ['2026-11-14', '2026-11-15'])).blocked.has('2026-11-15')).toBe(true)
-})
-test('prefix validation cannot borrow restored bytes from a file changed after the second inventory', async () => {
-  const p = await profile(), source = join(p.home, '.codex/sessions/source.jsonl'), original = syntheticCodexLog()
-  await writeFile(source, original); await scan(p.store, p.state, { offline: true })
-  const prior = p.store.sources()
-  await writeFile(source, original.replace('100', '101') + syntheticUnknownModelLog())
-  const before = await inventory(p.home), after = await inventory(p.home), dates = ['2026-11-14', '2026-11-15']
-  expect((await assessCoverage(prior, before, after, dates)).blocked.has('2026-11-15')).toBe(true)
-  // Graph and both inventories saw the rewritten prefix. Replacing it now
-  // must not lend the old prefix to that earlier, incomplete graph.
-  await writeFile(source, original + syntheticUnknownModelLog())
-  expect((await assessCoverage(prior, before, after, dates)).blocked.has('2026-11-15')).toBe(true)
+  expect(JSON.parse(String(p.store.db.prepare("SELECT snapshot FROM rollups WHERE date='2026-11-15'").get()!.snapshot)).content.metrics.total).toBe(650)
+  await writeFile(join(archive, 'archive.jsonl'), syntheticCodexLog() + syntheticUnknownModelLog())
+  await scan(p.store, p.state, { offline: true })
+  expect(JSON.parse(String(p.store.db.prepare("SELECT snapshot FROM rollups WHERE date='2026-11-15'").get()!.snapshot)).content.metrics.total).toBe(700)
 })
 test('price cache correction recomputes actual CLI estimates downwards while retaining unknown buckets', async () => {
   const p = await profile(); await writeFile(join(p.home, '.codex/sessions/source.jsonl'), syntheticCodexLog())
@@ -285,20 +252,19 @@ test('price catalogue fingerprint ignores JSON key order and cache timestamp but
   await writeFile(file, JSON.stringify({ timestamp: 3, data: { a: {}, b: { input_cost_per_token: 0.5, output_cost_per_token: 2 } } }))
   expect(await priceFingerprint(config)).not.toBe(first)
 })
-test('actual Tokscale recognizes compressed archive/backup suffixes; disappearance cannot evade the source inventory', async () => {
+test('actual Tokscale owns compressed archive/backup decoding without collector source proofs', async () => {
   const p = await profile(), file = join(p.home, '.codex/sessions/synthetic.jsonl.deleted.fixture.zst')
   await writeFile(file, zstdCompressSync(Buffer.from(syntheticCodexLog())))
-  expect((await scan(p.store, p.state, { offline: true })).blockedDates).toEqual([])
+  await scan(p.store, p.state, { offline: true })
   expect(p.store.dates()).toEqual(['2026-11-14', '2026-11-15'])
   await writeFile(file, zstdCompressSync(Buffer.from(syntheticCodexLog() + syntheticUnknownModelLog())))
-  expect((await scan(p.store, p.state, { offline: true })).blockedDates).toEqual([])
+  await scan(p.store, p.state, { offline: true })
   expect(JSON.parse(String(p.store.db.prepare("SELECT snapshot FROM rollups WHERE date='2026-11-15'").get()!.snapshot)).content.metrics.total).toBe(700)
   const archive = join(p.home, '.codex/archived_sessions'); await mkdir(archive)
   await writeFile(join(archive, 'backup.jsonl.pre-doctor-synthetic.bak'), syntheticCodexLog() + syntheticUnknownModelLog())
   await rm(file)
-  expect((await scan(p.store, p.state, { offline: true })).blockedDates).toEqual([])
-  await rm(join(archive, 'backup.jsonl.pre-doctor-synthetic.bak'))
-  expect((await scan(p.store, p.state, { offline: true })).blockedDates).toContain('2026-11-15')
+  await scan(p.store, p.state, { offline: true })
+  expect(JSON.parse(String(p.store.db.prepare("SELECT snapshot FROM rollups WHERE date='2026-11-15'").get()!.snapshot)).content.metrics.total).toBe(700)
 })
 test('actual Tokscale fork inherited cumulative prefix contributes only the child delta', async () => {
   const p = await profile()
@@ -313,7 +279,7 @@ test('actual Tokscale fork inherited cumulative prefix contributes only the chil
     { timestamp: '2026-05-05T21:51:59.253Z', type: 'event_msg', payload: { type: 'token_count', info: { total_token_usage: usage(117500, 115000, 1200, 50), last_token_usage: usage(1500, 1000, 200, 50) } } },
   ]
   await writeFile(join(p.home, '.codex/sessions/fork.jsonl'), rows.map(r => JSON.stringify(r)).join('\n') + '\n')
-  expect((await scan(p.store, p.state, { offline: true })).blockedDates).toEqual([])
+  expect((await scan(p.store, p.state, { offline: true })).retainedDates).toEqual([])
   const s = JSON.parse(String(p.store.db.prepare('SELECT snapshot FROM rollups').get()!.snapshot))
   expect(s.content.metrics).toEqual({ input: 1500, output: 200, total: 1700, cacheRead: 1000, reasoning: 50 })
 })

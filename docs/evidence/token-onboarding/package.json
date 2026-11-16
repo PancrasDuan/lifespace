@@ -1,0 +1,62 @@
+{
+  "archive": "test-results/token223/onboarding-0.1.4/lifespace-token-collector-0.1.4.tgz",
+  "version": "0.1.4",
+  "sha256": "c5c9a05373b34037bcf6519a7d26d1df7917172112ec75064f9c9cba83a44168",
+  "bytes": 24802,
+  "files": 13,
+  "runtime": "Node>=24.22.1<25; CI24.22.1; macOS/Linux; @tokscale/cli4.23.0 and zod4.6.7 unchanged",
+  "sourceSha256": "54d6391bf0433fd62e60f6883332ab752a941e07a9c2ad371d5e62524f5a78d0",
+  "sourceFiles": [
+    "src/shared/token-backend-contract.ts",
+    "src/shared/token-usage-contract.ts",
+    "tools/token-collector/README.md",
+    "tools/token-collector/cli.ts",
+    "tools/token-collector/collector.ts",
+    "tools/token-collector/local.ts",
+    "tools/token-collector/package-lock.json",
+    "tools/token-collector/package.json",
+    "tools/token-collector/prices.ts",
+    "tools/token-collector/schedule.ts",
+    "tools/token-collector/store.ts",
+    "tools/token-collector/tokscale-adapter.ts",
+    "tools/token-collector/tokscale-cli.ts",
+    "tools/token-collector/transport.ts"
+  ],
+  "sourceAlgorithm": "Ordered UTF8 relative path + raw bytes, no separator",
+  "previousReleases": [
+    {
+      "version": "0.1.0",
+      "sha256": "557c6b47f52b0acd556c2a7cff91bbd39712f7f5a446b53988a351a4cad54712",
+      "bytes": 26706,
+      "sourceSha256": "9e278aed3af82ddc2f5a5da9b1a048a9f0d82b7c19bc42278f860038482287d5",
+      "archive": "test-results/token223/onboarding/lifespace-token-collector-0.1.0.tgz",
+      "preserved": true
+    },
+    {
+      "version": "0.1.1",
+      "sha256": "22629b51edcbd493fbb8a58e1c1f3b2f54c79e05de15fc08e3a273afb1feb8d4",
+      "bytes": 27410,
+      "sourceSha256": "c86d9006b3a5046200e20f99b7f6141de5ba78d7cf8fd62dbbb4bf229f7f8b14",
+      "archive": "test-results/token223/onboarding-0.1.1/lifespace-token-collector-0.1.1.tgz",
+      "preserved": true
+    },
+    {
+      "version": "0.1.2",
+      "sha256": "ef9290d862b503ec042fb8d7e0897513d512c98f697d8748e2d9705bd9348389",
+      "bytes": 27847,
+      "sourceSha256": "faba180736946fdb885cb913747362ca983643a218ed3a8ff7f7634fea15c777",
+      "archive": "test-results/token223/onboarding-0.1.2/lifespace-token-collector-0.1.2.tgz",
+      "preserved": true
+    },
+    {
+      "version": "0.1.3",
+      "sha256": "bb1ecc681f88b61862f739dc7f36768c742eaf28360cbdaf165aad15dd161792",
+      "bytes": 24030,
+      "sourceSha256": "32728ec14c6871251f42e5dae87429814153b77d1d09d09d1307073c9b244f84",
+      "archive": "test-results/token223/onboarding-0.1.3/lifespace-token-collector-0.1.3.tgz",
+      "preserved": true
+    }
+  ],
+  "reason": "Fix false rejection of upstream f64 cost aggregation residues with explicit absolute/relative validation budgets; retain exact tokens, decimal amounts and hashes",
+  "verification": "13 archive files and14-source digest matched;local14cost/53target/API526+245 conditional skips/evidence6/installed0.1.3-to0.1.4 passed;newHEAD final CI/two-axis review pending;actual running evidence retained privately"
+}

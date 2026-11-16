@@ -4,7 +4,7 @@ import { hostname, homedir } from 'node:os'
 import { isAbsolute, join, resolve } from 'node:path'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
-import { defaultStateDir, LocalError, noSymlinkPath, platform, systemDeviceId } from './local.ts'
+import { defaultStateDir, LocalError, noSymlinkPath, platform, requireNode24, systemDeviceId } from './local.ts'
 import { configSchema, hoursSchema, Store } from './store.ts'
 import { claimRegistration, endpoint, registrationDisplay, startRegistration } from './transport.ts'
 import { synchronize } from './collector.ts'
@@ -12,7 +12,7 @@ import { refreshPrices } from './prices.ts'
 import { applySchedule, schedulePlan, scheduleStatus } from './schedule.ts'
 
 process.umask(0o077)
-const help = `LifeSpace usage collector 0.1.0 (Node 24, Tokscale 4.23.0)
+const help = `LifeSpace usage collector 0.1.4 (Node >=24.22.1 <25, Tokscale 4.23.0)
 init --server https://lifespace.example [--source-home /absolute/home] [--replace]
 authorize [--wait]                 Continue saved browser authorization
 sync [--rescan] [--offline]        Scan all history; upload immutable queue
@@ -25,7 +25,7 @@ Timer/upgrade print a plan unless --apply is explicitly supplied.
 init --test-loopback permits numeric loopback HTTP for isolated tests only.
 `
 async function main() {
-  if (Number(process.versions.node.split('.')[0]) !== 24) throw new LocalError('NODE_24_REQUIRED')
+  requireNode24()
   const { values, positionals } = parseArgs({ allowPositionals: true, options: {
     'state-dir': { type: 'string' }, server: { type: 'string' }, 'source-home': { type: 'string' }, hours: { type: 'string' },
     'test-loopback': { type: 'boolean' }, replace: { type: 'boolean' }, wait: { type: 'boolean' }, rescan: { type: 'boolean' }, offline: { type: 'boolean' },

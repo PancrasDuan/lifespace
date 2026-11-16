@@ -1,5 +1,7 @@
 # Token 阶段06验收执行单（#221 / #205）
 
+阶段07真实生产设备接入使用[当前接入向导与对账说明](token-device-onboarding.md)；本文件继续保留阶段06的执行历史与验收范围。
+
 **当前发布依据已更新：**用户2026-11-16授权“新的页面和数据可以直接部署到线上”，总控指定现有生产作为目标，并将纯新增Token迁移的备份门禁收敛为受影响对象/权限/迁移历史及现网版本基线。当前统一PR220、完整事务迁移、生产smoke/精确清理与回退按[生产发布执行单](token-production-release.md)执行；下文隔离环境/完整全库备份/无生产授权文字保留为先前准备阶段的历史，不再作为当前上线批准或密码前置。真实来源/长期timer/付费升级仍无新增授权。
 
 本阶段从 `codex/219-token-integration@124e5f166da5bf961224d345be34e0fc1201fc42` 叠加，阶段 PR 目标仍为该分支；累计 main/merge-base 为 `3d4ecfad5518c405302a7827fa09dd9c6aff55eb`。总控负责最终统一集成，所有阶段 PR 保持未合并，#205 保持开放。
@@ -84,7 +86,7 @@ collector="$install/node_modules/.bin/lifespace-usage"
 
 1. **备份。** 若已有状态，先核对该设备现有timer/活跃sync；仅在获准后停自己的timer并等sync退出，将整个私有state目录 `cp -pR` 到新建的0700加密/离线备份位置，保持0600文件，备份含凭据不能上传。不要复制到另一台设备，也不要仅复制最新汇总。无旧状态记录“无旧状态”，不凭空造恢复结论；恢复演练只在原设备、停任务且保留现状备份后进行，目标generation发生变化则重新浏览器批准，旧备份不是续权手段。
 2. **明确来源/注册。** `"$collector" init --state-dir "$state" --source-home "$source_home" --server "$server"`。该命令只建立私有配置、读取系统标识用于内存派生并登记，不扫描来源内容；操作者核对短码、平台和hostname后，在真实网页 `/token/devices/confirm` 明确批准，再 `"$collector" authorize --wait --state-dir "$state"`。真实来源扫描必须由设备操作者确认后才继续。
-3. **只读本地扫描。** `"$collector" sync --offline --state-dir "$state"`，再 `status`。来源只读，应用私有目录会写SQLite和Tokscale缓存。记录scanFailed/blockedDates/diagnostics/pending；扫描不完整不进入“通过”。不得上传JSONL正文、源路径、完整状态库或原始系统ID。
+3. **只读本地扫描。** `"$collector" sync --offline --state-dir "$state"`，再 `status`。来源只读，应用私有目录会写SQLite和Tokscale缓存。记录scanFailed/retainedDates/diagnostics/pending；按[ADR0020](adr/0020-token-recorded-usage-authority.md)接受Tokscale有效已记录用量，warning只留脱敏类别；真正失败或输出无效不进入“通过”，旧日期缺席保留而不补零。不得上传JSONL正文、源路径、完整状态库或原始系统ID。
 4. **固定范围。** 先在两设备冻结验收范围：同一个已完成的北京日期 `D`（00:00:00–次日00:00:00 Asia/Shanghai）、Agent=`codex`、模型M（同一modelKey；unknown为null）、分别设备A/B及合计A+B。不得拿“当前本周”与固定D比较。暂停在D追加日志，记录价格/统计版本；实际Tokscale以应用同一私有config和同一D调用，原始graph只留本机。对比本地最新snapshot、直传回执、托管summary与页面四方的input/output/total/cacheRead/cacheWrite/reasoning、费用分类和模型coverage，`null`/unknown/缺失与0分开；cacheRead是input子集，不额外相加。
 5. **托管直传与重扫。** `"$collector" sync --state-dir "$state"`，待pending=0且heartbeat=persisted；页面同D/Agent/M/设备筛选核对。本机只读SQLite可查询rollups.snapshot中的metrics/cost/models及version/hash，排除meta/credential/sources；只提交上述白名单统计。连续 `sync`、`sync --rescan` 后同范围总量不重复、未知费用不补零，记录版本/hash及页面值。
 6. **离线恢复。** 在指定测试设备断开到测试服务的网络，运行一次正常sync模拟请求失败（不篡改真实日志、不删除队列）；记录固定网络错误与原待传版本/hash，网络恢复后按status退避等待再sync，严格匹配回执后清队列，页面不重复。仅 `--offline` 证明离线扫描，不能代替实际网络失败/回执重试。没有新增内容时仍更新心跳，不产生新主版本。

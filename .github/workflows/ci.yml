@@ -117,6 +117,8 @@ jobs:
           node-version-file: .node-version
           cache: npm
       - run: npm ci
+      - name: Verify local evidence privacy and read-only boundaries
+        run: npm run test:collector-evidence
       - name: Prepare real systemd user manager on disposable runner
         shell: bash
         run: |

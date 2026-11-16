@@ -76,8 +76,14 @@ function adaptModel(value: Row): TokenModel {
 
 function costMatches(total: number, parts: number[]): boolean {
   const sum = parts.reduce((value, part) => value + part, 0)
-  // Only reconcile upstream f64 aggregates, never use tolerance for hashing.
-  return Math.abs(total - sum) <= Number.EPSILON * Math.max(1, total, sum) * Math.max(8, parts.length)
+  if (!Number.isFinite(sum)) return false
+  // Nonnegative costs have no cancellation: zero versus positive is distinct.
+  if (total === 0 || sum === 0) return total === sum
+  // Upstream groups event-level f64 sums in different orders; model/day count
+  // does not bound that error. Budget one trillionth USD or one part per
+  // trillion, only for aggregate validation. Never round model amounts or
+  // apply this tolerance to exact decimal strings, integer tokens or hashes.
+  return Math.abs(total - sum) <= Math.max(1e-12, 1e-12 * Math.max(total, sum))
 }
 
 function validateJointTotals(graph: Graph) {
