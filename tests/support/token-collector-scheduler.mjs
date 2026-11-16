@@ -67,6 +67,7 @@ try {
   const cli = join(root, 'tools/token-collector/cli.js')
   const command = (...args) => run(process.execPath, [cli, ...args, '--state-dir', state])
   server = createServer(async (req, res) => {
+    let check = 'headers'
     try {
       assert.equal(req.method, 'POST')
       assert.equal(req.headers['x-lifespace-device-token'], secret)
@@ -76,24 +77,30 @@ try {
       const body = JSON.parse(Buffer.concat(chunks).toString('utf8'))
       let receipt
       if (req.url === '/rest/v1/rpc/token_usage_upload') {
+        check = 'upload-contract'
         const upload = tokenUploadSchema.parse(body), snapshot = upload.p_snapshot
+        check = 'identity-and-content'
         assert.equal(snapshot.identity.deviceId, deviceId)
         assert.equal(snapshot.identity.date, '2026-11-15')
         assert.equal(upload.p_hash, await tokenUsageContentHash(snapshot.content))
         assert.equal(snapshot.content.metrics.total, 12)
-        assert.equal(snapshot.content.cost.actual, null)
-        assert.equal(snapshot.content.cost.apiEstimate, null)
+        check = 'unknown-cost'
+        assert.deepEqual(snapshot.content.cost, { currency: 'USD', apiEstimate: null, coverage: 'unknown' })
         uploads++
         receipt = { persisted: true, ...snapshot.identity, generation: upload.p_generation, snapshotVersion: snapshot.metadata.snapshotVersion,
           contentHash: upload.p_hash, result: 'replaced', receivedAt: new Date().toISOString() }
       } else {
+        check = 'heartbeat-contract'
         assert.equal(req.url, '/rest/v1/rpc/token_usage_heartbeat')
         assert.equal(body.p_device, deviceId); assert.equal(body.p_generation, '1')
         heartbeats++
         receipt = { persisted: true, deviceId, generation: '1', receivedAt: new Date().toISOString() }
       }
       res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(receipt))
-    } catch { receiverFailure = new Error('Loopback request failed contract validation'); res.writeHead(400); res.end('{}') }
+    } catch {
+      receiverFailure = Object.assign(new Error('Loopback request failed contract validation'), { code: `RECEIVER_${check.toUpperCase().replaceAll('-', '_')}` })
+      res.writeHead(400); res.end('{}')
+    }
   })
   await new Promise((done, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', done) })
   const origin = `http://127.0.0.1:${server.address().port}/`
@@ -162,6 +169,7 @@ try {
   evidence.execution = { uploads, heartbeats, pending: 0, unchangedSnapshot: true, spacesPercentDollarPaths: true, privateState: true }
   evidence.stage = 'execution passed; uninstall pending'
 } catch (error) {
+  evidence.requests = { uploads, heartbeats }
   evidence.failure = { code: typeof error.code === 'number' || typeof error.code === 'string' ? error.code : null, signal: error.signal ?? null }
   // Avoid printing child-process errors, request bodies, paths or credentials.
   failure = new Error(`Scheduler gate failed: ${error instanceof assert.AssertionError ? error.message.replaceAll(secret, '[redacted]') : 'OS capability, installation or execution failure'}`)
@@ -169,12 +177,23 @@ try {
 } finally {
   const cleanupErrors = []
   if (installed) {
-    try { await applySchedule(plan, false) } catch { cleanupErrors.push('runtime uninstall failed') }
-    // Independently stop only our unique service as well: Linux uninstall stops
-    // the timer, which alone would not stop an already-running oneshot.
+    // Stop the oneshot before the runtime uninstaller removes/reloads its unit.
+    // A missing unit is acceptable only when the live manager confirms it.
     if (kind === 'linux') {
-      try { await systemctl('stop', label + '.timer', label + '.service') } catch { cleanupErrors.push('stop failed') }
-    } else {
+      for (const suffix of ['.timer', '.service']) {
+        try { await systemctl('stop', label + suffix) }
+        catch {
+          try {
+            let output
+            try { output = (await systemctl('show', label + suffix, '--property=LoadState,ActiveState')).stdout }
+            catch (e) { output = e.stdout ?? '' }
+            assert(output.includes('LoadState=not-found') && output.includes('ActiveState=inactive'))
+          } catch { cleanupErrors.push(`stop ${suffix.slice(1)} failed`) }
+        }
+      }
+    }
+    try { await applySchedule(plan, false) } catch { cleanupErrors.push('runtime uninstall failed') }
+    if (kind === 'macos') {
       try {
         await launchctl('print', domain)
         try { await launchctl('print', `${domain}/${label}`); cleanupErrors.push('launchd job remains loaded') }
@@ -203,6 +222,6 @@ try {
   await rm(work, { recursive: true, force: true })
   evidence.cleanup = cleanupErrors.length ? cleanupErrors : 'unique job stopped, unloaded and removed; private temporary installation removed'
   console.log(JSON.stringify(evidence))
-  if (cleanupErrors.length) failure = new Error('Scheduler cleanup failed; see bounded diagnostics')
+  if (cleanupErrors.length && !failure) failure = new Error('Scheduler cleanup failed; see bounded diagnostics')
 }
 if (failure) throw failure

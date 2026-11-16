@@ -30,6 +30,8 @@ Linux 只给本轮唯一 timer 添加测试 drop-in，将首次等待压缩至1�
 
 finally 对本轮名称卸载、停止可能仍运行的 oneshot、删除本轮文件/drop-in、reload 并验证不再加载；失败仍给出阶段/退出码/有限状态诊断。只保留 stdout 中的脱敏 JSON 证据，不上传状态、请求、原始日志或密钥。任何缺能力、超时或清理失败均使 job 红灯；实际执行前不得把本表标通过。
 
+首轮候选 `0e95a9d` 的 CI43791577487 两个OS job均失败，保留为真实红灯：user bus/GUI domain和任务安装已可用，但新接收端将费用未报告的`actual`误断言为`null`。本地真实Tokscale最小合成扫描稳定复现后，测试改为严格核对`{currency:'USD',apiEstimate:null,coverage:'unknown'}`，产品契约未变。另修复Linux先删除/reload unit再stop造成误报的问题：先停本轮timer/service再卸载，缺席仅接受live manager确认not-found+inactive，主执行失败和清理失败分别保留。最终实际执行结果以最后SHA的CI为准，不能拿这次局部红绿当完整OS已通过。
+
 ## 只读发现（2026-11-16）
 
 通过已有 Supabase 连接器发现唯一 `lifespace` 项目 `zvdcjzjfhkjasikchceo`，ACTIVE_HEALTHY、ap-southeast-1、PostgreSQL17.6.1.166，开发 branches 为0。只读迁移历史没有两项 Token 迁移；`BEGIN READ ONLY` 系统目录检查确认 `token_private` 不存在、public Token 函数数为0。未查业务行、用户、令牌或密钥。
