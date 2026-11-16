@@ -390,3 +390,5 @@
  .token-page .device-actions { flex:1 0 100%; flex-direction:row; align-items:center; justify-content:flex-end; gap:12px; margin-inline-start:0; }
  .token-page .device-actions .text-button { padding-block:5px; }
 }
+
+.token-page .device-empty { white-space: normal; }

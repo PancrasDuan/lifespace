@@ -1,0 +1,12 @@
+{
+  "viewport": {
+    "width": 1440,
+    "height": 1000
+  },
+  "fullPage": false,
+  "scrollY": null,
+  "scrollYNote": "main测试capture未记录滚动值；不宣称从顶部整页",
+  "sourceTest": "tests/browser/adventure-task-date-picker.spec.ts",
+  "sourceMain": "3d4ecfad5518c405302a7827fa09dd9c6aff55eb",
+  "note": "真实viewport截图；TaskDateField及相关样式与main逐字一致"
+}

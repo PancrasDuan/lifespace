@@ -42,7 +42,7 @@ async function main() {
       if (prior && !values.replace) throw new LocalError('ALREADY_INITIALIZED_USE_AUTHORIZE_OR_REPLACE')
       const server = endpoint(values.server ?? (prior ? store.config().server : ''), values['test-loopback'] === true).href
       if (new URL(server).pathname !== '/') throw new LocalError('SERVER_ORIGIN_REQUIRED')
-      const sourceHome = values['source-home'] ?? homedir(); if (!isAbsolute(sourceHome)) throw new LocalError('SOURCE_HOME_ABSOLUTE_REQUIRED')
+      const sourceHome = values['source-home'] ?? (prior ? store.config().sourceHome : homedir()); if (!isAbsolute(sourceHome)) throw new LocalError('SOURCE_HOME_ABSOLUTE_REQUIRED')
       if (prior && store.config().deviceId !== deviceId) throw new LocalError('SYSTEM_ID_CHANGED')
       const config = configSchema.parse({ deviceId, server, sourceHome: resolve(sourceHome), hours: hoursSchema.parse(Number(values.hours ?? (prior ? store.config().hours : 1))), loopback: values['test-loopback'] === true })
       if (prior && (config.server !== store.config().server || config.sourceHome !== store.config().sourceHome)) throw new LocalError('EXISTING_PROFILE_SCOPE_CANNOT_CHANGE')

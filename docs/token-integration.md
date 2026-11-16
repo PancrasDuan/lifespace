@@ -19,34 +19,36 @@ Token 原 ADR0016 改为 [ADR0019](adr/0019-token-local-rollup-contract.md)，�
 
 “实现”只说明代码存在；本地合成链路、CI实际执行、真实用户/托管/人工、生产各自提供证据。最终数字与CI链接见阶段报告，条件跳过不算执行。
 
-| 需求 / 来源 | 实际入口 / 代码 | 本地与 CI 验证入口 | 实现 | 用户设备 / 托管 / 人工 | 生产 |
-| --- | --- | --- | --- | --- | --- |
-| 首期Codex、独立设备、北京时间主键；模型不另加 / #79/#82/#85 | shared/token-usage-contract、tokscale-adapter；token_private.rollups/models | token-usage-contract / token-usage-cli / token-backend-database；两状态React合计830 | 已实现 | 真实双设备/来源待验 | 未验 |
-| 固定CLI与自动runtime依赖 / #83 | tools/token-collector/package*.json、tokscale-cli | 实际CLI；仓库外pack/install/12Token扫描/升级；Linux及macOS CI job | 已实现 | 用户设备安装待验；CI合成不等同用户来源 | 未验 |
-| 系统ID域隔离派生、hostname独立 / #83 | local.systemDeviceId/deriveDeviceId、cli、heartbeat | 合成派生向量；安装包真实OS只读探针且不输出ID | 已实现 | 用户macOS/Linux身份与重装待验 | 未验 |
-| 首次全量/文件增量/显式重扫 / #79/#83 | collector.scan、Tokscale cache、cli sync --rescan | token-collector / token-usage-cli、包真实扫描 | 已实现 | 实际日志/客户端版本待验 | 未验 |
-| 来源缺失/截断/移动/前后竞态；更大数据仍不能覆盖 / #83/#85 | coverage、sources、collector保护日期 | token-collector：完整前缀/目录句柄/移动恢复/截断后新增更大用量 | 已实现 | 实际归档/压缩/继承/fork仍待验 | 未验 |
-| 价格初始化/更新、规则下降/模型移除 / #85 | prices、tokscale-adapter、saveScan | token-collector / token-collector-pricing；真实RPC下降/删除 | 已实现 | 用户真实价格缓存/订阅实际费用可得性待验 | 未验 |
-| SQLite原子保存/不可变队列/运行互斥/崩溃恢复 / #83 | Store、run.sqlite、saveScan | 文件SQLite/kill恢复、精确body重试；包升级库字节不变 | 已实现 | 长期设备运行待验 | 未验 |
-| A→B→A/单调版本/旧回执/丢回执/断网 / #82/#83 | Store.prepareSnapshots/ack/retry、transport | token-collector、token-backend-database、真实TLS回执丢失重启 | 已实现 | 实体设备断网长期待验 | 未验 |
-| 浏览器核对/批准/拒绝/到期/明确重绑409 / #83/#205 | DeviceConfirmation、Worker registrations、SQL | token-dashboard浏览器；真实Worker+PG+React批准/重绑 | 已实现 | 人工确认待验 | 未验 |
-| 领取响应丢失恢复/授权代际/轮换停用 / #83 | transport.claim、SQL registration/device、TokenDevices | 并发领取/限流/窗口；真实旧令牌拒绝且历史830保留 | 已实现 | 用户设备恢复待验 | 未验 |
-| 日常直传/指纹双验/事务回执/设备隔离 / #82/#83 | token_usage_upload、transport.uploadPending | PG固定向量/Unicode/同版冲突/乱序/事务回滚/跨设备拒绝；TLS头部 | 已实现 | 托管HTTPS publishable-key网关待验 | 未验 |
-| 无新增也心跳/同步周期/逾期 / #79/#83 | token_usage_heartbeat、uploadPending、devices | 无新增RPC次数/hostname变更/两周期逾期/停用 | 已实现 | 真launchd/systemd长期timer待验 | 未验 |
-| 私有schema/RLS/定界search_path/最小ACL / #83 | 两份db/token/migrations | 空库与既有ledger/OAuth/旧绑定退役状态；dump/restore后ACL/RLS一致 | 已实现 | 托管Data API暴露schema需预检 | 未验 |
-| 白名单共享查询、设备凭据不可读 / #79/#83 | Worker verifyIdentity、summary/query/devices RPC | auth/token-backend/API；跨账户共享、无凭据返回；匿名拒绝 | 已实现 | 实际托管Auth与用户人工待验 | 未验 |
-| summary全范围、明细/设备全分页/范围上限 / #205 | token/api、SQL summary/query | 252行跨页、100000上限与维度缩小；前端13行多页fixture | 已实现 | 人工长范围待验 | 未验 |
-| 本周/月/短月同期与独立年历 / #203/#205 | token/dates、TokenDashboard/Calendar | 日期单测、浏览器筛选/跨年/月末/方向键/tap | 已实现 | 用户常用浏览器待验 | 未验 |
-| 缺失/null/0/小额/unknown/unverified/多币种 / #82/#85 | shared schema、SQL、token/format/Trend | JS↔PG对账/精确十进制/浏览器0与<$0.01/费用coverage | 已实现 | 实际源字段可得性待验 | 未验 |
-| 请求撤销/快速筛选旧响应/会话撤销 / #205 | identity AbortSignal、useResource、api | auth-storage-sync / auth-logout / token-dashboard竞态 | 已实现 | 用户真实多标签/会话待验 | 未验 |
-| 邮件回跳/缺PKCE手动登录通过和拒绝 / #205 | token-confirmation-return、AuthGate | auth浏览器恢复及准入拒绝，不领取终端秘密 | 已实现 | 托管邮箱/真实Auth待验 | 未验 |
-| 原型五宽、窄高触屏、查找明细/浮层 / #203 | src/token、共享AppLayout/AppNavigation | 五宽13图与metadata、真实viewport；fresh独立视觉评审 | 已实现 | 最终人工视觉验收待验 | 未验 |
-| main日期组件/MCP退役/登录恢复无回归 / #219 | TaskDateField、旧绑定退役迁移、Auth/MCP | 全API/全浏览器；日期选择和禁用专项、legacy404测试 | 已集成 | 用户人工既有流程待验 | 未验 |
-| 正文/路径/原始ID/凭据不上传/不公开 / #79/#82 | strict schema、Node-only Vite边界、脱敏错误 | API字段拒绝、bundle静态拒绝、安全/密钥先行门禁 | 已实现 | 真实设备网络审阅待验 | 未验 |
+| 需求 / 来源 | 实际入口 / 代码 | 本地与 CI 验证入口 | 实现 | 本地 / CI状态 | 用户设备 / 托管 / 人工 | 生产 |
+| --- | --- | --- | --- | --- | --- | --- |
+| 首期Codex、独立设备、北京时间主键；模型不另加 / #79/#82/#85 | shared/token-usage-contract、tokscale-adapter；token_private.rollups/models | token-usage-contract / token-usage-cli / token-backend-database；两状态React合计830 | 已实现 | 本地通过；CI门禁通过¹ | 真实双设备/来源待验 | 未验 |
+| 固定CLI与自动runtime依赖 / #83 | tools/token-collector/package*.json、tokscale-cli | 实际CLI；仓库外pack/install/12Token扫描/升级；Linux及macOS CI job | 已实现 | 本地通过；CI门禁通过¹ | 用户设备安装待验；CI合成不等同用户来源 | 未验 |
+| 系统ID域隔离派生、hostname独立 / #83 | local.systemDeviceId/deriveDeviceId、cli、heartbeat | 合成派生向量；安装包真实OS只读探针且不输出ID | 已实现 | 本地通过；CI门禁通过¹ | 用户macOS/Linux身份与重装待验 | 未验 |
+| 首次全量/文件增量/显式重扫 / #79/#83 | collector.scan、Tokscale cache、cli sync --rescan | token-collector / token-usage-cli、包真实扫描 | 已实现 | 本地通过；CI门禁通过¹ | 实际日志/客户端版本待验 | 未验 |
+| 来源缺失/截断/移动/前后竞态；更大数据仍不能覆盖 / #83/#85 | coverage、sources、collector保护日期 | token-collector：完整前缀/目录句柄/移动恢复/截断后新增更大用量 | 已实现 | 本地通过；CI门禁通过¹ | 实际归档/压缩/继承/fork仍待验 | 未验 |
+| 价格初始化/更新、规则下降/模型移除 / #85 | prices、tokscale-adapter、saveScan | token-collector / token-collector-pricing；真实RPC下降/删除 | 已实现 | 本地通过；CI门禁通过¹ | 用户真实价格缓存/订阅实际费用可得性待验 | 未验 |
+| SQLite原子保存/不可变队列/运行互斥/崩溃恢复 / #83 | Store、run.sqlite、saveScan | 文件SQLite/kill恢复、精确body重试；包升级库字节不变 | 已实现 | 本地通过；CI门禁通过¹ | 长期设备运行待验 | 未验 |
+| A→B→A/单调版本/旧回执/丢回执/断网 / #82/#83 | Store.prepareSnapshots/ack/retry、transport | token-collector、token-backend-database、真实TLS回执丢失重启 | 已实现 | 本地通过；CI门禁通过¹ | 实体设备断网长期待验 | 未验 |
+| 浏览器核对/批准/拒绝/到期/明确重绑409 / #83/#205 | DeviceConfirmation、Worker registrations、SQL | token-dashboard浏览器；真实Worker+PG+React批准/重绑 | 已实现 | 本地通过；CI门禁通过¹ | 人工确认待验 | 未验 |
+| 领取响应丢失恢复/授权代际/轮换停用 / #83 | transport.claim、SQL registration/device、TokenDevices | 并发领取/限流/窗口；真实旧令牌拒绝且历史830保留 | 已实现 | 本地通过；CI门禁通过¹ | 用户设备恢复待验 | 未验 |
+| 日常直传/指纹双验/事务回执/设备隔离 / #82/#83 | token_usage_upload、transport.uploadPending | PG固定向量/Unicode/同版冲突/乱序/事务回滚/跨设备拒绝；TLS头部 | 已实现 | 本地通过；CI门禁通过¹ | 托管HTTPS publishable-key网关待验 | 未验 |
+| 无新增也心跳/同步周期/逾期 / #79/#83 | token_usage_heartbeat、uploadPending、devices | 无新增RPC次数/hostname变更/两周期逾期/停用 | 已实现 | 本地通过；CI门禁通过¹ | 真launchd/systemd长期timer待验 | 未验 |
+| 私有schema/RLS/定界search_path/最小ACL / #83 | 两份db/token/migrations | 空库与既有ledger/OAuth/旧绑定退役状态；dump/restore后ACL/RLS一致 | 已实现 | 本地通过；CI门禁通过¹ | 托管Data API暴露schema需预检 | 未验 |
+| 白名单共享查询、设备凭据不可读 / #79/#83 | Worker verifyIdentity、summary/query/devices RPC | auth/token-backend/API；跨账户共享、无凭据返回；匿名拒绝 | 已实现 | 本地通过；CI门禁通过¹ | 实际托管Auth与用户人工待验 | 未验 |
+| summary全范围、明细/设备全分页/范围上限 / #205 | token/api、SQL summary/query | 252行跨页、100000上限与维度缩小；前端13行多页fixture | 已实现 | 本地通过；CI门禁通过¹ | 人工长范围待验 | 未验 |
+| 本周/月/短月同期与独立年历 / #203/#205 | token/dates、TokenDashboard/Calendar | 日期单测、浏览器筛选/跨年/月末/方向键/tap | 已实现 | 本地通过；CI门禁通过¹ | 用户常用浏览器待验 | 未验 |
+| 缺失/null/0/小额/unknown/unverified/多币种 / #82/#85 | shared schema、SQL、token/format/Trend | JS↔PG对账/精确十进制/浏览器0与<$0.01/费用coverage | 已实现 | 本地通过；CI门禁通过¹ | 实际源字段可得性待验 | 未验 |
+| 请求撤销/快速筛选旧响应/会话撤销 / #205 | identity AbortSignal、useResource、api | auth-storage-sync / auth-logout / token-dashboard竞态 | 已实现 | 本地通过；CI门禁通过¹ | 用户真实多标签/会话待验 | 未验 |
+| 邮件回跳/缺PKCE手动登录通过和拒绝 / #205 | token-confirmation-return、AuthGate | auth浏览器恢复及准入拒绝，不领取终端秘密 | 已实现 | 本地通过；CI门禁通过¹ | 托管邮箱/真实Auth待验 | 未验 |
+| 原型五宽、窄高触屏、查找明细/浮层 / #203 | src/token、共享AppLayout/AppNavigation | 五宽与15张正式图及metadata、真实viewport；fresh独立视觉评审 | 已实现 | 本地通过；CI门禁通过¹ | 最终人工视觉验收待验 | 未验 |
+| main日期组件/MCP退役/登录恢复无回归 / #219 | TaskDateField、旧绑定退役迁移、Auth/MCP | 全API/全浏览器；日期选择和禁用专项、legacy404测试 | 已集成 | 本地复验通过；CI通过¹ | 用户人工既有流程待验 | 未验 |
+| 正文/路径/原始ID/凭据不上传/不公开 / #79/#82 | strict schema、Node-only Vite边界、脱敏错误 | API字段拒绝、bundle静态拒绝、安全/密钥先行门禁 | 已实现 | 本地通过；CI门禁通过¹ | 真实设备网络审阅待验 | 未验 |
+
+¹ CI初轮 `88cf8b3` / run43750899561全部11项成功，包括macos-15真实只读身份探针与合成包执行。最终SHA的CI与独立评审以最终PR/报告为准；价格在线探针仅本地执行。全仓本地413通过/132条件跳过/4失败，已保留失败证据：原四场景改用独立端口/输出目录，并在其他浏览器结束后各串行重复3次，12/12通过；未修改15秒或断言。原先trace ENOENT来自并行复跑共享输出目录，其他超时发生在AuthGate启动/导航总时限内，未进入日期提交行为。最终真实DB22/22通过（含兼容迁移/恢复），API新增真实DB测试在普通无库批次条件跳过，不算业务执行。
 
 ## 可操作隔离预览
 
-`npm run preview:token`（显式设置本机PG/PostgREST工具路径）运行 `tests/support/token-preview.mjs`，默认 `http://127.0.0.1:5220`。此harness不读取生产配置；合成Auth只放tests，全部监听numeric loopback，并拒绝不同Host/Origin。标准产品AuthGate、在线白名单和Worker/RPC业务照常运行；设备令牌/领取秘密只在私有SQLite/内存，入口只返回短码。Vite开发工具本身不是生产隔离沙箱，请仅在本机使用。
+`npm run preview:token`（显式设置本机PG/PostgREST工具路径）运行 `tests/support/token-preview.mjs`，默认 `http://127.0.0.1:5220`。此harness不读取生产配置；合成Auth只放tests，全部监听numeric loopback，并拒绝不同Host/Origin。标准产品AuthGate、在线白名单和Worker/RPC业务照常运行；设备令牌/领取秘密只在私有SQLite/内存，入口只返回短码。两处Vite均以 `envDir:false` 禁止dotenv注入，正式开发配置与harness共享完整敏感路径拒绝规则，harness额外拒绝test-results；合成HTTP回归确认凭据/证书/私有配置403且公开资产仍可读。Vite开发工具本身不是生产隔离沙箱，请仅在本机使用。
 
 先访问 `http://127.0.0.1:5220/__token219/session` 建立合成会话，然后进入正式 `/token`。两份独立采集器状态各有30天合成来源，均实际运行在当前Linux；macos仅为合成平台标签。费用未知来自真实无价格缓存输出，不编造实际账单。数据库和私有状态在忽略的test-results临时目录，SIGTERM/SIGINT只清理本实例。
 
@@ -75,9 +77,19 @@ npm install --prefix /absolute/private/install --ignore-scripts --no-audit --no-
 1. 总控确认目标是隔离托管project/branch还是生产；当前只读发现唯一lifespace项目、无开发分支，没有可直接认定可写的隔离托管环境。
 2. 取得备份能力：完整数据库schema/函数/ACL/RLS/约束/数据/迁移历史及角色定义，安全保存且在独立目标恢复。当前本地dump/restore验证包含完整数据库，复用已知harness角色；不冒称已经备份生产角色或托管Auth。
 3. 在目标只读核对 Data API 仅暴露public、不暴露token_private。执行[只读SQL预检](../db/token/preflight.sql)，并检查托管Dashboard/配置的真实 exposed schemas；SQL结果未知时不能假装已核实网关配置。
-4. 按顺序完整执行 `20261115152721_token_backend.sql`、`20261115172408_token_registration_inspection.sql`，每份文件单事务且不可切函数。记录迁移历史后核对ACL/RLS/search_path；只匿名upload+heartbeat，管理/summary只service_role。两文件总量约40KB，选完整SQL通道，不在受限API里机械分段。
+4. 按顺序完整执行 `20261115152721_token_backend.sql`、`20261115172408_token_registration_inspection.sql`，每份文件单事务且不可切函数。记录迁移历史后核对ACL/RLS/search_path；只匿名upload+heartbeat，管理/summary只service_role。两文件合计36,560字节，选完整SQL通道，不在受限API里机械分段。
 5. 发布同一完整集成Worker+React版本。迁移先于新入口，旧Worker仍可运行；新增schema不改既有业务表/旧MCP退役决定。
 6. 用独立合成设备实际登记→网页批准→终端领取→Supabase HTTPS上传+心跳→summary→React→停用旧令牌拒绝且历史保留；先运行 `node scripts/token-gateway-preflight.mjs` 只读/无效凭据预检，再运行真实授权链路。publishable apikey不得放Bearer；独立设备头不得丢失。
 7. 用户macOS/Linux真实来源和长期timer、双设备对账、常用浏览器/手机触屏人工验收、最终生产验收分别留证；达到总控核对的全部条件后才统一合并/生产操作。CI合成macOS或本地TLS替身都不能替代这些门禁。
 
 异常回退：先停止新设备入口和采集器任务，再回退Worker/React到集成前main固定版本，保留token_private汇总、代际和权限边界；已有设备直传要停用或撤销匿名两RPC执行权以停止写入，不能只撤网页。必要时恢复入口前核对数据库版本/凭据状态；完整移除schema需另行授权和导出核对，不作为普通回退。恢复整库可能覆盖其他业务的新写入，需先止写并明确恢复范围，不能把本地演练当作任意生产回滚许可。
+
+
+## 独立评审修复记录
+
+累计 `3d4ecfa...88cf8b3` 的fresh双轴发现已逐项修复，最终固定SHA复审结论以PR/阶段报告为准：
+
+- Spec P2：`init --replace` 未显式指定来源时，现继承已保存的自定义sourceHome；真实已构建CLI+私有SQLite+loopback登记回归先复现 `EXISTING_PROFILE_SCOPE_CANNOT_CHANGE`，修复后通过，显式换来源仍拒绝。
+- Spec P3：空设备提示不再给出不存在的register，改为 `lifespace-usage init --server 本站地址`；仅该提示取消nowrap，320/390两宽真实浏览器验证无全页/提示溢出并新增截图。
+- Standards P1：预览拒绝规则遗漏私有文件类别；新增shared sensitiveFileDeny，正式Vite保留原完整规则，harness额外拒绝测试状态。合成临时 `.aws/.codex/.npmrc/.yarnrc/证书/私钥/环境/构建状态` 真实HTTP均403且不泄露标记，普通公开资产200。
+- Standards P2：harness显式 `envDir:false`，两Vite均不加载工作区dotenv；合成VITE哨兵不注入。预览仅重启本阶段实例，未读取真实秘密或停止5193/5217。

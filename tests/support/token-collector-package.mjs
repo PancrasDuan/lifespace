@@ -4,7 +4,7 @@ import { mkdtemp, mkdir, readFile, realpath, rm, stat, writeFile } from 'node:fs
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import assert from 'node:assert/strict'
-import { randomBytes } from 'node:crypto'
+import { createHash, randomBytes } from 'node:crypto'
 
 // Deliberately outside the checkout, even when TMPDIR points into test-results.
 const base = await realpath(process.env.TOKEN_PACKAGE_TMPDIR || '/tmp')
@@ -57,5 +57,5 @@ try {
   assert.equal((await stat(join(state, 'state.sqlite'))).mode & 0o777, 0o600)
   const tokscale = JSON.parse(await readFile(join(prefix, 'node_modules/@tokscale/cli/package.json'), 'utf8'))
   assert.equal(tokscale.version, '4.23.0')
-  console.log(JSON.stringify({ packedFiles: result.files.length, package: '@lifespace/token-collector@0.1.0', runtimeTokscale: tokscale.version, platform: process.platform, systemIdentity: 'real read-only probe stable; value not logged', outsideRepository: true, actualScan: '12 tokens, unknown cost, one persisted pending task', upgrade: 'local archive reinstalled; SQLite byte-for-byte preserved', timer: 'plan only; no system timer installed' }))
+  console.log(JSON.stringify({ packedFiles: result.files.length, archiveSha256: createHash('sha256').update(await readFile(archive)).digest('hex'), package: '@lifespace/token-collector@0.1.0', runtimeTokscale: tokscale.version, platform: process.platform, systemIdentity: 'real read-only probe stable; value not logged', outsideRepository: true, actualScan: '12 tokens, unknown cost, one persisted pending task', upgrade: 'local archive reinstalled; SQLite byte-for-byte preserved', timer: 'plan only; no system timer installed' }))
 } finally { await rm(work, { recursive: true, force: true }) }

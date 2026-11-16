@@ -7,7 +7,7 @@ import { once } from 'node:events'
 import { promisify } from 'node:util'
 import { randomBytes } from 'node:crypto'
 import { Store, type Credential } from '../../tools/token-collector/store'
-import { deriveDeviceId, privateDirectory } from '../../tools/token-collector/local'
+import { deriveDeviceId, privateDirectory, systemDeviceId } from '../../tools/token-collector/local'
 import { endpoint, request, startRegistration, claimRegistration, uploadPending } from '../../tools/token-collector/transport'
 import { scan } from '../../tools/token-collector/collector'
 import { inventory, assessCoverage } from '../../tools/token-collector/coverage'
@@ -387,4 +387,26 @@ test('launchd configuration update recovers after plist write interruption and f
   expect(loadedSeconds).toBe(3600)
   failUnload = false
   await applySchedule(next, true, execute); expect(loadedSeconds).toBe(10800)
+})
+
+
+test('CLI init --replace retains configured custom source home during reauthorization', async () => {
+  const dir = await root(), state = join(dir, 'state'), custom = join(dir, 'custom-source')
+  await mkdir(custom, { mode: 0o700 })
+  const server = createServer((req, res) => {
+    if (req.url !== '/api/token/registrations/start') { res.writeHead(404); res.end(); return }
+    res.writeHead(201, { 'Content-Type': 'application/json' })
+    res.end(JSON.stringify({ requestId: '00000000-0000-4000-8000-000000000219', code: 'ABCDEFGH', claimSecret: randomBytes(32).toString('base64url'), expiresIn: 600, interval: 5, verificationPath: '/token/devices/confirm' }))
+  })
+  server.listen(0, '127.0.0.1'); await once(server, 'listening')
+  const port = (server.address() as { port: number }).port
+  try {
+    const before = await Store.open(state)
+    before.set('config', { deviceId: await systemDeviceId(), server: `http://127.0.0.1:${port}/`, sourceHome: custom, hours: 3, loopback: true }); before.close()
+    const result = await promisify(execFile)(process.execPath, [resolve('tools/token-collector/dist/tools/token-collector/cli.js'), 'init', '--replace', '--test-loopback', '--state-dir', state], { timeout: 10000 })
+    expect(JSON.parse(result.stdout)).toMatchObject({ code: 'ABCDEFGH' })
+    const after = await Store.open(state); stores.push(after)
+    expect(after.config().sourceHome).toBe(custom); expect(after.config().hours).toBe(3)
+    expect(after.get('registration')).toMatchObject({ requestId: '00000000-0000-4000-8000-000000000219' })
+  } finally { await new Promise<void>(r => server.close(() => r())) }
 })

@@ -84,7 +84,7 @@ try {
   })
   const gatewayPort = await listen(gateway), connector = buildConnector({ ca: await readFile(cert) })
   dispatcher = new Agent({ connect(options, callback) { connector({ ...options, ...(options.protocol === 'https:' && options.hostname === '127.0.0.1' ? { port: String(gatewayPort) } : {}) }, callback) } }); setGlobalDispatcher(dispatcher)
-  modules = await viteServer({ configFile: false, cacheDir: 'test-results/token219/preview-ssr-cache', server: { middlewareMode: true, hmr: false, ws: false }, resolve: { alias: { 'cloudflare:workers': resolve('tests/support/cloudflare-workers.ts') } } })
+  modules = await viteServer({ configFile: false, envDir: false, cacheDir: 'test-results/token219/preview-ssr-cache', server: { middlewareMode: true, hmr: false, ws: false }, resolve: { alias: { 'cloudflare:workers': resolve('tests/support/cloudflare-workers.ts') } } })
   const { default: app } = await modules.ssrLoadModule('/worker/index.ts')
   const { Store } = await modules.ssrLoadModule('/tools/token-collector/store.ts')
   const { scan } = await modules.ssrLoadModule('/tools/token-collector/collector.ts')
@@ -106,6 +106,7 @@ try {
     stores.set(kind, { store, state })
   }
   const workerRequest = (path, body) => app.request(origin + path, { method: body ? 'POST' : 'GET', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + browserToken }, ...(body ? { body: JSON.stringify(body) } : {}) }, bindings)
+  const { sensitiveFileDeny } = await modules.ssrLoadModule('/build-plugins/sensitive-file-deny.ts')
   const { tokenCollectorBoundary } = await modules.ssrLoadModule('/build-plugins/token-collector-boundary.ts')
   let frontend
   // API and harness operations are not part of the product router or production bundle.
@@ -133,7 +134,7 @@ try {
       frontend.middlewares(req, res)
     } catch { reply(res, 503, { error: { code: 'LOCAL_PREVIEW_ERROR' } }) }
   })
-  frontend = await viteServer({ configFile: false, cacheDir: 'test-results/token219/preview-client-cache', plugins: [tokenCollectorBoundary(), react()], server: { middlewareMode: true, hmr: false, ws: { server: web, host: '127.0.0.1', clientPort: port }, fs: { deny: ['**/.dev.vars*', '**/.env*', '**/.git/**', '**/test-results/**', '**/.cache/**', '**/.impeccable/**', '**/DESIGN.md'] } } })
+  frontend = await viteServer({ configFile: false, envDir: false, cacheDir: 'test-results/token219/preview-client-cache', plugins: [tokenCollectorBoundary(), react()], server: { middlewareMode: true, hmr: false, ws: { server: web, host: '127.0.0.1', clientPort: port }, fs: { deny: sensitiveFileDeny(resolve('.'), ['**/test-results/**']) } } })
   web.on('close', () => void frontend.close())
   await listen(web, port)
   // Seed through registration approval, terminal claim, Tokscale/SQLite and HTTPS RPC.

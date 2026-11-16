@@ -3,6 +3,7 @@ import react from '@vitejs/plugin-react'
 import { cloudflare } from '@cloudflare/vite-plugin'
 import { fileURLToPath } from 'node:url'
 import { rm } from 'node:fs/promises'
+import { sensitiveFileDeny } from './build-plugins/sensitive-file-deny.ts'
 import { tokenCollectorBoundary } from './build-plugins/token-collector-boundary.ts'
 
 const projectRoot = fileURLToPath(new URL('.', import.meta.url)).replace(/\/$/, '')
@@ -24,7 +25,6 @@ export default defineConfig({
     },
   ],
   server: { host: '127.0.0.1', watch: { usePolling: true }, fs: {
-    deny: ['.env', '.env.*', '*.{crt,pem,key,p12,pfx,cer,der}', '.npmrc', '.yarnrc.yml', '**/.git/**',
-      '**/.dev.vars*', '**/.cache/**', '**/.aws/**', '**/.impeccable/**', '**/DESIGN.md', `${projectRoot}/.codex/**`, '**/dist/lifespace/**'],
+    deny: sensitiveFileDeny(projectRoot),
   } },
 })

@@ -358,3 +358,18 @@ test('native text-fragment search reveals the hidden daily table', async ({ page
   await expect(page.getByRole('button', { name: '日统计明细' })).toHaveAttribute('aria-expanded', 'true')
   await expect(page.locator('#token-daily-details')).not.toHaveAttribute('hidden')
 })
+
+
+test('empty device enrollment command wraps at both phone widths', async ({ page }) => {
+  await page.route('**/api/token/devices*', route => route.fulfill({ json: { devices: [], nextCursor: null, serverTime: '2026-11-15T06:32:00Z' } }))
+  await page.goto('/token')
+  const message = page.locator('.device-empty')
+  await expect(message).toContainText('lifespace-usage init --server')
+  for (const width of [320, 390]) {
+    await page.setViewportSize({ width, height: 844 })
+    await message.scrollIntoViewIfNeeded()
+    expect(await message.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true)
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+    await captureTokenViewport(page, `.impeccable/review/token-frontend/device-empty-${width}.png`)
+  }
+})
