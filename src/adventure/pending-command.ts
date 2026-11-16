@@ -45,9 +45,19 @@ export async function savePending(owner: string, envelope: StoredPlanningEnvelop
 }
 
 export async function clearPending(owner: string, envelope: StoredPlanningEnvelope, signal?: AbortSignal) {
-  const value = await readPending(owner)
-  if (!value || JSON.stringify(value) !== JSON.stringify(storedPlanningEnvelopeSchema.parse(envelope))) throw new Error('Pending command changed')
-  await transaction('readwrite', store => store.delete(owner), signal)
+  const expected = JSON.stringify(storedPlanningEnvelopeSchema.parse(envelope))
+  // Compare and delete in one transaction, including for explicit local release.
+  await transaction('readwrite', store => {
+    const request = store.get(owner)
+    request.onsuccess = () => {
+      try {
+        const parsed = storedPlanningEnvelopeSchema.safeParse(request.result)
+        if (!parsed.success || JSON.stringify(parsed.data) !== expected) { store.transaction.abort(); return }
+        store.delete(owner)
+      } catch { store.transaction.abort() }
+    }
+    return request
+  }, signal)
   announce()
 }
 

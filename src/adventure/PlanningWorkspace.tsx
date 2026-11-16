@@ -17,6 +17,7 @@ import { Progress } from './PrototypeRecord'
 import { RecurringDialog } from './RecurringDialog'
 import type { RecurringView } from './RecurringTasks'
 import { PlanningToast } from './PlanningToast'
+import { PendingReview } from './PendingReview'
 import { PlanningLifecycle, lifecycleTitles } from './PlanningLifecycle'
 import { saveTerminalPreference } from './planning-preferences'
 import explorer from './pixel-explorer.png'
@@ -96,7 +97,7 @@ function Workspace() {
   })
   const [planningEnabled, setPlanningEnabled] = useState(tab !== 'growth')
   const model = usePlanning(planningEnabled)
-  const { data, busy, uncertain } = model
+  const { data, busy, uncertain, readBlocked } = model
   const identity = useVerifiedIdentity()
   const [openRecord, setOpenRecord] = useState<string | undefined>(() => { const params = new URLSearchParams(window.location.search), task = params.get('taskId'), goal = params.get('goalId'); return task ? `task:${task}` : goal ? `goal:${goal}` : undefined })
   const [growthSnapshot, setGrowthSnapshot] = useState<Pick<GrowthPage, 'version' | 'growth'>>()
@@ -110,7 +111,7 @@ function Workspace() {
     return task ? { kind: 'taskHistory', id: task } : goal ? { kind: 'detail', id: goal } : undefined
   })
   const openDialog = useCallback((value?: Dialog) => { model.confirmation.invalidate(); setDialog(value) }, [model.confirmation.invalidate])
-  const selectTab = (value: typeof tab) => { if (value === 'growth' && (busy || uncertain)) return; model.confirmation.invalidate(); setPendingCreate(undefined); if (value === 'growth' && tab !== 'growth') setGrowthStatus('loading'); if (value !== 'growth') setPlanningEnabled(true); setTab(value); window.history.replaceState(null, '', value === 'overview' ? '/adventure' : `/adventure?view=${value}`) }
+  const selectTab = (value: typeof tab) => { if ((busy && uncertain) || (value === 'growth' && (busy || (uncertain && !model.pendingReview?.read)))) return; model.confirmation.invalidate(); setPendingCreate(undefined); if (value === 'growth' && tab !== 'growth') setGrowthStatus('loading'); if (value !== 'growth' && !data) setPlanningEnabled(true); setTab(value); window.history.replaceState(null, '', value === 'overview' ? '/adventure' : `/adventure?view=${value}`) }
   const [showTerminal, setShowTerminal] = useState(() => data?.includeTerminal ?? false)
   const [preferenceError, setPreferenceError] = useState('')
   useEffect(() => { if (data) setShowTerminal(data.includeTerminal) }, [data])
@@ -176,21 +177,27 @@ function Workspace() {
     if (dialog?.kind === 'recurring' && dialog.view.type === 'child') openRecurring({ type: 'parent', id: dialog.view.parentId })
     else close()
   }
-  const recovery = (uncertain || model.readRequired) && !busy ? <button type="button" onClick={() => {
+  const recovery = (uncertain || model.readRequired) && !busy ? <><button type="button" onClick={() => {
     void model.recover(recovered).then(type => {
       if (type === 'createGoal') selectTab('planning')
     })
-  }}>{uncertain ? model.recoveryLabel : '重新读取'}</button> : model.dateChanged && dialog ? <button type="button" disabled={busy} onClick={() => { void model.refreshDate() }}>刷新日期</button> : null
+  }}>{uncertain ? model.recoveryLabel : '重新读取'}</button>
+    {model.pendingReview && <PendingReview review={model.pendingReview} inspect={() => model.reviewPending()} release={async () => {
+      const released = await model.reviewPending(true)
+      if (released) recovered()
+      return released
+    }} />}
+  </> : model.dateChanged && dialog ? <button type="button" disabled={busy} onClick={() => { void model.refreshDate() }}>刷新日期</button> : null
   const cancelTask = async (task: PlanningTask) => {
     if (!task.completionId) return
     await model.command({ type: 'cancelTaskCompletion', completionId: task.completionId })
   }
   const openGoal = (id: string) => {
-    if (blocked) return
+    if (readBlocked) return
     if (tab === 'planning' && dialog?.kind === 'detail' && dialog.id === id) { close(); return }
     inlineOrigin.current = document.activeElement instanceof HTMLElement ? document.activeElement.closest('article')?.querySelector<HTMLElement>(':scope > .record-summary') ?? document.activeElement : undefined
     setTab('planning')
-    setPlanningEnabled(true)
+    if (!data) setPlanningEnabled(true)
     setOpenRecord(`goal:${id}`)
     openDialog({ kind: 'detail', id })
     window.history.replaceState(null, '', `/adventure?goalId=${id}`)
@@ -222,7 +229,7 @@ function Workspace() {
     : dialog.kind === 'taskHistory' ? '任务安排历史' : dialog.kind === 'achieve' ? '确认目标达成' : dialog.kind === 'lifecycle' ? lifecycleTitles[dialog.operation] : dialog.kind === 'task' ? dialog.task ? '编辑任务' : '创建任务'
     : dialog.kind === 'goal' && dialog.goal ? '编辑目标' : '创建目标'
   const goals = data?.goals
-  const goalDetails = data && detailGoal && <PrototypeGoalDetail key={detailGoal.id} goal={detailGoal} detail={data.goalDetail?.goal.id === detailGoal.id ? data.goalDetail : null} pageSize={data.pageSize} blocked={blocked}
+  const goalDetails = data && detailGoal && <PrototypeGoalDetail key={detailGoal.id} goal={detailGoal} detail={data.goalDetail?.goal.id === detailGoal.id ? data.goalDetail : null} pageSize={data.pageSize} blocked={readBlocked}
     changePage={page => { void model.load({ goalTaskPage: page }) }} />
 
   const growth = growthSnapshot && (!data || growthSnapshot.version >= data.version) ? growthSnapshot.growth : data?.growth
@@ -235,7 +242,7 @@ function Workspace() {
     <div className="adventure-toolbar">
       <div className="create-intro"><strong>新建</strong><span>从目标或行动开始</span></div>
       <div className="heading-actions" role="group" aria-label="新建">
-        {model.lastAchievement && <button type="button" className="new-button" disabled={blocked} onClick={() => openGoal(model.lastAchievement!)}>查看达成结果</button>}
+        {model.lastAchievement && <button type="button" className="new-button" disabled={readBlocked} onClick={() => openGoal(model.lastAchievement!)}>查看达成结果</button>}
         <button type="button" className="new-button" disabled={!model.storageReady || busy || uncertain || !!pendingCreate || (data ? blocked || !createCapability('goal')?.allowed : tab !== 'growth')} title={createCapability('goal')?.reason} onClick={() => { inlineOrigin.current = document.activeElement instanceof HTMLElement ? document.activeElement : undefined; launchCreate('goal') }}><Sprout size={15} /><span>新建目标</span></button>
         <button type="button" className="new-button create-action-primary" disabled={!model.storageReady || busy || uncertain || !!pendingCreate || (data ? blocked || !createCapability('task')?.allowed : tab !== 'growth')} title={createCapability('task')?.reason} onClick={() => { inlineOrigin.current = document.activeElement instanceof HTMLElement ? document.activeElement : undefined; launchCreate('task') }}><Plus size={15} /><span>新建行动</span></button>
       </div>
@@ -253,11 +260,11 @@ function Workspace() {
       </> : <p role="status">{growthUnavailable ? '经验概览暂时无法读取' : '正在读取经验概览…'}</p>}
     </section>
 
-    <nav className="view-tabs" aria-label="冒险页面"><button aria-current={tab === 'overview' ? 'page' : undefined} onClick={() => selectTab('overview')}>今日聚焦</button>
-      <button aria-current={tab === 'planning' ? 'page' : undefined} onClick={() => selectTab('planning')}>目标</button>
-      <button disabled={busy || uncertain} aria-current={tab === 'growth' ? 'page' : undefined} onClick={() => selectTab('growth')}>成长记录</button></nav>
+    <nav className="view-tabs" aria-label="冒险页面"><button disabled={busy && uncertain} aria-current={tab === 'overview' ? 'page' : undefined} onClick={() => selectTab('overview')}>今日聚焦</button>
+      <button disabled={busy && uncertain} aria-current={tab === 'planning' ? 'page' : undefined} onClick={() => selectTab('planning')}>目标</button>
+      <button disabled={busy || (uncertain && !model.pendingReview?.read)} aria-current={tab === 'growth' ? 'page' : undefined} onClick={() => selectTab('growth')}>成长记录</button></nav>
 
-    {model.dateChanged && <div className="recurring-notice" role="status"><span>日期已变化，本次操作未保存。请刷新日期后重新确认。</span><button type="button" disabled={busy || uncertain} onClick={() => { void model.refreshDate() }}>刷新日期</button></div>}
+    {model.dateChanged && <div className="recurring-notice" role="status"><span>日期已变化，本次操作未保存。请刷新日期后重新确认。</span><button type="button" disabled={busy || (uncertain && !model.pendingReview?.read)} onClick={() => { void model.refreshDate() }}>刷新日期</button></div>}
     {(tab !== 'growth' || uncertain) && (!dialog || !data) && recovery && <div className="planning-recovery">{recovery}</div>}
     {(tab !== 'growth' || uncertain || dialog) && (model.error ? <PlanningToast key={model.error} tone="error" withinDialog={!!dialog && !!data} message={model.error} close={model.clearError} /> : !model.readRequired && model.notice && <PlanningToast key={model.notice.id} withinDialog={!!dialog && !!data} message={model.notice.message} close={model.clearNotice} />)}
     {dialog && !data && !busy && <div className="planning-recovery"><button onClick={() => { close(); void model.load() }}>返回冒险</button></div>}
@@ -265,28 +272,28 @@ function Workspace() {
     {tab === 'growth' && <PlanningGrowth onGrowthChange={setGrowthSnapshot} onGrowthStatusChange={setGrowthStatus} />}
 
     {data && tab !== 'growth' && <div className={`adventure-proto-workspace${tab === 'planning' ? ' adventure-proto-map' : ''}`}>
-        {tab === 'overview' && (data.capabilities.createTask?.allowed ? <PrototypeTasks data={data} reload={() => model.load()} blocked={blocked} openTask={openRecord?.startsWith('task:') ? openRecord.slice(5) : undefined} toggleTask={toggleTask}
+        {tab === 'overview' && (data.capabilities.createTask?.allowed ? <PrototypeTasks data={data} reload={() => model.load()} blocked={blocked} readBlocked={readBlocked} openTask={openRecord?.startsWith('task:') ? openRecord.slice(5) : undefined} toggleTask={toggleTask}
           openRecurring={openRecurring} recordRecurring={parent => { void model.command({ type: 'recordRecurringCompletion', id: parent.id, today: data.today }, data.version) }} cancelRecurring={child => { void model.command({ type: 'cancelRecurringCompletion', completionId: child.completionId, today: data.today }, data.version) }}
           edit={task => openDialog({ kind: 'task', task })} complete={task => { void model.command({ type: 'completeTask', id: task.id }) }} cancel={task => { void cancelTask(task) }} />
           : <section className="content-section"><header className="section-heading"><div><span className="section-context">今天要做的事</span><h2>一次性任务</h2></div></header><p className="adventure-hint">{data.capabilities.createTask?.reason}</p></section>)}
 
       {tab === 'overview' && <aside className="adventure-proto-aside">
-        <section className="aside-panel next-milestone"><span className="eyebrow">下一处风景</span>{data.growth.achievements.filter(item => !item.unlocked).slice(0, 2).map((item, index) => <div className={`milestone-line${index ? ' is-muted' : ''}`} key={item.id}><span className="milestone-icon">{index ? <Sprout size={16} /> : <Star size={16} />}</span><div><strong>{item.label}</strong><p>还差 {item.remaining} {item.id.startsWith('actions_') ? '次真实行动' : '个达成目标'}</p></div></div>)}{data.growth.achievements.every(item => item.unlocked) && <div className="milestone-line"><span className="milestone-icon"><Star size={16} /></span><div><strong>全部点亮</strong><p>继续保持现在的节奏</p></div></div>}<button type="button" className="aside-link" disabled={busy || uncertain} onClick={() => selectTab('growth')}>查看完整成长记录</button></section>
+        <section className="aside-panel next-milestone"><span className="eyebrow">下一处风景</span>{data.growth.achievements.filter(item => !item.unlocked).slice(0, 2).map((item, index) => <div className={`milestone-line${index ? ' is-muted' : ''}`} key={item.id}><span className="milestone-icon">{index ? <Sprout size={16} /> : <Star size={16} />}</span><div><strong>{item.label}</strong><p>还差 {item.remaining} {item.id.startsWith('actions_') ? '次真实行动' : '个达成目标'}</p></div></div>)}{data.growth.achievements.every(item => item.unlocked) && <div className="milestone-line"><span className="milestone-icon"><Star size={16} /></span><div><strong>全部点亮</strong><p>继续保持现在的节奏</p></div></div>}<button type="button" className="aside-link" disabled={busy || (uncertain && !model.pendingReview?.read)} onClick={() => selectTab('growth')}>查看完整成长记录</button></section>
         <div className="adventure-journey-note"><img src={explorer} alt="" /><p>先走稳眼前这一步，<br />远方自然会靠近。</p></div>
       </aside>}
 
         {tab === 'planning' && <>
         <section className="content-section adventure-proto-goal-section">
           <header className="goal-console-heading"><div><span className="goal-console-kicker">阶段成果</span><h2>目标 <span className="goal-count">{data.totalGoals} 个目标</span></h2><p>查看目标及其关联任务的进度。</p></div>
-            <div className="goal-console-tools"><label className="quiet-toggle"><input aria-label="显示已达成／已结束" type="checkbox" checked={showTerminal} disabled={blocked} onChange={event => changeTerminal(event.target.checked)} />显示终态</label></div></header>
+            <div className="goal-console-tools"><label className="quiet-toggle"><input aria-label="显示已达成／已结束" type="checkbox" checked={showTerminal} disabled={readBlocked} onChange={event => changeTerminal(event.target.checked)} />显示终态</label></div></header>
           {preferenceError && <p role="status" className="adventure-hint">{preferenceError}</p>}
-          {goals?.length === 0 ? <p className="adventure-empty">{data.totalGoals ? '本页没有目标，请返回上一页。' : '还没有目标。先创建一个目标，再为它添加任务。'}</p> : <PrototypeGoals goals={goals ?? []} blocked={blocked} action={model.command} edit={goal => openDialog({ kind: 'goal', goal })} achieve={goal => { void achieveGoal(goal.id) }} end={goal => { void openLifecycle('endGoal', goal.id) }} openGoal={openRecord?.startsWith('goal:') ? openRecord.slice(5) : undefined} toggleGoal={toggleGoal} />}
-          <footer className="planning-pagination"><small>共 {data.totalGoals} 个目标 · 第 {data.page} / {Math.max(1, Math.ceil(data.totalGoals / data.pageSize))} 页</small><div><button type="button" disabled={blocked || data.page <= 1} onClick={() => { void model.load({ page: data.page - 1 }) }}>上一页</button><button type="button" disabled={blocked || data.page * data.pageSize >= data.totalGoals} onClick={() => { void model.load({ page: data.page + 1 }) }}>下一页</button></div></footer>
+          {goals?.length === 0 ? <p className="adventure-empty">{data.totalGoals ? '本页没有目标，请返回上一页。' : '还没有目标。先创建一个目标，再为它添加任务。'}</p> : <PrototypeGoals goals={goals ?? []} blocked={blocked} readBlocked={readBlocked} action={model.command} edit={goal => openDialog({ kind: 'goal', goal })} achieve={goal => { void achieveGoal(goal.id) }} end={goal => { void openLifecycle('endGoal', goal.id) }} openGoal={openRecord?.startsWith('goal:') ? openRecord.slice(5) : undefined} toggleGoal={toggleGoal} />}
+          <footer className="planning-pagination"><small>共 {data.totalGoals} 个目标 · 第 {data.page} / {Math.max(1, Math.ceil(data.totalGoals / data.pageSize))} 页</small><div><button type="button" disabled={readBlocked || data.page <= 1} onClick={() => { void model.load({ page: data.page - 1 }) }}>上一页</button><button type="button" disabled={readBlocked || data.page * data.pageSize >= data.totalGoals} onClick={() => { void model.load({ page: data.page + 1 }) }}>下一页</button></div></footer>
         </section>
         </>}
     </div>}
 
-    {dialog?.kind === 'recurring' && data && <RecurringDialog view={dialog.view} workspace={data} blocked={blocked} action={model.command} confirmation={model.confirmation} change={openRecurring} close={close} reload={() => model.load()} recovery={recovery}/>}
+    {dialog?.kind === 'recurring' && data && <RecurringDialog view={dialog.view} workspace={data} blocked={blocked} readBlocked={readBlocked} action={model.command} confirmation={model.confirmation} change={openRecurring} close={close} reload={() => model.load()} recovery={recovery}/>}
     {dialog && dialog.kind !== 'recurring' && data && <Modal title={title} subtitle={dialog.kind === 'detail' && detailGoal ? [detailGoal.categoryLabel, detailGoal.title].filter(Boolean).join(' · ') : dialog.kind === 'achieve' ? '达成后只读保留，不能恢复或再次变更。' : dialog.kind === 'lifecycle' && dialog.operation === 'endGoal' ? '结束表示未达成而停止推进，不是达成。' : undefined} close={taskDeletion ? dismissTaskDeletion : close} restoreFocus={inlineOrigin.current} id={dialog.kind === 'detail' ? `goal-detail-${dialog.id}` : undefined} className={dialog.kind === 'task' ? 'task-dialog' : dialog.kind === 'detail' ? 'goal-relation-dialog' : dialog.kind === 'achieve' || (dialog.kind === 'lifecycle' && dialog.operation === 'endGoal') ? 'goal-confirmation-dialog' : undefined}>
       {dialog.kind === 'detail' ? goalDetails ?? <p role="status">正在读取目标详情…</p>
       : dialog.kind === 'taskHistory' ? <PlanningTaskHistory key={dialog.id} id={dialog.id} />

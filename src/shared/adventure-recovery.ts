@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { planningEnvelopeSchema } from './adventure-planning'
+import { planningEnvelopeSchema, type PlanningEnvelope } from './adventure-planning'
 
 // Five-table envelopes remain valid only for read-only historical receipt lookup.
 const legacyName = z.string().trim().min(1).max(200)
@@ -16,3 +16,16 @@ const legacyGoalEnvelope = z.strictObject({
 })
 export const storedPlanningEnvelopeSchema = z.union([planningEnvelopeSchema, legacyGoalEnvelope])
 export type StoredPlanningEnvelope = z.infer<typeof storedPlanningEnvelopeSchema>
+
+const retryableTypes = new Set([
+  'createGoal', 'editGoal', 'reorderGoals', 'endGoal', 'achieveGoal',
+  'createTask', 'editTask', 'completeTask', 'cancelTaskCompletion', 'deleteTask',
+  'createRecurringTask', 'editRecurringTask', 'recordRecurringCompletion',
+  'cancelRecurringCompletion', 'endRecurringTask', 'deleteRecurringTask',
+])
+export function canRetryPlanningEnvelope(envelope: StoredPlanningEnvelope): envelope is PlanningEnvelope {
+  if (!planningEnvelopeSchema.safeParse(envelope).success || !retryableTypes.has(envelope.command.type)) return false
+  // These fields were optional in historical edits, but are mandatory in the
+  // current task model. Never fill them in using today's page.
+  return envelope.command.type !== 'editTask' || (envelope.command.plannedOn !== undefined && envelope.command.destination !== undefined)
+}
