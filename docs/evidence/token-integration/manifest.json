@@ -1,6 +1,6 @@
 {
   "main": "3d4ecfad5518c405302a7827fa09dd9c6aff55eb",
-  "declaredInputSha256": "99289ec4bd32b93123b9ada49d261d8a9b86d6e02286ce7e1268b3e5246605cc",
+  "declaredInputSha256": "c349b47aa43ec57e93f6264b82156421cd0f6276cc5cba350de9cb8519cf7678",
   "scope": "declared tracked src/worker/public/build-plugin/package/Vite/index files; not a compiled artifact digest; final report binds final Git SHA",
   "files": [
     "build-plugins/sensitive-file-deny.ts",
@@ -313,6 +313,11 @@
       "path": "docs/evidence/token-integration/date-picker-390.png",
       "sha256": "603921bce4e7d3ff81decd5cf100a934676935bc8fc70c2d68e63b5a8740f04d",
       "metadata": "docs/evidence/token-integration/date-picker-390.png.json"
+    },
+    {
+      "path": "docs/evidence/token-integration/date-picker-touch.png",
+      "sha256": "0920c33a152d526ea021e50427c4fc07ddc4e5df61e064679ffc51b54257cfc8",
+      "metadata": "docs/evidence/token-integration/date-picker-touch.png.json"
     },
     {
       "path": "docs/evidence/token-integration/preview-full.png",

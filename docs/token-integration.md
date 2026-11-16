@@ -93,3 +93,6 @@ npm install --prefix /absolute/private/install --ignore-scripts --no-audit --no-
 - Spec P3：空设备提示不再给出不存在的register，改为 `lifespace-usage init --server 本站地址`；仅该提示取消nowrap，320/390两宽真实浏览器验证无全页/提示溢出并新增截图。
 - Standards P1：预览拒绝规则遗漏私有文件类别；新增shared sensitiveFileDeny，正式Vite保留原完整规则，harness额外拒绝测试状态。合成临时 `.aws/.codex/.npmrc/.yarnrc/证书/私钥/环境/构建状态` 真实HTTP均403且不泄露标记，普通公开资产200。
 - Standards P2：harness显式 `envDir:false`，两Vite均不加载工作区dotenv；合成VITE哨兵不注入。预览仅重启本阶段实例，未读取真实秘密或停止5193/5217。
+
+
+最终CI焦点回归补充：候选4606e40的CI43787515479中390px旧日期编辑在键盘重开时未获得焦点（browser2失败、validate失败），其余9项成功。这是独立于早期本地Auth启动超时的新问题，保留该失败，不用普通复跑绿替代。原用例本地8/8通过；新增1440/390确定性延迟RAF的真实控件回归均在原源码稳定失败，确认旧close回焦可能晚于new open、夺回焦点。修复仅在关闭回调执行时检查当前picker是否已重开，重开后不再回焦按钮。原日期/禁用/键盘加回归20/20通过，另补390×520真实触屏及登录/导航回归；最后SHA、全部CI和三轴增量复审见最终交付报告。原测试断言和时限未修改，未重新设计日期组件。

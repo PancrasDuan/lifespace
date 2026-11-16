@@ -1,4 +1,5 @@
-import { mkdir } from 'node:fs/promises'
+import { mkdir, writeFile, readFile } from 'node:fs/promises'
+import { createHash } from 'node:crypto'
 import type { Locator } from '@playwright/test'
 import { test, expect, type Page } from './authenticated-test'
 import { initial, parent, future, today, recurringFixture } from './adventure-recurring-fixture'
@@ -210,4 +211,64 @@ test('旧逾期一次性编辑只允许原过去日期例外', async ({ page, co
   await form.getByRole('button', { name: '保存任务', exact: true }).click()
   await expect(form).toHaveCount(0)
   expect(fixture.envelopes[0].command).toMatchObject({ plannedOn: '2026-11-12' })
+})
+
+for (const width of [1440, 390]) test(`${width}px 快速重开日历后旧关闭回焦不能夺走焦点`, async ({ page, context }) => {
+  await recurringFixture(context)
+  await page.setViewportSize({ width, height: width === 1440 ? 1000 : 844 })
+  await page.goto('/adventure')
+  await page.getByRole('article', { name: '任务：出门散步三十分钟', exact: true }).getByRole('button', { name: '编辑任务', exact: true }).click()
+  const trigger = editor(page).getByRole('button', { name: '选择执行日期', exact: true })
+  const picker = page.getByRole('dialog', { name: '选择执行日期', exact: true })
+  await trigger.click(); await expect(picker).toBeVisible()
+  // Model a delayed browser animation frame: close, then reopen before the old
+  // focus-return callback runs. Exercise the real control/event handlers.
+  await page.evaluate(() => {
+    const native = window.requestAnimationFrame
+    const pending: FrameRequestCallback[] = []
+    window.requestAnimationFrame = callback => { pending.push(callback); return pending.length }
+    ;(window as Window & { flushDateFocus?: () => void }).flushDateFocus = () => {
+      window.requestAnimationFrame = native
+      for (const callback of pending) callback(performance.now())
+      delete (window as Window & { flushDateFocus?: () => void }).flushDateFocus
+    }
+  })
+  try {
+    await picker.getByRole('button', { name: '取消', exact: true }).click()
+    await expect(picker).toHaveCount(0)
+    await trigger.press('Enter')
+    await expect(picker).toBeVisible()
+    await page.evaluate(() => (window as Window & { flushDateFocus?: () => void }).flushDateFocus?.())
+    await expect(picker).toBeFocused()
+    await page.keyboard.press('Escape')
+    await expect(trigger).toBeFocused()
+  } finally {
+    await page.evaluate(() => (window as Window & { flushDateFocus?: () => void }).flushDateFocus?.())
+  }
+})
+
+
+test.describe('narrow touch date control', () => {
+  test.use({ hasTouch: true })
+  test('390x520 tap and cancel preserve date; reopening and Escape restore focus', async ({ page, context }) => {
+    await recurringFixture(context)
+    await page.setViewportSize({ width: 390, height: 520 })
+    await page.goto('/adventure')
+    await page.getByRole('article', { name: '任务：出门散步三十分钟', exact: true }).getByRole('button', { name: '编辑任务', exact: true }).tap()
+    const form = editor(page), date = form.getByLabel('执行日期', { exact: true })
+    const trigger = form.getByRole('button', { name: '选择执行日期', exact: true })
+    const picker = page.getByRole('dialog', { name: '选择执行日期', exact: true })
+    await trigger.tap(); await expect(picker).toBeVisible()
+    await picker.getByRole('button', { name: '2026-11-17', exact: true }).tap()
+    const folder = 'docs/evidence/token-integration'; await mkdir(folder, { recursive: true })
+    const state = await page.evaluate(() => ({ scrollY, touch: navigator.maxTouchPoints > 0 }))
+    await page.screenshot({ path: folder + '/date-picker-touch.png' })
+    await writeFile(folder + '/date-picker-touch.png.json', JSON.stringify({ viewport: page.viewportSize(), fullPage: false, ...state, source: 'src/adventure/TaskDateField.tsx', sourceSha256: createHash('sha256').update(await readFile('src/adventure/TaskDateField.tsx')).digest('hex') }, null, 2) + '\n')
+    await picker.getByRole('button', { name: '取消', exact: true }).tap()
+    await expect(date).toHaveValue(today)
+    await trigger.tap(); await expect(picker).toBeVisible()
+    await page.keyboard.press('Escape')
+    await expect(picker).toHaveCount(0); await expect(trigger).toBeFocused()
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+  })
 })

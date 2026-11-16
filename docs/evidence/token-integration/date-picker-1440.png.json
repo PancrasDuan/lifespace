@@ -8,5 +8,7 @@
   "scrollYNote": "main测试capture未记录滚动值；不宣称从顶部整页",
   "sourceTest": "tests/browser/adventure-task-date-picker.spec.ts",
   "sourceMain": "3d4ecfad5518c405302a7827fa09dd9c6aff55eb",
-  "note": "真实viewport截图；TaskDateField及相关样式与main逐字一致"
+  "note": "基于main日期控件；阶段05仅限制过期关闭回焦，视觉/API/禁用与键盘语义保留",
+  "source": "src/adventure/TaskDateField.tsx",
+  "sourceSha256": "5b374ddc71ab9a4b5e5f7db6e33534c3b9e5d43bf0a4e9081f4d71560e2f8175"
 }
