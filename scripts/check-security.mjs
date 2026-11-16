@@ -170,6 +170,7 @@ try {
   }
   const authMe = await runtime.dispatchFetch('https://lifespace.onepeace.cc.cd/api/auth/me', { headers: authHeaders })
   assert.equal(authMe.status, 200)
+  // The account's own email is the intended response; never use it as a leak fixture.
   assert.deepEqual(await authMe.json(), { user: { id: authUser.id, email: allowedEmail } })
   const cachedDomains = await runtime.dispatchFetch('https://lifespace.onepeace.cc.cd/api/domains', { headers: authHeaders })
   assert.equal(cachedDomains.status, 200)
@@ -256,7 +257,7 @@ try {
 } catch (error) {
   restoreOutput()
   let message = error instanceof Error ? error.message : '未知错误'
-  for (const marker of Object.values(markers)) message = message.split(marker).join('[REDACTED]')
+  for (const marker of [...Object.values(markers), ...allowlistMarkers]) message = message.split(marker).join('[REDACTED]')
   console.error(`安全验证未通过（已完成 ${checks.length} 项）：${message.slice(0, 500)}`)
   process.exitCode = 1
 } finally {

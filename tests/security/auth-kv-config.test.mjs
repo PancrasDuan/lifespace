@@ -35,6 +35,7 @@ const base = (overrides = {}) => ({
 test('AUTH_KV 门禁拒绝占位、重复、缺失、旧 secret 和旧普通变量', async () => {
   for (const config of [
     base({ kv_namespaces: [{ binding: 'AUTH_KV', id: 'replace_with_32_hex_character_namespace_id' }] }),
+    base({ kv_namespaces: [{ binding: 'AUTH_KV', id: '0123456789abcdef0123456789abcdef' }, { binding: 'AUTH_KV', id: 'fedcba9876543210fedcba9876543210' }] }),
     base({ kv_namespaces: [{ binding: 'HOROSCOPE_KV', id: otherId }, { binding: 'AUTH_KV', id: otherId }] }),
     base({ kv_namespaces: [{ binding: 'HOROSCOPE_KV', id: otherId }] }),
     base({ secrets: { required: ['AUTH_ALLOWED_EMAILS'] } }),
