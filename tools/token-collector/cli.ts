@@ -12,7 +12,7 @@ import { refreshPrices } from './prices.ts'
 import { applySchedule, schedulePlan, scheduleStatus } from './schedule.ts'
 
 process.umask(0o077)
-const help = `LifeSpace usage collector 0.1.2 (Node >=24.22.1 <25, Tokscale 4.23.0)
+const help = `LifeSpace usage collector 0.1.3 (Node >=24.22.1 <25, Tokscale 4.23.0)
 init --server https://lifespace.example [--source-home /absolute/home] [--replace]
 authorize [--wait]                 Continue saved browser authorization
 sync [--rescan] [--offline]        Scan all history; upload immutable queue

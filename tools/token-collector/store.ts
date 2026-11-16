@@ -11,7 +11,6 @@ export type Config = z.infer<typeof configSchema>
 export const credentialSchema = z.strictObject({ deviceId: z.string(), generation: z.string().regex(/^[1-9]\d{0,18}$/), uploadToken: z.string().regex(/^[A-Za-z0-9_-]{43}$/),
   upload: z.strictObject({ url: z.string(), publishableKey: z.string().regex(/^sb_publishable_[A-Za-z0-9_-]+$/), header: z.literal('X-LifeSpace-Device-Token') }) })
 export type Credential = z.infer<typeof credentialSchema>
-export type SourceProof = { path: string; hash: string; size: number; dates: string[]; coverageVersion?: 1 }
 export type QueueTask = { id: number; date: string; agent: string; generation: string; version: string; hash: string; body: string; attempts: number; next_at: number; error: string | null }
 
 export class Store {
@@ -34,6 +33,8 @@ export class Store {
         CREATE TABLE IF NOT EXISTS rollups (date TEXT NOT NULL, agent TEXT NOT NULL, generation TEXT NOT NULL, version TEXT NOT NULL, hash TEXT NOT NULL, snapshot TEXT NOT NULL, PRIMARY KEY(date,agent));
         CREATE TABLE IF NOT EXISTS queue (id INTEGER PRIMARY KEY, date TEXT NOT NULL, agent TEXT NOT NULL, generation TEXT NOT NULL, version TEXT NOT NULL, hash TEXT NOT NULL, body TEXT NOT NULL, attempts INTEGER NOT NULL DEFAULT 0, next_at INTEGER NOT NULL DEFAULT 0, error TEXT, UNIQUE(date,agent,generation,version));
         CREATE TABLE IF NOT EXISTS sources (path TEXT PRIMARY KEY, proof TEXT NOT NULL);`)
+      // Retain the legacy table for in-place upgrades; source proofs no longer
+      // gate accounting or receive reads/writes from the collector.
       if (schemaVersion === 0) db.exec('PRAGMA user_version=1')
       return new Store(db, lock)
     } catch (e) { lock.close(); if (e instanceof LocalError) throw e; throw new LocalError('LOCAL_DATABASE_FAILED') }
@@ -52,17 +53,15 @@ export class Store {
   remove(key: string) { this.db.prepare('DELETE FROM meta WHERE key=?').run(key) }
   config(): Config { return configSchema.parse(this.get('config')) }
   credential(): Credential | undefined { const v = this.get('credential'); return v === undefined ? undefined : credentialSchema.parse(v) }
-  sources(): SourceProof[] { return this.db.prepare('SELECT proof FROM sources').all().map(r => JSON.parse(String(r.proof))) }
   dates(): string[] { return this.db.prepare('SELECT DISTINCT date FROM rollups').all().map(r => String(r.date)) }
   tasks(): QueueTask[] { return this.db.prepare('SELECT * FROM queue ORDER BY id').all() as unknown as QueueTask[] }
   async prepareSnapshots(snapshots: TokenUsageSnapshot[]) {
     return Promise.all(snapshots.map(async snapshot => ({ snapshot, hash: await tokenUsageContentHash(snapshot.content) })))
   }
-  saveScan(prepared: Awaited<ReturnType<Store['prepareSnapshots']>>, proofs: SourceProof[], blocked: Set<string>, diagnostics: string[], now = Date.now()) {
+  saveScan(prepared: Awaited<ReturnType<Store['prepareSnapshots']>>, diagnostics: string[], retainedDates: string[] = [], now = Date.now()) {
     this.transaction(() => {
       const credential = this.credential()
       for (const { snapshot, hash } of prepared) {
-        if (blocked.has(snapshot.identity.date)) continue
         const { date, agent } = snapshot.identity
         if (snapshot.identity.deviceId !== this.config().deviceId) throw new LocalError('IDENTITY_MISMATCH')
         const old = this.db.prepare('SELECT * FROM rollups WHERE date=? AND agent=?').get(date, agent)
@@ -74,9 +73,7 @@ export class Store {
         this.db.prepare('INSERT INTO rollups VALUES (?,?,?,?,?,?) ON CONFLICT(date,agent) DO UPDATE SET generation=excluded.generation, version=excluded.version, hash=excluded.hash, snapshot=excluded.snapshot').run(date, agent, generation, version, hash, JSON.stringify(versioned))
         if (credential) this.enqueue(versioned, hash, credential.generation)
       }
-      // Preserve missing/invalid proofs. Restoring their exact bytes can unlock dates.
-      for (const proof of proofs) this.db.prepare('INSERT INTO sources VALUES (?,?) ON CONFLICT(path) DO UPDATE SET proof=excluded.proof').run(proof.path, JSON.stringify(proof))
-      this.set('scan', { at: now, blockedDates: [...blocked].sort(), diagnostics })
+      this.set('scan', { at: now, retainedDates, diagnostics })
     })
   }
   private enqueue(snapshot: TokenUsageSnapshot, hash: string, generation: string) {

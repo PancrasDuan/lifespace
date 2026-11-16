@@ -23,18 +23,18 @@ try {
   const archive = join(work, result.filename), prefix = join(work, 'install')
   const release = JSON.parse(await readFile(resolve('docs/evidence/token-onboarding/package.json'), 'utf8'))
   assert.equal(result.version, release.version)
+  assert.equal(result.files.length, release.files)
   assert.equal((await stat(archive)).size, release.bytes)
   assert.equal(createHash('sha256').update(await readFile(archive)).digest('hex'), release.sha256)
   const previous = process.env.TOKEN_PACKAGE_PREVIOUS_ARCHIVE
   const initialArchive = previous ? await realpath(previous) : archive
-  if (previous) {
-    const historical = JSON.parse(await readFile(resolve('docs/evidence/token-integration/package.json'), 'utf8'))
-    assert.equal(createHash('sha256').update(await readFile(initialArchive)).digest('hex'), historical.sha256)
-  }
+  const initialBytes = await readFile(initialArchive)
+  const previousRelease = previous ? release.previousReleases.find(item => item.sha256 === createHash('sha256').update(initialBytes).digest('hex')) : undefined
+  if (previous) assert(previousRelease, 'Previous archive must match an explicitly preserved release')
   await run(npm, ['install', '--prefix', prefix, '--ignore-scripts', '--no-audit', '--no-fund', '--save-exact', initialArchive])
   const packageRoot = join(prefix, 'node_modules/@lifespace/token-collector')
   const initialVersion = JSON.parse(await readFile(join(packageRoot, 'package.json'), 'utf8')).version
-  assert.equal(initialVersion, previous ? '0.1.0' : expected.version)
+  assert.equal(initialVersion, previous ? previousRelease.version : expected.version)
   const cli = join(packageRoot, 'dist/tools/token-collector/cli.js')
   assert.match((await run(process.execPath, [cli, '--help'])).stdout, /Tokscale 4.23.0/)
   // Exercise the real OS identity probe without printing its value. Synthetic
@@ -62,6 +62,9 @@ try {
   })
   const scanned = JSON.parse((await run(process.execPath, [cli, 'sync', '--offline', '--state-dir', state])).stdout)
   assert.equal(scanned.pending, 1); assert.equal(scanned.scanFailed, false)
+  // Legacy source evidence survives upgrade, but the new collector neither
+  // parses nor maintains it. The value is intentionally not a valid proof.
+  await run(process.execPath, ['--input-type=module', '-e', `import {DatabaseSync} from 'node:sqlite';const db=new DatabaseSync(process.argv[1]);db.prepare('INSERT INTO sources VALUES (?,?)').run('/synthetic-legacy-source','synthetic-legacy-proof');db.close()`, join(state, 'state.sqlite')])
   const before = await readFile(join(state, 'state.sqlite'))
   const status = (await run(process.execPath, [cli, 'status', '--state-dir', state])).stdout
   assert.equal(JSON.parse(status).pending, 1); assert(!status.includes(secret)); assert(!status.includes(home))
@@ -71,15 +74,18 @@ try {
   assert.equal(JSON.parse(await readFile(join(packageRoot, 'package.json'), 'utf8')).version, expected.version)
   assert((await run(process.execPath, [cli, '--version'])).stdout.includes(`collector ${expected.version}`))
   const rescanned = JSON.parse((await run(process.execPath, [cli, 'sync', '--offline', '--rescan', '--state-dir', state])).stdout)
-  assert.equal(rescanned.pending, 1); assert.equal(rescanned.scanFailed, false); assert.deepEqual(rescanned.scan.blockedDates, [])
+  assert.equal(rescanned.pending, 1); assert.equal(rescanned.scanFailed, false); assert.deepEqual(rescanned.scan.retainedDates, [])
   const totals = await run(process.execPath, ['--input-type=module', '-e', `import {DatabaseSync} from 'node:sqlite';const db=new DatabaseSync(process.argv[1],{readOnly:true});console.log(JSON.parse(db.prepare('SELECT snapshot FROM rollups').get().snapshot).content.metrics.total);db.close()`, join(state, 'state.sqlite')])
   assert.equal(Number(totals.stdout), 12)
-  const streamCheck = join(work, 'coverage-check.mjs')
-  await writeFile(streamCheck, await readFile(resolve('tests/support/token-coverage-stream-check.mjs')))
-  const streamResult = JSON.parse((await run(process.execPath, [streamCheck, pathToFileURL(join(packageRoot, 'dist/tools/token-collector/coverage.js')).href])).stdout)
-  assert.equal(streamResult.iterations, 100); assert.equal(streamResult.prefixReadBounded, true); assert.equal(streamResult.fileDescriptorsClosed, true)
+  await writeFile(join(home, '.codex/sessions/interrupted.jsonl'), JSON.stringify({ timestamp: '2026-11-15T00:00:00Z', type: 'response_item', payload: { type: 'message', content: [{ text: 'synthetic-private-package-warning' }] } }) + '\n')
+  const warned = JSON.parse((await run(process.execPath, [cli, 'sync', '--offline', '--rescan', '--state-dir', state])).stdout)
+  assert.equal(warned.scanFailed, false); assert.equal(warned.pending, 1)
+  assert(warned.scan.diagnostics.includes('TOKSCALE_MISSING_USAGE'))
+  assert(!JSON.stringify(warned).includes('synthetic-private-package-warning'))
+  const legacy = await run(process.execPath, ['--input-type=module', '-e', `import {DatabaseSync} from 'node:sqlite';const db=new DatabaseSync(process.argv[1],{readOnly:true});console.log(db.prepare('SELECT proof FROM sources WHERE path=?').get('/synthetic-legacy-source').proof);db.close()`, join(state, 'state.sqlite')])
+  assert.equal(legacy.stdout.trim(), 'synthetic-legacy-proof')
   assert.equal((await stat(join(state, 'state.sqlite'))).mode & 0o777, 0o600)
   const tokscale = JSON.parse(await readFile(join(prefix, 'node_modules/@tokscale/cli/package.json'), 'utf8'))
   assert.equal(tokscale.version, '4.23.0')
-  console.log(JSON.stringify({ packedFiles: result.files.length, archiveSha256: createHash('sha256').update(await readFile(archive)).digest('hex'), package: `${expected.name}@${expected.version}`, runtimeTokscale: tokscale.version, platform: process.platform, systemIdentity: 'real read-only probe stable; value not logged', outsideRepository: true, actualScan: '12 tokens before/after upgrade, unknown cost, pending task preserved', upgrade: { from: initialVersion, to: expected.version, sqlitePreserved: true }, compressedPrefix: streamResult, timer: 'plan only; no system timer installed' }))
+  console.log(JSON.stringify({ packedFiles: result.files.length, archiveSha256: createHash('sha256').update(await readFile(archive)).digest('hex'), package: `${expected.name}@${expected.version}`, runtimeTokscale: tokscale.version, platform: process.platform, systemIdentity: 'real read-only probe stable; value not logged', outsideRepository: true, actualScan: '12 tokens before/after upgrade, unknown cost, pending task preserved', upgrade: { from: initialVersion, to: expected.version, sqlitePreserved: true }, warnings: 'accepted/redacted; legacy source proof preserved without use', timer: 'plan only; no system timer installed' }))
 } finally { await rm(work, { recursive: true, force: true }) }

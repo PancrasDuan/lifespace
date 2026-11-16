@@ -201,7 +201,7 @@ finish() {
 run_wizard() {
   TOTAL_STAGES=8
   local server='https://lifespace.onepeace.cc.cd'
-  local expected='ef9290d862b503ec042fb8d7e0897513d512c98f697d8748e2d9705bd9348389'
+  local expected='bb1ecc681f88b61862f739dc7f36768c742eaf28360cbdaf165aad15dd161792'
   local wizard_dir node_path npm_path collector status_json scan_json
   local TOKEN_ARCHIVE TOKEN_INSTALL TOKEN_STATE TOKEN_SOURCE
   # No wizard profile, ambient .env, or secrets are read or written.
@@ -219,14 +219,14 @@ run_wizard() {
   [[ -t 0 && -t 1 ]] || { warn '请由已指定设备操作者在本机交互终端运行。'; return 1; }
   command -v node >/dev/null || { warn '需要已有 Node >=24.22.1 <25；向导不自动安装运行时。'; return 1; }
   node_path=$(command -v node)
-  node -e 'const m=/^24\.(\d+)\.(\d+)$/.exec(process.versions.node);if(!m||Number(m[1])<22||(Number(m[1])===22&&Number(m[2])<1))process.exit(1)' || { warn '需要 Node >=24.22.1 <25；旧版不能可靠拒绝截断 zstd。'; return 1; }
+  node -e 'const m=/^24\.(\d+)\.(\d+)$/.exec(process.versions.node);if(!m||Number(m[1])<22||(Number(m[1])===22&&Number(m[2])<1))process.exit(1)' || { warn '需要 Node >=24.22.1 <25；仅支持已经验证的稳定基线。'; return 1; }
   node_path=$(node -p 'process.execPath')
   npm_path="$(dirname "$node_path")/npm"
   [[ -x "$npm_path" ]] || { warn '所选 Node 同目录需要 npm。'; return 1; }
   export PATH="$(dirname "$node_path"):$PATH"
   node -e 'if (!["linux","darwin"].includes(process.platform)) process.exit(1)' || { warn '只支持 macOS/Linux。'; return 1; }
   wizard_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
-  TOKEN_ARCHIVE="${2:-$wizard_dir/lifespace-token-collector-0.1.2.tgz}"
+  TOKEN_ARCHIVE="${2:-$wizard_dir/lifespace-token-collector-0.1.3.tgz}"
   banner 'LifeSpace 正式设备接入（需已指定实际设备/来源）'
 
   stage '检查最终原包'
@@ -238,10 +238,10 @@ try {
   const [archive, expected] = process.argv.slice(2)
   if (!isAbsolute(archive)) throw 0
   const stat = await lstat(archive)
-  if (!stat.isFile() || stat.isSymbolicLink() || stat.size !== 27847) throw 0
+  if (!stat.isFile() || stat.isSymbolicLink() || stat.size !== 24030) throw 0
   const bytes = await readFile(archive)
-  if (bytes.length !== 27847 || createHash('sha256').update(bytes).digest('hex') !== expected) throw 0
-  console.log('  包校验通过：27,847 字节 / ef9290d8… / Node ' + process.versions.node + ' / ' + process.platform + '/' + process.arch)
+  if (bytes.length !== 24030 || createHash('sha256').update(bytes).digest('hex') !== expected) throw 0
+  console.log('  包校验通过：24,030 字节 / bb1ecc68… / Node ' + process.versions.node + ' / ' + process.platform + '/' + process.arch)
 } catch { console.error('ARCHIVE_UNCONFIRMED'); process.exitCode = 1 }
 JS
   say '私有本地包，未发布 npm；安装需要联网取得固定依赖，不使用 --omit=optional。'
@@ -312,9 +312,9 @@ JS
   confirm '现在扫描该来源全部历史？' || return 1
   scan_json=$("$collector" sync --offline --state-dir "$TOKEN_STATE")
   printf '%s\n' "$scan_json"
-  printf '%s' "$scan_json" | node --input-type=module -e 'let s=""; for await (const c of process.stdin) s+=c; const v=JSON.parse(s); if (v.scanFailed || v.scan.blockedDates?.length || !(v.scan.dates>0)) { console.error("SCAN_NOT_READY_FOR_ACCEPTANCE"); process.exitCode=1 }'
+  printf '%s' "$scan_json" | node --input-type=module -e 'let s=""; for await (const c of process.stdin) s+=c; const v=JSON.parse(s); if (v.scanFailed || !(v.scan.dates>0)) { console.error("SCAN_NOT_READY_FOR_ACCEPTANCE"); process.exitCode=1 }'
   "$collector" status --state-dir "$TOKEN_STATE"
-  say '费用 unknown/null 如实保留；有来源覆盖阻塞须先恢复来源再继续。'
+  say '费用 unknown/null 如实保留；Tokscale 告警只记脱敏类别，retainedDates 表示本轮没有替换的旧日期。'
   pause '记录本机结果，按 Enter 继续。'
 
   stage '手动线上同步'
@@ -323,7 +323,7 @@ JS
   confirm '允许现在通过正常设备凭据同步这些汇总？' || return 1
   scan_json=$("$collector" sync --state-dir "$TOKEN_STATE")
   printf '%s\n' "$scan_json"
-  printf '%s' "$scan_json" | node --input-type=module -e 'let s=""; for await (const c of process.stdin) s+=c; const v=JSON.parse(s); if (v.scanFailed || v.scan.blockedDates?.length || !(v.scan.dates>0) || v.pending!==0 || v.heartbeat!==true) { console.error("ONLINE_SYNC_NOT_CONFIRMED"); process.exitCode=1 }'
+  printf '%s' "$scan_json" | node --input-type=module -e 'let s=""; for await (const c of process.stdin) s+=c; const v=JSON.parse(s); if (v.scanFailed || !(v.scan.dates>0) || v.pending!==0 || v.heartbeat!==true) { console.error("ONLINE_SYNC_NOT_CONFIRMED"); process.exitCode=1 }'
   "$collector" status --state-dir "$TOKEN_STATE"
   say '须看到 pending=0、heartbeat=persisted；CLI退出成功不代替四方对账。'
   pause '记录同步结果，按 Enter 查看后续计划。'

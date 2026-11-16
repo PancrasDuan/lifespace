@@ -16,6 +16,18 @@ const optionsSchema = z.strictObject({
 }).refine(value => !value.since || !value.until || value.since <= value.until, '日期范围倒置')
 export type TokscaleOptions = z.infer<typeof optionsSchema>
 
+export function tokscaleDiagnostics(stderr: string): string[] {
+  const codes = new Set<string>()
+  for (const line of stderr.split('\n').map(value => value.trim()).filter(Boolean)) {
+    if (line === 'tokscale: some usage is partial, unpriced, or has stale pricing; cost totals may be incomplete. Run `tokscale pricing explain --json --no-spinner` for local billing-channel details.') {
+      codes.add('TOKSCALE_PRICING_WARNING')
+    } else if (/^Warning: \d+ of \d+ inspected rollout files contain Codex activity but no supported usage records for the selected clients\b/.test(line)) {
+      codes.add('TOKSCALE_MISSING_USAGE')
+    } else codes.add('TOKSCALE_DIAGNOSTIC')
+  }
+  return [...codes].sort()
+}
+
 export async function collectTokscaleUsage(input: TokscaleOptions, context: TokenCollectionContext) {
   const options = optionsSchema.parse(input)
   // A valid scanner pin overrides TZ. Never silently mislabel another zone's
@@ -72,11 +84,9 @@ export async function collectTokscaleUsage(input: TokscaleOptions, context: Toke
       || (options.until && snapshot.identity.date > options.until))) throw new Error('日期超出请求范围')
     return {
       snapshots,
-      // Preserve that a diagnostic exists, without returning private stderr.
-      diagnostics: result.stderr.trim() ? ['tokscale_diagnostic'] : [],
-      // Only this exact pinned-version warning is known to concern prices.
-      // Every other stderr line makes source completeness unproven.
-      sourceDiagnostic: result.stderr.split('\n').filter(line => line.trim()).some(line => line.trim() !== 'tokscale: some usage is partial, unpriced, or has stale pricing; cost totals may be incomplete. Run `tokscale pricing explain --json --no-spinner` for local billing-channel details.'),
+      // Warnings describe the upstream result; they do not invalidate a
+      // successful, structurally consistent graph. Never expose raw stderr.
+      diagnostics: tokscaleDiagnostics(result.stderr),
     }
   } catch {
     throw new Error('Tokscale 输出不符合已验证契约；未生成汇总')

@@ -231,6 +231,8 @@ LifeSpace 是围绕个人日常信息的工作台。此文件统一项目中的�
 
 ## Token 用量术语
 
+**已记录用量**：来源统计工具根据现有记录报告的用量；未记录或未知的消费不推测为零。
+
 **来源 Agent**：产生用量记录的 coding agent 工具，例如 Codex；区别于所调用的模型或一次任务中的主代理、子代理。
 
 **采集设备**：具有独立身份、运行本地采集程序并提供用量记录的设备。
@@ -265,4 +267,4 @@ LifeSpace 是围绕个人日常信息的工作台。此文件统一项目中的�
 
 **持久化回执**：服务端明确确认某设备、主汇总归属、授权代际、快照版本与内容指纹已接收的结果；只能确认与其完全对应的本地待传快照。
 
-Token 统计决策见 [ADR0019](docs/adr/0019-token-local-rollup-contract.md)（原 Token ADR0016）、[授权代际](docs/adr/0017-token-device-generations.md)与[本地覆盖/队列](docs/adr/0018-token-source-coverage-and-local-queue.md)；旧机器绑定退役仍使用 main 的 ADR0016。
+Token 统计决策见 [ADR0019](docs/adr/0019-token-local-rollup-contract.md)（原 Token ADR0016）、[授权代际](docs/adr/0017-token-device-generations.md)、[本地覆盖/队列历史](docs/adr/0018-token-source-coverage-and-local-queue.md)与当前[已记录用量职责](docs/adr/0020-token-recorded-usage-authority.md)；旧机器绑定退役仍使用 main 的 ADR0016。

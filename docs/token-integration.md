@@ -1,5 +1,7 @@
 # Token 统一集成与验收（#219 / #205）
 
+> 当前统计职责已由2026-11-16用户在 #223 的决定更新：[ADR0020](adr/0020-token-recorded-usage-authority.md)要求信任 Tokscale 的有效已记录用量，不再以独立逐日志覆盖证明／warning冻结为前置；本文阶段05相关覆盖策略为历史。不可变队列、回执、未知值、缺席旧日期保留及真实验收门禁继续有效。
+
 阶段06的实际OS任务门禁、只读托管发现、具体用户设备/人工操作和外部授权安排见 [#221 验收执行单](token-acceptance.md)；各项仍按实际执行证据签认。
 
 2026-11-16用户已授权页面与新增数据功能直接上线，现有生产目标、纯新增迁移恢复范围和唯一累计PR220流程以[生产执行单](token-production-release.md)为当前依据；本文其余未授权/隔离环境阻塞记录保留为阶段05历史。
@@ -14,7 +16,7 @@
 
 - #79/#83：已实现 Node24 原生 SQLite、固定 Tokscale4.23.0、全量/增量缓存/显式重扫、系统标识应用专用派生、hostname、设备码与独立令牌、直传和心跳。真实用户来源与长期系统任务仍待验证。
 - #82：字段、模型 JSON key（未知 `null`）、缺失/null/0、精确十进制、内容白名单/规范化、服务器代际+本地单调版本、整体事务替换及精确回执已固定；见三份协议和 shared schema。
-- #85：输入含缓存、输出含推理且不重复相加；缓存率按合计 cacheRead/input；费用保留 actual/apiEstimate/unclassified 与 coverage；规则/价格修正可下降/删模型，来源缺失则保护旧可信结果。合成跨午夜/恢复/乱序已经验证；实际客户端继承/fork/归档来源与实体双设备仍待验。
+- #85：输入含缓存、输出含推理且不重复相加；缓存率按合计 cacheRead/input；费用保留 actual/apiEstimate/unclassified 与 coverage；规则/价格修正可下降/删模型；按ADR0020接受有效已记录统计，graph缺席的旧日期保留，来源诊断脱敏而不阻断。合成跨午夜/恢复/乱序已经验证；实际客户端继承/fork/归档来源与实体双设备仍待验。
 - #203：最终 `prototype-token-usage-v2` / copy-refinement 是正式界面基线，旧3D/导出/常驻详情文字已被后续决定替代。正式 `/token` 和设备确认页已实现，本阶段重新验证集成后页面，用户最终人工验收仍单列。
 
 Token 原 ADR0016 改为 [ADR0019](adr/0019-token-local-rollup-contract.md)，保留 [main ADR0016](adr/0016-remove-legacy-agent-bindings.md)；0017/0018继续保留，全部有效引用同步，前置提交不重写。阶段文档是当时范围记录，本文描述累计状态。
@@ -29,7 +31,7 @@ Token 原 ADR0016 改为 [ADR0019](adr/0019-token-local-rollup-contract.md)，�
 | 固定CLI与自动runtime依赖 / #83 | tools/token-collector/package*.json、tokscale-cli | 实际CLI；仓库外pack/install/12Token扫描/升级；Linux及macOS CI job | 已实现 | 本地通过；CI门禁通过¹ | 用户设备安装待验；CI合成不等同用户来源 | 未验 |
 | 系统ID域隔离派生、hostname独立 / #83 | local.systemDeviceId/deriveDeviceId、cli、heartbeat | 合成派生向量；安装包真实OS只读探针且不输出ID | 已实现 | 本地通过；CI门禁通过¹ | 用户macOS/Linux身份与重装待验 | 未验 |
 | 首次全量/文件增量/显式重扫 / #79/#83 | collector.scan、Tokscale cache、cli sync --rescan | token-collector / token-usage-cli、包真实扫描 | 已实现 | 本地通过；CI门禁通过¹ | 实际日志/客户端版本待验 | 未验 |
-| 来源缺失/截断/移动/前后竞态；更大数据仍不能覆盖 / #83/#85 | coverage、sources、collector保护日期 | token-collector：完整前缀/目录句柄/移动恢复/截断后新增更大用量 | 已实现 | 本地通过；CI门禁通过¹ | 实际归档/压缩/继承/fork仍待验 | 未验 |
+| Tokscale有效结果／警告不拦；真正失败保留旧值、缺席日不补0 / #223/ADR0020 | collector、输出适配、不可变队列 | token-collector／output：有效降值/删模型、absent日保留、无效/超时和stderr隐私 | 0.1.3已实现；旧覆盖证明策略被取代 | 新本地回归通过；新CI／复审以最终SHA为准 | 实际归档/压缩/继承/fork仍待验 | 未验 |
 | 价格初始化/更新、规则下降/模型移除 / #85 | prices、tokscale-adapter、saveScan | token-collector / token-collector-pricing；真实RPC下降/删除 | 已实现 | 本地通过；CI门禁通过¹ | 用户真实价格缓存/订阅实际费用可得性待验 | 未验 |
 | SQLite原子保存/不可变队列/运行互斥/崩溃恢复 / #83 | Store、run.sqlite、saveScan | 文件SQLite/kill恢复、精确body重试；包升级库字节不变 | 已实现 | 本地通过；CI门禁通过¹ | 长期设备运行待验 | 未验 |
 | A→B→A/单调版本/旧回执/丢回执/断网 / #82/#83 | Store.prepareSnapshots/ack/retry、transport | token-collector、token-backend-database、真实TLS回执丢失重启 | 已实现 | 本地通过；CI门禁通过¹ | 实体设备断网长期待验 | 未验 |
