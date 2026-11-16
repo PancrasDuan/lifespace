@@ -46,6 +46,8 @@
 
 ### 过渡客户端的只读协作契约
 
+2026-11-16 #224 补充：下面的严格只读协议继续为旧客户端保留。升级后的客户端另用[原封套恢复与本地解除](qa-pending-recovery.md)，由服务端区分当前模型的锁内幂等重试与旧封套只读核对；不再把持久化当前封套永久限制在 lookup。人工解除也不表示缺失回执证明了“未提交”。
+
 迁移完成、PostgREST schema 已刷新并经验证后，获准访问的新服务提供 `POST /api/adventure/receipts/lookup`。调用者必须使用原账户的有效会话，提交 `{requestId, expectedVersion, command, nonce}`：前三项来自持久化的原封套，`nonce` 是每次查询使用 `crypto.getRandomValues` 生成的 32 字节、64 位小写十六进制值，不持久化。Worker 校验格式，不接受客户端指定 owner，并按原命令规则规范化后调用仅 service_role 可执行的只读 RPC。该接口不需要新写入版本头，不创建账户，不执行命令、不发奖、不修改版本。跨账户相同编号按本账户查询；Worker 身份隔离不意味着数据库 service_role 自身受账户限制。
 
 - 同账户的编号和规范化命令摘要相同，且结果可安全返回：200，返回 `{requestId, nonce, receipt: {version, result}}`，`receipt` 是清理后的原成功回执，并携带 `X-Lifespace-Adventure-Model: goal-categories-1` 和 `Cache-Control: no-store`。客户端必须核对响应中的 requestId 与原持久封套一致、nonce 与本次查询一致，验证两个响应头及回执结构，缺失、错位或过期均保持未知。结果可包含已识别的可选 `result.source`，其非主线来源字段按实际回执保留；未知或无法安全识别的结构不重放。模型标识不是认证；nonce 仅用于关联查询与响应，不能抵御可主动篡改请求和响应的恶意代理。历史回执不保存 `expectedVersion`，该字段不参与摘要，接口不会证明它与第一次请求相同；调用方仍应保留原完整封套。

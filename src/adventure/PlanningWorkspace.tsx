@@ -17,6 +17,7 @@ import { Progress } from './PrototypeRecord'
 import { RecurringDialog } from './RecurringDialog'
 import type { RecurringView } from './RecurringTasks'
 import { PlanningToast } from './PlanningToast'
+import { PendingReview } from './PendingReview'
 import { PlanningLifecycle, lifecycleTitles } from './PlanningLifecycle'
 import { saveTerminalPreference } from './planning-preferences'
 import explorer from './pixel-explorer.png'
@@ -176,11 +177,17 @@ function Workspace() {
     if (dialog?.kind === 'recurring' && dialog.view.type === 'child') openRecurring({ type: 'parent', id: dialog.view.parentId })
     else close()
   }
-  const recovery = (uncertain || model.readRequired) && !busy ? <button type="button" onClick={() => {
+  const recovery = (uncertain || model.readRequired) && !busy ? <><button type="button" onClick={() => {
     void model.recover(recovered).then(type => {
       if (type === 'createGoal') selectTab('planning')
     })
-  }}>{uncertain ? model.recoveryLabel : '重新读取'}</button> : model.dateChanged && dialog ? <button type="button" disabled={busy} onClick={() => { void model.refreshDate() }}>刷新日期</button> : null
+  }}>{uncertain ? model.recoveryLabel : '重新读取'}</button>
+    {model.pendingReview && <PendingReview review={model.pendingReview} inspect={() => model.reviewPending()} release={async () => {
+      const released = await model.reviewPending(true)
+      if (released) recovered()
+      return released
+    }} />}
+  </> : model.dateChanged && dialog ? <button type="button" disabled={busy} onClick={() => { void model.refreshDate() }}>刷新日期</button> : null
   const cancelTask = async (task: PlanningTask) => {
     if (!task.completionId) return
     await model.command({ type: 'cancelTaskCompletion', completionId: task.completionId })

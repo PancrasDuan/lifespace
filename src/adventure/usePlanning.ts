@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useVerifiedIdentity } from '../auth/identity'
 import { planningEnvelopeSchema, type PlanningCommand, type PlanningEnvelope, type PlanningPage, type PlanningPreview, type PlanningQuery } from '../shared/adventure-planning'
-import type { StoredPlanningEnvelope } from '../shared/adventure-recovery'
+import { canRetryPlanningEnvelope, type StoredPlanningEnvelope } from '../shared/adventure-recovery'
 import { planningApi, PlanningError } from './planning-api'
 import { readTerminalPreference } from './planning-preferences'
 import { clearPending, PendingBusyError, readPending, savePending, watchPending, withPendingLock } from './pending-command'
@@ -38,6 +38,7 @@ export function usePlanning(enabled = true) {
   const [notice, setNotice] = useState<{ id: string; message: string }>()
   const clearNotice = useCallback(() => setNotice(undefined), [])
   const [uncertain, setUncertain] = useState(false)
+  const [pendingReview, setPendingReview] = useState<{ envelope: StoredPlanningEnvelope; reason: string; read: boolean }>()
   const [storageReady, setStorageReady] = useState(false)
   const [readRequired, setReadRequired] = useState(true)
   const lifecycle = useRef(new AbortController())
@@ -45,10 +46,6 @@ export function usePlanning(enabled = true) {
   const submitting = useRef(false)
   const current = useRef<PlanningPage | undefined>(undefined)
   const pending = useRef<StoredPlanningEnvelope | undefined>(undefined)
-  // Only this mounted page's own new command can use the normal retry path.
-  // A record loaded from storage always uses the read-only lookup.
-  const pendingIsCurrent = useRef(false)
-  const pendingWasUncertain = useRef(false)
   const syncStorage = useRef<() => Promise<void>>(async () => {})
   // A retry keeps its original UI origin even if that view has since closed.
   const pendingOrigin = useRef(0)
@@ -82,6 +79,7 @@ export function usePlanning(enabled = true) {
     active.current = true
     setBusy(true)
     setError('')
+    setPendingReview(undefined)
     try { await refresh(signal()); return true }
     catch { if (!epoch.signal.aborted && !identity.signal.aborted) { setReadRequired(true); setError('暂时无法读取人生冒险，请检查连接后重新读取。') }; return false }
     finally { if (lifecycle.current === epoch && !epoch.signal.aborted) { active.current = false; setBusy(false) } }
@@ -91,7 +89,6 @@ export function usePlanning(enabled = true) {
     if (active.current) return false
     const epoch = lifecycle.current
     const requestSignal = signal()
-    const wasUnknown = pendingWasUncertain.current
     active.current = true
     setBusy(true)
     setError('')
@@ -104,7 +101,6 @@ export function usePlanning(enabled = true) {
       identity.signal.throwIfAborted()
       minimumVersion.current = Math.max(minimumVersion.current, receipt.version)
       pending.current = undefined
-      pendingIsCurrent.current = false
       if (envelope.command.type === 'achieveGoal') setLastAchievement(receipt.result.entityId)
       setUncertain(false)
       setNotice({ id: envelope.requestId, message: receipt.result.message })
@@ -114,14 +110,12 @@ export function usePlanning(enabled = true) {
       return true
     } catch (failure) {
       if (epoch.signal.aborted || identity.signal.aborted) return false
-      const fault = wasUnknown ? new PlanningError('操作结果尚未确认，请先确认原操作结果。', 0, true) : failure instanceof PlanningError ? failure : new PlanningError('保存结果未知，请安全重试', 0, true)
+      const fault = failure instanceof PlanningError ? failure : new PlanningError('保存结果未知，请安全重试', 0, true)
       setUncertain(fault.uncertain)
-      // A later failure cannot prove that an earlier unknown request did not commit.
-      if (fault.uncertain) { pendingWasUncertain.current = true; if ('today' in envelope.command) pendingIsCurrent.current = false }
       if (fault.code === 'PLANNING_DATE_CHANGED') setDateChanged(true)
       setError(fault.message)
       if (!fault.uncertain) {
-        try { await clearPending(identity.ownerId, envelope, AbortSignal.any([identity.signal, epoch.signal])); pending.current = undefined; pendingIsCurrent.current = false }
+        try { await clearPending(identity.ownerId, envelope, AbortSignal.any([identity.signal, epoch.signal])); pending.current = undefined }
         catch { setUncertain(true); setError('无法确认本地保存状态，请保留此页面并稍后重试。'); return false }
         if (fault.status === 409) {
           try { await refresh(requestSignal); setError(fault.code === 'PLANNING_DATE_CHANGED' ? '日期已变化，本次操作未保存。请刷新日期后重新确认。' : '数据已更新，请检查最新内容后再次确认原操作。') }
@@ -144,12 +138,10 @@ export function usePlanning(enabled = true) {
       return await withPendingLock(identity.ownerId, async () => {
         identity.signal.throwIfAborted()
         const prior = await readPending(identity.ownerId)
-        if (prior) { pending.current = prior; pendingIsCurrent.current = false; setUncertain(true); setError('有一项操作的结果尚未确认，请先确认结果；如果仍无法确认，请联系管理员核对。'); return false }
+        if (prior) { pending.current = prior; setUncertain(true); setError('有一项操作的结果尚未确认，请先确认结果；如果仍无法确认，请联系管理员核对。'); return false }
         await savePending(identity.ownerId, envelope, AbortSignal.any([identity.signal, lifecycle.current.signal]))
         pendingOrigin.current = confirmationGeneration.current
-        pendingWasUncertain.current = false
         pending.current = envelope
-        pendingIsCurrent.current = true
         return send(envelope)
       }, true)
     } catch (error) {
@@ -219,21 +211,27 @@ export function usePlanning(enabled = true) {
         identity.signal.throwIfAborted()
         const stored = await readPending(identity.ownerId)
         if (!stored || JSON.stringify(stored) !== JSON.stringify(envelope)) throw new Error('Pending command changed')
-        if (pendingIsCurrent.current) {
-          const parsed = planningEnvelopeSchema.safeParse(stored)
-          if (!parsed.success) throw new Error('Invalid current command')
-          return send(parsed.data)
-        }
         const epoch = lifecycle.current
         if (active.current) return false
-        active.current = true; setBusy(true); setError('')
+        active.current = true; setBusy(true); setError(''); setPendingReview(undefined)
         try {
-          const receipt = await planningApi.lookupReceipt(identity.ownerId, stored, signal())
+          const result = await planningApi.recover(identity.ownerId, stored, signal())
+          epoch.signal.throwIfAborted(); identity.signal.throwIfAborted()
+          if (result.outcome === 'review') {
+            const reason = result.code === 'VERSION_CONFLICT' ? '数据版本已变化，原操作未在本次重试中执行。'
+              : result.code === 'PLANNING_DATE_CHANGED' ? '规划日期已变化，原操作未在本次重试中执行。'
+              : '旧版操作没有可用回执，当前版本无法安全重试；这不能证明原操作未保存。'
+            setPendingReview({ envelope: stored, reason, read: false })
+            setReadRequired(true)
+            setError(reason + '请先重新读取并核对事实，再决定是否解除本地待确认状态。')
+            return false
+          }
+          const receipt = result.receipt
           epoch.signal.throwIfAborted(); identity.signal.throwIfAborted()
           await clearPending(identity.ownerId, stored, AbortSignal.any([identity.signal, epoch.signal]))
           epoch.signal.throwIfAborted(); identity.signal.throwIfAborted()
           minimumVersion.current = Math.max(minimumVersion.current, receipt.version)
-          pending.current = undefined; pendingIsCurrent.current = false; setUncertain(false)
+          pending.current = undefined; setUncertain(false)
           if (stored.command.type === 'achieveGoal') setLastAchievement(receipt.result.entityId)
           setNotice({ id: stored.requestId, message: receipt.result.message }); setReadRequired(true)
           try { await refresh(signal()) }
@@ -256,12 +254,49 @@ export function usePlanning(enabled = true) {
     if (success) return envelope.command.type
   }
 
+  const reviewPending = async (release = false) => {
+    if (!pendingReview || active.current || submitting.current || !storageReady || (release && !pendingReview.read)) return false
+    const shown = pendingReview
+    const epoch = lifecycle.current
+    submitting.current = true
+    active.current = true; setBusy(true); setError('')
+    try {
+      return await withPendingLock(identity.ownerId, async () => {
+        epoch.signal.throwIfAborted(); identity.signal.throwIfAborted()
+        const stored = await readPending(identity.ownerId)
+        if (!stored || JSON.stringify(stored) !== JSON.stringify(shown.envelope)) throw new Error('Pending command changed')
+        if (release) {
+          await clearPending(identity.ownerId, stored, AbortSignal.any([identity.signal, epoch.signal]))
+          epoch.signal.throwIfAborted(); identity.signal.throwIfAborted()
+          pending.current = undefined
+          setUncertain(false); setPendingReview(undefined); invalidateConfirmation()
+          setNotice({ id: stored.requestId, message: '已解除本地待确认状态，请以重新读取的业务事实为准。' })
+        }
+        setReadRequired(true)
+        await refresh(signal())
+        epoch.signal.throwIfAborted(); identity.signal.throwIfAborted()
+        if (!release) setPendingReview({ ...shown, read: true })
+        return true
+      }, true)
+    } catch (failure) {
+      if (!epoch.signal.aborted && !identity.signal.aborted) {
+        setReadRequired(true)
+        // Storage/lock/read failure revokes the previous review.
+        if (pending.current) setPendingReview({ ...shown, read: false })
+        setError(failure instanceof PendingBusyError ? '另一页面正在处理操作，请稍后重新读取并核对。'
+          : pending.current ? '无法完成读取或核对本地记录，请保留待确认状态后重试。' : '本地待确认状态已解除，页面更新失败，请重新读取。')
+      }
+      return false
+    } finally {
+      if (lifecycle.current === epoch && !epoch.signal.aborted && !identity.signal.aborted) { submitting.current = false; active.current = false; setBusy(false) }
+    }
+  }
+
   useEffect(() => {
     const controller = new AbortController()
     lifecycle.current = controller
     current.current = undefined
     pending.current = undefined
-    pendingIsCurrent.current = false
     invalidateConfirmation()
     minimumVersion.current = 0
     query.current = initialQuery(readTerminalPreference(identity.ownerId))
@@ -271,6 +306,7 @@ export function usePlanning(enabled = true) {
     setError('')
     setNotice(undefined)
     setUncertain(false)
+    setPendingReview(undefined)
     setStorageReady(false)
     setReadRequired(true)
     const sync = async () => {
@@ -278,8 +314,8 @@ export function usePlanning(enabled = true) {
         const stored = await withPendingLock(identity.ownerId, () => readPending(identity.ownerId))
         if (controller.signal.aborted || identity.signal.aborted) return
         const prior = pending.current
-        if (!prior || !stored || JSON.stringify(prior) !== JSON.stringify(stored)) pendingIsCurrent.current = false
         pending.current = stored
+        setPendingReview(undefined)
         setUncertain(Boolean(stored)); setStorageReady(true)
         if (stored) setError('有一项操作的结果尚未确认，请先确认结果；如果仍无法确认，请联系管理员核对。')
         else if (enabled && !current.current) void load()
@@ -304,5 +340,5 @@ export function usePlanning(enabled = true) {
     stale: !confirmationPreview || confirmationPreview.value.version !== data?.version,
     blocked, refresh: preview, confirm, invalidate: invalidateConfirmation,
   }
-  return { dateChanged, refreshDate: async () => { if (await load()) setDateChanged(false) }, lastAchievement, clearGoal, canLoad, data, busy, blocked, storageReady, recoveryLabel: pendingIsCurrent.current ? '安全重试同一次操作' : '确认上次操作结果', error, clearError, notice, clearNotice, uncertain, readRequired, command, load, confirmation, recover }
+  return { dateChanged, refreshDate: async () => { if (await load()) setDateChanged(false) }, lastAchievement, clearGoal, canLoad, data, busy, blocked, storageReady, recoveryLabel: pending.current && canRetryPlanningEnvelope(pending.current) ? '安全重试同一次操作' : '确认上次操作结果', error, clearError, notice, clearNotice, uncertain, readRequired, command, load, confirmation, recover, pendingReview, reviewPending }
 }

@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { startTokenRegistration, claimTokenRegistration, inspectTokenRegistration, decideTokenRegistration, disableTokenDevice, queryTokenDashboard, queryTokenDevices, summarizeTokenDashboard } from './token-usage'
 import { listLedger, detailLedger, createLedger, createLedgerEntry, createLedgerRefund, createLedgerTransfer, refundLedger, previewLedgerDelete, deleteLedger, listLedgerAccounts, readLedgerAccounts, createLedgerAccount, updateLedgerAccount } from './ledger'
-import { readRecurringList, readRecurringParent, readRecurringChildren, readRecurringChild, readDateTaskList, readTaskList, readRewardSource, readGrowth, readTaskHistory, readMigrationOptions, readPlanning, previewPlanning, commandPlanning, lookupPlanningReceipt, oldClientUnavailable } from './adventure/planning'
+import { readRecurringList, readRecurringParent, readRecurringChildren, readRecurringChild, readDateTaskList, readTaskList, readRewardSource, readGrowth, readTaskHistory, readMigrationOptions, readPlanning, previewPlanning, commandPlanning, lookupPlanningReceipt, recoverPlanning, oldClientUnavailable } from './adventure/planning'
 import { adventureClientVersion, adventureClientVersionHeader, planningCompatibility } from '../src/shared/adventure-client-version'
 import { readHoroscope } from './horoscope'
 import { readTasks } from './tasks'
@@ -168,6 +168,7 @@ app.get('/api/adventure/compatibility', c => c.json(planningCompatibility))
 app.post('/api/adventure/legacy-retry', () => { throw oldClientUnavailable() })
 app.post('/api/adventure/preview', previewPlanning)
 app.post('/api/adventure/receipts/lookup', lookupPlanningReceipt)
+app.post('/api/adventure/recovery', recoverPlanning)
 app.post('/api/adventure/commands', commandPlanning)
 app.get('/api/tasks/today', async c => c.json(await readTasks(c.env, c.req.query('timeZone'))))
 app.get('/api/domains', async c => c.json(await readDomainCard(c.env)))

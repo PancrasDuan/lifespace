@@ -129,7 +129,7 @@ try {
   const suites = [
     'adventure-recurring', 'adventure-category', 'adventure-task-edit', 'adventure-task-delete', 'adventure-actions',
     'adventure-overdue', 'adventure-date-list', 'adventure-future-completion', 'adventure-lifecycle',
-    'adventure-reschedule', 'adventure-growth', 'adventure-integration', 'adventure-goal-relations',
+    'adventure-reschedule', 'adventure-growth', 'adventure-integration', 'adventure-goal-relations', 'adventure-recovery',
   ].map(name => `tests/api/${name}-database.test.ts`)
   let httpFailure
   try { run(process.execPath,['node_modules/vitest/vitest.mjs','run',...suites,'--maxWorkers=2','--reporter=json',`--outputFile=${report}`],{
@@ -144,7 +144,7 @@ try {
   console.log(`PASS: real RPC + Worker HTTP ${result.numPassedTests} tests, 0 skipped`)
   if (process.argv.includes('--browser')) {
     const browserReport = join(root, '.cache/recurring-browser-report.json')
-    run(process.execPath, ['node_modules/@playwright/test/cli.js', 'test', 'adventure-recurring-database.spec.ts', '--reporter=json', '--output=.cache/recurring-browser-results'], {
+    run(process.execPath, ['node_modules/@playwright/test/cli.js', 'test', 'adventure-recurring-database.spec.ts', 'adventure-recovery-database.spec.ts', '--reporter=json', '--output=.cache/recurring-browser-results'], {
       env: { ...env, ADVENTURE_LOCAL_RPC_URL: url, PLAYWRIGHT_PORT: process.env.PLAYWRIGHT_PORT || '5231', PLAYWRIGHT_JSON_OUTPUT_FILE: browserReport }, stdio: 'inherit',
     })
     const browser = JSON.parse(await readFile(browserReport, 'utf8'))

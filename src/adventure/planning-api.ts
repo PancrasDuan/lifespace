@@ -8,7 +8,7 @@ import {
   recurringListSchema, recurringParentDetailSchema,
   type DateTaskListInput, type RecurringChildrenInput, type RecurringDetailInput, type RecurringListInput,
 } from '../shared/adventure-recurring'
-import type { StoredPlanningEnvelope } from '../shared/adventure-recovery'
+import { canRetryPlanningEnvelope, planningRecoveryHeader, planningRecoverySchema, planningRecoveryVersion, type StoredPlanningEnvelope } from '../shared/adventure-recovery'
 import { recurringCommandSchema, taskListSchema, type TaskListInput, taskHistorySchema, migrationOptionsSchema, planningPageSchema, planningReceiptSchema, planningPreviewSchema, type PlanningEnvelope, type PlanningCommand, type PlanningQuery } from '../shared/adventure-planning'
 
 export class PlanningError extends Error {
@@ -63,6 +63,19 @@ async function readPinned<T extends { version: number; today: string }>(response
   return result
 }
 export const planningApi = {
+  async recover(owner: string, envelope: StoredPlanningEnvelope, signal: AbortSignal) {
+    const uncertain = () => new PlanningError('操作结果尚未确认，请稍后再次确认；如仍无法确认，请联系管理员核对，暂勿重复操作。', 0, true)
+    try {
+      const nonce = Array.from(crypto.getRandomValues(new Uint8Array(32)), byte => byte.toString(16).padStart(2, '0')).join('')
+      const response = await authorizedMutation('/api/adventure/recovery', JSON.stringify({ ...envelope, nonce }), signal, owner, 'POST', { [adventureClientVersionHeader]: adventureClientVersion })
+      if (!response.ok || response.headers.get(planningRecoveryHeader) !== planningRecoveryVersion || !noStore(response)) throw uncertain()
+      const result = await read(response, planningRecoverySchema, true)
+      if (result.requestId !== envelope.requestId || result.nonce !== nonce) throw uncertain()
+      // A current envelope can never be classified as a missing legacy receipt.
+      if (result.outcome === 'review' && (result.code === 'LEGACY_RECEIPT_MISSING') === canRetryPlanningEnvelope(envelope)) throw uncertain()
+      return result
+    } catch { throw uncertain() }
+  },
   async lookupReceipt(owner: string, envelope: StoredPlanningEnvelope, signal: AbortSignal) {
     const uncertain = () => new PlanningError('操作结果尚未确认，请稍后再次确认；如仍无法确认，请联系管理员核对，暂勿重复操作。', 0, true)
     try {

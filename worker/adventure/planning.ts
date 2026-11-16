@@ -6,7 +6,7 @@ import { readBoundedBody, BodyLimitError } from '../read-body'
 import { ApiError } from '../upstream'
 import { traceUpstreamFailure, traceUpstreamStatus, upstreamFailureType } from '../trace'
 import { adventureClientVersion, adventureClientVersionHeader, adventureReceiptModel } from '../../src/shared/adventure-client-version'
-import { storedPlanningEnvelopeSchema } from '../../src/shared/adventure-recovery'
+import { canRetryPlanningEnvelope, planningRecoveryHeader, planningRecoveryInputSchema, planningRecoveryVersion, storedPlanningEnvelopeSchema } from '../../src/shared/adventure-recovery'
 import {
   recurringListInputSchema, recurringDetailInputSchema, recurringChildrenInputSchema,
   recurringListSchema, recurringParentDetailSchema, recurringChildrenSchema, recurringChildDetailSchema,
@@ -146,6 +146,31 @@ export async function lookupPlanningReceipt(c: PlanningContext) {
   }, planningReceiptSchema)
   c.header('X-Lifespace-Adventure-Model', adventureReceiptModel)
   return c.json({ requestId: value.requestId, nonce: value.nonce, receipt })
+}
+
+export async function recoverPlanning(c: PlanningContext) {
+  if (c.req.header(adventureClientVersionHeader) !== adventureClientVersion) throw oldClientUnavailable()
+  const { nonce, ...envelope } = await input(c, planningRecoveryInputSchema)
+  const retryable = canRetryPlanningEnvelope(envelope)
+  const binding = { requestId: envelope.requestId, nonce }
+  let result
+  try {
+    // The RPC locks the account, reads the original receipt BEFORE date/version
+    // validation and applies at most once. Never upgrade a legacy command.
+    const receipt = retryable
+      ? await rpc(c, 'adventure_planning_command', { p_request_id: envelope.requestId, p_expected_version: envelope.expectedVersion, p_command: envelope.command }, planningReceiptSchema)
+      : await rpc(c, 'adventure_receipt_lookup', { p_request_id: envelope.requestId, p_command: envelope.command }, planningReceiptSchema)
+    result = { ...binding, outcome: 'confirmed' as const, receipt }
+  } catch (failure) {
+    if (!(failure instanceof ApiError)) throw failure
+    if (retryable && (failure.code === 'VERSION_CONFLICT' || failure.code === 'PLANNING_DATE_CHANGED'))
+      result = { ...binding, outcome: 'review' as const, code: failure.code }
+    else if (!retryable && failure.code === 'RECEIPT_UNKNOWN')
+      result = { ...binding, outcome: 'review' as const, code: 'LEGACY_RECEIPT_MISSING' }
+    else throw failure
+  }
+  c.header(planningRecoveryHeader, planningRecoveryVersion)
+  return c.json(result)
 }
 
 export async function readMigrationOptions(c: PlanningContext) {
