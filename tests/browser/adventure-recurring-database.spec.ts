@@ -148,7 +148,7 @@ test.describe('周期集成：真实浏览器 → Node app.request Worker → HT
     await capture(page, 'growth-attribution-1440')
   })
 
-  test('真实提交丢响应后刷新只读恢复、同封套/异摘要、成功后只重读', async ({ page, context }) => {
+  test('真实提交丢响应后刷新幂等恢复、同封套/异摘要、成功后只重读', async ({ page, context }) => {
     const id = await seed('回执恢复', 3), envelopes: unknown[] = [], lookups: unknown[] = []
     await page.goto('/adventure')
     let lose = true
@@ -159,11 +159,11 @@ test.describe('周期集成：真实浏览器 → Node app.request Worker → HT
       if (lose) { lose = false; await route.abort('failed') }
       else await route.fulfill({ status: response.status, headers: Object.fromEntries(response.headers), body: await response.text() })
     })
-    await context.route('**/api/adventure/receipts/lookup', async route => { lookups.push(route.request().postDataJSON()); await route.fallback() })
+    await context.route('**/api/adventure/recovery', async route => { lookups.push(route.request().postDataJSON()); await route.fallback() })
     await page.getByRole('button', { name: '记录一次', exact: true }).click()
-    await expect(page.getByRole('button', { name: '确认上次操作结果', exact: true })).toBeVisible()
+    await expect(page.getByRole('button', { name: '安全重试同一次操作', exact: true })).toBeVisible()
     const committed = await db.snapshot()
-    await page.reload(); await page.getByRole('button', { name: '确认上次操作结果', exact: true }).click()
+    await page.reload(); await page.getByRole('button', { name: '安全重试同一次操作', exact: true }).click()
     await expect.poll(() => lookups.length).toBe(1)
     await expect(page.getByRole('button', { name: '记录一次', exact: true })).toBeEnabled()
     expect(envelopes).toHaveLength(1); expect(lookups[0]).toMatchObject(envelopes[0] as Record<string, unknown>)

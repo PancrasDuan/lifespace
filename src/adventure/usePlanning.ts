@@ -12,6 +12,7 @@ const initialQuery = (includeTerminal = false): PlanningQuery => ({ page: 1, tas
 
 type ConfirmationCommand = Extract<PlanningCommand, { type: 'endGoal' | 'deleteTask' | 'achieveGoal' | 'rescheduleTask' | 'cancelTaskCompletion' | 'endRecurringTask' | 'deleteRecurringTask' }>
 type ConfirmationPreview = { command: ConfirmationCommand; value: PlanningPreview }
+export type PendingReviewState = { envelope: StoredPlanningEnvelope; reason: string; read: boolean }
 export type PlanningConfirmation = {
   preview?: PlanningPreview; stale: boolean; blocked: boolean;
   refresh: (command?: ConfirmationCommand, ready?: () => void) => Promise<void>;
@@ -38,7 +39,12 @@ export function usePlanning(enabled = true) {
   const [notice, setNotice] = useState<{ id: string; message: string }>()
   const clearNotice = useCallback(() => setNotice(undefined), [])
   const [uncertain, setUncertain] = useState(false)
-  const [pendingReview, setPendingReview] = useState<{ envelope: StoredPlanningEnvelope; reason: string; read: boolean }>()
+  const [pendingReview, setPendingReviewState] = useState<PendingReviewState>()
+  const currentPendingReview = useRef<PendingReviewState | undefined>(undefined)
+  const setPendingReview = useCallback((value?: PendingReviewState) => {
+    currentPendingReview.current = value
+    setPendingReviewState(value)
+  }, [])
   const [storageReady, setStorageReady] = useState(false)
   const [readRequired, setReadRequired] = useState(true)
   const lifecycle = useRef(new AbortController())
@@ -72,18 +78,23 @@ export function usePlanning(enabled = true) {
   }, [identity.ownerId, identity.signal])
 
   const load = useCallback(async (filters: Partial<PlanningQuery> = {}) => {
-    if (active.current || pending.current) return
+    if (active.current || (pending.current && !currentPendingReview.current?.read)) return
     // Keep requested filters for safe read recovery after a failed query.
     query.current = { ...query.current, ...filters }
     const epoch = lifecycle.current
     active.current = true
     setBusy(true)
     setError('')
-    setPendingReview(undefined)
     try { await refresh(signal()); return true }
-    catch { if (!epoch.signal.aborted && !identity.signal.aborted) { setReadRequired(true); setError('暂时无法读取人生冒险，请检查连接后重新读取。') }; return false }
+    catch {
+      if (!epoch.signal.aborted && !identity.signal.aborted) {
+        if (currentPendingReview.current) setPendingReview({ ...currentPendingReview.current, read: false })
+        setReadRequired(true); setError('暂时无法读取人生冒险，请检查连接后重新读取。')
+      }
+      return false
+    }
     finally { if (lifecycle.current === epoch && !epoch.signal.aborted) { active.current = false; setBusy(false) } }
-  }, [refresh, identity.signal])
+  }, [refresh, identity.signal, setPendingReview])
 
   const send = useCallback(async (envelope: PlanningEnvelope) => {
     if (active.current) return false
@@ -200,6 +211,7 @@ export function usePlanning(enabled = true) {
 
   const recover = async (saved: () => void) => {
     if (active.current || submitting.current) return
+    const epoch = lifecycle.current
     if (!storageReady) { await syncStorage.current(); return }
     if (!pending.current) { await load(); return }
     const generation = pendingOrigin.current
@@ -208,10 +220,10 @@ export function usePlanning(enabled = true) {
     submitting.current = true
     try {
       success = await withPendingLock(identity.ownerId, async () => {
-        identity.signal.throwIfAborted()
+        epoch.signal.throwIfAborted(); identity.signal.throwIfAborted()
         const stored = await readPending(identity.ownerId)
+        epoch.signal.throwIfAborted(); identity.signal.throwIfAborted()
         if (!stored || JSON.stringify(stored) !== JSON.stringify(envelope)) throw new Error('Pending command changed')
-        const epoch = lifecycle.current
         if (active.current) return false
         active.current = true; setBusy(true); setError(''); setPendingReview(undefined)
         try {
@@ -220,7 +232,8 @@ export function usePlanning(enabled = true) {
           if (result.outcome === 'review') {
             const reason = result.code === 'VERSION_CONFLICT' ? '数据版本已变化，原操作未在本次重试中执行。'
               : result.code === 'PLANNING_DATE_CHANGED' ? '规划日期已变化，原操作未在本次重试中执行。'
-              : '旧版操作没有可用回执，当前版本无法安全重试；这不能证明原操作未保存。'
+              : result.code === 'LEGACY_RECEIPT_MISSING' ? '旧版操作没有可用回执，当前版本无法安全重试；这不能证明原操作未保存。'
+              : `${result.message ?? '原操作已无法按原条件执行'}。本次重试未保存。`
             setPendingReview({ envelope: stored, reason, read: false })
             setReadRequired(true)
             setError(reason + '请先重新读取并核对事实，再决定是否解除本地待确认状态。')
@@ -245,11 +258,11 @@ export function usePlanning(enabled = true) {
         }
       }, true)
     } catch (error) {
-      if (!identity.signal.aborted) {
+      if (!epoch.signal.aborted && !identity.signal.aborted) {
         setUncertain(true)
         setError(error instanceof PendingBusyError ? '另一页面正在处理操作，请稍后再次确认。' : '浏览器无法安全读取操作，请检查浏览器存储后重试。')
       }
-    } finally { submitting.current = false }
+    } finally { if (lifecycle.current === epoch) submitting.current = false }
     finishConfirmation(success, generation, saved)
     if (success) return envelope.command.type
   }
@@ -302,6 +315,8 @@ export function usePlanning(enabled = true) {
     query.current = initialQuery(readTerminalPreference(identity.ownerId))
     setLastAchievement(undefined)
     active.current = false
+    submitting.current = false
+    setBusy(false)
     setData(undefined)
     setError('')
     setNotice(undefined)
@@ -332,13 +347,14 @@ export function usePlanning(enabled = true) {
   }, [load, enabled, invalidateConfirmation])
 
   const clearGoal = useCallback(() => { query.current = { ...query.current, goalId: undefined, goalTaskPage: 1, page: 1 } }, [])
-  const canLoad = useCallback(() => !active.current && !pending.current, [])
+  const canLoad = useCallback(() => !active.current && (!pending.current || !!currentPendingReview.current?.read), [])
 
   const blocked = busy || uncertain || readRequired || !storageReady
+  const readBlocked = busy || readRequired || !storageReady || (uncertain && !pendingReview?.read)
   const confirmation: PlanningConfirmation = {
     preview: confirmationPreview?.value,
     stale: !confirmationPreview || confirmationPreview.value.version !== data?.version,
     blocked, refresh: preview, confirm, invalidate: invalidateConfirmation,
   }
-  return { dateChanged, refreshDate: async () => { if (await load()) setDateChanged(false) }, lastAchievement, clearGoal, canLoad, data, busy, blocked, storageReady, recoveryLabel: pending.current && canRetryPlanningEnvelope(pending.current) ? '安全重试同一次操作' : '确认上次操作结果', error, clearError, notice, clearNotice, uncertain, readRequired, command, load, confirmation, recover, pendingReview, reviewPending }
+  return { dateChanged, refreshDate: async () => { if (await load()) setDateChanged(false) }, lastAchievement, clearGoal, canLoad, data, busy, blocked, readBlocked, storageReady, recoveryLabel: pending.current && canRetryPlanningEnvelope(pending.current) ? '安全重试同一次操作' : '确认上次操作结果', error, clearError, notice, clearNotice, uncertain, readRequired, command, load, confirmation, recover, pendingReview, reviewPending }
 }

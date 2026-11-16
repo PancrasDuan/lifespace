@@ -1,8 +1,8 @@
 import { useId, useState } from 'react'
-import type { StoredPlanningEnvelope } from '../shared/adventure-recovery'
+import type { PendingReviewState } from './usePlanning'
 
 export function PendingReview({ review, inspect, release }: {
-  review: { envelope: StoredPlanningEnvelope; reason: string; read: boolean }
+  review: PendingReviewState
   inspect: () => Promise<boolean>; release: () => Promise<boolean>
 }) {
   const [checked, setChecked] = useState(false)

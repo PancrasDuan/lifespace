@@ -44,9 +44,16 @@ export const planningRecoveryInputSchema = z.strictObject({
 // Only failures checked after the database's account lock and receipt check
 // can authorize review. In particular INVALID_COMMAND and REPLAY_UNAVAILABLE
 // cannot establish that an earlier unknown write did not commit.
-export const recoveryReviewCodeSchema = z.enum(['VERSION_CONFLICT', 'PLANNING_DATE_CHANGED', 'LEGACY_RECEIPT_MISSING'])
+export const recoveryRejectionCodeSchema = z.enum([
+  'VERSION_CONFLICT', 'PLANNING_DATE_CHANGED', 'COMPLETION_CHANGED',
+  'RESCHEDULE_PAST', 'DATE_LOCKED', 'DATE_STARTED', 'TASK_NOT_PENDING',
+  'PENDING_TASKS', 'PENDING_RECURRING_TASKS', 'PERIOD_FULL', 'RECURRING_NOT_STARTED',
+  'RECURRING_ALREADY_STARTED', 'RECURRING_START_PAST', 'SAME_DESTINATION', 'SAME_DATE',
+  'NOT_FOUND', 'READ_ONLY', 'CAPACITY_REACHED',
+])
+export const recoveryReviewCodeSchema = z.union([recoveryRejectionCodeSchema, z.literal('LEGACY_RECEIPT_MISSING')])
 const recoveryBinding = { requestId: z.string(), nonce: z.string().regex(/^[0-9a-f]{64}$/) }
 export const planningRecoverySchema = z.discriminatedUnion('outcome', [
   z.strictObject({ ...recoveryBinding, outcome: z.literal('confirmed'), receipt: planningReceiptSchema }),
-  z.strictObject({ ...recoveryBinding, outcome: z.literal('review'), code: recoveryReviewCodeSchema }),
+  z.strictObject({ ...recoveryBinding, outcome: z.literal('review'), code: recoveryReviewCodeSchema, message: z.string().max(500).optional() }),
 ])

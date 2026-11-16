@@ -55,4 +55,19 @@ describe.skipIf(!localPlanningRpc)('原封套恢复真实事务', () => {
     expect(await (await recover(owner, legacy)).json()).toMatchObject({ outcome: 'review', code: 'LEGACY_RECEIPT_MISSING' })
     expect(await db.read(owner)).toEqual(committed)
   })
+
+  it('版本未变但跨天的创建和取消明确拒绝，可人工核对且没有副作用', async () => {
+    const owner = crypto.randomUUID(), before = await db.read(owner)
+    const past = new Date(Date.parse(`${before.today}T00:00:00Z`) - 86_400_000).toISOString().slice(0, 10)
+    const missed = db.envelope(before.version, { type: 'createTask', title: '昨日未提交', description: '', plannedOn: past, destination: '' })
+    expect(await (await recover(owner, missed)).json()).toMatchObject({ outcome: 'review', code: 'RESCHEDULE_PAST' })
+    expect(await db.read(owner)).toEqual(before)
+    await db.createHistoricalTask(owner, { type: 'createTask', title: '昨日完成', description: '', plannedOn: past, destination: '' }, past)
+    const completed = await db.read(owner, '?taskRange=past')
+    const completionId = completed.tasks[0].completionId
+    if (!completionId) throw new Error('历史完成缺少 completionId')
+    const cancellation = db.envelope(completed.version, { type: 'cancelTaskCompletion', completionId })
+    expect(await (await recover(owner, cancellation)).json()).toMatchObject({ outcome: 'review', code: 'DATE_LOCKED' })
+    expect(await db.read(owner, '?taskRange=past')).toEqual(completed)
+  })
 })

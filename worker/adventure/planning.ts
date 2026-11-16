@@ -6,7 +6,7 @@ import { readBoundedBody, BodyLimitError } from '../read-body'
 import { ApiError } from '../upstream'
 import { traceUpstreamFailure, traceUpstreamStatus, upstreamFailureType } from '../trace'
 import { adventureClientVersion, adventureClientVersionHeader, adventureReceiptModel } from '../../src/shared/adventure-client-version'
-import { canRetryPlanningEnvelope, planningRecoveryHeader, planningRecoveryInputSchema, planningRecoveryVersion, storedPlanningEnvelopeSchema } from '../../src/shared/adventure-recovery'
+import { canRetryPlanningEnvelope, planningRecoveryHeader, planningRecoveryInputSchema, planningRecoveryVersion, recoveryRejectionCodeSchema, storedPlanningEnvelopeSchema } from '../../src/shared/adventure-recovery'
 import {
   recurringListInputSchema, recurringDetailInputSchema, recurringChildrenInputSchema,
   recurringListSchema, recurringParentDetailSchema, recurringChildrenSchema, recurringChildDetailSchema,
@@ -90,12 +90,12 @@ async function rpc<T>(c: PlanningContext, name: string, parameters: Record<strin
   }
 }
 
-async function input<T>(c: PlanningContext, schema: z.ZodType<T>): Promise<T> {
+async function input<T>(c: PlanningContext, schema: z.ZodType<T>, byteLimit = 32_768): Promise<T> {
   if (!/^application\/json(?:;|$)/i.test(c.req.header('Content-Type') ?? ''))
     throw new ApiError('INVALID_COMMAND', '请发送 JSON 命令', 400)
   try {
     if (!c.req.raw.body) throw new Error('empty')
-    return schema.parse(JSON.parse(await readBoundedBody(c.req.raw.body, 32_768, 5_000)))
+    return schema.parse(JSON.parse(await readBoundedBody(c.req.raw.body, byteLimit, 5_000)))
   } catch (error) {
     throw new ApiError(error instanceof BodyLimitError ? 'COMMAND_TOO_LARGE' : 'INVALID_COMMAND', '输入字段或内容无效', 400)
   }
@@ -150,7 +150,8 @@ export async function lookupPlanningReceipt(c: PlanningContext) {
 
 export async function recoverPlanning(c: PlanningContext) {
   if (c.req.header(adventureClientVersionHeader) !== adventureClientVersion) throw oldClientUnavailable()
-  const { nonce, ...envelope } = await input(c, planningRecoveryInputSchema)
+  // Preserve the entire normal-envelope budget, plus fixed recovery metadata.
+  const { nonce, ...envelope } = await input(c, planningRecoveryInputSchema, 32_768 + 128)
   const retryable = canRetryPlanningEnvelope(envelope)
   const binding = { requestId: envelope.requestId, nonce }
   let result
@@ -163,8 +164,8 @@ export async function recoverPlanning(c: PlanningContext) {
     result = { ...binding, outcome: 'confirmed' as const, receipt }
   } catch (failure) {
     if (!(failure instanceof ApiError)) throw failure
-    if (retryable && (failure.code === 'VERSION_CONFLICT' || failure.code === 'PLANNING_DATE_CHANGED'))
-      result = { ...binding, outcome: 'review' as const, code: failure.code }
+    if (retryable && recoveryRejectionCodeSchema.safeParse(failure.code).success)
+      result = { ...binding, outcome: 'review' as const, code: failure.code, message: failure.message }
     else if (!retryable && failure.code === 'RECEIPT_UNKNOWN')
       result = { ...binding, outcome: 'review' as const, code: 'LEGACY_RECEIPT_MISSING' }
     else throw failure

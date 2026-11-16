@@ -3,6 +3,7 @@ import app from '../../worker/index'
 import { planningApi } from '../../src/adventure/planning-api'
 import { authorizedMutation } from '../../src/auth/request'
 import { adventureClientVersion, adventureClientVersionHeader } from '../../src/shared/adventure-client-version'
+import { recoveryRejectionCodeSchema } from '../../src/shared/adventure-recovery'
 
 vi.mock('../../src/auth/request', () => ({ authorizedFetch: vi.fn(), authorizedMutation: vi.fn() }))
 const owner = '00000000-0000-4000-8000-000000000224'
@@ -41,12 +42,22 @@ it('持久化当前封套一次性进入锁内幂等 RPC，不走缺失回执轮
   expect(envelope).toEqual(original)
 })
 
-it.each(['VERSION_CONFLICT', 'PLANNING_DATE_CHANGED'])('%s 返回与 nonce 关联的人工核对结果', async code => {
+it.each(recoveryRejectionCodeSchema.options)('%s 返回与 nonce 关联的人工核对结果', async code => {
   rpcError = code
   expect(await recover()).toMatchObject({ outcome: 'review', code })
   expect(calls).toHaveLength(1)
 })
 
+it('原入口合法的大封套在添加 nonce 后仍可取回回执', async () => {
+  const large = { ...envelope, command: { ...envelope.command, standards: [...Array<string>(8).fill('x'.repeat(4000)), ''] } }
+  large.command.standards[8] = 'y'.repeat(32_720 - new TextEncoder().encode(JSON.stringify(large)).byteLength)
+  expect(new TextEncoder().encode(JSON.stringify(large)).byteLength).toBe(32_720)
+  const original = await app.request('/api/adventure/commands', { method: 'POST', headers, body: JSON.stringify(large) }, env)
+  expect(original.status).toBe(200)
+  expect(await recover(large)).toMatchObject({ outcome: 'confirmed', receipt })
+  expect(calls).toHaveLength(2)
+  expect(calls[1].body).toEqual(calls[0].body)
+})
 it('旧模型不兼容的原封套仅查询；缺失允许人工核对，不改写为新命令', async () => {
   rpcError = 'RECEIPT_UNKNOWN'
   expect(await planningApi.recover(owner, legacy, new AbortController().signal)).toMatchObject({ outcome: 'review', code: 'LEGACY_RECEIPT_MISSING' })

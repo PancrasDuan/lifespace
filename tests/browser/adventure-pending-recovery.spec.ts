@@ -68,6 +68,7 @@ test('RECEIPT_UNKNOWN 后重载的 pending 可按原封套恢复，不再永久�
 
 for (const [code, stored] of [
   ['VERSION_CONFLICT', currentEnvelope], ['PLANNING_DATE_CHANGED', currentEnvelope], ['LEGACY_RECEIPT_MISSING', legacyEnvelope],
+  ['RESCHEDULE_PAST', currentEnvelope], ['DATE_LOCKED', currentEnvelope],
 ] as const) {
   test(`${code} 必须先读取事实并明确勾选，解除后重新读取且不新建 requestId`, async ({ page, context }) => {
     const fixture = await planningFixture(context, withGoal)
@@ -106,6 +107,59 @@ for (const [code, stored] of [
     expect(fixture.envelopes).toEqual([])
   })
 }
+
+test('人工核对可显示终态、分页和详情，写入仍被冻结', async ({ page, context }) => {
+  const fixture = await planningFixture(context, withGoal)
+  const target = { ...withGoal.goals[0], title: '待核对的终态目标', status: 'ended', terminatedAt: '2026-11-15T00:00:00Z' }
+  const active = Array.from({ length: 20 }, (_, n) => ({ ...withGoal.goals[0], id: `00000000-0000-4000-8000-${String(500 + n).padStart(12, '0')}`, title: `进行中目标 ${n + 1}` }))
+  await context.route('**/api/adventure?*', route => {
+    const params = new URL(route.request().url()).searchParams
+    const second = params.get('page') === '2'
+    return route.fulfill({ json: { ...withGoal, includeTerminal: params.get('includeTerminal') === 'true', page: second ? 2 : 1,
+      totalGoals: params.get('includeTerminal') === 'true' ? 21 : 20, goals: second ? [target] : active,
+      goalDetail: params.has('goalId') ? { goal: target, tasks: [], taskPage: 1, totalTasks: 0, relatedTasks: [], totalRelatedTasks: 0 } : null } })
+  })
+  await context.route('**/api/adventure/recovery', route => {
+    const { requestId, nonce } = route.request().postDataJSON()
+    return route.fulfill({ headers: { 'Cache-Control': 'no-store', 'X-Lifespace-Adventure-Recovery': '1' }, json: { requestId, nonce, outcome: 'review', code: 'LEGACY_RECEIPT_MISSING' } })
+  })
+  await page.goto('/adventure?view=planning')
+  await putPending(page, owner, legacyEnvelope)
+  await page.reload()
+  await page.getByRole('button', { name: '确认上次操作结果' }).click()
+  await page.getByRole('button', { name: '重新读取当前事实' }).click()
+  await expect(page.getByRole('button', { name: '变更目标 进行中目标 1', exact: true })).toBeDisabled()
+  await page.getByRole('checkbox', { name: '显示已达成／已结束' }).check()
+  await page.getByRole('button', { name: '下一页', exact: true }).click()
+  await page.getByRole('button', { name: '待核对的终态目标', exact: true }).click()
+  await expect(page.getByRole('dialog')).toContainText('连续跑完五公里')
+  await page.getByRole('dialog').getByRole('button', { name: '相关任务', exact: true }).click()
+  await expect(page.getByRole('dialog')).toContainText('暂无相关任务')
+  expect(await getPending(page, owner)).toEqual(legacyEnvelope)
+  expect(fixture.envelopes).toEqual([])
+})
+
+test('成长页人工读取期间不能切换生命周期，读取后可看目标并解除', async ({ page, context }) => {
+  const fixture = await planningFixture(context, withGoal)
+  await context.route('**/api/adventure/recovery', route => {
+    const { requestId, nonce } = route.request().postDataJSON()
+    return route.fulfill({ headers: { 'Cache-Control': 'no-store', 'X-Lifespace-Adventure-Recovery': '1' }, json: { requestId, nonce, outcome: 'review', code: 'LEGACY_RECEIPT_MISSING' } })
+  })
+  await page.goto('/adventure?view=growth')
+  await putPending(page, owner, legacyEnvelope)
+  await page.reload()
+  await page.getByRole('button', { name: '确认上次操作结果' }).click()
+  fixture.delayNextQuery(800)
+  await page.getByRole('button', { name: '重新读取当前事实' }).click()
+  await expect(page.getByRole('button', { name: '目标', exact: true })).toBeDisabled()
+  await expect(page.getByRole('checkbox', { name: '我已核对当前页面事实，确认解除本地待确认状态' })).toBeEnabled()
+  await page.getByRole('button', { name: '目标', exact: true }).click()
+  await expect(page.getByRole('button', { name: '五公里', exact: true })).toBeEnabled()
+  await page.getByRole('checkbox', { name: '我已核对当前页面事实，确认解除本地待确认状态' }).check()
+  await page.getByRole('button', { name: '解除本地待确认状态', exact: true }).click()
+  await expect(page.getByRole('button', { name: '新建目标', exact: true })).toBeEnabled()
+  expect(await getPending(page, owner)).toBeUndefined()
+})
 
 for (const width of [1440, 390]) {
   test(`人工核对状态 ${width}px 保留既有页面且没有横向溢出`, async ({ page, context }) => {
