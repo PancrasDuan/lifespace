@@ -1,7 +1,7 @@
 import { afterEach, expect, test, vi } from 'vitest'
 import app from '../../worker/index'
 import { Webhook } from 'standardwebhooks'
-import { AuthTestKv } from '../support/auth-kv'
+import { AuthTestKv, failingKv } from '../support/auth-kv'
 
 afterEach(() => vi.unstubAllGlobals())
 
@@ -9,11 +9,6 @@ const env = {
   SUPABASE_URL: 'https://auth-test.supabase.co',
   SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_test-only',
   AUTH_KV: new AuthTestKv('demo@example.com').binding(),
-}
-const failingKv = (value: string) => {
-  const kv = new AuthTestKv(value)
-  kv.failReads = true
-  return kv.binding()
 }
 const claims = { sub: '00000000-0000-4000-8000-000000000001', session_id: '00000000-0000-4000-8000-000000000002', exp: 4102444800 }
 const encode = (value: unknown) => btoa(JSON.stringify(value)).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_')
@@ -99,8 +94,10 @@ test.each([['demo@example.com', 200], ['other@example.com', 403]])('签名注册
   expect(response.status).toBe(status)
 })
 test('无签名不能调用注册 Hook', async () => {
-  const response = await app.request('/api/auth/hooks/before-user-created', { method: 'POST', body: '{}' }, { ...env, AUTH_HOOK_SECRET: hookSecret })
+  const kv = new AuthTestKv('demo@example.com')
+  const response = await app.request('/api/auth/hooks/before-user-created', { method: 'POST', body: '{}' }, { ...env, AUTH_HOOK_SECRET: hookSecret, AUTH_KV: kv.binding() })
   expect(response.status).toBe(403)
+  expect(kv.reads).toBe(0)
 })
 
 test.each([
@@ -153,6 +150,11 @@ test('注册 Hook 使用同一 KV 白名单并拒绝缺失或损坏配置', asyn
   kv.value = null
   expect((await request({ ...env, AUTH_KV: kv.binding() })).status).toBe(503)
   expect((await request({ ...env, AUTH_KV: undefined })).status).toBe(503)
+  kv.value = ''
+  expect((await request({ ...env, AUTH_KV: kv.binding() })).status).toBe(503)
+  kv.value = 'demo@example.com,invalid'
+  expect((await request({ ...env, AUTH_KV: kv.binding() })).status).toBe(503)
+  expect((await request({ ...env, AUTH_KV: failingKv('demo@example.com') })).status).toBe(503)
 })
 
 test('篡改签名原文或过期签名都不能注册', async () => {

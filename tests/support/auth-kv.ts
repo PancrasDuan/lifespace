@@ -1,6 +1,6 @@
 import type { AuthEnv } from '../../worker/auth'
 
-export const authAllowedEmailsKey = 'AUTH_ALLOWED_EMAILS'
+const authAllowedEmailsKey = 'AUTH_ALLOWED_EMAILS'
 
 // Local KV stand-in: each request reads the current value, and tests can change it or force failures.
 export class AuthTestKv {
@@ -26,4 +26,10 @@ export class AuthTestKv {
 export function authEnv<T extends Partial<CloudflareEnv>>(emails: string | string[], extra: T): T & AuthEnv & { AUTH_KV: KVNamespace } {
   const value = Array.isArray(emails) ? emails.join(',') : emails
   return { ...extra, AUTH_KV: new AuthTestKv(value).binding() }
+}
+
+export function failingKv(value: string) {
+  const kv = new AuthTestKv(value)
+  kv.failReads = true
+  return kv.binding()
 }

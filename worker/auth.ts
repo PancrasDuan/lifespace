@@ -35,7 +35,6 @@ export function publicConfig(env: AuthEnv) {
 
 export async function registrationHook(env: AuthEnv, request: Request) {
   const denied = { error: { http_code: 403, message: '此邮箱暂未获准注册' } }
-  const allowed = await allowedEmails(env)
   if (!env.AUTH_HOOK_SECRET) throw unavailable()
   if (!request.body) return { body: denied, status: 403 as const }
   let raw: string
@@ -47,7 +46,9 @@ export async function registrationHook(env: AuthEnv, request: Request) {
   try { payload = webhook.verify(raw, Object.fromEntries(request.headers)) }
   catch { return { body: denied, status: 403 as const } }
   const result = z.object({ user: z.object({ email: z.email(), is_anonymous: z.boolean().optional() }) }).safeParse(payload)
-  if (!result.success || result.data.user.is_anonymous || !allowed.has(result.data.user.email.trim().toLowerCase())) return { body: denied, status: 403 as const }
+  if (!result.success || result.data.user.is_anonymous) return { body: denied, status: 403 as const }
+  const allowed = await allowedEmails(env)
+  if (!allowed.has(result.data.user.email.trim().toLowerCase())) return { body: denied, status: 403 as const }
   return { body: {}, status: 200 as const }
 }
 

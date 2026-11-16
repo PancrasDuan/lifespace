@@ -4,9 +4,10 @@ import { AuthTestKv } from './auth-kv'
 
 export const ledgerRpc = process.env.LEDGER_LOCAL_RPC_URL
 const nativeFetch = globalThis.fetch
+export const ledgerAuthKv = new AuthTestKv('ledger@example.invalid')
 export const ledgerEnv = {
   SUPABASE_URL: 'https://ledger-local-test.supabase.co', SUPABASE_SECRET_KEY: 'sb_secret_local-test-only',
-  SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_local-test-only', AUTH_KV: new AuthTestKv('ledger@example.invalid').binding(),
+  SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_local-test-only', AUTH_KV: ledgerAuthKv.binding(),
 }
 const encode = (value: unknown) => btoa(JSON.stringify(value)).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_')
 export function ledgerRequest(owner: string, path = '/api/ledger/entries', body?: unknown, method?: string) {

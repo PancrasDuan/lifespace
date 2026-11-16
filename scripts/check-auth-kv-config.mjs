@@ -14,4 +14,8 @@ if (config.secrets?.required?.includes('AUTH_ALLOWED_EMAILS')) {
   console.error('发布已停止：AUTH_ALLOWED_EMAILS 必须从 Worker runtime secrets 移除，改由 AUTH_KV 读取。')
   process.exit(1)
 }
+if (config.vars?.AUTH_ALLOWED_EMAILS !== undefined || namespaces.some(binding => binding.binding === 'AUTH_ALLOWED_EMAILS')) {
+  console.error('发布已停止：不得以普通变量或 KV binding 保留旧 AUTH_ALLOWED_EMAILS 配置。')
+  process.exit(1)
+}
 console.log('AUTH_KV 发布配置检查通过。')
