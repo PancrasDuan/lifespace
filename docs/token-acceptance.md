@@ -9,7 +9,7 @@
 | 层级 | 本次入口 | 完成所需证据 | 当前状态 |
 | --- | --- | --- | --- |
 | Agent 本地检查 | 构建、类型、密钥、环境拒绝保护 | 最终 SHA 与实际输出 | 以阶段报告为准 |
-| CI 合成操作系统 | `test:collector-scheduler` | Linux systemd user 和 macOS launchd 各自真实执行、回执和卸载 | 新增门禁，待实际 CI |
+| CI 合成操作系统 | `test:collector-scheduler` | Linux systemd user 和 macOS launchd 各自真实执行、回执和卸载 | 1154214的CI43792028331两平台通过；最后提交结果见PR |
 | 原型/隔离 UI | 保留的 5193/5217/5220 | Agent 对照与用户桌面/手机操作分别记录 | 继承阶段05 Agent 检查；用户人工待验 |
 | 托管 HTTPS/Auth | 指定隔离 Supabase + 独立 Worker | 真登录、设备码、独立设备头、持久回执、停用拒绝 | 无已批准隔离目标，待验 |
 | 用户真实双设备 | 指定 macOS、Linux | 同一包、实际来源、固定范围四方对账 | 尚未指定目标，待验 |
@@ -36,15 +36,17 @@ finally 对本轮名称卸载、停止可能仍运行的 oneshot、删除本轮�
 
 通过已有 Supabase 连接器发现唯一 `lifespace` 项目 `zvdcjzjfhkjasikchceo`，ACTIVE_HEALTHY、ap-southeast-1、PostgreSQL17.6.1.166，开发 branches 为0。只读迁移历史没有两项 Token 迁移；`BEGIN READ ONLY` 系统目录检查确认 `token_private` 不存在、public Token 函数数为0。未查业务行、用户、令牌或密钥。
 
+追加只读组织/报价发现：该项目所属组织当前为Free，连接器`get_cost`分别返回新project为$0/月、新branch为$0.01344/小时。报价不是创建/写入授权，也不证明账户空余项目配额或branch可用；官方[计划表](https://supabase.com/pricing)明确Free不含Branching，Pro基础订阅$25/月，不能只报24小时branch计算费而隐去计划升级成本。未调用confirm_cost、create_project、create_branch或升级计划。
+
 `pg_settings` 和 `pg_db_role_setting` 的 `pgrst.db_schemas` 均未返回设置。因此 **托管实际 exposed schemas 未知**，不能推断 public-only；后续必须取得 Dashboard / Management API 的 Data API 配置证据并排除 `token_private`。本次连接器没有提供该配置读取能力，也未为取配置读取密钥。
 
 Cloudflare 连接器只读列出 `lifespace`、`token-monitor-hub` 两个现有 Worker；已绑定域名只有 `lifespace.onepeace.cc.cd` → lifespace/production。账号 workers.dev 子域为 `dpqkindle`，lifespace 的 workers.dev 和 preview URL 均关闭。`token-monitor-hub` 是现有应用，不能借用为测试目标；当前没有可认定获准写入/发布的隔离 Worker。GitHub 非生产自动预览仍关闭。
 
 ## 可审阅的隔离托管安排（尚未执行）
 
-推荐目标：新建不带生产数据的 Supabase `token-acceptance-221` preview branch，并新建独立 Worker `lifespace-token-acceptance-221`；拟用 `https://lifespace-token-acceptance-221.dpqkindle.workers.dev`，需先核实名称及启用范围。替代选项为用户提供一个已有独立测试项目和域名。两种都不把当前生产项目当测试库、不合并 Supabase branch 回生产、不更改生产域名或现有服务。
+优先由用户指定已有独立测试project和HTTPS目标；如果没有，建议另行授权在当前组织新建空的Free project `lifespace-token-acceptance-221`（拟ap-southeast-1，先核实免费配额，报价$0/月且不允许自动付费升级），并新建独立 Worker `lifespace-token-acceptance-221`；拟用 `https://lifespace-token-acceptance-221.dpqkindle.workers.dev`，需核实名称及启用范围。先做合成托管链路，用户再决定是否上传真实设备汇总；拟验证窗口24小时，结束保存私有证据后按明确许可清理本轮资源。收费branch仅为用户另行选择并接受计划/用量成本后的替代方案。均不把当前生产项目当测试库、不合并branch回生产、不更改生产域名或现有服务。
 
-1. **目标和预算门禁。** 总控取得确切 branch/project、Worker/HTTPS origin、可用时限、费用上限和测试用户。branch 默认不带数据，但会继承部分服务配置，不能盲信其隔离了生产 OAuth/SMTP/Webhooks；逐项核对，只开必要测试能力。独立 Worker 的 URL、Supabase URL、publishable/server secret、Auth callback/redirect/allowlist 和 hook 必须属于同一隔离环境；KV 等绑定也不能借用生产状态。生产 secrets 不复制到客户端或报告。
+1. **目标和预算门禁。** 总控取得确切组织/branch/project、Worker/HTTPS origin、可用时限、费用上限和测试用户。新project从空库开始；branch默认不带数据但继承部分服务配置，不能盲信其隔离了生产OAuth/SMTP/Webhooks。逐项核对，只开必要测试能力。独立 Worker 的 URL、Supabase URL、publishable/server secret、Auth callback/redirect/allowlist 和 hook 必须属于同一隔离环境；KV 等绑定也不能借用生产状态。生产 secrets 不复制到客户端或报告。
 2. **备份/恢复门禁。** 在任何获准迁移前，使用目标专用安全连接配置（如私有 PGSERVICEFILE/PGPASSFILE，不把密码放 shell 参数）导出完整数据库 custom dump及所需角色定义；覆盖 schema、函数、数据、ACL/RLS、约束/索引和迁移历史，核对 Supabase 管理对象的可导出范围。角色口令另安全管理，Auth/Storage/服务配置和对象文件另列覆盖缺口。在另一个明确隔离恢复库 `pg_restore --exit-on-error` 实际恢复并核对定义/权限/合成事实，记录 SHA256；仅下载数据JSON或成功生成dump不算可恢复备份。当前只继承阶段05本地 harness 的完整数据库演练，未备份/恢复托管或生产。
 3. **完整迁移门禁。** 先运行 `db/token/preflight.sql`，再按下表一次传输并执行每份完整事务；连接器传输上限必须覆盖35,342字节，不能切开函数。若工具不能保证完整传输，改用获准私有连接的 `psql -X --set ON_ERROR_STOP=1 --file <整份SQL>`，不用分段补丁。SQL已有BEGIN/COMMIT，无须额外外包事务；两份顺序执行，每份之后核对对象/ACL与迁移历史，再继续。使用原版本/名字保存完整已审查SQL及历史，不制造空历史条目或“结构先成功、函数稍后补”的中间态。
 
