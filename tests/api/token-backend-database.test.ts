@@ -4,6 +4,7 @@ import pg from 'pg'
 import app from '../../worker/index'
 import { randomBytes, createHash } from 'node:crypto'
 import { canonicalTokenUsageContent, tokenUsageContentHash, tokenUsageContentSchema, tokenUsageSnapshotSchema } from '../../src/shared/token-usage-contract'
+import { authEnv } from '../support/auth-kv'
 
 const hash = (s: string) => createHash('sha256').update(s).digest('hex')
 const owner = '00000000-0000-4000-8000-000000000209'
@@ -194,7 +195,7 @@ describe.skipIf(!process.env.TOKEN_DB_URL)('Token real PostgreSQL', () => {
   })
   test('Worker registration through real DB, browser admission, lost claim response and independent upload credential', async () => {
     await reset(); await sql('delete from token_private.devices')
-    const bindings = { SUPABASE_URL: 'https://synthetic-token.supabase.co', SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_test-only', SUPABASE_SECRET_KEY: 'synthetic-server-only', AUTH_ALLOWED_EMAILS: 'demo@example.com' }
+    const bindings = authEnv('demo@example.com', { SUPABASE_URL: 'https://synthetic-token.supabase.co', SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_test-only', SUPABASE_SECRET_KEY: 'synthetic-server-only' })
     const claims = { sub: owner, session_id: '00000000-0000-4000-8000-000000000002', exp: 4102444800 }
     const encode = (v: unknown) => btoa(JSON.stringify(v)).replace(/=/g,'').replace(/\+/g,'-').replace(/\//g,'_')
     const auth = { Authorization: `Bearer ${encode({})}.${encode(claims)}.synthetic` }

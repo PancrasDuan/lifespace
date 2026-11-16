@@ -10,6 +10,7 @@ import { Agent, buildConnector, getGlobalDispatcher, setGlobalDispatcher } from 
 // @ts-expect-error pg is confined to the isolated Node harness.
 import pg from 'pg'
 import app from '../../worker/index'
+import { authEnv } from '../support/auth-kv'
 import { Store } from '../../tools/token-collector/store'
 import { scan } from '../../tools/token-collector/collector'
 import { startRegistration, claimRegistration, uploadPending, request, endpoint } from '../../tools/token-collector/transport'
@@ -68,7 +69,7 @@ describe.skipIf(!process.env.TOKEN_DB_URL)('collector actual Worker HTTPS gatewa
     const connector = buildConnector({ ca: await readFile(process.env.TOKEN_TEST_TLS_CERT) })
     dispatcher = new Agent({ connect(options, callback) { connector({ ...options, ...(options.protocol === 'https:' && options.hostname === '127.0.0.1' ? { port: String(gatewayPort) } : {}) }, callback) } })
     setGlobalDispatcher(dispatcher)
-    const bindings = { SUPABASE_URL: gatewayUrl, SUPABASE_PUBLISHABLE_KEY: publishableKey, SUPABASE_SECRET_KEY: serviceKey, AUTH_ALLOWED_EMAILS: 'collector@example.com' }
+    const bindings = authEnv('collector@example.com', { SUPABASE_URL: gatewayUrl, SUPABASE_PUBLISHABLE_KEY: publishableKey, SUPABASE_SECRET_KEY: serviceKey })
     worker = httpServer(async (req, res) => {
       try {
         const chunks: Buffer[] = []; for await (const c of req) chunks.push(c)

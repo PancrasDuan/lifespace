@@ -3,6 +3,7 @@ import { z } from 'zod'
 import app from '../../worker/index'
 import { planningPageSchema, planningReceiptSchema, type PlanningCommand } from '../../src/shared/adventure-planning'
 import { adventureClientVersion, adventureClientVersionHeader } from '../../src/shared/adventure-client-version'
+import { authEnv } from './auth-kv'
 
 export const liveEnabled = process.env.ADVENTURE_LIVE_TEST === '1'
 type User = { id: string; email: string; token: string; session: Record<string, unknown> }
@@ -43,7 +44,7 @@ export async function livePlanning() {
       users.push({ id: user.id, email, token: session.access_token, session })
     }
   } catch (error) { await cleanup(); throw error }
-  const env = { SUPABASE_URL: url, SUPABASE_SECRET_KEY: secret, SUPABASE_PUBLISHABLE_KEY: publishable, AUTH_ALLOWED_EMAILS: users.map(user => user.email).join(',') }
+  const env = authEnv(users.map(user => user.email), { SUPABASE_URL: url, SUPABASE_SECRET_KEY: secret, SUPABASE_PUBLISHABLE_KEY: publishable })
   const request = (index = 0, path = '/api/adventure', body?: unknown) => app.request(path, {
     method: body === undefined ? 'GET' : 'POST',
     headers: { Authorization: `Bearer ${users[index].token}`, 'Content-Type': 'application/json', [adventureClientVersionHeader]: adventureClientVersion },

@@ -1,15 +1,15 @@
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import app from '../../worker/index'
 import { clearTraceSpan, installTraceSpan, type TestSpan } from '../support/cloudflare-workers'
+import { authEnv } from '../support/auth-kv'
 
 afterEach(() => { vi.unstubAllGlobals(); clearTraceSpan() })
 
-const env = {
+const env = authEnv('demo@example.com', {
   SUPABASE_URL: 'https://auth-test.supabase.co',
   SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_test-only',
   SUPABASE_SECRET_KEY: 'sb_secret_test-only',
-  AUTH_ALLOWED_EMAILS: 'demo@example.com',
-}
+})
 const userId = '00000000-0000-4000-8000-000000000001'
 const sessionId = '00000000-0000-4000-8000-000000000002'
 const encode = (value: unknown) => btoa(JSON.stringify(value)).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_')

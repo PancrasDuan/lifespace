@@ -14,12 +14,12 @@ const markers = {
   DNSHE_API_KEY: 'cfsd_SECURITY_TEST_KEY_20261006',
   DNSHE_API_SECRET: 'SECURITY_TEST_DNSHE_SECRET_20261006',
   SUPABASE_SECRET_KEY: 'sb_secret_SECURITY_TEST_SUPABASE_20261006',
-  AUTH_ALLOWED_EMAILS: 'security-user@example.com',
   AUTH_HOOK_SECRET: 'SECURITY_TEST_HOOK_SECRET_20261011',
   ALAPI_TOKEN: 'SECURITY_TEST_ALAPI_TOKEN_20261022',
 }
+const allowedEmail = 'security-user@example.com'
 const publicBindings = { SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_security-test-only' }
-const authUser = { id: '00000000-0000-4000-8000-000000000001', email: markers.AUTH_ALLOWED_EMAILS, email_confirmed_at: '2026-10-11', is_anonymous: false }
+const authUser = { id: '00000000-0000-4000-8000-000000000001', email: allowedEmail, email_confirmed_at: '2026-10-11', is_anonymous: false }
 const encode = value => Buffer.from(JSON.stringify(value)).toString('base64url')
 const userToken = `${encode({ alg: 'HS256' })}.${encode({ sub: authUser.id, session_id: '00000000-0000-4000-8000-000000000002', exp: 4102444800 })}.test-signature`
 const authHeaders = { Authorization: `Bearer ${userToken}` }
@@ -102,7 +102,7 @@ try {
     name: generated.name, modules: workerModules.map(path => ({ type: 'ESModule', path })), modulesRoot: workerOutput,
     compatibilityDate: generated.compatibility_date, compatibilityFlags: generated.compatibility_flags,
     bindings: { ...generated.vars, ...markers, ...publicBindings },
-    kvNamespaces: ['HOROSCOPE_KV'],
+    kvNamespaces: ['AUTH_KV', 'HOROSCOPE_KV'],
     ratelimits: Object.fromEntries(generated.ratelimits.map(binding => [binding.name, binding])),
     assets: { directory: publicDir, binding: 'ASSETS', run_worker_first: generated.assets.run_worker_first,
       routerConfig: { has_user_worker: true }, assetConfig: { not_found_handling: 'single-page-application' } },
@@ -143,8 +143,9 @@ try {
   }] }))
   const runtimeBindings = await runtime.getBindings()
   assert.equal(typeof runtimeBindings.SUPABASE_URL, 'string', '隔离运行时缺少认证 URL')
-  assert.equal(runtimeBindings.AUTH_ALLOWED_EMAILS, markers.AUTH_ALLOWED_EMAILS, '隔离白名单绑定缺失')
+  assert(!('AUTH_ALLOWED_EMAILS' in runtimeBindings), '旧白名单 secret 不得作为运行时绑定')
   assert.equal(runtimeBindings.SUPABASE_PUBLISHABLE_KEY, publicBindings.SUPABASE_PUBLISHABLE_KEY, '隔离公开 key 绑定缺失')
+  await (await runtime.getKVNamespace('AUTH_KV')).put('AUTH_ALLOWED_EMAILS', allowedEmail)
   assert((await runtimeBindings.DNSHE_READ_LIMITER.limit({ key: 'security-probe' })).success, '运行时读取限流绑定不可用')
   assert((await runtimeBindings.NEWS_READ_LIMITER.limit({ key: 'security-probe' })).success, '新闻读取限流绑定不可用')
   const newsProtection = generated.ratelimits.find(binding => binding.name === 'NEWS_READ_LIMITER')

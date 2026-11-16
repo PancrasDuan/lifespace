@@ -108,7 +108,7 @@ test.each(['user-deleted', 'user-banned', 'user-unverified', 'whitelist', 'datab
   if (reason === 'user-deleted') f.users.delete(oauthOwner)
   if (reason === 'user-banned') f.users.get(oauthOwner)!.banned_until = '2099-01-01T00:00:00Z'
   if (reason === 'user-unverified') f.users.get(oauthOwner)!.email_confirmed_at = ''
-  if (reason === 'whitelist') f.env.AUTH_ALLOWED_EMAILS = 'removed@example.invalid'
+  if (reason === 'whitelist') f.authKv.value = 'removed@example.invalid'
   if (reason === 'database') f.failDatabase()
   if (reason === 'kv') f.kv.fail = true
   if (reason === 'expired') for (const [key, value] of f.kv.records) if (key.startsWith('token:')) { const record = JSON.parse(value.value); record.expiresAt = 1; value.value = JSON.stringify(record) }

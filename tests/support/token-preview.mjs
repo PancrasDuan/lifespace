@@ -47,7 +47,8 @@ const jwt = claims => {
 const expires = Math.floor(Date.now() / 1000) + 86400
 const browserToken = jwt({ sub: owner, session_id: '00000000-0000-4000-8000-000000000001', exp: expires })
 const user = { id: owner, email, aud: 'authenticated', role: 'authenticated', email_confirmed_at: '2026-11-16', is_anonymous: false, app_metadata: {}, user_metadata: {} }
-const bindings = { SUPABASE_URL: 'https://127.0.0.1', SUPABASE_PUBLISHABLE_KEY: publishableKey, SUPABASE_SECRET_KEY: serviceKey, AUTH_ALLOWED_EMAILS: email }
+const authKv = { get: async key => key === 'AUTH_ALLOWED_EMAILS' ? email : null }
+const bindings = { SUPABASE_URL: 'https://127.0.0.1', SUPABASE_PUBLISHABLE_KEY: publishableKey, SUPABASE_SECRET_KEY: serviceKey, AUTH_KV: authKv }
 const reply = (res, status, value) => { res.writeHead(status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(value)) }
 const cleanup = async () => {
   await close(web); await modules?.close(); await close(gateway)

@@ -109,9 +109,10 @@ describe.skipIf(!ledgerRpc)('账单正式 HTTP 与隔离 PostgreSQL/PostgREST �
     expect((await ledgerRequest(owner, `/api/ledger/entries/${receipt.entryId}/delete`, {})).status).toBe(400)
     const unauthenticated = await app.request('/api/ledger/entries', {}, ledgerEnv)
     expect(unauthenticated.status).toBe(401)
-    const oldAllowed = ledgerEnv.AUTH_ALLOWED_EMAILS
-    ledgerEnv.AUTH_ALLOWED_EMAILS = 'removed@example.invalid'
-    try { expect((await ledgerRequest(owner)).status).toBe(403) } finally { ledgerEnv.AUTH_ALLOWED_EMAILS = oldAllowed }
+    const authKv = ledgerEnv.AUTH_KV as unknown as { value: string | null }
+    const oldAllowed = authKv.value
+    authKv.value = 'removed@example.invalid'
+    try { expect((await ledgerRequest(owner)).status).toBe(403) } finally { authKv.value = oldAllowed }
     for (const query of ['?ownerId=' + other, '?page=0', '?page=1.2', '?pageSize=100']) expect((await ledgerRequest(owner, '/api/ledger/entries' + query)).status).toBe(400)
     expect(await read(owner)).toMatchObject({ total: 1, version: 2 })
   })

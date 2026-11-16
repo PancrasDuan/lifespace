@@ -235,12 +235,13 @@ describe.skipIf(!ledgerRpc)('本人交易账户：正式 HTTP → 隔离 Postgre
     expect(await read(owner)).toMatchObject({ version: 2, accounts: [{ name: '零钱', balanceCents: 0 }, { name: '饭卡', balanceCents: 0 }] })
     expect(await read(other)).toMatchObject({ version: 1, accounts: [{ id: otherAccount.accountId, name: '零钱', balanceCents: 0 }] })
     expect((await app.request('/api/ledger/accounts', {}, ledgerEnv)).status).toBe(401)
-    const original = ledgerEnv.AUTH_ALLOWED_EMAILS
+    const authKv = ledgerEnv.AUTH_KV as unknown as { value: string | null }
+    const original = authKv.value
     try {
-      ledgerEnv.AUTH_ALLOWED_EMAILS = 'removed@example.invalid'
+      authKv.value = 'removed@example.invalid'
       expect((await ledgerRequest(owner, '/api/ledger/accounts')).status).toBe(403)
       expect((await patch(owner, accountId, { name: '拒绝' })).status).toBe(403)
-    } finally { ledgerEnv.AUTH_ALLOWED_EMAILS = original }
+    } finally { authKv.value = original }
     for (const query of ['?ownerId=' + other, '?accountId=' + accountId, '?page=1']) expect((await ledgerRequest(owner, '/api/ledger/accounts' + query)).status).toBe(400)
     expect((await ledgerRequest(owner, `/api/ledger/accounts/${accountId}`, undefined, 'DELETE')).status).toBe(404)
     expect((await ledgerRequest(owner, '/api/ledger/balance-adjustments')).status).toBe(404)

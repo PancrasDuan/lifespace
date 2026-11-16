@@ -45,6 +45,6 @@ export async function verifyAgentUser(env: AuthEnv, ownerId: string): Promise<Id
     if (!Number.isFinite(until) || until > Date.now()) throw invalid()
   }
   const email = parsed.data.email.trim().toLowerCase()
-  if (!allowedEmails(env).has(email)) throw denied()
+  if (!(await allowedEmails(env)).has(email)) throw denied()
   return { id: parsed.data.id, email }
 }

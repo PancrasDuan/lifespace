@@ -4,12 +4,13 @@ import app from '../../worker/index'
 import { planningApi } from '../../src/adventure/planning-api'
 import { authorizedFetch, authorizedMutation } from '../../src/auth/request'
 import { adventureClientVersion, recurringAdventureClientVersion } from '../../src/shared/adventure-client-version'
+import { authEnv } from '../support/auth-kv'
 
 // Exercise the activated production write gate; the recovery protocol stays frozen.
 vi.mock('../../src/auth/request', () => ({ authorizedFetch: vi.fn(), authorizedMutation: vi.fn() }))
 
 const owner = '00000000-0000-4000-8000-000000000054'
-const env = { SUPABASE_URL: 'https://planning-test.supabase.co', SUPABASE_SECRET_KEY: 'sb_secret_planning-test-only', SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_planning-test-only', AUTH_ALLOWED_EMAILS: 'planning@example.com' }
+const env = authEnv('planning@example.com', { SUPABASE_URL: 'https://planning-test.supabase.co', SUPABASE_SECRET_KEY: 'sb_secret_planning-test-only', SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_planning-test-only' })
 const encode = (value: unknown) => btoa(JSON.stringify(value)).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_')
 const headers = { Authorization: `Bearer ${encode({ alg: 'HS256' })}.${encode({ sub: owner, session_id: owner, exp: 4102444800 })}.signature`, 'Content-Type': 'application/json' }
 const receipt = { version: 3, result: { entityId: owner, message: '已保存' } }

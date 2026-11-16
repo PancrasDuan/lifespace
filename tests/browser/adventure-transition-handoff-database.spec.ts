@@ -6,6 +6,7 @@ import { planningDatabase } from '../support/planning-database'
 import { openCutoverDatabase } from '../support/old-cutover-pg.mjs'
 import { openRecordActions } from './adventure-record-helpers'
 import { planningReceiptSchema } from '../../src/shared/adventure-planning'
+import { authEnv } from '../support/auth-kv'
 
 const oldRoot = process.env.OLD_ADVENTURE_DIST
 const port = Number(process.env.OLD_CUTOVER_PG_PORT)
@@ -13,7 +14,7 @@ const rpc = process.env.ADVENTURE_LOCAL_RPC_URL
 const scenario = process.env.OLD_CUTOVER_SCENARIO ?? 'task'
 const firstOwner = '00000000-0000-4000-8000-000000000001'
 const secondOwner = '00000000-0000-4000-8000-000000000002'
-const env = { SUPABASE_URL: 'https://planning-local-test.supabase.co', SUPABASE_SECRET_KEY: 'sb_secret_local-test-only', SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_local-test-only', AUTH_ALLOWED_EMAILS: 'handoff@example.invalid' }
+const env = authEnv('handoff@example.invalid', { SUPABASE_URL: 'https://planning-local-test.supabase.co', SUPABASE_SECRET_KEY: 'sb_secret_local-test-only', SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_local-test-only' })
 const encode = (value: unknown) => btoa(JSON.stringify(value)).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_')
 const token = (owner: string) => `Bearer ${encode({ alg: 'HS256' })}.${encode({ sub: owner, session_id: owner, exp: 4102444800 })}.local-test`
 
