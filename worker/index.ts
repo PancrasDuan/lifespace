@@ -1,4 +1,5 @@
 import { Hono } from 'hono'
+import { startTokenRegistration, claimTokenRegistration, inspectTokenRegistration, decideTokenRegistration, disableTokenDevice, queryTokenDashboard, queryTokenDevices, summarizeTokenDashboard } from './token-usage'
 import { listLedger, detailLedger, createLedger, createLedgerEntry, createLedgerRefund, createLedgerTransfer, refundLedger, previewLedgerDelete, deleteLedger, listLedgerAccounts, readLedgerAccounts, createLedgerAccount, updateLedgerAccount } from './ledger'
 import { readRecurringList, readRecurringParent, readRecurringChildren, readRecurringChild, readDateTaskList, readTaskList, readRewardSource, readGrowth, readTaskHistory, readMigrationOptions, readPlanning, previewPlanning, commandPlanning, lookupPlanningReceipt, oldClientUnavailable } from './adventure/planning'
 import { adventureClientVersion, adventureClientVersionHeader, planningCompatibility } from '../src/shared/adventure-client-version'
@@ -106,6 +107,8 @@ app.use('/api/*', async (c, next) => {
 // Retired before all identity middleware: stale configuration or credentials
 // must never reactivate this endpoint or fall back to browser authentication.
 app.all('/api/agent/legacy/mcp', c => c.json({ error: { code: 'NOT_FOUND', message: '接口不存在' } }, 404))
+app.post('/api/token/registrations/start', startTokenRegistration)
+app.post('/api/token/registrations/claim', claimTokenRegistration)
 app.use('/api/*', async (c, next) => {
   if (c.req.path === '/api/agent/mcp') {
     const grant = await (await mcpOAuth()).verifyMcpIdentity(c.env, c.req.header('Authorization'))
@@ -133,6 +136,12 @@ app.post('/api/oauth/consent/finish', async c => (await mcpOAuth()).finishMcpCon
 app.get('/api/oauth/grants', async c => (await mcpOAuth()).readMcpGrants(c))
 app.post('/api/oauth/grants/revoke', async c => (await mcpOAuth()).revokeMcpConsent(c))
 app.get('/api/auth/me', c => c.json({ user: c.get('identity') }))
+app.post('/api/token/registrations/inspect', inspectTokenRegistration)
+app.post('/api/token/registrations/decide', decideTokenRegistration)
+app.post('/api/token/devices/disable', disableTokenDevice)
+app.get('/api/token/devices', queryTokenDevices)
+app.get('/api/token/usage', queryTokenDashboard)
+app.get('/api/token/summary', summarizeTokenDashboard)
 app.get('/api/horoscope', async c => c.json(await readHoroscope(c.env, new URL(c.req.url).searchParams)))
 app.get('/api/ledger/entries', listLedger)
 app.get('/api/ledger/accounts', listLedgerAccounts)

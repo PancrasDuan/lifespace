@@ -1,0 +1,12 @@
+{
+  "viewport": {
+    "width": 390,
+    "height": 520
+  },
+  "fullPage": false,
+  "scrollY": 1319,
+  "touch": true,
+  "coarsePointer": true,
+  "focusedElement": "BUTTON",
+  "sourceSha256": "2117900f3ccc97b3902e9e1cfae6350f3082e686eafa8e98956a5ee4656a6cde"
+}

@@ -1,0 +1,13 @@
+{
+  "viewport": {
+    "width": 1440,
+    "height": 1000
+  },
+  "fullPage": true,
+  "scrollY": 0,
+  "touch": false,
+  "total": "46280",
+  "rowCount": 60,
+  "data": "two synthetic source states on Linux, real DB/Worker/SQLite/Tokscale; dynamic Beijing default30days",
+  "authentication": "loopback synthetic Auth; product AuthGate and whitelist real"
+}

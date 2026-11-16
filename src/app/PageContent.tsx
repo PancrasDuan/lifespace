@@ -7,6 +7,7 @@ const pages = {
   news: lazy(async () => ({ default: (await import('../news/News')).News })),
   adventure: lazy(async () => ({ default: (await import('../adventure/Adventure')).Adventure })),
   finance: lazy(async () => ({ default: (await import('../ledger/Finance')).Finance })),
+  token: lazy(async () => ({ default: (await import('../token/Token')).Token })),
 }
 
 function PageFeedback({ page, failed = false }: { page: AppPage; failed?: boolean }) {

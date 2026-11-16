@@ -94,7 +94,9 @@ for (const width of [1440, 957, 721, 720, 701, 700, 390, 320]) {
           await page.keyboard.press('Tab')
           await expect(navigation.getByRole('link', { name: destination.name, exact: true })).toBeFocused()
         }
-        // 财务前后的禁用占位都不能截住键盘焦点。
+        await page.keyboard.press('Tab')
+        await expect(navigation.getByRole('link', { name: 'Token', exact: true })).toBeFocused()
+        // 禁用占位不能截住键盘焦点。
         await page.keyboard.press('Tab')
         await expect(account).toBeFocused()
         await page.keyboard.press('Enter')

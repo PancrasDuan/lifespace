@@ -15,7 +15,7 @@ export function PageLink({
   onClick,
   ...props
 }: AnchorHTMLAttributes<HTMLAnchorElement> & {
-  href: '/' | '/news' | '/adventure' | '/finance'
+  href: '/' | '/news' | '/adventure' | '/finance' | '/token' | '/token/devices/confirm'
 }) {
   return (
     <a

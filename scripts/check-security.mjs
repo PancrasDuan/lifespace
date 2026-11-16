@@ -72,7 +72,7 @@ async function files(directory) {
 }
 let devServer, runtime
 try {
-  for (const path of ['scripts/strip-worker-dev-vars.mjs', 'src', 'worker', 'public', 'index.html', 'package.json', 'vite.config.ts', 'wrangler.jsonc']) {
+  for (const path of ['scripts/strip-worker-dev-vars.mjs', 'src', 'worker', 'public', 'build-plugins', 'index.html', 'package.json', 'vite.config.ts', 'wrangler.jsonc']) {
     await cp(resolve(root, path), resolve(fixture, path), { recursive: true })
   }
   await symlink(resolve(root, 'node_modules'), resolve(fixture, 'node_modules'), 'dir')

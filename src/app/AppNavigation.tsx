@@ -12,13 +12,14 @@ import { AccountMenu } from '../auth/AccountMenu'
 import { VerifiedIdentityContext } from '../auth/identity'
 import { PageLink } from './navigation'
 
-export type AppPage = 'home' | 'news' | 'adventure' | 'finance'
+export type AppPage = 'home' | 'news' | 'adventure' | 'finance' | 'token'
 
 const items = [
   { page: 'home', title: '首页', href: '/', icon: House },
   { page: 'news', title: '新闻', href: '/news', icon: Newspaper },
   { page: 'adventure', title: '人生冒险', href: '/adventure', icon: Mountain },
   { page: 'finance', title: '财务', href: '/finance', icon: Wallet },
+  { page: 'token', title: 'Token', href: '/token', icon: ChartNoAxesCombined },
   { title: '任务管理', icon: ListTodo },
   { title: '个人目标', icon: Target },
   { title: '股票行情', icon: ChartNoAxesCombined },

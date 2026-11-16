@@ -1,0 +1,168 @@
+{
+  "meta": {
+    "generatedAt": "2026-11-15T14:31:23.420255418+00:00",
+    "version": "4.23.0",
+    "dateRange": {
+      "start": "2026-11-14",
+      "end": "2026-11-15"
+    }
+  },
+  "summary": {
+    "totalTokens": 830,
+    "totalCost": 0.00041699999999999994,
+    "totalDays": 2,
+    "activeDays": 2,
+    "averagePerDay": 0.00020849999999999997,
+    "maxCostInSingleDay": 0.00027499999999999996,
+    "clients": [
+      "codex"
+    ],
+    "models": [
+      "gpt-5.5",
+      "synthetic-unpriced-206",
+      "unknown"
+    ],
+    "costProvenance": {
+      "kind": "mixed",
+      "estimateSource": "catalog"
+    }
+  },
+  "years": [
+    {
+      "year": "2026",
+      "totalTokens": 830,
+      "totalCost": 0.00041699999999999994,
+      "range": {
+        "start": "2026-11-14",
+        "end": "2026-11-15"
+      },
+      "costProvenance": {
+        "kind": "mixed",
+        "estimateSource": "catalog"
+      }
+    }
+  ],
+  "contributions": [
+    {
+      "date": "2026-11-14",
+      "totals": {
+        "tokens": 130,
+        "cost": 0.00014199999999999998,
+        "messages": 1,
+        "costProvenance": {
+          "kind": "estimated",
+          "estimateSource": "catalog"
+        }
+      },
+      "intensity": 3,
+      "tokenBreakdown": {
+        "input": 80,
+        "output": 20,
+        "cacheRead": 20,
+        "cacheWrite": 0,
+        "reasoning": 10
+      },
+      "clients": [
+        {
+          "client": "codex",
+          "modelId": "gpt-5.5",
+          "providerId": "openai",
+          "tokens": {
+            "input": 80,
+            "output": 20,
+            "cacheRead": 20,
+            "cacheWrite": 0,
+            "reasoning": 10
+          },
+          "cost": 0.00014199999999999998,
+          "messages": 1,
+          "costProvenance": {
+            "kind": "estimated",
+            "estimateSource": "catalog"
+          }
+        }
+      ],
+      "activeTimeMs": 1000
+    },
+    {
+      "date": "2026-11-15",
+      "totals": {
+        "tokens": 700,
+        "cost": 0.00027499999999999996,
+        "messages": 3,
+        "costProvenance": {
+          "kind": "mixed",
+          "estimateSource": "catalog"
+        }
+      },
+      "intensity": 4,
+      "tokenBreakdown": {
+        "input": 415,
+        "output": 108,
+        "cacheRead": 125,
+        "cacheWrite": 0,
+        "reasoning": 52
+      },
+      "clients": [
+        {
+          "client": "codex",
+          "modelId": "gpt-5.5",
+          "providerId": "openai",
+          "tokens": {
+            "input": 150,
+            "output": 40,
+            "cacheRead": 50,
+            "cacheWrite": 0,
+            "reasoning": 20
+          },
+          "cost": 0.00027499999999999996,
+          "messages": 1,
+          "costProvenance": {
+            "kind": "estimated",
+            "estimateSource": "catalog"
+          }
+        },
+        {
+          "client": "codex",
+          "modelId": "synthetic-unpriced-206",
+          "providerId": "openai",
+          "tokens": {
+            "input": 230,
+            "output": 60,
+            "cacheRead": 70,
+            "cacheWrite": 0,
+            "reasoning": 30
+          },
+          "cost": 0.0,
+          "messages": 1,
+          "costProvenance": {
+            "kind": "unknown"
+          }
+        },
+        {
+          "client": "codex",
+          "modelId": "unknown",
+          "providerId": "openai",
+          "tokens": {
+            "input": 35,
+            "output": 8,
+            "cacheRead": 5,
+            "cacheWrite": 0,
+            "reasoning": 2
+          },
+          "cost": 0.0,
+          "messages": 1,
+          "costProvenance": {
+            "kind": "unknown"
+          }
+        }
+      ]
+    }
+  ],
+  "timeMetrics": {
+    "totalActiveTimeMs": 1000,
+    "longestContinuousMs": 1000,
+    "maxConcurrentSessions": 1,
+    "sessionCount": 3
+  }
+}

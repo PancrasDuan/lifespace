@@ -25,6 +25,7 @@ import { VerifiedIdentityContext } from './identity'
 import { ResetPasswordForm } from './ResetPasswordForm'
 import { HomeSkeleton } from './HomeSkeleton'
 import { usePageTitle } from '../app/usePageTitle'
+import { authCallbackUrl, takeTokenConfirmationReturn } from './token-confirmation-return'
 
 const identitySchema = z.object({
   user: z.object({ id: z.uuid(), email: z.email() }),
@@ -143,7 +144,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
               window.history.replaceState(null, '', '/auth/reset')
               window.dispatchEvent(new PopStateEvent('popstate'))
             } else if (window.location.pathname === '/auth/callback') {
-              window.history.replaceState(null, '', '/')
+              window.history.replaceState(null, '', takeTokenConfirmationReturn())
               window.dispatchEvent(new PopStateEvent('popstate'))
             }
             if (
@@ -324,7 +325,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
                 className="auth-primary"
                 onClick={() =>
                   callbackMessage
-                    ? window.location.assign('/')
+                    ? window.location.assign(takeTokenConfirmationReturn())
                     : window.location.reload()
                 }
               >
@@ -451,7 +452,7 @@ function LoginForm() {
       const result = await client.auth.resend({
         type: 'signup',
         email: registeredEmail,
-        options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
+        options: { emailRedirectTo: authCallbackUrl() },
       })
       if (result.error)
         setError(
@@ -504,7 +505,7 @@ function LoginForm() {
           ? await client.auth.signUp({
               ...credentials,
               options: {
-                emailRedirectTo: `${window.location.origin}/auth/callback`,
+                emailRedirectTo: authCallbackUrl(),
               },
             })
           : await client.auth.signInWithPassword(credentials)

@@ -9,7 +9,12 @@
   "scripts": {
     "postinstall": "node scripts/patch-oauth-provider.mjs",
     "prebuild": "node scripts/patch-oauth-provider.mjs",
-    "pretest:api": "node scripts/patch-oauth-provider.mjs",
+    "pretest:api": "node scripts/patch-oauth-provider.mjs && npm run build:collector",
+    "build:collector": "tsc -p tools/token-collector/tsconfig.json",
+    "test:collector-package": "npm run build:collector && node tests/support/token-collector-package.mjs",
+    "test:collector-scheduler": "npm run build:collector && node tests/support/token-collector-scheduler.mjs",
+    "test:collector-pricing": "npm run build:collector && node tests/support/token-collector-pricing.mjs",
+    "pretest:token-database": "npm run build:collector",
     "dev": "WRANGLER_LOG_PATH=./.cache/wrangler.log CLOUDFLARE_DEV_REGISTRY_PATH=./.cache/registry vite --host 127.0.0.1 --port 5174 --strictPort",
     "prototype:ledger": "vite --config vite.ledger-prototype.config.ts",
     "types": "WRANGLER_LOG_PATH=./.cache/wrangler.log wrangler types --env-interface CloudflareEnv --include-runtime false --strict-vars false",
@@ -31,11 +36,13 @@
     "test:secrets": "node --test tests/security/secrets.test.mjs",
     "setup:browser": "PLAYWRIGHT_BROWSERS_PATH=.cache/playwright playwright install chromium",
     "test:database": "node tests/support/run-planning-database.mjs",
+    "test:token-database": "node tests/support/run-token-database.mjs",
     "test:database:runner": "node --test tests/database/planning-runner-cli.test.mjs",
     "test:adventure-task-database": "node tests/support/run-planning-database.mjs --goal-model && node tests/support/run-planning-database.mjs --legacy-model",
     "test:goal-migration-baseline": "node --test tests/database/goal-migration-reconcile.test.mjs && node tests/support/run-goal-migration-baseline.mjs",
     "test:ledger-cleanup": "node tests/support/run-ledger-account-name-cleanup.mjs",
-    "prototype:adventure-today": "vite --config vite.adventure-today-prototype.config.ts"
+    "prototype:adventure-today": "vite --config vite.adventure-today-prototype.config.ts",
+    "preview:token": "node tests/support/token-preview.mjs"
   },
   "dependencies": {
     "@cloudflare/workers-oauth-provider": "1.2.4",
@@ -59,6 +66,7 @@
     "@cloudflare/vite-plugin": "1.67.0",
     "@cloudflare/workers-types": "5.20261102.1",
     "@playwright/test": "1.63.0",
+    "@tokscale/cli": "4.23.0",
     "@types/node": "26.6.4",
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
@@ -66,6 +74,7 @@
     "miniflare": "5.20261101.0-beta",
     "pg": "8.23.1",
     "typescript": "7.0.2",
+    "undici": "7.30.1",
     "vite": "8.3.5",
     "vitest": "5.0.3",
     "wrangler": "4.156.1"

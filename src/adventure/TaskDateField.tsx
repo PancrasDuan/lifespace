@@ -22,7 +22,14 @@ export function TaskDateField({ value, onChange, today, originalDate, label = 'æ
   const input = useRef<HTMLInputElement>(null)
   const trigger = useRef<HTMLButtonElement>(null)
   const popover = useRef<HTMLDivElement>(null)
-  const close = () => { setOpen(false); requestAnimationFrame(() => trigger.current?.focus({ preventScroll: true })) }
+  const close = () => {
+    setOpen(false)
+    requestAnimationFrame(() => {
+      // A fast keyboard reopen can precede the old close frame. Its focus
+      // return must not take focus back from the newly opened picker.
+      if (!popover.current?.matches(':popover-open')) trigger.current?.focus({ preventScroll: true })
+    })
+  }
   useLayoutEffect(() => {
     if (disabled) { setOpen(false); return }
     if (!open || !popover.current || !control.current) return

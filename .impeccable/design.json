@@ -1,0 +1,319 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-15T17:33:37.302633+00:00",
+  "title": "Design System: Token 正式界面",
+  "extensions": {
+    "colorMeta": {
+      "page": {
+        "role": "neutral",
+        "displayName": "page"
+      },
+      "surface": {
+        "role": "neutral",
+        "displayName": "surface"
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "ink"
+      },
+      "muted": {
+        "role": "neutral",
+        "displayName": "muted"
+      },
+      "line": {
+        "role": "neutral",
+        "displayName": "line"
+      },
+      "nav": {
+        "role": "neutral",
+        "displayName": "nav"
+      },
+      "nav-text": {
+        "role": "neutral",
+        "displayName": "nav-text"
+      },
+      "accent": {
+        "role": "primary",
+        "displayName": "森林绿总量"
+      },
+      "comparison": {
+        "role": "neutral",
+        "displayName": "灰绿比较线"
+      },
+      "accent-light": {
+        "role": "primary",
+        "displayName": "accent-light"
+      },
+      "copper": {
+        "role": "secondary",
+        "displayName": "暖色日期标记"
+      },
+      "positive": {
+        "role": "secondary",
+        "displayName": "positive"
+      },
+      "warning": {
+        "role": "secondary",
+        "displayName": "warning"
+      },
+      "model-teal": {
+        "role": "secondary",
+        "displayName": "模型青绿"
+      },
+      "model-sand": {
+        "role": "secondary",
+        "displayName": "模型暖棕"
+      },
+      "model-unknown": {
+        "role": "neutral",
+        "displayName": "未知模型灰绿"
+      },
+      "heat-0": {
+        "role": "neutral",
+        "displayName": "heat-0"
+      },
+      "heat-1": {
+        "role": "neutral",
+        "displayName": "heat-1"
+      },
+      "heat-2": {
+        "role": "neutral",
+        "displayName": "heat-2"
+      },
+      "heat-3": {
+        "role": "neutral",
+        "displayName": "heat-3"
+      },
+      "heat-4": {
+        "role": "neutral",
+        "displayName": "heat-4"
+      },
+      "rail-surface": {
+        "role": "neutral",
+        "displayName": "rail-surface"
+      },
+      "filter-surface": {
+        "role": "neutral",
+        "displayName": "filter-surface"
+      },
+      "metric-surface": {
+        "role": "neutral",
+        "displayName": "metric-surface"
+      },
+      "tooltip-surface": {
+        "role": "neutral",
+        "displayName": "日期浮层深绿"
+      },
+      "tooltip-ink": {
+        "role": "neutral",
+        "displayName": "日期浮层文字"
+      }
+    },
+    "typographyMeta": {
+      "headline": {
+        "displayName": "headline",
+        "purpose": "页标题；手机24px。"
+      },
+      "title": {
+        "displayName": "title",
+        "purpose": "面板标题；手机14px。"
+      },
+      "body": {
+        "displayName": "body",
+        "purpose": "根字号14px，页面描述13px/手机12px；DM Sans未额外加载。"
+      },
+      "label": {
+        "displayName": "label",
+        "purpose": "紧凑标签、脚注与图例。"
+      },
+      "metric": {
+        "displayName": "metric",
+        "purpose": "普通指标；随断点变化。"
+      },
+      "metric-total": {
+        "displayName": "metric-total",
+        "purpose": "总用量；随断点变化。"
+      },
+      "metric-pair": {
+        "displayName": "metric-pair",
+        "purpose": "输入/输出读数；随断点变化。"
+      }
+    },
+    "shadows": [
+      {
+        "name": "segmented-selected",
+        "value": "0 1px 3px #263f3414",
+        "purpose": "选中分段。"
+      },
+      {
+        "name": "calendar-tooltip",
+        "value": "0 8px 24px #203d2526",
+        "purpose": "日期浮层，与页面面板区分。"
+      }
+    ],
+    "motion": [
+      {
+        "name": "control-transition",
+        "value": "background-color 160ms ease-out, border-color 160ms ease-out",
+        "purpose": "button 与 select。"
+      },
+      {
+        "name": "daily-disclosure-chevron",
+        "value": "transform 160ms ease-out",
+        "purpose": "明细标题按钮旁的展开箭头。"
+      },
+      {
+        "name": "reduced-motion",
+        "value": "transition: none !important; scroll-behavior: auto !important",
+        "purpose": "prefers-reduced-motion: reduce。"
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "compact-max",
+        "value": "1200px"
+      },
+      {
+        "name": "analysis-stack-max",
+        "value": "980px"
+      },
+      {
+        "name": "mobile-max",
+        "value": "720px"
+      },
+      {
+        "name": "narrow-max",
+        "value": "400px"
+      },
+      {
+        "name": "wide-min",
+        "value": "1700px"
+      },
+      {
+        "name": "short-height-max",
+        "value": "560px"
+      },
+      {
+        "name": "trend-container-max",
+        "value": "470px"
+      },
+      {
+        "name": "activity-container-min",
+        "value": "1040px"
+      },
+      {
+        "name": "extra-narrow-max",
+        "value": "360px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "描边按钮",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "空结果恢复与返回Token视图的按钮。",
+      "html": "<button class=\"ds-button\" type=\"button\">清除模型筛选</button>",
+      "css": ":host { font-family:'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;font-size:14px;color:var(--ink, #263f34);font-variant-numeric:tabular-nums; }\n.ds-button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-block-size: 40px; border: 1px solid #d8e0d2; border-radius: 8px; padding: 9px 15px; background: var(--surface, #ffffff); color: #3d5845; font-size: 13px; font-weight: 500; white-space: nowrap; }\n.ds-button:hover { background: #f0f5eb; border-color: #b7c9ae; }\n.ds-button:focus-visible { outline: 3px solid var(--accent, #365d45); outline-offset: 4px; }\n.ds-button { font-family:'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;cursor:pointer;transition: background-color 160ms ease-out, border-color 160ms ease-out; }\n.ds-button:disabled { cursor: default; opacity: .45; }\n.ds-button svg{inline-size:19px;block-size:19px;display:block;flex:none;} @media(max-width:720px){.ds-button{font-size:11px;padding-inline:10px;}.ds-button svg{inline-size:16px;block-size:16px;}}\n@media(prefers-reduced-motion:reduce){.ds-button{transition:none !important;scroll-behavior:auto !important;}}"
+    },
+    {
+      "name": "重置按钮",
+      "kind": "button",
+      "refersTo": "button-reset",
+      "description": "当前默认筛选时禁用；片段展示可操作状态。",
+      "html": "<button class=\"ds-reset-button\" type=\"button\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.65\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M4 10a8 8 0 1 1 1 8M4 4v6h6\"/></svg>重置</button>",
+      "css": ":host { font-family:'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;font-size:14px;color:var(--ink, #263f34);font-variant-numeric:tabular-nums; }\n.ds-reset-button { display: flex; align-items: center; gap: 5px; min-block-size: 37px; background: transparent; padding: 7px 4px; border: 0; color: #52694d; font-size: 12px; }\n.ds-reset-button:hover:not(:disabled) { color: var(--accent, #365d45); }\n.ds-reset-button svg { inline-size: 15px; block-size: 15px; }\n.ds-reset-button:focus-visible { outline: 3px solid var(--accent, #365d45); outline-offset: 4px; }\n.ds-reset-button { font-family:'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;cursor:pointer;transition: background-color 160ms ease-out, border-color 160ms ease-out; }\n.ds-reset-button:disabled { cursor: default; opacity: .45; }\n@media(max-width:720px){.ds-reset-button{min-block-size:30px;font-size:11px;}}\n@media(prefers-reduced-motion:reduce){.ds-reset-button{transition:none !important;scroll-behavior:auto !important;}}"
+    },
+    {
+      "name": "文字按钮",
+      "kind": "button",
+      "refersTo": "button-text",
+      "description": "模型筛选恢复入口。",
+      "html": "<button class=\"ds-text-button\" type=\"button\">查看全部模型<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.65\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M4 12h15m-5-5 5 5-5 5\"/></svg></button>",
+      "css": ":host { font-family:'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;font-size:14px;color:var(--ink, #263f34);font-variant-numeric:tabular-nums; }\n.ds-text-button { background: transparent; border: 0; color: var(--accent, #365d45); padding: 8px 0; font-size: 11px; display: inline-flex; gap: 5px; align-items: center; }\n.ds-text-button:hover { text-decoration: underline; text-underline-offset: 3px; }\n.ds-text-button svg { inline-size: 13px; block-size: 13px; }\n.ds-text-button:focus-visible { outline: 3px solid var(--accent, #365d45); outline-offset: 4px; }\n.ds-text-button { font-family:'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;cursor:pointer;transition: background-color 160ms ease-out, border-color 160ms ease-out; }\n.ds-text-button:disabled { cursor: default; opacity: .45; }\n@media(prefers-reduced-motion:reduce){.ds-text-button{transition:none !important;scroll-behavior:auto !important;}}"
+    },
+    {
+      "name": "图形视图按钮",
+      "kind": "button",
+      "refersTo": "button-chart-view",
+      "description": "当前总量曲线按钮；aria-pressed 表达已有选中状态。",
+      "html": "<button class=\"ds-icon-button\" type=\"button\" aria-label=\"总量曲线\" aria-pressed=\"true\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.65\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M3 5v15h18M6 15l4-6 4 4 6-8\"/></svg></button>",
+      "css": ":host { font-family:'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;font-size:14px;color:var(--ink, #263f34);font-variant-numeric:tabular-nums; }\n.ds-icon-button { background: transparent; border: 0; padding: 5px; min-inline-size: 29px; min-block-size: 29px; border-radius: 5px; color: #657b60; }\n.ds-icon-button svg { inline-size: 17px; block-size: 17px; }\n.ds-icon-button[aria-pressed=true], .ds-icon-button:hover { background: var(--accent-light, #e7efe1); color: var(--accent, #365d45); }\n.ds-icon-button:focus-visible { outline: 3px solid var(--accent, #365d45); outline-offset: 4px; }\n.ds-icon-button { font-family:'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;cursor:pointer;transition: background-color 160ms ease-out, border-color 160ms ease-out; }\n.ds-icon-button:disabled { cursor: default; opacity: .45; }\n@media(prefers-reduced-motion:reduce){.ds-icon-button{transition:none !important;scroll-behavior:auto !important;}}"
+    },
+    {
+      "name": "原生筛选",
+      "kind": "input",
+      "refersTo": "filter-select",
+      "description": "原生时间范围 select；菜单保持浏览器默认行为。",
+      "html": "<label class=\"ds-filter-label\">时间范围<select class=\"ds-select\" name=\"period\"><option>今天</option><option>本周</option><option>本月</option><option>近 7 天</option><option selected>近 30 天</option><option>近 90 天</option><option>今年</option></select></label>",
+      "css": ":host { font-family:'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;font-size:14px;color:var(--ink, #263f34);font-variant-numeric:tabular-nums; }\n.ds-select { inline-size: 100%; min-block-size: 37px; padding: 8px 26px 8px 11px; border: 1px solid #d8e0d2; border-radius: 7px; background-color: var(--surface, #ffffff); font-size: 12px; cursor: pointer; }\n.ds-select:hover { border-color: #b7c9ae; }\n.ds-select:focus-visible { outline: 3px solid var(--accent, #365d45); outline-offset: 4px; }\n.ds-select { font-family:'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;cursor:pointer;transition: background-color 160ms ease-out, border-color 160ms ease-out; }\n.ds-filter-label{display:grid;gap:7px;font-size:11px;color:var(--muted, #65766b);}.ds-select{color:inherit;} @media(max-width:720px){.ds-select{min-block-size:39px;font-size:12px;}}\n@media(prefers-reduced-motion:reduce){.ds-filter-label,.ds-select{transition:none !important;scroll-behavior:auto !important;}}"
+    },
+    {
+      "name": "标准面板",
+      "kind": "card",
+      "refersTo": "panel-standard",
+      "description": "设备同步面板的边框、标题及内边距摘录。",
+      "html": "<section class=\"ds-panel ds-devices-panel\"><div class=\"ds-panel-heading\"><div><h2 class=\"ds-panel-title\">设备同步</h2></div><span class=\"ds-small-note\">2 台设备</span></div></section>",
+      "css": ":host { font-family:'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;font-size:14px;color:var(--ink, #263f34);font-variant-numeric:tabular-nums; }\n.ds-panel { border: 1px solid var(--line, #e3e9df); border-radius: var(--radius, 14px); background: var(--surface, #ffffff); min-inline-size: 0; }\n.ds-devices-panel, .ds-daily-panel { padding: 22px 23px; }\n.ds-panel-heading { display: flex; justify-content: space-between; align-items: start; gap: 12px; }\n.ds-panel-title { font-size: 15px; font-weight: 620; letter-spacing: -.01em; line-height: 1.5; }\n.ds-panel-heading p { color: var(--muted, #65766b); font-size: 11px; line-height: 1.7; margin-block-start: 4px; }\n.ds-small-note { color: var(--muted, #65766b); font-size: 11px; white-space: nowrap; margin-block-start: 4px; }\n.ds-panel-title,.ds-panel-heading p{margin:0;}.ds-panel-heading p{margin-block-start:4px;}@media(max-width:720px){.ds-devices-panel{padding:18px 16px;}.ds-panel-title{font-size:14px;}}\n@media(prefers-reduced-motion:reduce){.ds-devices-panel,.ds-panel,.ds-panel-heading,.ds-panel-title,.ds-small-note{transition:none !important;scroll-behavior:auto !important;}}"
+    },
+    {
+      "name": "分段控件",
+      "kind": "button",
+      "refersTo": "segmented-button",
+      "description": "趋势指标切换；片段展示 Token 选中状态，交互由正式 React TokenTrend 提供。",
+      "html": "<div class=\"ds-segmented\" aria-label=\"趋势指标\"><button type=\"button\" aria-pressed=\"true\">Token</button><button type=\"button\" aria-pressed=\"false\">费用</button></div>",
+      "css": ":host { font-family:'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;font-size:14px;color:var(--ink, #263f34);font-variant-numeric:tabular-nums; }\n.ds-segmented { display: inline-flex; align-items: center; padding: 3px; gap: 2px; background: #f0f5eb; border-radius: 7px; flex: none; }\n.ds-segmented button { min-block-size: 29px; padding: 5px 11px; border: 0; background: transparent; border-radius: 5px; color: #52694d; font-size: 11px; }\n.ds-segmented button:hover { background: #e6efdf; }\n.ds-segmented button[aria-pressed=true] { background: var(--surface, #ffffff); color: #365d45; box-shadow: 0 1px 3px #263f3414; font-weight: 600; }\n.ds-segmented button:focus-visible { outline: 3px solid var(--accent, #365d45); outline-offset: 4px; }\n.ds-segmented button { font-family:'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;cursor:pointer;transition: background-color 160ms ease-out, border-color 160ms ease-out; }\n.ds-segmented button:disabled { cursor: default; opacity: .45; }\n@media(max-width:720px){.ds-segmented button{min-block-size:34px;padding-inline:8px;}} @container trend (max-width:470px){.ds-segmented button{padding-inline:8px;}}\n@media(prefers-reduced-motion:reduce){.ds-segmented{transition:none !important;scroll-behavior:auto !important;}}"
+    },
+    {
+      "name": "年度热图色阶",
+      "kind": "custom",
+      "refersTo": "heat-legend-marker",
+      "description": "摘自年度日历现有图例；展示五级颜色与方块形状，非新增交互组件。",
+      "html": "<div class=\"ds-heat-legend\"><span>少</span><i data-level=\"0\"></i><i data-level=\"1\"></i><i data-level=\"2\"></i><i data-level=\"3\"></i><i data-level=\"4\"></i><span>多</span></div>",
+      "css": ":host { font-family:'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;font-size:14px;color:var(--ink, #263f34);font-variant-numeric:tabular-nums; }\n.ds-heat-legend { display: flex; align-items: center; gap: 4px; color: var(--muted, #65766b); font-size: 11px; }\n.ds-heat-legend i { inline-size: 10px; block-size: 10px; border-radius: 2px; }\n.ds-heat-legend span:first-child { margin-inline-end: 3px; }\n.ds-heat-legend span:last-child { margin-inline-start: 3px; }\n[data-level=\"0\"] { background: #edf2e8; }\n[data-level=\"1\"] { background: #d9e6c9; }\n[data-level=\"2\"] { background: #b5cf9b; }\n[data-level=\"3\"] { background: #84a867; }\n[data-level=\"4\"] { background: #527a4f; }\n@media(prefers-reduced-motion:reduce){.ds-heat-legend{transition:none !important;scroll-behavior:auto !important;}}"
+    },
+    {
+      "name": "日期悬浮提示",
+      "kind": "tooltip",
+      "refersTo": "calendar-tooltip",
+      "description": "日期、Token和计价范围；实际页面以原生hint/auto或手动回退定位，组件面板仅以内联静态样本展示。",
+      "html": "<div class=\"calendar-tooltip\" role=\"tooltip\"><strong>2026/11/15</strong><span class=\"tooltip-total\">1,242,583 Token</span><span>$2.19 API 等价估算 · 可计价部分</span></div>",
+      "css": ".calendar-tooltip { position: fixed; inset: auto; margin: 0; padding: 14px 16px; inline-size: max-content; max-inline-size: min(260px, calc(100% - 16px)); border: 0; border-radius: 10px; background: #304d39; color: #f9fcf6; box-shadow: 0 8px 24px #203d2526; font-size: 12px; line-height: 1.65; z-index: 30; overflow-wrap: anywhere; }\n.calendar-tooltip strong, .calendar-tooltip span { display: block; }\n.calendar-tooltip strong { font-size: 12px; font-weight: 500; color: #d5e4ce; }\n.calendar-tooltip .tooltip-total { font-size: 17px; font-weight: 550; margin-block: 4px; }\n.calendar-tooltip { position: relative; inset: auto; }"
+    },
+    {
+      "name": "日统计明细折叠标题",
+      "kind": "button",
+      "refersTo": "daily-disclosure",
+      "description": "按钮位于h2内；实际页面通过aria-expanded与hidden=until-found控制明细，支持beforematch。样本展示收起状态。",
+      "html": "<h2><button class=\"daily-toggle\" type=\"button\" aria-expanded=\"false\"><svg class=\"disclosure-icon\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.65\" aria-hidden=\"true\"><path d=\"m6 9 6 6 6-6\"/></svg><span>日统计明细</span><span class=\"small-note\">30 天</span></button></h2>",
+      "css": "h2{margin:0;font:620 15px/1.5 -apple-system,BlinkMacSystemFont,\"Segoe UI\",sans-serif}.daily-toggle{display:flex;align-items:center;gap:8px;inline-size:100%;min-block-size:58px;border:0;border-radius:14px;padding:20px 23px;text-align:start;color:#263f34;background:transparent;font:inherit;cursor:pointer}.daily-toggle:hover{background:#f0f5eb}.daily-toggle:focus-visible{outline:3px solid #365d45;outline-offset:4px}.disclosure-icon{inline-size:16px;block-size:16px;transform:rotate(-90deg)}.small-note{margin-inline-start:auto;font-size:11px;font-weight:400;color:#65766b}"
+    }
+  ],
+  "narrative": {
+    "northStar": "LifeSpace 已确认绿色世界",
+    "overview": "正式 Token 路由继承已确认原型与共享应用壳；仅开发文档，不随客户端交付。",
+    "keyCharacteristics": [
+      "森林绿与薄荷奶油背景",
+      "平面白色细线面板",
+      "精确数字与紧凑控件"
+    ],
+    "rules": [
+      {
+        "name": "The Semantic Series Rule",
+        "body": "当前、比较、日期选择各有固定意义。",
+        "section": "colors"
+      },
+      {
+        "name": "The Flat Panel Rule",
+        "body": "面板以细边框和间距分层。",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do preserve the approved prototype and real data states."
+    ],
+    "donts": [
+      "Don’t treat unknown pricing as free or API estimates as actual bills."
+    ]
+  }
+}

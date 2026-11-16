@@ -1,0 +1,25 @@
+{
+  "archive": "test-results/token219/lifespace-token-collector-0.1.0.tgz",
+  "sha256": "557c6b47f52b0acd556c2a7cff91bbd39712f7f5a446b53988a351a4cad54712",
+  "bytes": 26706,
+  "runtime": "Node24.x; macOS/Linux; @tokscale/cli4.23.0 installed as exact runtime dependency",
+  "sourceSha256": "9e278aed3af82ddc2f5a5da9b1a048a9f0d82b7c19bc42278f860038482287d5",
+  "sourceFiles": [
+    "src/shared/token-backend-contract.ts",
+    "src/shared/token-usage-contract.ts",
+    "tools/token-collector/README.md",
+    "tools/token-collector/cli.ts",
+    "tools/token-collector/collector.ts",
+    "tools/token-collector/coverage.ts",
+    "tools/token-collector/local.ts",
+    "tools/token-collector/package-lock.json",
+    "tools/token-collector/package.json",
+    "tools/token-collector/prices.ts",
+    "tools/token-collector/schedule.ts",
+    "tools/token-collector/store.ts",
+    "tools/token-collector/tokscale-adapter.ts",
+    "tools/token-collector/tokscale-cli.ts",
+    "tools/token-collector/transport.ts"
+  ],
+  "verification": "actual out-of-repository installation + 12-token synthetic scan + local archive upgrade; SQLite preserved byte-for-byte; installer reported matching archive SHA256; no system task installed"
+}

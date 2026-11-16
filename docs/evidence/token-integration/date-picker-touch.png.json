@@ -1,0 +1,11 @@
+{
+  "viewport": {
+    "width": 390,
+    "height": 520
+  },
+  "fullPage": false,
+  "scrollY": 1187,
+  "touch": true,
+  "source": "src/adventure/TaskDateField.tsx",
+  "sourceSha256": "5b374ddc71ab9a4b5e5f7db6e33534c3b9e5d43bf0a4e9081f4d71560e2f8175"
+}
