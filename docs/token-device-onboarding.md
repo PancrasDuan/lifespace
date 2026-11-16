@@ -58,7 +58,7 @@ node token-local-evidence.mjs \
 
 辅助输出保留缺失字段、null、实际0、费用分类/coverage、模型覆盖及是否存在所选模型；模型缺席不制造零值。输出仅为本地证据，不能称托管 summary 或 HTTP 回执。Node SQLite 的运行时提示与业务错误分开；失败只打印固定码，不输出原始数据库错误和路径。
 
-维护者验证入口为 `npm run build:collector` 后运行 `node --test tests/security/token-local-evidence.test.mjs`，使用独立合成 SQLite 核对敏感字段排除、只读不变、缺失/null/0、模型缺席、摘要篡改和错误脱敏；它不接触用户来源或线上。
+维护者验证入口为 `npm run test:collector-evidence`，先构建采集器，再用独立合成 SQLite 核对敏感字段排除、只读不变、缺失/null/0、模型缺席、摘要篡改和错误脱敏；它不接触用户来源或线上。该入口纳入既有 Node24 `collector_linux` CI job，在系统任务测试前执行，失败会阻止既有 `validate` 门禁通过。
 
 | 证据 | 记录内容与取得方式 |
 | --- | --- |
