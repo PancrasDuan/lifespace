@@ -11,6 +11,18 @@ const initialQuery = (includeTerminal = false): PlanningQuery => ({ page: 1, tas
   includeTerminal })
 const timeoutMessage = '响应超时，点击重试。原操作已保留，请勿重复新建。'
 const timedOut = (signal: AbortSignal) => signal.aborted && signal.reason?.name === 'TimeoutError'
+async function waitForRequest<T>(signal: AbortSignal, request: () => Promise<T>): Promise<T> {
+  signal.throwIfAborted()
+  let abort = () => {}
+  const interrupted = new Promise<never>((_, reject) => {
+    abort = () => reject(signal.reason)
+    signal.addEventListener('abort', abort, { once: true })
+  })
+  // SDK session reads may keep waiting after abort. Stop waiting here; the
+  // authorized request still checks this signal before sending anything.
+  try { return await Promise.race([request(), interrupted]) }
+  finally { signal.removeEventListener('abort', abort) }
+}
 
 type ConfirmationCommand = Extract<PlanningCommand, { type: 'endGoal' | 'deleteTask' | 'achieveGoal' | 'rescheduleTask' | 'cancelTaskCompletion' | 'endRecurringTask' | 'deleteRecurringTask' }>
 type ConfirmationPreview = { command: ConfirmationCommand; value: PlanningPreview }
@@ -70,7 +82,7 @@ export function usePlanning(enabled = true) {
   const signal = (timeout = 15_000) => AbortSignal.any([lifecycle.current.signal, identity.signal, AbortSignal.timeout(timeout)])
 
   const refresh = useCallback(async (requestSignal = signal()) => {
-    const result = await planningApi.load(identity.ownerId, query.current, requestSignal)
+    const result = await waitForRequest(requestSignal, () => planningApi.load(identity.ownerId, query.current, requestSignal))
     requestSignal.throwIfAborted()
     if (result.version < minimumVersion.current) throw new PlanningError('数据尚未更新到已保存版本，请重新读取', 409)
     minimumVersion.current = result.version
@@ -106,7 +118,7 @@ export function usePlanning(enabled = true) {
     setBusy(true)
     setError('')
     try {
-      const receipt = await planningApi.send(identity.ownerId, envelope, requestSignal)
+      const receipt = await waitForRequest(requestSignal, () => planningApi.send(identity.ownerId, envelope, requestSignal))
       epoch.signal.throwIfAborted()
       identity.signal.throwIfAborted()
       await clearPending(identity.ownerId, envelope, AbortSignal.any([identity.signal, epoch.signal]))
@@ -231,9 +243,9 @@ export function usePlanning(enabled = true) {
         active.current = true; setBusy(true); setError(''); setPendingReview(undefined)
         const requestSignal = signal(10_000)
         try {
-          const receipt = canRetryPlanningEnvelope(stored)
-            ? await planningApi.send(identity.ownerId, stored, requestSignal)
-            : await planningApi.lookupReceipt(identity.ownerId, stored, requestSignal)
+          const receipt = await waitForRequest(requestSignal, () => canRetryPlanningEnvelope(stored)
+            ? planningApi.send(identity.ownerId, stored, requestSignal)
+            : planningApi.lookupReceipt(identity.ownerId, stored, requestSignal))
           epoch.signal.throwIfAborted(); identity.signal.throwIfAborted()
           await clearPending(identity.ownerId, stored, AbortSignal.any([identity.signal, epoch.signal]))
           epoch.signal.throwIfAborted(); identity.signal.throwIfAborted()

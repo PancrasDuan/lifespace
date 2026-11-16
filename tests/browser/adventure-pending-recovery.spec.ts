@@ -137,6 +137,63 @@ test('恢复已获成功回执后读取也受 10 秒总预算约束，只允许�
   expect(fixture.envelopes).toEqual([currentEnvelope])
 })
 
+for (const scenario of ['submit', 'retry', 'lookup'] as const) {
+  test(`${scenario} 等待会话读取也受超时约束，迟到会话不补发请求`, async ({ page, context }) => {
+    await context.addInitScript(() => {
+      const original = AbortSignal.timeout.bind(AbortSignal)
+      AbortSignal.timeout = ms => original(ms === 10_000 ? 300 : ms)
+    })
+    const fixture = await planningFixture(context)
+    fixture.saved({ ...emptyPlanning, version: 3 })
+    const lookups: unknown[] = []
+    await context.route('**/api/adventure/receipts/lookup', route => {
+      lookups.push(route.request().postDataJSON())
+      fixture.show({ ...emptyPlanning, version: 3 })
+      return route.fulfill({ headers: { 'Cache-Control': 'no-store', 'X-Lifespace-Adventure-Model': 'goal-categories-1' }, json: linkedReceipt(route) })
+    })
+    await page.goto('/adventure?view=planning')
+    if (scenario === 'submit') {
+      await page.getByRole('button', { name: '新建目标', exact: true }).click()
+      await page.getByLabel('目标名称').fill('会话等待超时')
+      await page.getByLabel('完成标准 1', { exact: true }).fill('保留原操作')
+    } else {
+      await putPending(page, owner, scenario === 'lookup' ? legacyEnvelope : currentEnvelope)
+      await page.reload()
+    }
+    await page.evaluate(async () => {
+      const modulePath = '/src/auth/client.ts'
+      const { authClient } = await import(modulePath)
+      const client = await authClient()
+      const original = client.auth.getSession.bind(client.auth)
+      const state = window as Window & { releaseSession?: () => void; sessionSettled?: boolean }
+      let waiting = true
+      const gate = new Promise<void>(resolve => { state.releaseSession = () => { waiting = false; resolve() } })
+      client.auth.getSession = async () => {
+        if (waiting) await gate
+        const result = await original()
+        state.sessionSettled = true
+        return result
+      }
+    })
+    try {
+      await page.getByRole('button', { name: scenario === 'submit' ? '创建目标' : scenario === 'lookup' ? '确认上次操作结果' : '安全重试同一次操作', exact: true }).click()
+      await expect(page.getByRole('alert')).toContainText('响应超时，点击重试')
+      const stored = await getPending(page, owner)
+      expect(stored).toBeDefined()
+      await expect(page.getByRole('button', { name: '解除本地待确认状态', exact: true })).toHaveCount(0)
+      await page.evaluate(() => { crypto.randomUUID = () => { throw new Error('恢复不得创建 requestId') } })
+      await page.evaluate(() => (window as Window & { releaseSession?: () => void }).releaseSession?.())
+      await expect.poll(() => page.evaluate(() => (window as Window & { sessionSettled?: boolean }).sessionSettled)).toBe(true)
+      expect(fixture.envelopes).toEqual([])
+      expect(lookups).toEqual([])
+      await page.getByRole('button', { name: /安全重试同一次操作|确认上次操作结果/ }).click()
+      await expect.poll(() => getPending(page, owner)).toBeUndefined()
+      if (scenario === 'lookup') expect(lookups).toEqual([{ ...legacyEnvelope, nonce: expect.any(String) }])
+      else expect(fixture.envelopes).toEqual([stored])
+    } finally { await page.evaluate(() => (window as Window & { releaseSession?: () => void }).releaseSession?.()).catch(() => {}) }
+  })
+}
+
 test('RECEIPT_UNKNOWN 后重载的 pending 可按原封套恢复，不再永久冻结', async ({ page, context }) => {
   const fixture = await planningFixture(context)
   const retries: unknown[] = []
