@@ -6,19 +6,21 @@
 
 ## 同一包和私有传输
 
-发行包未发布 npm；不使用 `npm install @lifespace/token-collector`。两设备使用同一份 0.1.1 补丁归档，不在设备端重新 pack：
+发行包未发布 npm；不使用 `npm install @lifespace/token-collector`。两设备使用同一份 0.1.2 补丁归档，不在设备端重新 pack：
 
 | 项目 | 固定值 |
 | --- | --- |
-| 包 | `lifespace-token-collector-0.1.1.tgz`，27,410 字节，14 个文件 |
-| SHA-256 | `22629b51edcbd493fbb8a58e1c1f3b2f54c79e05de15fc08e3a273afb1feb8d4` |
-| 声明源码 | `docs/evidence/token-onboarding/package.json` 中的 15 项；摘要 `c86d9006b3a5046200e20f99b7f6141de5ba78d7cf8fd62dbbb4bf229f7f8b14` |
-| 运行时 | Node 24；安装自动取得固定 Tokscale 4.23.0 和 Zod 4.6.7，保留 optional dependencies |
-| 私有副本 | 当前工作区 `test-results/token223/onboarding-0.1.1/lifespace-token-collector-0.1.1.tgz` |
+| 包 | `lifespace-token-collector-0.1.2.tgz`，27,847 字节，14 个文件 |
+| SHA-256 | `ef9290d862b503ec042fb8d7e0897513d512c98f697d8748e2d9705bd9348389` |
+| 声明源码 | `docs/evidence/token-onboarding/package.json` 中的 15 项；摘要 `faba180736946fdb885cb913747362ca983643a218ed3a8ff7f7634fea15c777` |
+| 运行时 | Node >=24.22.1 <25；仓库CI固定24.22.1；安装自动取得固定 Tokscale 4.23.0 和 Zod 4.6.7，保留 optional dependencies |
+| 私有副本 | 当前工作区 `test-results/token223/onboarding-0.1.2/lifespace-token-collector-0.1.2.tgz` |
 
-0.1.1 修复了真实 CI 揭示的压缩来源追加前缀校验退出时的未处理异步错误；仍在读够旧前缀后停止，并等待内部流关闭，不靠再次解压整个归档解决。损坏、截断、读取失败和来源变化继续保护旧可信结果。原 0.1.0 / 26,706 字节 / SHA256 `557c6b47f52b0acd556c2a7cff91bbd39712f7f5a446b53988a351a4cad54712` 及旧六文件目录 `onboarding/` 保留为历史材料，未改写；新包需自己的安装/升级和 CI 证据。
+0.1.2 保留压缩来源追加前缀读够后停止、等待内部流关闭的修复，并在 CLI 打开状态及 inventory 读取来源前要求已实测的稳定 Node24.22.1 基线。固定24.18实测会静默接受截断 zstd；[Node24.20.0 官方发布说明](https://nodejs.org/en/blog/release/v24.20.0)中的 `0ee91ead8b / nodejs/node#64593` 是初次截断修复，但实测24.20原生整块/同步解码仍会接受完整首帧后接截断帧。本次实际文件路径在24.20拒绝了该样本，不能将路径/分块差异当作运行时完整性保证。最低版本与CI均采用通过单帧、拼接帧及实际覆盖回归的24.22.1，不宣称最早修复补丁，不放宽坏帧断言。损坏、截断、读取失败和来源变化继续保护旧可信结果。
 
-当前可分发目录 `test-results/token223/onboarding-0.1.1/` 还包含向导 `token-device-onboarding.sh`、只读对账辅助 `token-local-evidence.mjs`、本说明 `README.md`、`SHA256SUMS` 和包来源记录。只传这个目录，不能传 `.env`、用户状态、原始 JSONL 或整个工作区。
+原 0.1.0 / 26,706 字节 / SHA256 `557c6b47f52b0acd556c2a7cff91bbd39712f7f5a446b53988a351a4cad54712` 及旧六文件目录 `onboarding/`，以及 0.1.1 / 27,410 字节 / SHA256 `22629b51edcbd493fbb8a58e1c1f3b2f54c79e05de15fc08e3a273afb1feb8d4` 的 `onboarding-0.1.1/` 均保留为历史材料，未改写；新包需自己的安装/升级和 CI 证据。
+
+当前可分发目录 `test-results/token223/onboarding-0.1.2/` 还包含向导 `token-device-onboarding.sh`、只读对账辅助 `token-local-evidence.mjs`、本说明 `README.md`、`SHA256SUMS` 和包来源记录。只传这个目录，不能传 `.env`、用户状态、原始 JSONL 或整个工作区。
 
 已发现的 Orca CLI 提供本地文件打开和浏览器 upload/download，但没有通用的主机间文件传输命令，当前也没有远程目标。操作者能直接读本机文件时复制上述目录；远端设备则由总控取得已有受控 SSH/SFTP/文件传输目标后，先列出准确源目录和目标目录，再通过该已有连接复制。缺少连接时由用户以自己的受控文件渠道取得这几个非敏感发行文件。尚未进行跨主机传输，不公开 npm、GitHub Release、生产下载路由或临时公网服务。
 
@@ -37,7 +39,7 @@ bash token-device-onboarding.sh
 
 ## 向导执行边界
 
-向导先检查 Node24、包字节/SHA、绝对路径和新建的私有独立 install/state，显示生产目标及 source-home，取得本机操作者确认后安装。它不复用默认状态、不覆盖已有安装、不执行 `init --replace`。中断后保留 install/state，按已安装 CLI 的正常命令继续；重新运行向导请选择新路径，已有设备重绑仍须网页明确确认，不能删除状态续权。
+向导先检查 Node >=24.22.1 <25、包字节/SHA、绝对路径和新建的私有独立 install/state，显示生产目标及 source-home，取得本机操作者确认后安装。它不复用默认状态、不覆盖已有安装、不执行 `init --replace`。中断后保留 install/state，按已安装 CLI 的正常命令继续；重新运行向导请选择新路径，已有设备重绑仍须网页明确确认，不能删除状态续权。
 
 随后打开正式 `/token`，由获准账户正常登录；在终端 `init` 后显示8位码，网页「核对设备」确认设备名称、平台、设备标识，再「批准连接」。若提示替换已有设备，必须先确认确实为本设备，并在网页勾选明确替换；不能因名称相似就替换。返回终端 `authorize --wait` 后核对 `authorized=true`，过期/拒绝时退出，不把进程退出0当领取成功。
 

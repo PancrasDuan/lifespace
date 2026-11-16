@@ -4,7 +4,7 @@ import { createZstdDecompress } from 'node:zlib'
 import { finished, pipeline } from 'node:stream/promises'
 import { lstat, open, readdir, readFile, type FileHandle } from 'node:fs/promises'
 import { join } from 'node:path'
-import { isMissing, LocalError, noSymlinkPath } from './local.ts'
+import { isMissing, LocalError, noSymlinkPath, requireNode24 } from './local.ts'
 import type { SourceProof } from './store.ts'
 
 type Observation = SourceProof & { valid: boolean; stamp: string }
@@ -98,6 +98,7 @@ async function observe(path: string): Promise<Observation> {
   return { path, hash: hash.digest('hex'), size, dates: [...dates].sort(), valid, stamp: stamp(initial) }
 }
 export async function inventory(home: string): Promise<Inventory> {
+  requireNode24()
   await noSymlinkPath(home)
   for (const settings of ['.config/tokscale/settings.json', 'Library/Application Support/tokscale/settings.json']) {
     try {

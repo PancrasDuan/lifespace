@@ -7,7 +7,8 @@ import { isAbsolute, join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
 export async function localEvidence({ installation, stateDir, date, modelKey }) {
-  if (Number(process.versions.node.split('.')[0]) !== 24) throw new Error('NODE_24_REQUIRED')
+  const runtime = /^24\.(\d+)\.(\d+)$/.exec(process.versions.node)
+  if (!runtime || Number(runtime[1]) < 22 || (Number(runtime[1]) === 22 && Number(runtime[2]) < 1)) throw new Error('NODE_24_22_1_REQUIRED')
   for (const path of [installation, stateDir]) {
     if (!path || !isAbsolute(path) || resolve(path) !== path) throw new Error('ABSOLUTE_PATH_REQUIRED')
   }
@@ -58,12 +59,12 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
   try {
     const { values } = parseArgs({ options: { installation: { type: 'string' }, 'state-dir': { type: 'string' }, date: { type: 'string' }, 'model-key': { type: 'string' }, help: { type: 'boolean' } } })
     if (values.help) {
-      console.log(`Node24 token-local-evidence.mjs --installation /private/install --state-dir /private/state --date YYYY-MM-DD [--model-key '"model-id"' | --model-key null]`)
+      console.log(`Node >=24.22.1 <25 token-local-evidence.mjs --installation /private/install --state-dir /private/state --date YYYY-MM-DD [--model-key '"model-id"' | --model-key null]`)
     } else {
       console.log(JSON.stringify(await localEvidence({ installation: values.installation, stateDir: values['state-dir'], date: values.date, modelKey: values['model-key'] }), null, 2))
     }
   } catch {
-    console.error(JSON.stringify({ error: 'LOCAL_EVIDENCE_UNCONFIRMED', next: 'Check Node24, explicit private paths, completed Beijing date, installed package, and local rollup; no raw database error is printed.' }))
+    console.error(JSON.stringify({ error: 'LOCAL_EVIDENCE_UNCONFIRMED', next: 'Check Node >=24.22.1 <25, explicit private paths, completed Beijing date, installed package, and local rollup; no raw database error is printed.' }))
     process.exitCode = 1
   }
 }

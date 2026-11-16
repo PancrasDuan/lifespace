@@ -9,6 +9,13 @@ import { createHash } from 'node:crypto'
 export class LocalError extends Error {
   constructor(readonly code: string) { super(code) }
 }
+export function requireNode24(version = process.versions.node) {
+  // Earlier Node24 decoders can silently accept truncated zstd, including
+  // concatenated frames on 24.20. Require our tested stable baseline before
+  // inspecting sources or opening state; partial output cannot prove coverage.
+  const match = /^24\.(\d+)\.(\d+)$/.exec(version)
+  if (!match || Number(match[1]) < 22 || (Number(match[1]) === 22 && Number(match[2]) < 1)) throw new LocalError('NODE_24_22_1_REQUIRED')
+}
 export const sha256 = (data: string | Buffer) => createHash('sha256').update(data).digest('hex')
 export function platform(): 'linux' | 'macos' {
   if (process.platform === 'linux') return 'linux'

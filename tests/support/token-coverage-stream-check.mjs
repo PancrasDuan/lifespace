@@ -5,6 +5,8 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { setImmediate } from 'node:timers/promises'
 import { syncBuiltinESMExports } from 'node:module'
+import { Readable, Writable } from 'node:stream'
+import { pipeline } from 'node:stream/promises'
 import zlib, { zstdCompressSync } from 'node:zlib'
 const { inventory, assessCoverage } = await import(process.argv[2] ?? new URL('../../tools/token-collector/dist/tools/token-collector/coverage.js', import.meta.url).href)
 
@@ -52,11 +54,30 @@ try {
   const valid = zstdCompressSync(Buffer.from(envelope(0)))
   await writeFile(source, valid.subarray(0, valid.length - 2))
   assert.equal((await inventory(root)).uncertain, true)
+  // A complete first frame must not hide an incomplete second frame, even
+  // before any prior source proof exists. Older Node24 silently accepted it.
+  await writeFile(source, Buffer.concat([valid, valid.subarray(0, valid.length - 2)]))
+  const truncated = await inventory(root)
+  assert.equal(truncated.uncertain, true)
+  const coverage = await assessCoverage([], truncated, truncated, ['2026-01-01'])
+  assert.deepEqual([...coverage.blocked], ['2026-01-01'])
+  assert.deepEqual(coverage.proofs, [])
+  // Node24.20's native decoder can lose the second frame with this input
+  // depending on chunk delivery. Check both our file reader and its runtime
+  // precondition, so a file-reader timing detail cannot stand in for integrity.
+  const small = zstdCompressSync(Buffer.from('{"timestamp":"2026-01-01T00:00:00Z","type":"synthetic"}\n'))
+  const concatenated = Buffer.concat([small, small.subarray(0, small.length - 2)])
+  await writeFile(source, concatenated)
+  const partial = await inventory(root)
+  const partialCoverage = await assessCoverage([], partial, partial, ['2026-01-01'])
+  assert.deepEqual([...partialCoverage.blocked], ['2026-01-01'])
+  assert.deepEqual(partialCoverage.proofs, [])
+  await assert.rejects(pipeline(Readable.from([concatenated]), zlib.createZstdDecompress(), new Writable({ write(_chunk, _encoding, done) { done() } })), { code: 'Z_BUF_ERROR' })
   await writeFile(source, valid)
   await chmod(source, 0o000)
   try { assert.equal((await inventory(root)).uncertain, true, 'Real filesystem read failure must remain unconfirmed') }
   finally { await chmod(source, 0o600) }
   await setImmediate()
   assert.equal((await readdir('/dev/fd')).length, descriptorsBefore, 'Failed reads leaked file descriptors')
-  console.log(JSON.stringify({ iterations: 100, appendAccepted: true, wrongPrefixRejected: true, prefixReadBounded: true, malformedCompressedSourceRejected: true, truncatedCompressedSourceRejected: true, readFailureRejected: true, fileDescriptorsClosed: true }))
+  console.log(JSON.stringify({ iterations: 100, appendAccepted: true, wrongPrefixRejected: true, prefixReadBounded: true, malformedCompressedSourceRejected: true, truncatedCompressedSourceRejected: true, concatenatedTruncatedSourceRejected: true, readFailureRejected: true, fileDescriptorsClosed: true }))
 } finally { await rm(root, { recursive: true, force: true }) }

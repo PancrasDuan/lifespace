@@ -1,11 +1,11 @@
 {
-  "archive": "test-results/token223/onboarding-0.1.1/lifespace-token-collector-0.1.1.tgz",
-  "version": "0.1.1",
-  "sha256": "22629b51edcbd493fbb8a58e1c1f3b2f54c79e05de15fc08e3a273afb1feb8d4",
-  "bytes": 27410,
+  "archive": "test-results/token223/onboarding-0.1.2/lifespace-token-collector-0.1.2.tgz",
+  "version": "0.1.2",
+  "sha256": "ef9290d862b503ec042fb8d7e0897513d512c98f697d8748e2d9705bd9348389",
+  "bytes": 27847,
   "files": 14,
-  "runtime": "Node24.x; macOS/Linux; @tokscale/cli4.23.0 and zod4.6.7 unchanged",
-  "sourceSha256": "c86d9006b3a5046200e20f99b7f6141de5ba78d7cf8fd62dbbb4bf229f7f8b14",
+  "runtime": "Node>=24.22.1<25; CI24.22.1; macOS/Linux; @tokscale/cli4.23.0 and zod4.6.7 unchanged",
+  "sourceSha256": "faba180736946fdb885cb913747362ca983643a218ed3a8ff7f7634fea15c777",
   "sourceFiles": [
     "src/shared/token-backend-contract.ts",
     "src/shared/token-usage-contract.ts",
@@ -31,6 +31,13 @@
     "sourceSha256": "9e278aed3af82ddc2f5a5da9b1a048a9f0d82b7c19bc42278f860038482287d5",
     "preserved": true
   },
-  "reason": "Bounded compressed prefix reads now own and await stream cleanup; genuine decode/read errors still fail closed",
-  "verification": "14 archive files equal current build/source; local package upgrade and final CI recorded separately, never inferred from 0.1.0 evidence"
+  "previousAttempt": {
+    "version": "0.1.1",
+    "sha256": "22629b51edcbd493fbb8a58e1c1f3b2f54c79e05de15fc08e3a273afb1feb8d4",
+    "bytes": 27410,
+    "sourceSha256": "c86d9006b3a5046200e20f99b7f6141de5ba78d7cf8fd62dbbb4bf229f7f8b14",
+    "preserved": true
+  },
+  "reason": "Own bounded stream cleanup and require tested Node24.22.1 before source inspection/state opening; Node24.20's initial EOF fix (nodejs/node#64593, 0ee91ead8b) still fails the native concatenated-frame probe",
+  "verification": "14 archive files equal current build/source; runtime boundary, local upgrade and final CI recorded separately, never inferred from earlier archives"
 }

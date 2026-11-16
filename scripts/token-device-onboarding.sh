@@ -201,13 +201,13 @@ finish() {
 run_wizard() {
   TOTAL_STAGES=8
   local server='https://lifespace.onepeace.cc.cd'
-  local expected='22629b51edcbd493fbb8a58e1c1f3b2f54c79e05de15fc08e3a273afb1feb8d4'
+  local expected='ef9290d862b503ec042fb8d7e0897513d512c98f697d8748e2d9705bd9348389'
   local wizard_dir node_path npm_path collector status_json scan_json
   local TOKEN_ARCHIVE TOKEN_INSTALL TOKEN_STATE TOKEN_SOURCE
   # No wizard profile, ambient .env, or secrets are read or written.
   ENV_FILE=/dev/null
   if [[ "${1:-}" == '--help' || "${1:-}" == '--plan' ]]; then
-    say 'Node24 / macOS 或 Linux；先由总控明确设备、操作者与允许扫描的 source-home。'
+    say 'Node >=24.22.1 <25 / macOS 或 Linux；先由总控明确设备、操作者与允许扫描的 source-home。'
     say '1. 检查 Node 和归档  2. 选择全新私有路径与明确来源  3. 私有安装'
     say '4. 获准网页登录与设备登记  5. 核对设备码/批准/领取'
     say '6. 手动 offline 扫描  7. 确认后 online 同步  8. 对账/仅展示 timer 计划'
@@ -217,16 +217,16 @@ run_wizard() {
   fi
   [[ $# -eq 0 || ( $# -eq 2 && "$1" == '--archive' ) ]] || { warn '参数无效；查看 --help。'; return 1; }
   [[ -t 0 && -t 1 ]] || { warn '请由已指定设备操作者在本机交互终端运行。'; return 1; }
-  command -v node >/dev/null || { warn '需要已有 Node24；向导不自动安装运行时。'; return 1; }
+  command -v node >/dev/null || { warn '需要已有 Node >=24.22.1 <25；向导不自动安装运行时。'; return 1; }
   node_path=$(command -v node)
-  [[ "$(node -p 'process.versions.node.split(".")[0]')" == 24 ]] || { warn '需要 Node24；请先选择正确 Node 路径。'; return 1; }
+  node -e 'const m=/^24\.(\d+)\.(\d+)$/.exec(process.versions.node);if(!m||Number(m[1])<22||(Number(m[1])===22&&Number(m[2])<1))process.exit(1)' || { warn '需要 Node >=24.22.1 <25；旧版不能可靠拒绝截断 zstd。'; return 1; }
   node_path=$(node -p 'process.execPath')
   npm_path="$(dirname "$node_path")/npm"
   [[ -x "$npm_path" ]] || { warn '所选 Node 同目录需要 npm。'; return 1; }
   export PATH="$(dirname "$node_path"):$PATH"
   node -e 'if (!["linux","darwin"].includes(process.platform)) process.exit(1)' || { warn '只支持 macOS/Linux。'; return 1; }
   wizard_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
-  TOKEN_ARCHIVE="${2:-$wizard_dir/lifespace-token-collector-0.1.1.tgz}"
+  TOKEN_ARCHIVE="${2:-$wizard_dir/lifespace-token-collector-0.1.2.tgz}"
   banner 'LifeSpace 正式设备接入（需已指定实际设备/来源）'
 
   stage '检查最终原包'
@@ -238,10 +238,10 @@ try {
   const [archive, expected] = process.argv.slice(2)
   if (!isAbsolute(archive)) throw 0
   const stat = await lstat(archive)
-  if (!stat.isFile() || stat.isSymbolicLink() || stat.size !== 27410) throw 0
+  if (!stat.isFile() || stat.isSymbolicLink() || stat.size !== 27847) throw 0
   const bytes = await readFile(archive)
-  if (bytes.length !== 27410 || createHash('sha256').update(bytes).digest('hex') !== expected) throw 0
-  console.log('  包校验通过：27,410 字节 / 22629b51… / Node ' + process.versions.node + ' / ' + process.platform + '/' + process.arch)
+  if (bytes.length !== 27847 || createHash('sha256').update(bytes).digest('hex') !== expected) throw 0
+  console.log('  包校验通过：27,847 字节 / ef9290d8… / Node ' + process.versions.node + ' / ' + process.platform + '/' + process.arch)
 } catch { console.error('ARCHIVE_UNCONFIRMED'); process.exitCode = 1 }
 JS
   say '私有本地包，未发布 npm；安装需要联网取得固定依赖，不使用 --omit=optional。'

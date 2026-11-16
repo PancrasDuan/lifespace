@@ -7,7 +7,7 @@ import { once } from 'node:events'
 import { promisify } from 'node:util'
 import { randomBytes } from 'node:crypto'
 import { Store, type Credential } from '../../tools/token-collector/store'
-import { deriveDeviceId, privateDirectory, systemDeviceId } from '../../tools/token-collector/local'
+import { deriveDeviceId, privateDirectory, requireNode24, systemDeviceId } from '../../tools/token-collector/local'
 import { endpoint, request, startRegistration, claimRegistration, uploadPending } from '../../tools/token-collector/transport'
 import { scan, synchronize } from '../../tools/token-collector/collector'
 import { inventory, assessCoverage } from '../../tools/token-collector/coverage'
@@ -38,6 +38,10 @@ const snapshot = (n = 130, model = 'model-a'): TokenUsageSnapshot => ({ identity
 async function save(store: Store, s: TokenUsageSnapshot) { store.saveScan(await store.prepareSnapshots([s]), [], new Set(), []) }
 function receipt(task: ReturnType<Store['tasks']>[number]) { return { persisted: true, deviceId: 'synthetic-device-213', date: task.date, agent: task.agent, generation: task.generation, snapshotVersion: task.version, contentHash: task.hash, result: 'replaced', receivedAt: '2026-11-15T00:00:00Z' } }
 
+test('collector requires a stable Node24 with premature zstd end detection', () => {
+  for (const version of ['24.22.1', '24.23.0', '24.99.0']) expect(() => requireNode24(version)).not.toThrow()
+  for (const version of ['22.22.0', '24.0.0', '24.18.0', '24.20.0', '24.22.0', '25.0.0', '24.22.1-rc.1', 'invalid']) expect(() => requireNode24(version)).toThrow('NODE_24_22_1_REQUIRED')
+})
 test('SQLite file persists latest + immutable A→B→A, deduplicates latest only, exact receipt deletes only its task', async () => {
   const p = await profile(); p.store.activate(credential())
   await save(p.store, snapshot()); const a = p.store.tasks()[0]
@@ -302,7 +306,7 @@ test('actual Tokscale recognizes compressed archive/backup suffixes; disappearan
 })
 test('compressed prefix checks close their pipeline without late unhandled errors and still reject changed or corrupt sources', async () => {
   const result = await promisify(execFile)(process.execPath, ['tests/support/token-coverage-stream-check.mjs'], { timeout: 12000, maxBuffer: 65536 })
-  expect(JSON.parse(result.stdout)).toEqual({ iterations: 100, appendAccepted: true, wrongPrefixRejected: true, prefixReadBounded: true, malformedCompressedSourceRejected: true, truncatedCompressedSourceRejected: true, readFailureRejected: true, fileDescriptorsClosed: true })
+  expect(JSON.parse(result.stdout)).toEqual({ iterations: 100, appendAccepted: true, wrongPrefixRejected: true, prefixReadBounded: true, malformedCompressedSourceRejected: true, truncatedCompressedSourceRejected: true, concatenatedTruncatedSourceRejected: true, readFailureRejected: true, fileDescriptorsClosed: true })
 }, 15000)
 test('truncated compressed source keeps the trusted snapshot, queue and coverage proof unchanged', async () => {
   const p = await profile(), file = join(p.home, '.codex/sessions/synthetic.jsonl.zst')
