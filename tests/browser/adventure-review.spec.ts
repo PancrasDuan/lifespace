@@ -120,10 +120,10 @@ test('早于成功版本的查询不能覆盖页面或放行新命令', async ({
 })
 
 test('命令成功后的查询共享总超时，超时仍明确提示已保存而读取失败', async ({ page, context }) => {
-  // Keep the platform timeout semantics, shortening only the 15s UI budget for this regression.
+  // Keep the platform timeout semantics, shortening only the 10s command budget for this regression.
   await context.addInitScript(() => {
     const original = AbortSignal.timeout.bind(AbortSignal)
-    AbortSignal.timeout = ms => original(ms === 15_000 ? 1_200 : ms)
+    AbortSignal.timeout = ms => original(ms === 10_000 ? 1_200 : ms)
   })
   const server = await planningFixture(context)
   server.saved(withGoal)

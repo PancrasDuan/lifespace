@@ -9,6 +9,8 @@ import { clearPending, PendingBusyError, readPending, savePending, watchPending,
 const initialQuery = (includeTerminal = false): PlanningQuery => ({ page: 1, taskRange: 'today', taskPage: 1, taskScope: 'all', search: '', goalTaskPage: 1,
   goalId: new URLSearchParams(window.location.search).get('goalId') ?? undefined,
   includeTerminal })
+const timeoutMessage = '响应超时，点击重试。原操作已保留，请勿重复新建。'
+const timedOut = (signal: AbortSignal) => signal.aborted && signal.reason?.name === 'TimeoutError'
 
 type ConfirmationCommand = Extract<PlanningCommand, { type: 'endGoal' | 'deleteTask' | 'achieveGoal' | 'rescheduleTask' | 'cancelTaskCompletion' | 'endRecurringTask' | 'deleteRecurringTask' }>
 type ConfirmationPreview = { command: ConfirmationCommand; value: PlanningPreview }
@@ -65,7 +67,7 @@ export function usePlanning(enabled = true) {
   }, [])
   const minimumVersion = useRef(0)
   const query = useRef<PlanningQuery>(initialQuery(readTerminalPreference(identity.ownerId)))
-  const signal = () => AbortSignal.any([lifecycle.current.signal, identity.signal, AbortSignal.timeout(15_000)])
+  const signal = (timeout = 15_000) => AbortSignal.any([lifecycle.current.signal, identity.signal, AbortSignal.timeout(timeout)])
 
   const refresh = useCallback(async (requestSignal = signal()) => {
     const result = await planningApi.load(identity.ownerId, query.current, requestSignal)
@@ -99,7 +101,7 @@ export function usePlanning(enabled = true) {
   const send = useCallback(async (envelope: PlanningEnvelope) => {
     if (active.current) return false
     const epoch = lifecycle.current
-    const requestSignal = signal()
+    const requestSignal = signal(10_000)
     active.current = true
     setBusy(true)
     setError('')
@@ -121,7 +123,8 @@ export function usePlanning(enabled = true) {
       return true
     } catch (failure) {
       if (epoch.signal.aborted || identity.signal.aborted) return false
-      const fault = failure instanceof PlanningError ? failure : new PlanningError('保存结果未知，请安全重试', 0, true)
+      const fault = timedOut(requestSignal) ? new PlanningError(timeoutMessage, 0, true)
+        : failure instanceof PlanningError ? failure : new PlanningError('保存结果未知，请安全重试', 0, true)
       setUncertain(fault.uncertain)
       if (fault.code === 'PLANNING_DATE_CHANGED') setDateChanged(true)
       setError(fault.message)
@@ -226,10 +229,11 @@ export function usePlanning(enabled = true) {
         if (!stored || JSON.stringify(stored) !== JSON.stringify(envelope)) throw new Error('Pending command changed')
         if (active.current) return false
         active.current = true; setBusy(true); setError(''); setPendingReview(undefined)
+        const requestSignal = signal(10_000)
         try {
           const receipt = canRetryPlanningEnvelope(stored)
-            ? await planningApi.send(identity.ownerId, stored, signal())
-            : await planningApi.lookupReceipt(identity.ownerId, stored, signal())
+            ? await planningApi.send(identity.ownerId, stored, requestSignal)
+            : await planningApi.lookupReceipt(identity.ownerId, stored, requestSignal)
           epoch.signal.throwIfAborted(); identity.signal.throwIfAborted()
           await clearPending(identity.ownerId, stored, AbortSignal.any([identity.signal, epoch.signal]))
           epoch.signal.throwIfAborted(); identity.signal.throwIfAborted()
@@ -237,13 +241,14 @@ export function usePlanning(enabled = true) {
           pending.current = undefined; setUncertain(false)
           if (stored.command.type === 'achieveGoal') setLastAchievement(receipt.result.entityId)
           setNotice({ id: stored.requestId, message: receipt.result.message }); setReadRequired(true)
-          try { await refresh(signal()) }
+          try { await refresh(requestSignal) }
           catch { if (!epoch.signal.aborted && !identity.signal.aborted) setError('操作已成功，页面更新失败。请重新读取。') }
           return true
         } catch (failure) {
           if (!epoch.signal.aborted && !identity.signal.aborted) {
             setUncertain(true)
-            if (failure instanceof PlanningError && (canRetryPlanningEnvelope(stored) ? failure.allowsPendingReview : failure.code === 'RECEIPT_UNKNOWN')) {
+            if (timedOut(requestSignal)) setError(timeoutMessage)
+            else if (failure instanceof PlanningError && (canRetryPlanningEnvelope(stored) ? failure.allowsPendingReview : failure.code === 'RECEIPT_UNKNOWN')) {
               const reason = failure.code === 'VERSION_CONFLICT' ? '数据版本已变化，原操作未在本次重试中执行。'
                 : failure.code === 'PLANNING_DATE_CHANGED' ? '规划日期已变化，原操作未在本次重试中执行。'
                 : failure.code === 'RECEIPT_UNKNOWN' ? '旧版操作没有可用回执，当前版本无法安全重试；这不能证明原操作未保存。'

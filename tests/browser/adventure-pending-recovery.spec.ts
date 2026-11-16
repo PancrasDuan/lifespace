@@ -44,6 +44,99 @@ async function getPending(page: import('@playwright/test').Page, key: string) {
   }, key)
 }
 
+test('提交等待 10 秒后结束加载，重载后仍用原封套重试', async ({ page, context }) => {
+  test.setTimeout(30_000)
+  const fixture = await planningFixture(context)
+  const envelopes: unknown[] = []
+  const held: import('@playwright/test').Route[] = []
+  await context.route('**/api/adventure/commands', route => {
+    envelopes.push(route.request().postDataJSON())
+    if (envelopes.length === 1) { held.push(route); return }
+    fixture.show({ ...emptyPlanning, version: 3 })
+    return route.fulfill({ json: { version: 3, result: { entityId: goal, message: '已保存' } } })
+  })
+  try {
+    await page.goto('/adventure?view=planning')
+    await page.getByRole('button', { name: '新建目标', exact: true }).click()
+    await page.getByLabel('目标名称').fill('超时恢复')
+    await page.getByLabel('完成标准 1', { exact: true }).fill('核对原封套')
+    const started = Date.now()
+    await page.getByRole('button', { name: '创建目标', exact: true }).click()
+    await expect.poll(() => envelopes.length).toBe(1)
+    await expect(page.getByRole('alert')).toContainText('响应超时，点击重试', { timeout: 12_000 })
+    expect(Date.now() - started).toBeGreaterThanOrEqual(9_000)
+    await expect(page.getByRole('button', { name: '安全重试同一次操作' })).toBeEnabled()
+    expect(await getPending(page, owner)).toEqual(envelopes[0])
+    await expect(page.getByRole('button', { name: '解除本地待确认状态', exact: true })).toHaveCount(0)
+    await page.reload()
+    await page.evaluate(() => { crypto.randomUUID = () => { throw new Error('恢复不得创建 requestId') } })
+    await page.getByRole('button', { name: '安全重试同一次操作' }).click()
+    await expect.poll(() => getPending(page, owner)).toBeUndefined()
+    expect(envelopes).toEqual([envelopes[0], envelopes[0]])
+    await expect(page.getByRole('button', { name: '新建目标', exact: true })).toBeEnabled()
+  } finally { for (const route of held) await route.abort().catch(() => {}) }
+})
+
+for (const stored of [currentEnvelope, legacyEnvelope]) {
+  test(`${'destination' in stored.command ? '旧回执查询' : '原命令恢复'} 超时结束加载，不解除记录或新建编号`, async ({ page, context }) => {
+    // Preserve native timeout/abort behavior; shorten only the agreed 10s budget.
+    await context.addInitScript(() => {
+      const original = AbortSignal.timeout.bind(AbortSignal)
+      AbortSignal.timeout = ms => original(ms === 10_000 ? 300 : ms)
+    })
+    const fixture = await planningFixture(context)
+    const requests: Record<string, unknown>[] = []
+    const held: import('@playwright/test').Route[] = []
+    await context.route('destination' in stored.command ? '**/api/adventure/receipts/lookup' : '**/api/adventure/commands', route => {
+      requests.push(route.request().postDataJSON())
+      if (requests.length === 1) { held.push(route); return }
+      fixture.show({ ...emptyPlanning, version: 3 })
+      return route.fulfill({ headers: { 'Cache-Control': 'no-store', 'X-Lifespace-Adventure-Model': 'goal-categories-1' },
+        json: 'destination' in stored.command ? linkedReceipt(route) : linkedReceipt(route).receipt })
+    })
+    try {
+      await page.goto('/adventure')
+      await putPending(page, owner, stored)
+      await page.reload()
+      await page.evaluate(() => { crypto.randomUUID = () => { throw new Error('恢复不得创建 requestId') } })
+      await page.getByRole('button', { name: /安全重试同一次操作|确认上次操作结果/ }).click()
+      await expect(page.getByRole('alert')).toContainText('响应超时，点击重试')
+      expect(await getPending(page, owner)).toEqual(stored)
+      await expect(page.getByRole('button', { name: '新建目标', exact: true })).toBeDisabled()
+      await expect(page.getByRole('button', { name: '解除本地待确认状态', exact: true })).toHaveCount(0)
+      await page.getByRole('button', { name: /安全重试同一次操作|确认上次操作结果/ }).click()
+      await expect.poll(() => getPending(page, owner)).toBeUndefined()
+      expect(requests).toHaveLength(2)
+      for (const request of requests) {
+        const { nonce: _nonce, ...envelope } = request
+        expect(envelope).toEqual(stored)
+      }
+      expect(fixture.envelopes).toEqual([])
+    } finally { for (const route of held) await route.abort().catch(() => {}) }
+  })
+}
+
+test('恢复已获成功回执后读取也受 10 秒总预算约束，只允许重新读取', async ({ page, context }) => {
+  await context.addInitScript(() => {
+    const original = AbortSignal.timeout.bind(AbortSignal)
+    AbortSignal.timeout = ms => original(ms === 10_000 ? 1_200 : ms)
+  })
+  const fixture = await planningFixture(context)
+  fixture.saved({ ...emptyPlanning, version: 3 })
+  await page.goto('/adventure')
+  await putPending(page, owner, currentEnvelope)
+  await page.reload()
+  fixture.delayNextCommand(800)
+  fixture.delayNextQuery(800)
+  await page.getByRole('button', { name: '安全重试同一次操作' }).click()
+  await expect(page.getByRole('alert')).toContainText('操作已成功，页面更新失败')
+  expect(await getPending(page, owner)).toBeUndefined()
+  await expect(page.getByRole('button', { name: '安全重试同一次操作' })).toHaveCount(0)
+  await page.getByRole('button', { name: '重新读取', exact: true }).click()
+  await expect(page.getByRole('button', { name: '新建目标', exact: true })).toBeEnabled()
+  expect(fixture.envelopes).toEqual([currentEnvelope])
+})
+
 test('RECEIPT_UNKNOWN 后重载的 pending 可按原封套恢复，不再永久冻结', async ({ page, context }) => {
   const fixture = await planningFixture(context)
   const retries: unknown[] = []
