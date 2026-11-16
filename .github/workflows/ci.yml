@@ -99,6 +99,39 @@ jobs:
       - run: npm ci
       - name: Installed package, real identity probe, synthetic scan and upgrade
         run: npm run test:collector-package
+      - name: Real launchd install, execution, heartbeat and uninstall
+        env:
+          TOKEN_SCHEDULER_CI: disposable
+        run: npm run test:collector-scheduler
+
+  collector_linux:
+    needs: secrets
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@2028fbc5c25fe9cf00d9f06a71cc4710d4507903 # v6.0.0
+        with:
+          node-version-file: .node-version
+          cache: npm
+      - run: npm ci
+      - name: Prepare real systemd user manager on disposable runner
+        shell: bash
+        run: |
+          collector_uid=$(id -u)
+          sudo systemctl start "user@${collector_uid}.service"
+          export XDG_RUNTIME_DIR="/run/user/${collector_uid}"
+          export DBUS_SESSION_BUS_ADDRESS="unix:path=${XDG_RUNTIME_DIR}/bus"
+          test -S "${XDG_RUNTIME_DIR}/bus"
+          systemctl --user show-environment >/dev/null
+          echo "XDG_RUNTIME_DIR=${XDG_RUNTIME_DIR}" >> "$GITHUB_ENV"
+          echo "DBUS_SESSION_BUS_ADDRESS=${DBUS_SESSION_BUS_ADDRESS}" >> "$GITHUB_ENV"
+      - name: Real systemd timer install, execution, heartbeat and uninstall
+        env:
+          TOKEN_SCHEDULER_CI: disposable
+        run: npm run test:collector-scheduler
 
   browser_1:
     needs: secrets
@@ -129,7 +162,7 @@ jobs:
   validate:
     name: validate
     if: ${{ always() }}
-    needs: [secrets, api, security, token_database, collector_macos, build, browser_1, browser_2, browser_3, browser_4]
+    needs: [secrets, api, security, token_database, collector_macos, collector_linux, build, browser_1, browser_2, browser_3, browser_4]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:

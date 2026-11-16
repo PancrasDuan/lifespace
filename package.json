@@ -12,6 +12,7 @@
     "pretest:api": "node scripts/patch-oauth-provider.mjs && npm run build:collector",
     "build:collector": "tsc -p tools/token-collector/tsconfig.json",
     "test:collector-package": "npm run build:collector && node tests/support/token-collector-package.mjs",
+    "test:collector-scheduler": "npm run build:collector && node tests/support/token-collector-scheduler.mjs",
     "test:collector-pricing": "npm run build:collector && node tests/support/token-collector-pricing.mjs",
     "pretest:token-database": "npm run build:collector",
     "dev": "WRANGLER_LOG_PATH=./.cache/wrangler.log CLOUDFLARE_DEV_REGISTRY_PATH=./.cache/registry vite --host 127.0.0.1 --port 5174 --strictPort",
