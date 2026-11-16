@@ -39,6 +39,7 @@ export async function planningFixture(context: BrowserContext, initial = emptyPl
   const previews: unknown[] = []
   let previewResult: PlanningPreview | undefined
   await context.route('**/api/adventure**', async route => {
+    if (new URL(route.request().url()).pathname === '/api/adventure/compatibility') return route.fulfill({ headers: { 'Cache-Control': 'no-store' }, json: { model: 'goal-categories', version: 1, receiptLookup: true, legacyRetry: false } })
     if (new URL(route.request().url()).pathname === '/api/adventure/task-history') {
       const query = new URL(route.request().url()).searchParams
       const task = page.tasks.find(item => item.id === query.get('id'))

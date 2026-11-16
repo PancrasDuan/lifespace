@@ -148,7 +148,7 @@ test.describe('周期集成：真实浏览器 → Node app.request Worker → HT
     await capture(page, 'growth-attribution-1440')
   })
 
-  test('真实提交丢响应后刷新只读恢复、同封套/异摘要、成功后只重读', async ({ page, context }) => {
+  test('真实提交丢响应后刷新幂等恢复、同封套/异摘要、成功后只重读', async ({ page, context }) => {
     const id = await seed('回执恢复', 3), envelopes: unknown[] = [], lookups: unknown[] = []
     await page.goto('/adventure')
     let lose = true
@@ -159,14 +159,13 @@ test.describe('周期集成：真实浏览器 → Node app.request Worker → HT
       if (lose) { lose = false; await route.abort('failed') }
       else await route.fulfill({ status: response.status, headers: Object.fromEntries(response.headers), body: await response.text() })
     })
-    await context.route('**/api/adventure/receipts/lookup', async route => { lookups.push(route.request().postDataJSON()); await route.fallback() })
     await page.getByRole('button', { name: '记录一次', exact: true }).click()
-    await expect(page.getByRole('button', { name: '确认上次操作结果', exact: true })).toBeVisible()
+    await expect(page.getByRole('button', { name: '安全重试同一次操作', exact: true })).toBeVisible()
     const committed = await db.snapshot()
-    await page.reload(); await page.getByRole('button', { name: '确认上次操作结果', exact: true }).click()
-    await expect.poll(() => lookups.length).toBe(1)
+    await page.reload(); await page.getByRole('button', { name: '安全重试同一次操作', exact: true }).click()
+    await expect.poll(() => envelopes.length).toBe(2)
     await expect(page.getByRole('button', { name: '记录一次', exact: true })).toBeEnabled()
-    expect(envelopes).toHaveLength(1); expect(lookups[0]).toMatchObject(envelopes[0] as Record<string, unknown>)
+    expect(envelopes[1]).toEqual(envelopes[0]); expect(lookups).toEqual([])
     expect(await db.snapshot()).toEqual(committed)
     const replay = await db.request('/api/adventure/commands', envelopes[0]); expect(replay.status).toBe(200)
     expect(await db.snapshot()).toEqual(committed)
@@ -189,7 +188,7 @@ test.describe('周期集成：真实浏览器 → Node app.request Worker → HT
     await expect(page.getByText('操作已成功，页面更新失败。请重新读取。')).toBeVisible()
     await page.getByRole('button', { name: '重新读取', exact: true }).click()
     await expect.poll(async () => (await parent(id)).effectiveChildren).toBe(2)
-    expect(envelopes).toHaveLength(2)
+    expect(envelopes).toHaveLength(3) // original + same-envelope recovery + the user's next operation
     await capture(page, 'receipt-recovered-1440')
   })
 

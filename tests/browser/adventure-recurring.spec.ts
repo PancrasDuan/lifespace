@@ -143,14 +143,14 @@ test('跨天明确409只刷新日期能力，主动刷新后不自动补交', as
   expect(fixture.envelopes).toHaveLength(1)
 })
 
-test('未知响应保留封套，只读回执确认不再次发送', async ({ page, context }) => {
+test('未知响应保留封套，原封套恢复不生成新命令', async ({ page, context }) => {
   const fixture = await recurringFixture(context)
   await page.goto('/adventure'); fixture.loseResponse(); await page.getByRole('button', { name: '记录一次', exact: true }).click()
-  await expect(page.getByRole('button', { name: '确认上次操作结果', exact: true })).toBeVisible()
-  await page.getByRole('button', { name: '确认上次操作结果', exact: true }).click()
-  await expect.poll(() => fixture.lookups.length).toBe(1)
-  expect(fixture.envelopes).toHaveLength(1)
-  expect(fixture.lookups[0]).toMatchObject(fixture.envelopes[0])
+  await expect(page.getByRole('button', { name: '安全重试同一次操作', exact: true })).toBeVisible()
+  await page.getByRole('button', { name: '安全重试同一次操作', exact: true }).click()
+  await expect.poll(() => fixture.envelopes.length).toBe(2)
+  expect(fixture.lookups).toEqual([])
+  expect(fixture.envelopes[1]).toEqual(fixture.envelopes[0])
 })
 
 test('未激活能力不开放周期写，保持旧一次性创建', async ({ page, context }) => {

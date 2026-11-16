@@ -90,12 +90,12 @@ async function rpc<T>(c: PlanningContext, name: string, parameters: Record<strin
   }
 }
 
-async function input<T>(c: PlanningContext, schema: z.ZodType<T>): Promise<T> {
+async function input<T>(c: PlanningContext, schema: z.ZodType<T>, byteLimit = 32_768): Promise<T> {
   if (!/^application\/json(?:;|$)/i.test(c.req.header('Content-Type') ?? ''))
     throw new ApiError('INVALID_COMMAND', '请发送 JSON 命令', 400)
   try {
     if (!c.req.raw.body) throw new Error('empty')
-    return schema.parse(JSON.parse(await readBoundedBody(c.req.raw.body, 32_768, 5_000)))
+    return schema.parse(JSON.parse(await readBoundedBody(c.req.raw.body, byteLimit, 5_000)))
   } catch (error) {
     throw new ApiError(error instanceof BodyLimitError ? 'COMMAND_TOO_LARGE' : 'INVALID_COMMAND', '输入字段或内容无效', 400)
   }
@@ -138,12 +138,19 @@ export async function lookupPlanningReceipt(c: PlanningContext) {
     if (!parsed.success) { ctx.addIssue({ code: 'custom', message: 'Invalid envelope' }); return z.NEVER }
     return { ...parsed.data, nonce: value.nonce }
   })
-  const value = await input(c, lookupSchema)
+  const value = await input(c, lookupSchema, 32_768 + 128)
   // Historical receipts do not store expectedVersion; lookup binds only the
   // authenticated owner, request ID and normalized command digest.
-  const receipt = await rpc(c, 'adventure_receipt_lookup', {
-    p_request_id: value.requestId, p_command: value.command,
-  }, planningReceiptSchema)
+  let receipt
+  try {
+    receipt = await rpc(c, 'adventure_receipt_lookup', {
+      p_request_id: value.requestId, p_command: value.command,
+    }, planningReceiptSchema)
+  } catch (failure) {
+    if (!(failure instanceof ApiError) || failure.code !== 'RECEIPT_UNKNOWN') throw failure
+    return c.json({ requestId: value.requestId, nonce: value.nonce,
+      error: { code: failure.code, message: failure.message } }, 404)
+  }
   c.header('X-Lifespace-Adventure-Model', adventureReceiptModel)
   return c.json({ requestId: value.requestId, nonce: value.nonce, receipt })
 }

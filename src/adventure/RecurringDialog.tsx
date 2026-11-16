@@ -9,8 +9,8 @@ import { useRecurringRead } from './useRecurringRead'
 import { recurringDate, recurringTime, periodLabels, type RecurringView } from './RecurringTasks'
 import { RecurringTaskForm } from './RecurringTaskForm'
 
-export function RecurringDialog({ view, workspace, blocked, action, confirmation, change, close, reload, recovery }: {
-  view: RecurringView; workspace: PlanningPage; blocked: boolean;
+export function RecurringDialog({ view, workspace, blocked, readBlocked = blocked, action, confirmation, change, close, reload, recovery }: {
+  view: RecurringView; workspace: PlanningPage; blocked: boolean; readBlocked?: boolean;
   action: (command: PlanningCommand, expectedVersion?: number) => Promise<boolean>; confirmation: PlanningConfirmation;
   change: (view: RecurringView) => void; close: () => void; reload: () => Promise<unknown>; recovery: ReactNode
 }) {
@@ -29,14 +29,14 @@ export function RecurringDialog({ view, workspace, blocked, action, confirmation
     <header><h2 id={heading}>{title}</h2><button type="button" aria-label="关闭弹窗" onClick={close}><X size={20} aria-hidden="true"/></button></header>
     <div className="recurring-dialog-content">
       {view.type === 'create' ? <RecurringTaskForm workspace={workspace} blocked={blocked} action={action} close={close}/>
-        : <RecurringDetail key={`${view.type}:${view.id}`} view={view} workspace={workspace} blocked={blocked} action={action} confirmation={confirmation} change={change} close={close} reload={reload}/>}
+        : <RecurringDetail key={`${view.type}:${view.id}`} view={view} workspace={workspace} blocked={blocked} readBlocked={readBlocked} action={action} confirmation={confirmation} change={change} close={close} reload={reload}/>}
       {recovery && <div className="planning-recovery">{recovery}</div>}
     </div>
   </dialog>, document.body)
 }
 
-function RecurringDetail({ view, workspace, blocked, action, confirmation, change, close, reload }: {
-  view: Exclude<RecurringView, { type: 'create' }>; workspace: PlanningPage; blocked: boolean;
+function RecurringDetail({ view, workspace, blocked, readBlocked, action, confirmation, change, close, reload }: {
+  view: Exclude<RecurringView, { type: 'create' }>; workspace: PlanningPage; blocked: boolean; readBlocked: boolean;
   action: (command: PlanningCommand, expectedVersion?: number) => Promise<boolean>; confirmation: PlanningConfirmation;
   change: (view: RecurringView) => void; close: () => void; reload: () => Promise<unknown>
 }) {
@@ -74,7 +74,7 @@ function RecurringDetail({ view, workspace, blocked, action, confirmation, chang
   const cancel = async (child: RecurringChild) => {
     if (await action({ type: 'cancelRecurringCompletion', completionId: child.completionId, today: workspace.today }, workspace.version) && mounted.current) change({ type: 'parent', id: child.parentId })
   }
-  if (state.error) return <div role="alert" className="planning-recovery"><p>{state.error}</p><button type="button" disabled={blocked} onClick={() => { void reload().then(state.retry) }}>重新读取详情</button></div>
+  if (state.error) return <div role="alert" className="planning-recovery"><p>{state.error}</p><button type="button" disabled={readBlocked} onClick={() => { void reload().then(state.retry) }}>重新读取详情</button></div>
   if (!state.value) return <p role="status">正在读取任务详情…</p>
   if (view.type === 'edit' && parent) return <RecurringTaskForm parent={parent} workspace={workspace} blocked={blocked} action={action} close={close}/>
   if ((view.type === 'end' || view.type === 'delete') && parent) {
@@ -112,10 +112,10 @@ function RecurringDetail({ view, workspace, blocked, action, confirmation, chang
       {parent.capabilities.deleteRecurringTask.allowed && <button type="button" className="recurring-danger" disabled={blocked} onClick={() => change({ type: 'delete', id: parent.id })}>删除任务</button>}
     </div>
     <section className="recurring-relations" aria-label="关联子任务"><h4><GitBranch size={16} aria-hidden="true"/>关联子任务 <span>{children.total} 项</span></h4>
-      {children.total === 0 ? <p className="recurring-hint">暂无关联子任务</p> : <ul role="list">{children.children.map(child => <li key={child.id}><button type="button" className="recurring-child-link" disabled={blocked} onClick={() => change({ type: 'child', id: child.id, parentId: parent.id })} aria-label={`查看子任务 ${child.snapshot.title}，${recurringDate(child.snapshot.occurredOn)} ${recurringTime(child.snapshot.occurredAt)}，第 ${child.snapshot.periodNumber} 期`}>
+      {children.total === 0 ? <p className="recurring-hint">暂无关联子任务</p> : <ul role="list">{children.children.map(child => <li key={child.id}><button type="button" className="recurring-child-link" disabled={readBlocked} onClick={() => change({ type: 'child', id: child.id, parentId: parent.id })} aria-label={`查看子任务 ${child.snapshot.title}，${recurringDate(child.snapshot.occurredOn)} ${recurringTime(child.snapshot.occurredAt)}，第 ${child.snapshot.periodNumber} 期`}>
         <ListTodo size={16} aria-hidden="true"/><span className="recurring-child-copy"><strong>{child.snapshot.title}</strong><small>{recurringDate(child.snapshot.occurredOn)} {recurringTime(child.snapshot.occurredAt)} · 第 {child.snapshot.periodNumber} 期</small></span><span className="recurring-child-status">已完成</span><ChevronRight size={16} aria-hidden="true"/>
       </button></li>)}</ul>}
-      {(children.total > children.pageSize || children.page > 1) && <footer className="planning-pagination"><small>第 {children.page} 页</small><div><button type="button" disabled={blocked || page <= 1} onClick={() => setPage(value => value - 1)}>上一页子任务</button><button type="button" disabled={blocked || page * children.pageSize >= children.total} onClick={() => setPage(value => value + 1)}>下一页子任务</button></div></footer>}
+      {(children.total > children.pageSize || children.page > 1) && <footer className="planning-pagination"><small>第 {children.page} 页</small><div><button type="button" disabled={readBlocked || page <= 1} onClick={() => setPage(value => value - 1)}>上一页子任务</button><button type="button" disabled={readBlocked || page * children.pageSize >= children.total} onClick={() => setPage(value => value + 1)}>下一页子任务</button></div></footer>}
     </section>
   </div>
 }
