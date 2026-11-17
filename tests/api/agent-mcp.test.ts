@@ -71,7 +71,7 @@ test('工具发现提供账户、流水读取、普通流水与 REST 一致的�
   expect(refund.inputSchema.properties?.note).not.toHaveProperty('maxLength')
   expect(Object.keys(refund.inputSchema.properties!)).toEqual(refund.inputSchema.required)
   for (const instruction of ['父流水关联', '继承的交易账户和分类', '明确确认', '再次完整展示并确认', '原 requestId', '无法独立证明']) expect(refund.description).toContain(instruction)
-  expect(refund.description).not.toContain('get_ledger_entry')
+  expect(refund.description).toContain('get_ledger_entry')
 })
 
 test('账户查询返回本人完整账户数据，包括余额', async () => {

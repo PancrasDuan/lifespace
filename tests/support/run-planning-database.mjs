@@ -151,6 +151,25 @@ try {
     : legacyRegression ? [...legacySchema, ...legacyChecks]
     : ['db/adventure/create-planning.sql', 'db/adventure/list-tasks.sql', 'tests/database/adventure-goal-model-transaction.sql', 'tests/database/adventure-goal-model-history-seed.sql']
   for (const path of setup) await sql(await readFile(join(root, path), 'utf8'))
+  if (ledgerOnly) {
+    // Re-run the forward migration after adding unrelated CHECKs that mention an
+    // old scope string on both the scopes column and another column. The
+    // migration must stay idempotent and must not remove CHECKs beyond the OAuth
+    // scope allowlist.
+    const scopeMigration = await readFile(join(root, 'db/agent/migrations/20261117000000_mcp_ledger_entries_read_scope.sql'), 'utf8')
+    await sql(`alter table public.agent_oauth_grants add constraint agent_oauth_grants_unrelated_scope_check
+      check (scopes is not null and 'ledger:accounts:read'::text <> '');
+      alter table public.agent_oauth_grants add constraint agent_oauth_grants_unrelated_client_check
+      check (client_id is not null and 'ledger:accounts:read'::text <> '')`)
+    await sql(scopeMigration)
+    const unrelated = (await sql(`select count(*)::int n from pg_constraint
+      where conrelid='public.agent_oauth_grants'::regclass
+        and conname in ('agent_oauth_grants_unrelated_scope_check', 'agent_oauth_grants_unrelated_client_check')`)).rows[0].n
+    if (unrelated !== 2) throw new Error('OAuth scope migration removed an unrelated CHECK')
+    await sql(`alter table public.agent_oauth_grants
+      drop constraint agent_oauth_grants_unrelated_scope_check,
+      drop constraint agent_oauth_grants_unrelated_client_check`)
+  }
   if (ledgerOnly) await verifyAgentBindingsRetirement(client, await readFile(join(root, 'db/agent/migrations/20261115151152_retire_legacy_agent_bindings.sql'), 'utf8'))
   if (goalModel) await sql(await readFile(join(root, 'tests/database/adventure-future-completion.sql'), 'utf8'))
   if (legacyRegression) console.log(`通过：旧五表 SQL 回归（${legacyChecks.length} 个脚本）`)

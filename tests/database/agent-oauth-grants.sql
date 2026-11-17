@@ -7,6 +7,14 @@ begin
   if not (select relrowsecurity from pg_class where oid='public.agent_oauth_grants'::regclass) then raise exception 'OAUTH_RLS_REQUIRED'; end if;
   if not exists(select from pg_constraint where conrelid='public.agent_oauth_grants'::regclass and contype='c'
     and pg_get_constraintdef(oid) like '%ledger:entries:read%') then raise exception 'OAUTH_SCOPE_MIGRATION'; end if;
+  if not exists(select from pg_constraint where conrelid='public.agent_oauth_grants'::regclass and contype='c'
+    and pg_get_constraintdef(oid) like '%char_length(client_id)%') then raise exception 'OAUTH_CLIENT_ID_CHECK'; end if;
+  if not exists(select from pg_constraint where conrelid='public.agent_oauth_grants'::regclass and contype='c'
+    and pg_get_constraintdef(oid) like '%char_length(client_name)%') then raise exception 'OAUTH_CLIENT_NAME_CHECK'; end if;
+  if not exists(select from pg_constraint where conrelid='public.agent_oauth_grants'::regclass and contype='c'
+    and pg_get_constraintdef(oid) like '%char_length(resource)%') then raise exception 'OAUTH_RESOURCE_CHECK'; end if;
+  if not exists(select from pg_constraint where conrelid='public.agent_oauth_grants'::regclass and contype='c'
+    and pg_get_constraintdef(oid) like '%consent_hash%') then raise exception 'OAUTH_CONSENT_HASH_CHECK'; end if;
   if has_table_privilege('anon','public.agent_oauth_grants','SELECT,INSERT,UPDATE,DELETE') or
     has_table_privilege('authenticated','public.agent_oauth_grants','SELECT,INSERT,UPDATE,DELETE') or
     has_table_privilege('service_role','public.agent_oauth_grants','SELECT,INSERT,UPDATE,DELETE') then raise exception 'OAUTH_TABLE_EXPOSED'; end if;

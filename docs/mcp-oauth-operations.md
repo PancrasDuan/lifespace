@@ -41,7 +41,7 @@ WorkBuddy 官方动态 OAuth 流程依赖 RFC 7591 客户端注册。生产配�
 
 授权管理在 `/oauth/grants`，必须通过原网页登录，每页展示 20 条独立连接并可继续加载、撤销。列表 RPC 额外取一条判定下一页，读取预算 512 KiB，覆盖合法长客户端 URL 与名称。网页退出不会自动撤销 MCP 授权。重新授权建立新连接，不改变旧连接；无需继续使用的旧连接应明确撤销。数据库只保存授权标识、owner、客户端标识及名称、资源、scope、时间和官方 grant 标识，不保存 access/refresh token、授权码、Client Secret 或邮箱。客户端名称保留在授权记录中，页面不展示该字段。
 
-#231 新增 `ledger:entries:read` 后，授权表原有 scope CHECK 上限为 3 项，必须先应用 [20261117000000_mcp_ledger_entries_read_scope.sql](../db/agent/migrations/20261117000000_mcp_ledger_entries_read_scope.sql) 再部署新 Worker。该前向迁移只替换 `agent_oauth_grants` 的 scope 约束，不改账单表、数据、RPC 或令牌周期；未应用时新 scope 的授权写入会被数据库拒绝，不能靠应用层放宽绕过。
+#231 新增 `ledger:entries:read` 后，授权表原有 scope CHECK 上限为 3 项，必须先应用 [20261117000000_mcp_ledger_entries_read_scope.sql](../db/agent/migrations/20261117000000_mcp_ledger_entries_read_scope.sql) 再部署新 Worker。该前向迁移只替换 `agent_oauth_grants` 的 scope 约束，不改账单表、数据、RPC 或令牌周期；未应用时新 scope 的授权写入会被数据库拒绝，不能靠应用层放宽绕过。Issue #231 原文要求“不修改现有 REST 契约、数据库结构或迁移”；本迁移是授权存储约束的必要例外，超出该句范围，须由用户针对具体 PR 明确授权后才能合并或应用。
 
 固定依赖 1.2.4 的三个内部诊断路径未经过 `onError`，可能记录客户端可控 URL 或原始异常。安装、构建和接口测试前均执行 `scripts/patch-oauth-provider.mjs`：校验原始 JS 的 SHA-256，仅将三条诊断改成固定消息，不更改协议逻辑；重复执行幂等，依赖内容变化时拒绝继续，升级须重新审查补丁。
 

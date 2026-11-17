@@ -25,3 +25,5 @@ REST 契约保持原样，退款父标识在 MCP 使用同名 `id`，其余四�
 用户要求 Agent 能查询流水、核对创建结果、在退款前读取父支出详情并查看关联退款与转账，因此取代 #151「不提供列表／详情」的范围决定。`list_ledger_entries` 与 `get_ledger_entry` 分别复用 `GET /api/ledger/entries` 和 `GET /api/ledger/entries/:id` 的查询解析、业务校验与读取服务；REST 契约和账单数据结构不变，仍不提供转账、删除、账户新增/修改或历史搜索。
 
 两个工具共用新增的 `ledger:entries:read` scope，不错误复用账户读取 scope。同意页、grant 校验、工具映射与 protected-resource metadata 同步公布四项权限；授权存储的 scope 约束扩展为四项。既有授权没有新 scope 时返回 HTTP 403 `insufficient_scope` challenge，用户重新授权后可调用，不静默放宽。应用版本提升为 `2.1.0`；业务错误仍为 `{ error: { code, message } }`，协议版本保持 2025-11-25。
+
+Issue #231 原文同时要求“不修改现有 REST 契约、数据库结构或迁移”。实现核对发现 `agent_oauth_grants.scopes` 的 CHECK 仅允许三项旧 scope；若不扩展该约束，新 scope 的授权写入会被数据库拒绝，无法通过应用层放宽而不违反“不静默放宽”。因此本决定新增一条只改该授权表 scope CHECK 的前向迁移，不改账单表、数据、RPC 或令牌周期。该迁移超出 Issue 原文的数据库不变约束，属于需用户针对具体 PR 单独授权的变更；未获授权不得合并或应用到生产。
