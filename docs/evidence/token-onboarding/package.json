@@ -74,5 +74,5 @@
     }
   ],
   "reason": "Add explicit multi-Agent collection for Claude Code, WorkBuddy and Cursor while retaining Codex-only defaults, explicit source authorization and legacy state compatibility",
-  "verification": "0.1.6 archive 13 files/26,996 bytes and 14-source digest matched;local typecheck/build/API/browser/collector-evidence/package gates passed;the 0.1.5-to-0.1.6 gate preserved two old immutable tasks, then explicitly added claude/workbuddy and produced four agent rollups on Linux synthetic sources;CI package gate does not exercise the previous archive;final CI/two-axis review and real-device onboarding pending"
+  "verification": "0.1.6 archive 13 files/26,996 bytes and 14-source digest matched;local typecheck/build/API/browser/collector-evidence/package gates passed;the 0.1.5-to-0.1.6 gate kept SQLite bytes unchanged and preserved two old immutable tasks, then explicitly added claude/workbuddy and produced four agent rollups on Linux synthetic sources;CI package gate does not exercise the previous archive;final CI/two-axis review and real-device onboarding pending"
 }
