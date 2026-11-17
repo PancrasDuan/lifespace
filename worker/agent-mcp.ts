@@ -13,6 +13,35 @@ const tools = [
     annotations: { readOnlyHint: true },
   },
   {
+    name: 'list_ledger_entries',
+    description: '查询当前用户的账单流水列表。参数与 GET /api/ledger/entries 的查询参数一致；返回与 REST 相同的 items、total、page、pageSize 和 version。日期范围须成对提供，使用北京时间自然日；page 默认 1，每页固定 30 条。',
+    inputSchema: {
+      type: 'object', additionalProperties: false,
+      properties: {
+        page: { type: 'integer', minimum: 1, maximum: 1_000_000, description: '页码，默认 1。' },
+        startDate: { type: 'string', format: 'date', description: '开始日期（含），YYYY-MM-DD，北京时间；必须与 endDate 同时提供。' },
+        endDate: { type: 'string', format: 'date', description: '结束日期（含），YYYY-MM-DD，北京时间；必须与 startDate 同时提供。' },
+        accountId: { type: 'string', format: 'uuid', description: '本人的交易账户标识；省略表示全部账户。' },
+        version: { type: 'integer', minimum: 0, maximum: Number.MAX_SAFE_INTEGER, description: '已读版本；与当前版本不符时返回 LIST_CHANGED。' },
+      },
+    },
+    annotations: { readOnlyHint: true, destructiveHint: false },
+  },
+  {
+    name: 'get_ledger_entry',
+    description: '读取当前用户的一笔未删除账单流水详情。参数与 GET /api/ledger/entries/:id 一致；返回与 REST 相同的 entry、parentEntry、transferEntry、refunds、refundCount、refundedCents、refundPage、refundPageSize 和 version。refundPage 默认 1，每页固定 30 条。',
+    inputSchema: {
+      type: 'object', additionalProperties: false,
+      properties: {
+        id: { type: 'string', format: 'uuid', description: '对应 GET /api/ledger/entries/:id 的流水标识。' },
+        refundPage: { type: 'integer', minimum: 1, maximum: Number.MAX_SAFE_INTEGER, description: '关联退款页码，默认 1。' },
+        version: { type: 'integer', minimum: 0, maximum: Number.MAX_SAFE_INTEGER, description: '已读版本；与当前版本不符时返回 LIST_CHANGED。' },
+      },
+      required: ['id'],
+    },
+    annotations: { readOnlyHint: true, destructiveHint: false },
+  },
+  {
     name: 'create_ledger_entry',
     description: '创建当前用户的一笔普通收入或支出。提交前必须完整展示收支类型、金额、交易时间、交易账户、分类和备注，等待用户明确确认；修改任何字段后再次完整展示并确认。每笔生成唯一 requestId；结果未知时仅用原 requestId 和完全相同参数重试，不得生成新编号重试。',
     inputSchema: {
@@ -50,6 +79,8 @@ const tools = [
 
 export async function handleAgentMcp(request: Request, operations: {
   listAccounts: (input: unknown) => Promise<object>
+  listEntries: (input: unknown) => Promise<object>
+  getEntry: (input: unknown) => Promise<object>
   createEntry: (input: unknown) => Promise<object>
   refundEntry: (id: unknown, input: unknown) => Promise<object>
 }, authorization: { authorizeTool: (name: string) => void }): Promise<Response> {
@@ -77,7 +108,7 @@ export async function handleAgentMcp(request: Request, operations: {
     const params = z.object({ protocolVersion: z.string().min(1), capabilities: z.record(z.string(), z.unknown()), clientInfo: z.object({ name: z.string().min(1), version: z.string().min(1) }) }).safeParse(message.params)
     if (!params.success) return Response.json({ jsonrpc: '2.0', id: message.id, error: { code: -32602, message: 'Invalid initialization parameters' } })
     const negotiated = supportedVersions.includes(params.data.protocolVersion) ? params.data.protocolVersion : version
-    return Response.json({ jsonrpc: '2.0', id: message.id, result: { protocolVersion: negotiated, capabilities: { tools: {} }, serverInfo: { name: 'lifespace-ledger', version: '2.0.0' } } })
+    return Response.json({ jsonrpc: '2.0', id: message.id, result: { protocolVersion: negotiated, capabilities: { tools: {} }, serverInfo: { name: 'lifespace-ledger', version: '2.1.0' } } })
   }
   if (message.jsonrpc === '2.0' && message.method === 'tools/list' && message.id !== undefined) return Response.json({ jsonrpc: '2.0', id: message.id, result: { tools } })
   if (message.jsonrpc === '2.0' && message.method === 'ping' && message.id !== undefined) return Response.json({ jsonrpc: '2.0', id: message.id, result: {} })
@@ -91,6 +122,8 @@ export async function handleAgentMcp(request: Request, operations: {
     try {
       let data: object
       if (message.params?.name === 'list_ledger_accounts') data = await operations.listAccounts(args)
+      else if (message.params?.name === 'list_ledger_entries') data = await operations.listEntries(args)
+      else if (message.params?.name === 'get_ledger_entry') data = await operations.getEntry(args)
       else if (message.params?.name === 'create_ledger_refund') {
         const { id, ...input } = args as Record<string, unknown>
         data = await operations.refundEntry(id, input)

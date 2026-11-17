@@ -2,6 +2,15 @@ import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import { oauthFixture, oauthOwner } from '../support/mcp-oauth'
 
 const owner = oauthOwner
+const entryId = '00000000-0000-4000-8000-000000000011'
+const accountId = '00000000-0000-4000-8000-000000000004'
+const entry = {
+  id: entryId, direction: 'expense', amountCents: -3500, occurredAt: '2026-01-02T03:04:05.000Z',
+  accountId, transferId: null, accountName: '支付宝', categoryCode: 'dining', note: '午饭',
+  parentEntryId: null, createdAt: '2026-01-02T03:04:05.000Z', status: 'completed',
+}
+const page = { items: [entry], total: 1, page: 1, pageSize: 30, version: 4 }
+const detail = { entry, parentEntry: null, transferEntry: null, refunds: [], refundCount: 0, refundedCents: 0, refundPage: 1, refundPageSize: 30, version: 4 }
 let fixture: ReturnType<typeof oauthFixture>
 let accessToken: string
 let oauthFetch: typeof fetch
@@ -37,21 +46,27 @@ test('Agent 通过真实入口初始化 MCP 并获得协商的协议版本', asy
   upstream()
   const response = await request({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-11-25', capabilities: {}, clientInfo: { name: 'test-client', version: '1' } } })
   expect(response.status).toBe(200)
-  expect(await response.json()).toMatchObject({ jsonrpc: '2.0', id: 1, result: { protocolVersion: '2025-11-25', capabilities: { tools: {} }, serverInfo: { name: 'lifespace-ledger', version: '2.0.0' } } })
+  expect(await response.json()).toMatchObject({ jsonrpc: '2.0', id: 1, result: { protocolVersion: '2025-11-25', capabilities: { tools: {} }, serverInfo: { name: 'lifespace-ledger', version: '2.1.0' } } })
 })
 
-test('工具发现提供本人账户、普通流水与 REST 一致的独立退款契约', async () => {
+test('工具发现提供账户、流水读取、普通流水与 REST 一致的独立退款契约', async () => {
   upstream()
   const response = await request({ jsonrpc: '2.0', id: 'discovery', method: 'tools/list', params: {} }, { 'MCP-Protocol-Version': '2025-11-25' })
   expect(response.status).toBe(200)
-  const result = await response.json() as { result: { tools: Array<{ name: string; description: string; inputSchema: { required?: string[]; properties?: Record<string, { description?: string }> } }> } }
-  expect(result.result.tools.map(tool => tool.name)).toEqual(['list_ledger_accounts', 'create_ledger_entry', 'create_ledger_refund'])
-  const create = result.result.tools[1]
+  const result = await response.json() as { result: { tools: Array<{ name: string; description: string; inputSchema: { required?: string[]; properties?: Record<string, { description?: string }> }; annotations: { readOnlyHint: boolean; destructiveHint?: boolean } }> } }
+  expect(result.result.tools.map(tool => tool.name)).toEqual(['list_ledger_accounts', 'list_ledger_entries', 'get_ledger_entry', 'create_ledger_entry', 'create_ledger_refund'])
+  const list = result.result.tools[1]
+  expect(list.inputSchema).toMatchObject({ additionalProperties: false, properties: { page: { type: 'integer', minimum: 1 }, accountId: { format: 'uuid' }, version: { type: 'integer', minimum: 0 } } })
+  expect(list.annotations).toEqual({ readOnlyHint: true, destructiveHint: false })
+  const get = result.result.tools[2]
+  expect(get.inputSchema).toMatchObject({ additionalProperties: false, required: ['id'], properties: { id: { type: 'string', format: 'uuid' }, refundPage: { type: 'integer', minimum: 1 }, version: { type: 'integer', minimum: 0 } } })
+  expect(get.annotations).toEqual({ readOnlyHint: true, destructiveHint: false })
+  const create = result.result.tools[3]
   expect(create.inputSchema.required).toEqual(expect.arrayContaining(['requestId', 'direction', 'amountCents', 'occurredAt', 'accountId', 'categoryCode', 'note']))
   expect(create.inputSchema.properties?.categoryCode.description).toContain('dining：餐饮')
   expect(create.description).toContain('完整展示')
   expect(create.description).toContain('明确确认')
-  const refund = result.result.tools[2]
+  const refund = result.result.tools[4]
   expect(refund.inputSchema).toMatchObject({ additionalProperties: false, required: ['id', 'requestId', 'amountCents', 'occurredAt', 'note'], properties: { id: { format: 'uuid' }, amountCents: { type: 'integer', minimum: 1, maximum: 99_999_999_999 }, note: { type: 'string', description: expect.stringContaining('trim 后最多 500 个 Unicode 码点') } } })
   expect(refund.inputSchema.properties?.note).not.toHaveProperty('maxLength')
   expect(Object.keys(refund.inputSchema.properties!)).toEqual(refund.inputSchema.required)
@@ -168,10 +183,122 @@ test('账户查询拒绝用户指定其他所有者', async () => {
   expect(reads).toBe(0)
 })
 
-test.each(['get_ledger_entry', 'list_ledger_entries', 'create_ledger_transfer', 'delete_ledger_entry'])('工具 %s 未暴露，不能访问其他账单能力', async name => {
+test.each(['create_ledger_transfer', 'delete_ledger_entry', 'update_ledger_account'])('工具 %s 未暴露，不能访问其他账单能力', async name => {
   upstream()
   const response = await request({ jsonrpc: '2.0', id: 13, method: 'tools/call', params: { name, arguments: {} } })
   expect(await response.json()).toMatchObject({ id: 13, error: { code: -32602 } })
+})
+
+test('流水列表复用 REST 查询与读取服务，默认分页并注入可信 owner', async () => {
+  upstream((url, init) => {
+    if (!url.endsWith('/rpc/ledger_list')) return undefined
+    expect(JSON.parse(String(init?.body))).toEqual({ p_owner: owner, p_page: 1, p_start_date: null, p_end_date: null, p_version: null })
+    return Response.json(page)
+  })
+  const body = await (await request({ jsonrpc: '2.0', id: 'list', method: 'tools/call', params: { name: 'list_ledger_entries', arguments: {} } })).json() as { result: { structuredContent: object } }
+  expect(body.result.structuredContent).toEqual(page)
+  const rest = await restRequest('/api/ledger/entries')
+  expect(rest.status).toBe(200)
+  expect(body.result.structuredContent).toEqual(await rest.json())
+})
+
+test('流水列表按账户和日期调用对应 RPC，并保持版本与分页参数', async () => {
+  upstream((url, init) => {
+    if (!url.endsWith('/rpc/ledger_list_by_account')) return undefined
+    expect(JSON.parse(String(init?.body))).toEqual({ p_owner: owner, p_account_id: accountId, p_page: 2, p_start_date: '2026-01-02', p_end_date: '2026-01-03', p_version: 4 })
+    return Response.json({ ...page, page: 2 })
+  })
+  const args = { page: 2, startDate: '2026-01-02', endDate: '2026-01-03', accountId, version: 4 }
+  const body = await (await request({ jsonrpc: '2.0', id: 'list', method: 'tools/call', params: { name: 'list_ledger_entries', arguments: args } })).json() as { result: { structuredContent: object } }
+  expect(body.result.structuredContent).toMatchObject({ page: 2, version: 4 })
+  const rest = await restRequest('/api/ledger/entries?page=2&startDate=2026-01-02&endDate=2026-01-03&accountId=' + accountId + '&version=4')
+  expect(body.result.structuredContent).toEqual(await rest.json())
+})
+
+test.each([
+  { page: 0 }, { page: 1.5 }, { page: 1_000_001 }, { startDate: '2026-01-02' },
+  { endDate: '2026-01-02' }, { startDate: '2026-01-03', endDate: '2026-01-02' },
+  { startDate: '2026-02-30', endDate: '2026-03-01' }, { accountId: 'bad' }, { version: -1 },
+  { version: 1.5 }, { ownerId: owner }, { unknown: true },
+])('流水列表拒绝非法或越权参数 %j，未调用数据库', async change => {
+  let reads = 0
+  upstream(url => { if (url.includes('/rpc/ledger_list')) reads++; return undefined })
+  const body = await (await request({ jsonrpc: '2.0', id: 'list', method: 'tools/call', params: { name: 'list_ledger_entries', arguments: change } })).json() as { result: { structuredContent: object } }
+  expect(body.result).toMatchObject({ isError: true, structuredContent: { error: { code: 'INVALID_QUERY' } } })
+  const query = new URLSearchParams(Object.entries(change).map(([key, value]) => [key, String(value)])).toString()
+  const rest = await restRequest('/api/ledger/entries?' + query)
+  expect(rest.status).toBe(400)
+  expect(body.result.structuredContent).toEqual(await rest.json())
+  expect(reads).toBe(0)
+})
+
+test('流水列表版本冲突沿用 REST 的 LIST_CHANGED 业务错误', async () => {
+  upstream(url => url.endsWith('/rpc/ledger_list') ? Response.json({ message: 'LIST_CHANGED' }, { status: 409 }) : undefined)
+  const body = await (await request({ jsonrpc: '2.0', id: 'list', method: 'tools/call', params: { name: 'list_ledger_entries', arguments: { version: 3 } } })).json() as { result: { structuredContent: object } }
+  expect(body.result).toMatchObject({ isError: true, structuredContent: { error: { code: 'LIST_CHANGED' } } })
+  const rest = await restRequest('/api/ledger/entries?version=3')
+  expect(rest.status).toBe(409)
+  expect(body.result.structuredContent).toEqual(await rest.json())
+})
+
+test('单笔详情复用 REST 读取服务，默认关联页并注入可信 owner', async () => {
+  upstream((url, init) => {
+    if (!url.endsWith('/rpc/ledger_detail')) return undefined
+    expect(JSON.parse(String(init?.body))).toEqual({ p_owner: owner, p_id: entryId, p_refund_page: 1, p_version: null })
+    return Response.json(detail)
+  })
+  const body = await (await request({ jsonrpc: '2.0', id: 'detail', method: 'tools/call', params: { name: 'get_ledger_entry', arguments: { id: entryId } } })).json() as { result: { structuredContent: object } }
+  expect(body.result.structuredContent).toEqual(detail)
+  const rest = await restRequest('/api/ledger/entries/' + entryId)
+  expect(rest.status).toBe(200)
+  expect(body.result.structuredContent).toEqual(await rest.json())
+})
+
+test('单笔详情传递关联页码与版本', async () => {
+  upstream((url, init) => {
+    if (!url.endsWith('/rpc/ledger_detail')) return undefined
+    expect(JSON.parse(String(init?.body))).toEqual({ p_owner: owner, p_id: entryId, p_refund_page: 2, p_version: 4 })
+    return Response.json({ ...detail, refundPage: 2 })
+  })
+  const body = await (await request({ jsonrpc: '2.0', id: 'detail', method: 'tools/call', params: { name: 'get_ledger_entry', arguments: { id: entryId, refundPage: 2, version: 4 } } })).json() as { result: { structuredContent: object } }
+  expect(body.result.structuredContent).toMatchObject({ refundPage: 2, version: 4 })
+  const rest = await restRequest('/api/ledger/entries/' + entryId + '?refundPage=2&version=4')
+  expect(body.result.structuredContent).toEqual(await rest.json())
+})
+
+test.each(['invalid', 'ffffffff-ffff-4fff-8fff-ffffffffffff', null, undefined])('单笔详情对非法或不存在标识返回 NOT_FOUND：%j', async id => {
+  upstream(url => url.endsWith('/rpc/ledger_detail') ? Response.json({ message: 'NOT_FOUND' }, { status: 404 }) : undefined)
+  const body = await (await request({ jsonrpc: '2.0', id: 'detail', method: 'tools/call', params: { name: 'get_ledger_entry', arguments: { id } } })).json() as { result: { structuredContent: object } }
+  expect(body.result).toMatchObject({ isError: true, structuredContent: { error: { code: 'NOT_FOUND' } } })
+  if (typeof id === 'string' && id !== 'invalid') {
+    const rest = await restRequest('/api/ledger/entries/' + id)
+    expect(rest.status).toBe(404)
+    expect(body.result.structuredContent).toEqual(await rest.json())
+  }
+})
+
+test.each([
+  { id: entryId, refundPage: 0 }, { id: entryId, refundPage: 1.5 }, { id: entryId, version: -1 },
+  { id: entryId, version: 1.5 }, { id: entryId, ownerId: owner }, { id: entryId, unknown: true },
+])('单笔详情拒绝非法或越权查询 %j，未调用数据库', async args => {
+  let reads = 0
+  upstream(url => { if (url.endsWith('/rpc/ledger_detail')) reads++; return undefined })
+  const body = await (await request({ jsonrpc: '2.0', id: 'detail', method: 'tools/call', params: { name: 'get_ledger_entry', arguments: args } })).json() as { result: { structuredContent: object } }
+  expect(body.result).toMatchObject({ isError: true, structuredContent: { error: { code: 'INVALID_QUERY' } } })
+  const query = new URLSearchParams(Object.entries(args).filter(([key]) => key !== 'id').map(([key, value]) => [key, String(value)])).toString()
+  const rest = await restRequest('/api/ledger/entries/' + entryId + (query ? '?' + query : ''))
+  expect(rest.status).toBe(400)
+  expect(body.result.structuredContent).toEqual(await rest.json())
+  expect(reads).toBe(0)
+})
+
+test('单笔详情版本冲突沿用 REST 的 LIST_CHANGED 业务错误', async () => {
+  upstream(url => url.endsWith('/rpc/ledger_detail') ? Response.json({ message: 'LIST_CHANGED' }, { status: 409 }) : undefined)
+  const body = await (await request({ jsonrpc: '2.0', id: 'detail', method: 'tools/call', params: { name: 'get_ledger_entry', arguments: { id: entryId, version: 3 } } })).json() as { result: { structuredContent: object } }
+  expect(body.result).toMatchObject({ isError: true, structuredContent: { error: { code: 'LIST_CHANGED' } } })
+  const rest = await restRequest('/api/ledger/entries/' + entryId + '?version=3')
+  expect(rest.status).toBe(409)
+  expect(body.result.structuredContent).toEqual(await rest.json())
 })
 
 test('MCP ping 返回空结果', async () => {

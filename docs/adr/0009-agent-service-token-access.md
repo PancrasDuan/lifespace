@@ -19,3 +19,9 @@ Agent 入口新增 `create_ledger_refund`，与普通流水创建保持独立。
 用户最终要求保持 REST 与 MCP 的业务契约一致，并取消获取流水的 MCP 工具。本次仅增加退款，保留既有账户查询和普通创建；由用户提供父支出详情，完整展示父关联、退款事实及继承信息，字段改变后重新展示并明确确认。服务端不能独立证明外部对话已确认，不猜测关联，不增加转账、删除、详情、列表或历史搜索。
 
 REST 契约保持原样，退款父标识在 MCP 使用同名 `id`，其余四字段、成功数据及 `{ error: { code, message } }` 与 REST 共用校验和序列化。MCP 全部三个工具统一采用该错误体，保留具体校验提示与未知结果消息；此次错误体兼容性变更将应用版本提升为 v2，保留标准 JSON-RPC／工具结果封装。
+
+## #231：增加流水列表与单笔详情只读工具
+
+用户要求 Agent 能查询流水、核对创建结果、在退款前读取父支出详情并查看关联退款与转账，因此取代 #151「不提供列表／详情」的范围决定。`list_ledger_entries` 与 `get_ledger_entry` 分别复用 `GET /api/ledger/entries` 和 `GET /api/ledger/entries/:id` 的查询解析、业务校验与读取服务；REST 契约和账单数据结构不变，仍不提供转账、删除、账户新增/修改或历史搜索。
+
+两个工具共用新增的 `ledger:entries:read` scope，不错误复用账户读取 scope。同意页、grant 校验、工具映射与 protected-resource metadata 同步公布四项权限；授权存储的 scope 约束扩展为四项。既有授权没有新 scope 时返回 HTTP 403 `insufficient_scope` challenge，用户重新授权后可调用，不静默放宽。应用版本提升为 `2.1.0`；业务错误仍为 `{ error: { code, message } }`，协议版本保持 2025-11-25。

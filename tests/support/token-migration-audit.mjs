@@ -30,7 +30,7 @@ export async function auditTokenMigrations(admin, url, files, work, bin) {
   const restored = new pg.Client({ connectionString: connection('token_restore') }); await restored.connect()
   try {
     await db.query('create schema auth; create table auth.users(id uuid primary key); create schema extensions;')
-    for (const file of ['db/ledger/create-ledger.sql', 'db/agent/migrations/20261106031343_agent_access_bindings.sql', 'db/agent/migrations/20261114130000_agent_oauth_grants.sql', 'db/agent/migrations/20261115151152_retire_legacy_agent_bindings.sql']) await db.query(await readFile(file, 'utf8'))
+    for (const file of ['db/ledger/create-ledger.sql', 'db/agent/migrations/20261106031343_agent_access_bindings.sql', 'db/agent/migrations/20261114130000_agent_oauth_grants.sql', 'db/agent/migrations/20261117000000_mcp_ledger_entries_read_scope.sql', 'db/agent/migrations/20261115151152_retire_legacy_agent_bindings.sql']) await db.query(await readFile(file, 'utf8'))
     await db.query("insert into auth.users values('00000000-0000-4000-8000-000000000219'); insert into public.ledger_owner_revision(owner_id,revision) values('00000000-0000-4000-8000-000000000219',7)")
     const before = (await db.query('select row_to_json(t) v from public.ledger_owner_revision t')).rows
     for (const file of files) await db.query(await readFile(join('db/token/migrations', file), 'utf8'))
@@ -47,6 +47,7 @@ export async function auditTokenMigrations(admin, url, files, work, bin) {
     assert.deepEqual((await restored.query('select row_to_json(t) v from public.ledger_owner_revision t')).rows, before)
     assert.deepEqual((await restored.query('select row_to_json(t) v from token_private.devices t')).rows, (await db.query('select row_to_json(t) v from token_private.devices t')).rows)
     assert((await restored.query("select to_regprocedure('public.agent_oauth_grants_list(uuid,timestamp with time zone,uuid)') fn")).rows[0].fn)
+    assert.equal((await restored.query("select count(*)::int n from pg_constraint where conrelid='public.agent_oauth_grants'::regclass and contype='c' and pg_get_constraintdef(oid) like '%ledger:entries:read%'")).rows[0].n, 1)
     console.log('Token migration audit: empty baseline + compatible ledger/OAuth/retired-bindings state; existing facts preserved; full database dump restored with data, functions, RLS and ACLs (existing harness roles).')
   } finally { await db.end(); await restored.end() }
 }

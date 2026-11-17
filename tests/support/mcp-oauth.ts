@@ -91,6 +91,8 @@ export function oauthFixture(databaseUrl?: string) {
     }
     writes.push({ name, input: p })
     if (name === 'ledger_accounts_list') return Response.json({ accounts: [], version: 0 })
+    if (name === 'ledger_list' || name === 'ledger_list_by_account') return Response.json({ items: [], total: 0, page: p.p_page, pageSize: 30, version: 0 })
+    if (name === 'ledger_detail') return Response.json({ message: 'NOT_FOUND' }, { status: 404 })
     if (name === 'ledger_create' || name === 'ledger_refund') return Response.json({ entryId: p.p_input.requestId, version: 1, deleted: false })
     throw new Error('unexpected synthetic RPC')
   }))

@@ -52,6 +52,17 @@ export const ledgerQuerySchema = z.strictObject({
   accountId: z.uuid().optional(),
   version: queryRevision.optional(),
 }).refine(value => (!value.startDate && !value.endDate) || (!!value.startDate && !!value.endDate && value.startDate <= value.endDate), '日期范围无效')
+export const ledgerListInputSchema = z.strictObject({
+  page: z.number().int().min(1).max(1_000_000).default(1),
+  startDate: ledgerDateSchema.optional(), endDate: ledgerDateSchema.optional(),
+  accountId: z.uuid().optional(),
+  version: revision.optional(),
+}).refine(value => (!value.startDate && !value.endDate) || (!!value.startDate && !!value.endDate && value.startDate <= value.endDate), '日期范围无效')
+export const ledgerDetailInputSchema = z.strictObject({
+  id: z.uuid(),
+  refundPage: revision.min(1).default(1),
+  version: revision.optional(),
+})
 export const ledgerErrors = {
   INVALID_ACCOUNT: [400, '账户输入无效，请检查名称与余额'],
   ACCOUNT_NAME_TAKEN: [409, '已有同名账户，请使用其他名称'],

@@ -8,7 +8,7 @@
 
 标准地址为 `https://lifespace.onepeace.cc.cd/api/agent/mcp`。无凭据请求返回 401，`WWW-Authenticate` 指向 `/.well-known/oauth-protected-resource/api/agent/mcp`；资源 metadata 指向同源 `/.well-known/oauth-authorization-server`。客户端应用已有预注册信息时优先使用；其次可通过 HTTPS Client ID Metadata Document 识别，文档 URL、redirect URI、客户端鉴权由官方库验证。按用户确认的界面范围，同意页聚焦当前账户、权限选择和授权/拒绝操作，移除客户端名称/域名区块、回调地址及其说明；服务端客户端识别和回调校验仍执行。授权管理以授权时间、权限和状态区分记录，不显示客户端名称、原始 URL 或说明段落；每条记录的撤销仍绑定其独立授权 ID。
 
-授权码流程必须使用 PKCE S256。客户端完成 Supabase 登录、逐请求准入与明确同意后，只获得 MCP 授权码及专用 access/refresh token。网页登录的会话凭据不会出现在回调、MCP 配置或客户端响应里。同意页默认不勾选任何权限，包括客户端请求的 scope；用户可逐项选择或点击「全选」选中页面展示的全部三项权限，全部选中时同一按钮变为「取消全选」，点击后清空选择。全选和取消全选均不直接提交。至少选择一项后方可确认授权，空选时仍可拒绝。客户端未传 scope 时，服务端仍按只读解析请求，不据此替用户勾选。拒绝通过经过验证的回调返回 `access_denied`、state 和 issuer。
+授权码流程必须使用 PKCE S256。客户端完成 Supabase 登录、逐请求准入与明确同意后，只获得 MCP 授权码及专用 access/refresh token。网页登录的会话凭据不会出现在回调、MCP 配置或客户端响应里。同意页默认不勾选任何权限，包括客户端请求的 scope；用户可逐项选择或点击「全选」选中页面展示的全部四项权限，全部选中时同一按钮变为「取消全选」，点击后清空选择。全选和取消全选均不直接提交。至少选择一项后方可确认授权，空选时仍可拒绝。客户端未传 scope 时，服务端仍按只读解析请求，不据此替用户勾选。拒绝通过经过验证的回调返回 `access_denied`、state 和 issuer。
 
 ### WorkBuddy
 
@@ -32,12 +32,16 @@ WorkBuddy 官方动态 OAuth 流程依赖 RFC 7591 客户端注册。生产配�
 | 工具 | 所需权限 |
 | --- | --- |
 | `list_ledger_accounts` | `ledger:accounts:read` |
+| `list_ledger_entries` | `ledger:entries:read` |
+| `get_ledger_entry` | `ledger:entries:read` |
 | `create_ledger_entry` | `ledger:entries:create` |
 | `create_ledger_refund` | `ledger:refunds:create` |
 
-每项操作只要求自己的 scope。三个工具均为 POST，因此按工具名授权。无效令牌返回 401；权限不足返回 403，challenge 包含该操作所需 scope 和 resource metadata，客户端重新发起授权。刷新可以缩小权限，不能增加权限或改变 resource；应用显式拒绝库 1.2.4 默认静默取交集的增权请求。access token 15 分钟，refresh token 轮换，最长 30 天。官方库允许刚被替换的 refresh token 在替代 token 首次使用前重试；这不是跨用户或增权授权。
+每项操作只要求自己的 scope；两个流水读取工具共用 `ledger:entries:read`。五个工具均为 POST，因此按工具名授权。无效令牌返回 401；权限不足返回 403，challenge 包含该操作所需 scope 和 resource metadata，客户端重新发起授权。既有授权没有新 scope 时不会被静默放宽，须由用户重新授权并勾选「读取账单流水」。刷新可以缩小权限，不能增加权限或改变 resource；应用显式拒绝库 1.2.4 默认静默取交集的增权请求。access token 15 分钟，refresh token 轮换，最长 30 天。官方库允许刚被替换的 refresh token 在替代 token 首次使用前重试；这不是跨用户或增权授权。
 
 授权管理在 `/oauth/grants`，必须通过原网页登录，每页展示 20 条独立连接并可继续加载、撤销。列表 RPC 额外取一条判定下一页，读取预算 512 KiB，覆盖合法长客户端 URL 与名称。网页退出不会自动撤销 MCP 授权。重新授权建立新连接，不改变旧连接；无需继续使用的旧连接应明确撤销。数据库只保存授权标识、owner、客户端标识及名称、资源、scope、时间和官方 grant 标识，不保存 access/refresh token、授权码、Client Secret 或邮箱。客户端名称保留在授权记录中，页面不展示该字段。
+
+#231 新增 `ledger:entries:read` 后，授权表原有 scope CHECK 上限为 3 项，必须先应用 [20261117000000_mcp_ledger_entries_read_scope.sql](../db/agent/migrations/20261117000000_mcp_ledger_entries_read_scope.sql) 再部署新 Worker。该前向迁移只替换 `agent_oauth_grants` 的 scope 约束，不改账单表、数据、RPC 或令牌周期；未应用时新 scope 的授权写入会被数据库拒绝，不能靠应用层放宽绕过。
 
 固定依赖 1.2.4 的三个内部诊断路径未经过 `onError`，可能记录客户端可控 URL 或原始异常。安装、构建和接口测试前均执行 `scripts/patch-oauth-provider.mjs`：校验原始 JS 的 SHA-256，仅将三条诊断改成固定消息，不更改协议逻辑；重复执行幂等，依赖内容变化时拒绝继续，升级须重新审查补丁。
 
@@ -90,4 +94,4 @@ npm run test:database -- --ledger --api tests/api/mcp-oauth-database.test.ts tes
 PLAYWRIGHT_PORT=5193 PLAYWRIGHT_CHROMIUM_EXECUTABLE=/usr/bin/chromium npm run test:browser -- tests/browser/mcp-oauth.spec.ts tests/browser/auth.test.ts tests/browser/shared-shell-scope.spec.ts
 ```
 
-第二项在真实 workerd + KV + 一次性 PostgreSQL 中，读取生产构建的 DCR 开关，按公布的注册入口完成动态注册、同意、PKCE、刷新及撤销；Auth 身份服务为合成边界，不能称真实 Supabase Auth 或真实目标客户端验收。真实隔离账单测试覆盖原三个工具的 owner、余额、退款和幂等。最终证据见 [验收记录](qa-mcp-oauth.md)。
+第二项在真实 workerd + KV + 一次性 PostgreSQL 中，读取生产构建的 DCR 开关，按公布的注册入口完成动态注册、同意、PKCE、刷新及撤销；Auth 身份服务为合成边界，不能称真实 Supabase Auth 或真实目标客户端验收。真实隔离账单测试覆盖原三个工具的 owner、余额、退款和幂等，并扩展流水列表、单笔详情、筛选、分页、关联与跨 owner 隔离。最终证据见 [验收记录](qa-mcp-oauth.md)。

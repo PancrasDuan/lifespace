@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import { startTokenRegistration, claimTokenRegistration, inspectTokenRegistration, decideTokenRegistration, disableTokenDevice, queryTokenDashboard, queryTokenDevices, summarizeTokenDashboard } from './token-usage'
-import { listLedger, detailLedger, createLedger, createLedgerEntry, createLedgerRefund, createLedgerTransfer, refundLedger, previewLedgerDelete, deleteLedger, listLedgerAccounts, readLedgerAccounts, createLedgerAccount, updateLedgerAccount } from './ledger'
+import { listLedger, detailLedger, createLedger, createLedgerEntry, createLedgerRefund, createLedgerTransfer, refundLedger, previewLedgerDelete, deleteLedger, listLedgerAccounts, readLedgerAccounts, readLedgerList, readLedgerDetail, createLedgerAccount, updateLedgerAccount } from './ledger'
 import { readRecurringList, readRecurringParent, readRecurringChildren, readRecurringChild, readDateTaskList, readTaskList, readRewardSource, readGrowth, readTaskHistory, readMigrationOptions, readPlanning, previewPlanning, commandPlanning, lookupPlanningReceipt, oldClientUnavailable } from './adventure/planning'
 import { adventureClientVersion, adventureClientVersionHeader, planningCompatibility } from '../src/shared/adventure-client-version'
 import { readHoroscope } from './horoscope'
@@ -72,11 +72,11 @@ app.use('*', async (c, next) => {
 })
 app.get('/.well-known/oauth-protected-resource/api/agent/mcp', c => {
   const { issuer, resource } = oauthConfig(c.env)
-  return c.json({ resource, authorization_servers: [issuer], scopes_supported: [mcpScopes[0]], bearer_methods_supported: ['header'] })
+  return c.json({ resource, authorization_servers: [issuer], scopes_supported: [...mcpScopes], bearer_methods_supported: ['header'] })
 })
 app.get('/.well-known/oauth-protected-resource', c => {
   const { issuer, resource } = oauthConfig(c.env)
-  return c.json({ resource, authorization_servers: [issuer], scopes_supported: [mcpScopes[0]], bearer_methods_supported: ['header'] })
+  return c.json({ resource, authorization_servers: [issuer], scopes_supported: [...mcpScopes], bearer_methods_supported: ['header'] })
 })
 app.all('/.well-known/oauth-authorization-server', async c => (await mcpOAuth()).serveOAuthProtocol(c))
 app.all('/oauth/token', async c => (await mcpOAuth()).serveOAuthProtocol(c))
@@ -122,10 +122,12 @@ app.use('/api/*', async (c, next) => {
 app.all('/api/agent/mcp', async c => {
   const response = await handleAgentMcp(c.req.raw, {
     listAccounts: input => readLedgerAccounts(c, input),
+    listEntries: input => readLedgerList(c, input),
+    getEntry: input => readLedgerDetail(c, input),
     createEntry: input => createLedgerEntry(c, input),
     refundEntry: (id, input) => createLedgerRefund(c, id, input),
   }, { authorizeTool: name => {
-    const required = ({ list_ledger_accounts: mcpScopes[0], create_ledger_entry: mcpScopes[1], create_ledger_refund: mcpScopes[2] } as Record<string, string>)[name]
+    const required = ({ list_ledger_accounts: mcpScopes[0], list_ledger_entries: mcpScopes[1], get_ledger_entry: mcpScopes[1], create_ledger_entry: mcpScopes[2], create_ledger_refund: mcpScopes[3] } as Record<string, string>)[name]
     if (required && !(c.get('identity').mcpScopes ?? []).includes(required)) throw new McpAuthError('insufficient_scope', [required])
   } })
   response.headers.set('Cache-Control', 'no-store')

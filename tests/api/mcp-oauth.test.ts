@@ -10,7 +10,7 @@ test('标准发现、授权码 + S256、工具握手及凭据隔离贯通', asyn
   expect(response.status).toBe(401)
   expect(response.headers.get('WWW-Authenticate')).toContain('resource_metadata="' + oauthIssuer + '/.well-known/oauth-protected-resource/api/agent/mcp"')
   expect(response.headers.get('WWW-Authenticate')).not.toContain('invalid_token')
-  expect(await (await f.request('/.well-known/oauth-protected-resource/api/agent/mcp')).json()).toMatchObject({ resource: oauthIssuer + '/api/agent/mcp', scopes_supported: [mcpScopes[0]], authorization_servers: [oauthIssuer] })
+  expect(await (await f.request('/.well-known/oauth-protected-resource/api/agent/mcp')).json()).toMatchObject({ resource: oauthIssuer + '/api/agent/mcp', scopes_supported: mcpScopes, authorization_servers: [oauthIssuer] })
   const metadata = await f.request('/.well-known/oauth-authorization-server')
   expect(metadata.headers.get('Content-Type')).toContain('application/json')
   expect(await metadata.json()).toMatchObject({ issuer: oauthIssuer, code_challenge_methods_supported: ['S256'], client_id_metadata_document_supported: true, scopes_supported: mcpScopes })
@@ -34,17 +34,35 @@ test('只读授权按工具返回 HTTP 403，业务失败仍使用原 MCP 封装
   const client = await f.client()
   const token = await f.issue(client.clientId, [mcpScopes[0]])
   expect((await f.mcp(token.access_token, 'list_ledger_accounts')).status).toBe(200)
-  for (const [name, scope] of [['create_ledger_entry', mcpScopes[1]], ['create_ledger_refund', mcpScopes[2]]]) {
+  for (const [name, scope] of [['list_ledger_entries', mcpScopes[1]], ['get_ledger_entry', mcpScopes[1]], ['create_ledger_entry', mcpScopes[2]], ['create_ledger_refund', mcpScopes[3]]]) {
     const denied = await f.mcp(token.access_token, name)
     expect(denied.status).toBe(403)
     expect(denied.headers.get('WWW-Authenticate')).toContain(`error="insufficient_scope", scope="${scope}"`)
     expect(await denied.json()).not.toHaveProperty('result')
   }
   expect(f.writes).toHaveLength(1)
-  const stepUp = await f.issue(client.clientId, [mcpScopes[0], mcpScopes[1]])
+  const stepUp = await f.issue(client.clientId, [mcpScopes[0], mcpScopes[2]])
   const invalid = await f.mcp(stepUp.access_token, 'create_ledger_entry', {})
   expect(invalid.status).toBe(200)
   expect(await invalid.json()).toMatchObject({ result: { isError: true, structuredContent: { error: { code: 'INVALID_ENTRY' } } } })
+})
+
+test('既有授权没有流水读取 scope 时返回 insufficient_scope，重新授权后可调用', async () => {
+  const f = oauthFixture()
+  const client = await f.client()
+  const token = await f.issue(client.clientId, [mcpScopes[0], mcpScopes[2], mcpScopes[3]])
+  for (const [name, args] of [['list_ledger_entries', {}], ['get_ledger_entry', { id: crypto.randomUUID() }]] as const) {
+    const denied = await f.mcp(token.access_token, name, args)
+    expect(denied.status).toBe(403)
+    expect(denied.headers.get('WWW-Authenticate')).toContain(`error="insufficient_scope", scope="${mcpScopes[1]}"`)
+    expect(await denied.json()).not.toHaveProperty('result')
+  }
+  expect(f.writes).toHaveLength(0)
+  const stepUp = await f.issue(client.clientId, [mcpScopes[0], mcpScopes[1]])
+  expect((await f.mcp(stepUp.access_token, 'list_ledger_entries')).status).toBe(200)
+  const detail = await f.mcp(stepUp.access_token, 'get_ledger_entry', { id: crypto.randomUUID() })
+  expect(detail.status).toBe(200)
+  expect(await detail.json()).toMatchObject({ result: { isError: true, structuredContent: { error: { code: 'NOT_FOUND' } } } })
 })
 
 test('同一客户端的多个用户、多个客户端与多个授权独立，owner 无法由参数覆盖', async () => {

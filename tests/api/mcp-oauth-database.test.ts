@@ -97,4 +97,17 @@ describe.skipIf(!rpcUrl)('OAuth 使用真实隔离 PostgreSQL/PostgREST', () => 
     expect(found.size).toBe(60)
     expect((await f.browser('/api/oauth/grants/revoke', { id: [...found].at(-1) })).status).toBe(200)
   })
+
+  test('四项 scope 的授权可真实写入、读取与撤销', async () => {
+    const f = oauthFixture(rpcUrl)
+    const client = await f.client()
+    const token = await f.issue(client.clientId, mcpScopes)
+    expect(token.scope.split(' ').sort()).toEqual([...mcpScopes].sort())
+    const { grants } = await (await f.browser('/api/oauth/grants')).json() as { grants: { id: string; clientId: string; scopes: string[] }[] }
+    const grant = grants.find(grant => grant.clientId === client.clientId)!
+    expect(grant.scopes.sort()).toEqual([...mcpScopes].sort())
+    expect((await f.mcp(token.access_token)).status).toBe(200)
+    expect((await f.browser('/api/oauth/grants/revoke', { id: grant.id })).status).toBe(200)
+    expect((await f.mcp(token.access_token)).status).toBe(401)
+  })
 })
