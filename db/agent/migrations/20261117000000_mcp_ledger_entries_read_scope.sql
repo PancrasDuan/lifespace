@@ -60,7 +60,13 @@ begin
         and contype = 'c'
         and conname = 'agent_oauth_grants_scopes_check'
         and conkey = array[scopes_attnum]
+        and pg_get_constraintdef(oid) like '%cardinality(scopes)%'
+        and pg_get_constraintdef(oid) like '%scopes <@%'
+        and pg_get_constraintdef(oid) like '%ledger:accounts:read%'
         and pg_get_constraintdef(oid) like '%ledger:entries:read%'
+        and pg_get_constraintdef(oid) like '%ledger:entries:create%'
+        and pg_get_constraintdef(oid) like '%ledger:refunds:create%'
+        and pg_get_constraintdef(oid) like '%cardinality(scopes) <= 4%'
   ) then
     execute $sql$
       alter table public.agent_oauth_grants add constraint agent_oauth_grants_scopes_check check (
@@ -68,6 +74,41 @@ begin
         and scopes <@ array['ledger:accounts:read', 'ledger:entries:read', 'ledger:entries:create', 'ledger:refunds:create']::text[]
       )
     $sql$;
+  end if;
+
+  if (select count(*) from pg_constraint
+      where conrelid = 'public.agent_oauth_grants'::regclass
+        and contype = 'c'
+        and conkey = array[scopes_attnum]
+        and pg_get_constraintdef(oid) like '%cardinality(scopes)%'
+        and pg_get_constraintdef(oid) like '%scopes <@%'
+        and (
+          (pg_get_constraintdef(oid) like '%ledger:accounts:read%'
+            and pg_get_constraintdef(oid) like '%ledger:entries:create%'
+            and pg_get_constraintdef(oid) like '%ledger:refunds:create%')
+          or (pg_get_constraintdef(oid) like '%ledger:accounts:read%'
+            and pg_get_constraintdef(oid) like '%ledger:entries:read%'
+            and pg_get_constraintdef(oid) like '%ledger:entries:create%'
+            and pg_get_constraintdef(oid) like '%ledger:refunds:create%')
+        )) <> 1 then
+    raise exception 'AGENT_OAUTH_SCOPE_CHECK_COUNT';
+  end if;
+
+  if not exists (
+    select 1 from pg_constraint
+      where conrelid = 'public.agent_oauth_grants'::regclass
+        and contype = 'c'
+        and conname = 'agent_oauth_grants_scopes_check'
+        and conkey = array[scopes_attnum]
+        and pg_get_constraintdef(oid) like '%cardinality(scopes)%'
+        and pg_get_constraintdef(oid) like '%scopes <@%'
+        and pg_get_constraintdef(oid) like '%ledger:accounts:read%'
+        and pg_get_constraintdef(oid) like '%ledger:entries:read%'
+        and pg_get_constraintdef(oid) like '%ledger:entries:create%'
+        and pg_get_constraintdef(oid) like '%ledger:refunds:create%'
+        and pg_get_constraintdef(oid) like '%cardinality(scopes) <= 4%'
+  ) then
+    raise exception 'AGENT_OAUTH_SCOPE_CHECK_INVALID';
   end if;
 
   if exists (

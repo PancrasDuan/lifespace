@@ -22,7 +22,7 @@ REST 契约保持原样，退款父标识在 MCP 使用同名 `id`，其余四�
 
 ## #231：增加流水列表与单笔详情只读工具
 
-用户要求 Agent 能查询流水、核对创建结果、在退款前读取父支出详情并查看关联退款与转账，因此取代 #151「不提供列表／详情」的范围决定。`list_ledger_entries` 与 `get_ledger_entry` 分别复用 `GET /api/ledger/entries` 和 `GET /api/ledger/entries/:id` 的查询解析、业务校验与读取服务；REST 契约和账单数据结构不变，仍不提供转账、删除、账户新增/修改或历史搜索。
+用户要求 Agent 能查询流水、核对创建结果、在退款前读取父支出详情并查看关联退款与转账，因此取代 #151「不提供列表／详情」的范围决定。`list_ledger_entries` 与 `get_ledger_entry` 分别复用 `GET /api/ledger/entries` 和 `GET /api/ledger/entries/:id` 的读取服务；REST 查询解析保持原样，MCP 使用严格 JSON 输入，账单数据结构不变，仍不提供转账、删除、账户新增/修改或历史搜索。
 
 两个工具共用新增的 `ledger:entries:read` scope，不错误复用账户读取 scope。同意页、grant 校验、工具映射与 protected-resource metadata 同步公布四项权限；授权存储的 scope 约束扩展为四项。既有授权没有新 scope 时返回 HTTP 403 `insufficient_scope` challenge，用户重新授权后可调用，不静默放宽。应用版本提升为 `2.1.0`；业务错误仍为 `{ error: { code, message } }`，协议版本保持 2025-11-25。
 
