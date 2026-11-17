@@ -16,7 +16,7 @@ stderr 只转为固定本地诊断：`TOKSCALE_PRICING_WARNING`、`TOKSCALE_MISS
 
 `state.sqlite` 的 meta 保存配置、授权请求／凭据和最新脱敏诊断；rollups 按日期／Agent 保存唯一最新内容、generation、version/hash；queue 保留不可变上传 JSON、对应主键／代际／版本/hash、重试次数／下次时间及固定错误码。旧 `sources` 表保留 schema 和既有行兼容升级，但不再读写或维护来源证明。所有状态仍在应用私有目录，权限检查包括 SQLite journal 与 Tokscale 缓存；原始硬件标识只在内存用于派生 deviceId，hostname 不参与身份。
 
-有效扫描在同一事务分配版本并保存最新统计／待传请求及诊断。hash 与**最近分配内容**比较，相同不产生新版本；A→B→A 有其他内容在途时仍分配新版本。ack 仅删除 persisted=true 且严格匹配 device/date/agent/generation/version/hash 的任务。旧／不完整回执无权清队列；重试沿用逐字相同 body，普通网络或凭据错误不丢未确认请求。扫描失败时旧队列仍可按正常严格回执规则发送，不生成替代统计。
+有效扫描在同一事务分配版本并保存最新统计／待传请求及诊断。hash 与**最近分配内容**比较，内容与 `statisticsVersion` 都相同才不产生新版本；A→B→A 有其他内容在途时仍分配新版本。ack 仅删除 persisted=true 且严格匹配 device/date/agent/generation/version/hash 的任务。旧／不完整回执无权清队列；重试沿用逐字相同 body，普通网络或凭据错误不丢未确认请求。扫描失败时旧队列仍可按正常严格回执规则发送，不生成替代统计。
 
 offline 未授权扫描可保存最新内容（generation=0，不上传）；正常获准领取新代际后从版本1重传最新值。领取请求和轮询时间先持久化，响应及代际队列重建在同一事务；只有明确新代际才取代旧队列。窗口外、停用或本地凭据遗失须重新经浏览器批准，不能凭设备身份恢复权限。
 
@@ -34,6 +34,6 @@ Grok 在 4.23.0 可能返回 `cost=0`、`costProvenance=unknown`（底层 `updat
 
 `npm run test:api` 覆盖警告不拦、有效降值／模型移除、缺席日保留、失败／无效输出不改旧统计或待传任务、敏感 stderr 不泄露，以及既有身份／锁／回执／重试。旧 inventory／压缩前缀测试随已授权职责调整删除，不以改宽坏帧断言伪装原策略继续通过。
 
-`npm run test:collector-package` 在仓库外实际 pack/install，只从安装包运行，合成扫描、旧→新升级保留 SQLite／身份／待传任务及旧 sources 行。`TOKEN_PACKAGE_PREVIOUS_ARCHIVE` 可显式指定映射中已保留的旧归档；不拉 latest。`test:collector-evidence` 继续只读白名单对账；一次性OS任务、隔离PG/PostgREST/TLS和完整12CI门禁继续保留，合成或本地网关不冒充托管／真实来源／用户验收。
+`npm run test:collector-package` 在仓库外实际 pack/install，只从安装包运行；默认验证同版本重装保留 SQLite／身份／待传任务及旧 sources 行。设置 `TOKEN_PACKAGE_PREVIOUS_ARCHIVE` 为映射中已保留的旧归档时，才实际验证旧→新升级及“不扩范围”行为；CI 未设置该变量，旧包升级由维护者在保留归档的机器上本地执行，不拉 latest。`test:collector-evidence` 继续只读白名单对账；一次性OS任务、隔离PG/PostgREST/TLS和完整12CI门禁继续保留，合成或本地网关不冒充托管／真实来源／用户验收。
 
 独立0.1.5包及源码映射见 `docs/evidence/token-onboarding/package.json`；0.1.0–0.1.4原包和旧分发目录保持。正式state仍由总控单写，先审新包再升级指定设备。实际设备／新扫描、获准HTTP／页面及四方对账、双设备、长期任务和桌面手机人工分别留证，不从旧队列上传成功推定新扫描成功；实际运行证据保存在受控私有文件，不公开真实用量、设备状态、回执hash或托管数据。#223／#205是否完成以总控的完整验收记录为准。

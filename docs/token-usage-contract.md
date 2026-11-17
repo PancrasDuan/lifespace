@@ -27,7 +27,7 @@
 | content | `metrics` 主汇总；`cost` 费用；`models: { coverage, items }` 模型分类 |
 | metadata | `schemaVersion: 1`、`statisticsVersion`、`tool: { name, version }`、`priceVersion`、`scannedAt`；可选 `hostname`、`snapshotVersion` |
 
-`deviceId` 的实际派生算法/登记不在本阶段实现；验证字符串形状不证明它是正确派生值。有序快照版本暂为可选正整数字符串，避免 JS 安全整数上限；本阶段不分配、不持久化、不确认版本。`priceVersion: null` 表示没有可取得的可靠价格快照版本，不能拿工具版本充当价格版本。schema v1 之外的格式应升级契约后再验证。
+`deviceId` 的实际派生算法/登记不在本阶段实现；验证字符串形状不证明它是正确派生值。有序快照版本是可选正整数字符串，避免 JS 安全整数上限；当前采集器会分配、持久化并由服务端严格回执确认版本。`priceVersion: null` 表示没有可取得的可靠价格快照版本，不能拿工具版本充当价格版本。schema v1 之外的格式应升级契约后再验证。
 
 每份主汇总与携带的全部模型子项是一个替换单元；未来删去旧模型或数值下调必须整体替换。适配器按 graph 的 `(date, client)` 分组，每组生成一个快照，`identity.agent` 直接取 `client`；同一天同名模型出现在不同 Agent 下是合法且互不替代的。模型子项稳定键是 JSON 编码的 canonical `modelId`，未知为 `null`；上游 `unknown` 映射为未知桶，不按名称猜测真实模型。同一 `(date, client)` 内同一模型键不允许重复，模型重归属不改变主汇总 identity。`providerId` 是上游提供方标签，缺失/空/unknown 映射 null；上游按 client+模型聚合，可能把多个 provider 拼为同一标签，故不把它伪装成可独立筛分的维度，也不将它加入子项键。
 
@@ -39,7 +39,7 @@
 | output | 包含推理的输出总数 | `tokens.output + reasoning` |
 | total | 输入加输出，只加一次 | 五个互斥 graph 桶之和 |
 | cacheRead | 输入的缓存读取分量 | `tokens.cacheRead` |
-| cacheWrite | 输入的缓存写入分量 | Codex 无此测量，省略；Grok/Hermes 仅在 graph 给出正数时保留，默认桶零不作为来源测量 |
+| cacheWrite | 输入的缓存写入分量 | Codex 无此测量，省略；Grok/Hermes 保留 graph 桶，包括 0，以保证模型子项与主汇总对账 |
 | reasoning | 输出中的推理分量 | `tokens.reasoning` |
 
 计数为非负安全整数，超出范围拒绝。已知的 total 必须等于 input+output，包含分量不能大于所属总数。缓存读取率由合计 `cacheRead / input` 计算，不平均各设备/模型的百分比；分母零、缺失或未知时无可用比例。本阶段不增加展示层。

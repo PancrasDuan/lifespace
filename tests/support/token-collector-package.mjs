@@ -36,9 +36,12 @@ try {
   const initialVersion = JSON.parse(await readFile(join(packageRoot, 'package.json'), 'utf8')).version
   assert.equal(initialVersion, previous ? previousRelease.version : expected.version)
   const cli = join(packageRoot, 'dist/tools/token-collector/cli.js')
-  assert.match((await run(process.execPath, [cli, '--help'])).stdout, /Tokscale 4.23.0/)
-  assert.match((await run(process.execPath, [cli, '--help'])).stdout, /sources add --agents grok,hermes/)
-  assert.match((await run(process.execPath, [cli, '--help'])).stdout, /collector 0\.1\.5/)
+  const initialHelp = (await run(process.execPath, [cli, '--help'])).stdout
+  assert.match(initialHelp, /Tokscale 4\.23\.0/)
+  if (initialVersion === '0.1.5') {
+    assert.match(initialHelp, /sources add --agents grok,hermes/)
+    assert.match(initialHelp, /collector 0\.1\.5/)
+  }
   // Exercise the real OS identity probe without printing its value. Synthetic
   // logs below stay separate from the user's real sources and device state.
   const identity = `import assert from 'node:assert/strict'; import {systemDeviceId} from ${JSON.stringify(pathToFileURL(join(packageRoot, 'dist/tools/token-collector/local.js')).href)}; const a=await systemDeviceId();assert.match(a,/^lsd1_[a-f0-9]{64}$/);assert.equal(await systemDeviceId(),a);`
@@ -99,23 +102,26 @@ try {
   await run(process.execPath, ['--input-type=module', '-e', `import {DatabaseSync} from 'node:sqlite';const db=new DatabaseSync(process.argv[1]);db.prepare('INSERT INTO sources VALUES (?,?)').run('/synthetic-legacy-source','synthetic-legacy-proof');db.close()`, join(state, 'state.sqlite')])
   const status = (await run(process.execPath, [cli, 'status', '--state-dir', state])).stdout
   assert.equal(JSON.parse(status).pending, 1); assert(!status.includes(secret)); assert(!status.includes(home))
-  assert.deepEqual(JSON.parse(status).agents, ['codex'])
-  // An installed release expands scope only through the explicit command; the
-  // missing .grok directory must not prevent the already authorized Codex scan.
-  const added = JSON.parse((await run(process.execPath, [cli, 'sources', 'add', '--agents', 'grok', '--state-dir', state])).stdout)
-  assert.deepEqual(added, { agents: ['codex', 'grok'], added: ['grok'] })
-  assert.deepEqual(JSON.parse((await run(process.execPath, [cli, 'sources', 'list', '--state-dir', state])).stdout).agents, ['codex', 'grok'])
-  assert.deepEqual(JSON.parse((await run(process.execPath, [cli, 'sources', 'add', '--agents', 'grok', '--state-dir', state])).stdout).added, [])
-  const combined = JSON.parse((await run(process.execPath, [cli, 'sync', '--offline', '--state-dir', state])).stdout)
-  assert.equal(combined.scanFailed, false); assert.equal(combined.pending, 2)
-  const agents = await run(process.execPath, ['--input-type=module', '-e', `import {DatabaseSync} from 'node:sqlite';const db=new DatabaseSync(process.argv[1],{readOnly:true});console.log(db.prepare('SELECT date,agent FROM rollups ORDER BY date,agent').all().map(r=>r.date+'/'+r.agent).join(','));db.close()`, join(state, 'state.sqlite')])
-  assert.equal(agents.stdout.trim(), '2026-11-15/codex,2026-11-15/grok')
-  assert.equal(JSON.parse((await run(process.execPath, [cli, 'status', '--state-dir', state])).stdout).agents.join(','), 'codex,grok')
+  if (initialVersion === '0.1.5') {
+    assert.deepEqual(JSON.parse(status).agents, ['codex'])
+    // An installed release expands scope only through the explicit command;
+    // adding grok is the only way its synthetic rows enter the scan.
+    const added = JSON.parse((await run(process.execPath, [cli, 'sources', 'add', '--agents', 'grok', '--state-dir', state])).stdout)
+    assert.deepEqual(added, { agents: ['codex', 'grok'], added: ['grok'] })
+    assert.deepEqual(JSON.parse((await run(process.execPath, [cli, 'sources', 'list', '--state-dir', state])).stdout).agents, ['codex', 'grok'])
+    assert.deepEqual(JSON.parse((await run(process.execPath, [cli, 'sources', 'add', '--agents', 'grok', '--state-dir', state])).stdout).added, [])
+    const combined = JSON.parse((await run(process.execPath, [cli, 'sync', '--offline', '--state-dir', state])).stdout)
+    assert.equal(combined.scanFailed, false); assert.equal(combined.pending, 2)
+    const agents = await run(process.execPath, ['--input-type=module', '-e', `import {DatabaseSync} from 'node:sqlite';const db=new DatabaseSync(process.argv[1],{readOnly:true});console.log(db.prepare('SELECT date,agent FROM rollups ORDER BY date,agent').all().map(r=>r.date+'/'+r.agent).join(','));db.close()`, join(state, 'state.sqlite')])
+    assert.equal(agents.stdout.trim(), '2026-11-15/codex,2026-11-15/grok')
+    assert.equal(JSON.parse((await run(process.execPath, [cli, 'status', '--state-dir', state])).stdout).agents.join(','), 'codex,grok')
+  }
   const before = await readFile(join(state, 'state.sqlite'))
   await run(process.execPath, [cli, 'timer', 'install', '--state-dir', state])
   await run(process.execPath, [cli, 'upgrade', '--state-dir', state, '--archive', archive, '--prefix', prefix, '--apply'])
   assert((await readFile(join(state, 'state.sqlite'))).equals(before), 'SQLite bytes changed during status/timer preview/upgrade')
-  assert.deepEqual(JSON.parse((await run(process.execPath, [cli, 'sources', 'list', '--state-dir', state])).stdout).agents, ['codex', 'grok'])
+  const upgradedAgents = JSON.parse((await run(process.execPath, [cli, 'sources', 'list', '--state-dir', state])).stdout).agents
+  assert.deepEqual(upgradedAgents, initialVersion === '0.1.5' ? ['codex', 'grok'] : ['codex'])
   assert.equal(JSON.parse(await readFile(join(packageRoot, 'package.json'), 'utf8')).version, expected.version)
   assert((await run(process.execPath, [cli, '--version'])).stdout.includes(`collector ${expected.version}`))
   // Exercise synthetic aggregate residues from the installed release,
@@ -131,7 +137,11 @@ try {
     }`
   await run(process.execPath, ['--input-type=module', '-e', costs])
   const rescanned = JSON.parse((await run(process.execPath, [cli, 'sync', '--offline', '--rescan', '--state-dir', state])).stdout)
-  assert.equal(rescanned.pending, 2); assert.equal(rescanned.scanFailed, false); assert.deepEqual(rescanned.scan.retainedDates, [])
+  // The 0.1.4 archive already has one Codex task. Upgrading preserves it and
+  // the statisticsVersion bump allocates one new task; a same-version reinstall
+  // has two agents/tasks already. Neither path may lose or duplicate content.
+  assert.equal(rescanned.pending, 2)
+  assert.equal(rescanned.scanFailed, false); assert.deepEqual(rescanned.scan.retainedDates, [])
   const totals = await run(process.execPath, ['--input-type=module', '-e', `import {DatabaseSync} from 'node:sqlite';const db=new DatabaseSync(process.argv[1],{readOnly:true});console.log(JSON.parse(db.prepare("SELECT snapshot FROM rollups WHERE agent='codex'").get().snapshot).content.metrics.total);db.close()`, join(state, 'state.sqlite')])
   assert.equal(Number(totals.stdout), 12)
   await writeFile(join(home, '.codex/sessions/interrupted.jsonl'), JSON.stringify({ timestamp: '2026-11-15T00:00:00Z', type: 'response_item', payload: { type: 'message', content: [{ text: 'synthetic-private-package-warning' }] } }) + '\n')

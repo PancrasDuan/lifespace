@@ -31,7 +31,7 @@ export async function scan(store: Store, stateDir: string, options: { rescan?: b
   await validatePrivateTree(configDir)
   const prepared = await store.prepareSnapshots(report.snapshots)
   store.saveScan(prepared, diagnostics, retainedDates)
-  return { dates: report.snapshots.length, retainedDates, diagnostics }
+  return { snapshots: report.snapshots.length, retainedDates, diagnostics }
 }
 export async function synchronize(store: Store, stateDir: string, options: { rescan?: boolean; offline?: boolean } = {}) {
   // A failed/interrupted scan cannot erase existing tasks. Still attempt their

@@ -64,6 +64,18 @@ test('multi-Agent rollups keep same model and date separate by agent', async () 
     ['2026-11-15', 'codex', '1'], ['2026-11-15', 'grok', '1'],
   ])
 })
+test('a statisticsVersion-only change creates a new ordered snapshot', async () => {
+  const p = await profile(); p.store.activate(credential())
+  const legacy = snapshot()
+  legacy.metadata.statisticsVersion = 'tokscale-codex-1'
+  await save(p.store, legacy)
+  expect(p.store.tasks().map(task => task.version)).toEqual(['1'])
+  await save(p.store, snapshot())
+  expect(p.store.tasks().map(task => task.version)).toEqual(['1', '2'])
+  const latest = JSON.parse(String(p.store.db.prepare("SELECT snapshot FROM rollups WHERE date='2026-11-15' AND agent='codex'").get()!.snapshot))
+  expect(latest.metadata.statisticsVersion).toBe('tokscale-multi-agent-1')
+  expect(latest.metadata.snapshotVersion).toBe('2')
+})
 test('SQLite file persists latest + immutable A→B→A, deduplicates latest only, exact receipt deletes only its task', async () => {
   const p = await profile(); p.store.activate(credential())
   await save(p.store, snapshot()); const a = p.store.tasks()[0]

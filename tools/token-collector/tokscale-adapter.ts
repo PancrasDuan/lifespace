@@ -65,10 +65,10 @@ function adaptModel(value: Row): TokenModel {
     input: sumTokenCounts([tokens.input, tokens.cacheRead, tokens.cacheWrite]),
     output: sumTokenCounts([tokens.output, tokens.reasoning]), total: rawTotal(tokens),
     cacheRead: tokens.cacheRead, reasoning: tokens.reasoning,
-    // Codex has no cache-write measurement; the CLI's zero is a default bucket.
-    // Grok/Hermes rows can report it, but graph cannot prove a zero was
-    // source-measured, so only a positive bucket is retained.
-    ...(value.client !== 'codex' && tokens.cacheWrite > 0 ? { cacheWrite: tokens.cacheWrite } : {}),
+    // Keep the graph bucket for every model so the complete model breakdown
+    // still reconciles with the main summary. Codex's zero is a default bucket,
+    // not proof that the source measured cache writes.
+    ...(value.client === 'codex' ? {} : { cacheWrite: tokens.cacheWrite }),
   }
   return {
     modelId: value.modelId === 'unknown' ? null : value.modelId,

@@ -87,7 +87,7 @@ test('scan passes only configured Agents and keeps legacy state on codex', async
   expect(execute.mock.calls[3][1]).toEqual(expect.arrayContaining(['--client', 'codex,grok,hermes']))
 })
 
-test('configured source without any matching directory still scans authorized codex data', async () => {
+test('an authorized Agent with no graph rows does not prevent another Agent from being saved', async () => {
   const { store, state } = await profile()
   store.set('config', { ...store.config(), agents: ['codex', 'grok'] })
   result()

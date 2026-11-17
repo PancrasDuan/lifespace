@@ -79,9 +79,14 @@ export class Store {
       for (const { snapshot, hash } of prepared) {
         const { date, agent } = snapshot.identity
         if (snapshot.identity.deviceId !== this.config().deviceId) throw new LocalError('IDENTITY_MISMATCH')
-        const old = this.db.prepare('SELECT * FROM rollups WHERE date=? AND agent=?').get(date, agent)
+        const old = this.db.prepare('SELECT * FROM rollups WHERE date=? AND agent=?').get(date, agent) as
+          { generation?: string; version?: string; hash?: string; snapshot?: string } | undefined
+        const oldStatisticsVersion = old?.snapshot === undefined
+          ? undefined
+          : (JSON.parse(String(old.snapshot)) as TokenUsageSnapshot).metadata.statisticsVersion
         // Compare the latest assigned content, including unconfirmed requests.
-        if (old?.hash === hash) continue
+        // A metadata-only version bump still creates a new ordered snapshot.
+        if (old?.hash === hash && oldStatisticsVersion === snapshot.metadata.statisticsVersion) continue
         const generation = credential?.generation ?? '0'
         const version = old?.generation === generation ? String(BigInt(String(old.version)) + 1n) : '1'
         const versioned = { ...snapshot, metadata: { ...snapshot.metadata, snapshotVersion: version } }

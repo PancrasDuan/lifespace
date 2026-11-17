@@ -201,7 +201,7 @@ finish() {
 run_wizard() {
   TOTAL_STAGES=8
   local server='https://lifespace.onepeace.cc.cd'
-  local expected='689a17a7c82ab11fcfaa1081404735388cd9236637597c98fd9942a13b00c2fa'
+  local expected='c029b83353ad36df6725906a24e0fcf7871bed3cb12d351fd8b36e92c7210646'
   local wizard_dir node_path npm_path collector status_json scan_json
   local TOKEN_ARCHIVE TOKEN_INSTALL TOKEN_STATE TOKEN_SOURCE TOKEN_AGENTS
   # No wizard profile, ambient .env, or secrets are read or written.
@@ -238,10 +238,10 @@ try {
   const [archive, expected] = process.argv.slice(2)
   if (!isAbsolute(archive)) throw 0
   const stat = await lstat(archive)
-  if (!stat.isFile() || stat.isSymbolicLink() || stat.size !== 26361) throw 0
+  if (!stat.isFile() || stat.isSymbolicLink() || stat.size !== 26433) throw 0
   const bytes = await readFile(archive)
-  if (bytes.length !== 26361 || createHash('sha256').update(bytes).digest('hex') !== expected) throw 0
-  console.log('  包校验通过：26,361 字节 / 689a17a7… / Node ' + process.versions.node + ' / ' + process.platform + '/' + process.arch)
+  if (bytes.length !== 26433 || createHash('sha256').update(bytes).digest('hex') !== expected) throw 0
+  console.log('  包校验通过：26,433 字节 / c029b833… / Node ' + process.versions.node + ' / ' + process.platform + '/' + process.arch)
 } catch { console.error('ARCHIVE_UNCONFIRMED'); process.exitCode = 1 }
 JS
   say '私有本地包，未发布 npm；安装需要联网取得固定依赖，不使用 --omit=optional。'
@@ -318,7 +318,7 @@ JS
   confirm '现在扫描该来源全部历史？' || return 1
   scan_json=$("$collector" sync --offline --state-dir "$TOKEN_STATE")
   printf '%s\n' "$scan_json"
-  printf '%s' "$scan_json" | node --input-type=module -e 'let s=""; for await (const c of process.stdin) s+=c; const v=JSON.parse(s); if (v.scanFailed || !(v.scan.dates>0)) { console.error("SCAN_NOT_READY_FOR_ACCEPTANCE"); process.exitCode=1 }'
+  printf '%s' "$scan_json" | node --input-type=module -e 'let s=""; for await (const c of process.stdin) s+=c; const v=JSON.parse(s); if (v.scanFailed || !(v.scan.snapshots>0)) { console.error("SCAN_NOT_READY_FOR_ACCEPTANCE"); process.exitCode=1 }'
   "$collector" status --state-dir "$TOKEN_STATE"
   say '费用 unknown/null 如实保留；Tokscale 告警只记脱敏类别，retainedDates 表示本轮没有替换的旧日期。'
   pause '记录本机结果，按 Enter 继续。'
@@ -329,7 +329,7 @@ JS
   confirm '允许现在通过正常设备凭据同步这些汇总？' || return 1
   scan_json=$("$collector" sync --state-dir "$TOKEN_STATE")
   printf '%s\n' "$scan_json"
-  printf '%s' "$scan_json" | node --input-type=module -e 'let s=""; for await (const c of process.stdin) s+=c; const v=JSON.parse(s); if (v.scanFailed || !(v.scan.dates>0) || v.pending!==0 || v.heartbeat!==true) { console.error("ONLINE_SYNC_NOT_CONFIRMED"); process.exitCode=1 }'
+  printf '%s' "$scan_json" | node --input-type=module -e 'let s=""; for await (const c of process.stdin) s+=c; const v=JSON.parse(s); if (v.scanFailed || !(v.scan.snapshots>0) || v.pending!==0 || v.heartbeat!==true) { console.error("ONLINE_SYNC_NOT_CONFIRMED"); process.exitCode=1 }'
   "$collector" status --state-dir "$TOKEN_STATE"
   say '须看到 pending=0、heartbeat=persisted；CLI退出成功不代替四方对账。'
   pause '记录同步结果，按 Enter 查看后续计划。'

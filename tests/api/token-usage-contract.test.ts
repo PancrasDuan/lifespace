@@ -58,6 +58,22 @@ test('同一天多 Agent 的同名模型生成独立快照，组内重复仍拒�
   expect(result[1].content.models.items[0].modelId).toBe('gpt-5.5')
   expect(result[1].content.cost).toEqual({ currency: 'USD', apiEstimate: null, coverage: 'unknown' })
   expect(result[1].content.models.items[0].metrics.cacheWrite).toBe(7)
+  // Same Agent: one model reports cacheWrite 7, another reports known zero.
+  // Both must carry the bucket so the main summary reconciles to 7.
+  const mixed = adaptTokscaleGraph({
+    meta: { version: tokscaleVersion },
+    summary: { totalTokens: 149, totalCost: 3 },
+    contributions: [{
+      date: '2026-11-15', totals: { tokens: 149, cost: 3 },
+      tokenBreakdown: { input: 90, output: 22, cacheRead: 20, cacheWrite: 7, reasoning: 10 },
+      clients: [
+        { client: 'grok', modelId: 'first-same-agent-model', tokens: { input: 80, output: 20, cacheRead: 20, cacheWrite: 7, reasoning: 10 }, cost: 1, costProvenance: { kind: 'estimated' } },
+        { client: 'grok', modelId: 'second-same-agent-model', tokens: { input: 10, output: 2, cacheRead: 0, cacheWrite: 0, reasoning: 0 }, cost: 2, costProvenance: { kind: 'estimated' } },
+      ],
+    }],
+  }, collectionContext)[0]
+  expect(mixed.content.models.items.map(item => item.metrics.cacheWrite).sort()).toEqual([0, 7])
+  expect(mixed.content.metrics.cacheWrite).toBe(7)
   const duplicate = structuredClone(graph)
   duplicate.contributions[0].clients.push(structuredClone(duplicate.contributions[0].clients[1]))
   duplicate.contributions[0].totals.tokens += total(grok.tokens)
