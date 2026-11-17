@@ -1,4 +1,5 @@
 import { describe, test, expect } from 'vitest'
+import { readFile } from 'node:fs/promises'
 import { beijingToday, periodRange, datesBetween } from '../../src/token/dates'
 import { compact, fullCount, money, rate, costText } from '../../src/token/format'
 import { selectRows, summarize, fixtureRows } from '../fixtures/token-dashboard/fixture'
@@ -35,5 +36,15 @@ describe('Token frontend date and display contract', () => {
     for (const row of fixtureRows) tokenUsageContentSchema.parse({ metrics: row.metrics, cost: row.cost, models: { coverage: row.modelCoverage, items: row.models } })
     const summary = summarize(selectRows(new URLSearchParams({ startDate: '2026-10-17', endDate: '2026-11-15' })))
     expect(summary.totals.metrics.total).toBe(51938778)
+  })
+})
+
+describe('Token Agent display contract', () => {
+  test('dashboard exposes Grok Build and Hermes Agent without renaming stored client ids', async () => {
+    const source = await readFile('src/token/TokenDashboard.tsx', 'utf8')
+    expect(source).toContain("grok: 'Grok Build'")
+    expect(source).toContain("hermes: 'Hermes Agent'")
+    expect(source).toContain("useState(['codex', 'grok', 'hermes'])")
+    expect(source).toContain("agentName(agent)")
   })
 })

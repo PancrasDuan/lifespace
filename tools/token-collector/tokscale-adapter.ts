@@ -13,7 +13,7 @@ const provenance = z.object({
 })
 const breakdown = z.object({ input: count, output: count, cacheRead: count, cacheWrite: count, reasoning: count })
 const row = z.object({
-  client: z.literal('codex'), modelId: z.string().min(1).max(200), providerId: z.string().max(200).optional(),
+  client: z.enum(['codex', 'grok', 'hermes']), modelId: z.string().min(1).max(200), providerId: z.string().max(200).optional(),
   tokens: breakdown, cost: amount, costProvenance: provenance.optional(),
 })
 export const tokscaleGraphSchema = z.object({
@@ -65,7 +65,10 @@ function adaptModel(value: Row): TokenModel {
     input: sumTokenCounts([tokens.input, tokens.cacheRead, tokens.cacheWrite]),
     output: sumTokenCounts([tokens.output, tokens.reasoning]), total: rawTotal(tokens),
     cacheRead: tokens.cacheRead, reasoning: tokens.reasoning,
-    // Codex has no cache-write measurement; the CLI's zero is a default bucket.
+    // Keep the graph bucket for every model so the complete model breakdown
+    // still reconciles with the main summary. Codex's zero is a default bucket,
+    // not proof that the source measured cache writes.
+    ...(value.client === 'codex' ? {} : { cacheWrite: tokens.cacheWrite }),
   }
   return {
     modelId: value.modelId === 'unknown' ? null : value.modelId,
@@ -101,7 +104,7 @@ function validateJointTotals(graph: Graph) {
       }
     }
     if (!costMatches(day.totals.cost, day.clients.map(client => client.cost))) throw new Error('Tokscale 日期费用无法对账')
-    const keys = day.clients.map(client => tokenModelKey(adaptModel(client)))
+    const keys = day.clients.map(client => `${client.client}\0${tokenModelKey(adaptModel(client))}`)
     if (new Set(keys).size !== keys.length) throw new Error('Tokscale 联合模型键重复')
   }
   if (graph.summary.totalTokens !== sumTokenCounts(graph.contributions.map(day => day.totals.tokens))
@@ -121,17 +124,28 @@ export function adaptTokscaleGraph(input: unknown, context: TokenCollectionConte
     throw new Error('Tokscale 元数据版本不匹配')
   }
   validateJointTotals(graph)
-  return graph.contributions.filter(day => day.clients.length > 0).sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0).map(day => {
-    const items = day.clients.map(adaptModel).sort(compareTokenModels)
-    const metrics: TokenMetrics = {}
-    for (const key of tokenMetricKeys) {
-      const total = sumTokenCounts(items.map(item => item.metrics[key]))
-      if (total !== undefined) metrics[key] = total
-    }
-    return tokenUsageSnapshotSchema.parse({
-      identity: { deviceId: context.deviceId, date: day.date, agent: 'codex' },
-      content: { metrics, cost: sumTokenCosts(items.map(item => item.cost), 'USD'), models: { coverage: 'complete', items } },
-      metadata: context.metadata,
+  return graph.contributions.filter(day => day.clients.length > 0)
+    .flatMap(day => {
+      const groups = new Map<Row['client'], Row[]>()
+      for (const client of day.clients) {
+        const key = client.client
+        groups.set(key, [...(groups.get(key) ?? []), client])
+      }
+      return [...groups].map(([agent, rows]) => {
+        const items = rows.map(adaptModel).sort(compareTokenModels)
+        const metrics: TokenMetrics = {}
+        for (const key of tokenMetricKeys) {
+          const total = sumTokenCounts(items.map(item => item.metrics[key]))
+          if (total !== undefined) metrics[key] = total
+        }
+        return tokenUsageSnapshotSchema.parse({
+          identity: { deviceId: context.deviceId, date: day.date, agent },
+          content: { metrics, cost: sumTokenCosts(items.map(item => item.cost), 'USD'), models: { coverage: 'complete', items } },
+          metadata: context.metadata,
+        })
+      })
     })
-  })
+    .sort((a, b) => a.identity.date === b.identity.date
+      ? a.identity.agent < b.identity.agent ? -1 : a.identity.agent > b.identity.agent ? 1 : 0
+      : a.identity.date < b.identity.date ? -1 : 1)
 }

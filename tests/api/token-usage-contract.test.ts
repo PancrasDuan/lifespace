@@ -3,14 +3,14 @@ import { describe, expect, test } from 'vitest'
 import rawGraph from '../fixtures/token-usage/tokscale-4.23.0-graph.json'
 import {
   canonicalTokenUsageContent, sumTokenMoney, tokenCostSchema, tokenUsageContentHash,
-  tokenUsageContentSchema, tokenUsageSnapshotHash, tokenUsageSnapshotSchema,
+  tokenUsageContentSchema, tokenUsageSnapshotHash, tokenUsageSnapshotSchema, tokenMetricKeys,
 } from '../../src/shared/token-usage-contract'
 import { adaptTokscaleGraph, tokscaleMoney, tokscaleVersion } from '../../tools/token-collector/tokscale-adapter'
 
 const collectionContext = {
   deviceId: 'synthetic-device-206',
   metadata: {
-    schemaVersion: 1 as const, statisticsVersion: 'tokscale-codex-1',
+    schemaVersion: 1 as const, statisticsVersion: 'tokscale-multi-agent-1',
     tool: { name: 'tokscale' as const, version: tokscaleVersion }, priceVersion: null,
     hostname: 'synthetic-host', scannedAt: '2026-11-15T04:00:00Z',
   },
@@ -29,6 +29,61 @@ test('实际 graph 联合粒度对账，主汇总只计一次，缓存/推理还
   ].sort())
   expect(result[1].content.models.coverage).toBe('complete')
   expect(result.reduce((total, row) => total + row.content.metrics.total!, 0)).toBe(rawGraph.summary.totalTokens)
+})
+
+test('同一天多 Agent 的同名模型生成独立快照，组内重复仍拒绝', () => {
+  const total = (tokens: typeof rawGraph.contributions[number]['tokenBreakdown']) =>
+    (['input', 'output', 'cacheRead', 'cacheWrite', 'reasoning'] as const).reduce((sum, key) => sum + tokens[key], 0)
+  const graph: any = structuredClone(rawGraph)
+  const day = graph.contributions[0], row = day.clients[0]
+  const grok = structuredClone(row)
+  grok.client = 'grok'
+  grok.cost = 0
+  grok.costProvenance = { kind: 'unknown' }
+  grok.tokens.cacheWrite = 7
+  day.clients.push(grok)
+  day.totals.tokens += total(grok.tokens)
+  day.totals.cost += grok.cost
+  for (const key of tokenMetricKeys.filter(key => key !== 'total')) {
+    day.tokenBreakdown[key] += grok.tokens[key]
+  }
+  graph.summary.totalTokens += total(grok.tokens)
+  graph.summary.totalCost += grok.cost
+  const result = adaptTokscaleGraph(graph, collectionContext)
+  expect(result.map(snapshot => [snapshot.identity.date, snapshot.identity.agent, snapshot.content.metrics.total])).toEqual([
+    ['2026-11-14', 'codex', 130], ['2026-11-14', 'grok', 137],
+    ['2026-11-15', 'codex', 700],
+  ])
+  expect(result[0].content.models.items[0].modelId).toBe('gpt-5.5')
+  expect(result[1].content.models.items[0].modelId).toBe('gpt-5.5')
+  expect(result[1].content.cost).toEqual({ currency: 'USD', apiEstimate: null, coverage: 'unknown' })
+  expect(result[1].content.models.items[0].metrics.cacheWrite).toBe(7)
+  // Same Agent: one model reports cacheWrite 7, another reports known zero.
+  // Both must carry the bucket so the main summary reconciles to 7.
+  const mixed = adaptTokscaleGraph({
+    meta: { version: tokscaleVersion },
+    summary: { totalTokens: 149, totalCost: 3 },
+    contributions: [{
+      date: '2026-11-15', totals: { tokens: 149, cost: 3 },
+      tokenBreakdown: { input: 90, output: 22, cacheRead: 20, cacheWrite: 7, reasoning: 10 },
+      clients: [
+        { client: 'grok', modelId: 'first-same-agent-model', tokens: { input: 80, output: 20, cacheRead: 20, cacheWrite: 7, reasoning: 10 }, cost: 1, costProvenance: { kind: 'estimated' } },
+        { client: 'grok', modelId: 'second-same-agent-model', tokens: { input: 10, output: 2, cacheRead: 0, cacheWrite: 0, reasoning: 0 }, cost: 2, costProvenance: { kind: 'estimated' } },
+      ],
+    }],
+  }, collectionContext)[0]
+  expect(mixed.content.models.items.map(item => item.metrics.cacheWrite).sort()).toEqual([0, 7])
+  expect(mixed.content.metrics.cacheWrite).toBe(7)
+  const duplicate = structuredClone(graph)
+  duplicate.contributions[0].clients.push(structuredClone(duplicate.contributions[0].clients[1]))
+  duplicate.contributions[0].totals.tokens += total(grok.tokens)
+  duplicate.contributions[0].totals.cost += grok.cost
+  for (const key of tokenMetricKeys.filter(key => key !== 'total')) {
+    duplicate.contributions[0].tokenBreakdown[key] += grok.tokens[key]
+  }
+  duplicate.summary.totalTokens += total(grok.tokens)
+  duplicate.summary.totalCost += grok.cost
+  expect(() => adaptTokscaleGraph(duplicate, collectionContext)).toThrow('Tokscale 联合模型键重复')
 })
 
 test('未定价与未知模型不补零；有价部分保留为 API 估算，币种 USD', () => {

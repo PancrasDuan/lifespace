@@ -6,7 +6,7 @@ import { spawn, execFile } from 'node:child_process'
 import { once } from 'node:events'
 import { promisify } from 'node:util'
 import { randomBytes } from 'node:crypto'
-import { Store, type Credential } from '../../tools/token-collector/store'
+import { configSchema, Store, type Credential } from '../../tools/token-collector/store'
 import { deriveDeviceId, privateDirectory, requireNode24, systemDeviceId } from '../../tools/token-collector/local'
 import { endpoint, request, startRegistration, claimRegistration, uploadPending } from '../../tools/token-collector/transport'
 import { scan, synchronize } from '../../tools/token-collector/collector'
@@ -33,13 +33,48 @@ async function profile() {
   return { dir, state, home, store }
 }
 const credential = (generation = '1'): Credential => ({ deviceId: 'synthetic-device-213', generation, uploadToken: randomBytes(32).toString('base64url'), upload: { url: 'https://example.invalid/rest/v1/rpc/token_usage_upload', publishableKey: 'sb_publishable_synthetic', header: 'X-LifeSpace-Device-Token' } })
-const snapshot = (n = 130, model = 'model-a'): TokenUsageSnapshot => ({ identity: { deviceId: 'synthetic-device-213', date: '2026-11-15', agent: 'codex' }, content: { metrics: { input: n, output: 0, total: n }, cost: { currency: 'USD', coverage: 'unknown' }, models: { coverage: 'complete', items: [{ modelId: model, providerId: null, metrics: { input: n, output: 0, total: n }, cost: { currency: 'USD', coverage: 'unknown' } }] } }, metadata: { schemaVersion: 1, statisticsVersion: 'tokscale-codex-1', tool: { name: 'tokscale', version: '4.23.0' }, priceVersion: null, scannedAt: '2026-11-15T00:00:00Z' } })
+const snapshot = (n = 130, model = 'model-a'): TokenUsageSnapshot => ({ identity: { deviceId: 'synthetic-device-213', date: '2026-11-15', agent: 'codex' }, content: { metrics: { input: n, output: 0, total: n }, cost: { currency: 'USD', coverage: 'unknown' }, models: { coverage: 'complete', items: [{ modelId: model, providerId: null, metrics: { input: n, output: 0, total: n }, cost: { currency: 'USD', coverage: 'unknown' } }] } }, metadata: { schemaVersion: 1, statisticsVersion: 'tokscale-multi-agent-1', tool: { name: 'tokscale', version: '4.23.0' }, priceVersion: null, scannedAt: '2026-11-15T00:00:00Z' } })
 async function save(store: Store, s: TokenUsageSnapshot) { store.saveScan(await store.prepareSnapshots([s]), []) }
 function receipt(task: ReturnType<Store['tasks']>[number]) { return { persisted: true, deviceId: 'synthetic-device-213', date: task.date, agent: task.agent, generation: task.generation, snapshotVersion: task.version, contentHash: task.hash, result: 'replaced', receivedAt: '2026-11-15T00:00:00Z' } }
 
 test('collector keeps its tested stable Node24 runtime boundary', () => {
   for (const version of ['24.22.1', '24.23.0', '24.99.0']) expect(() => requireNode24(version)).not.toThrow()
   for (const version of ['22.22.0', '24.0.0', '24.18.0', '24.20.0', '24.22.0', '25.0.0', '24.22.1-rc.1', 'invalid']) expect(() => requireNode24(version)).toThrow('NODE_24_22_1_REQUIRED')
+})
+test('legacy config without agents reads as codex; invalid or duplicate authorization is rejected', async () => {
+  const p = await profile()
+  p.store.set('config', { deviceId: 'synthetic-device-213', server: 'https://example.invalid/', sourceHome: p.home, hours: 1, loopback: false })
+  expect(p.store.config().agents).toEqual(['codex'])
+  expect(p.store.status().agents).toEqual(['codex'])
+  for (const agents of [[], ['codex', 'codex'], ['future']]) {
+    expect(configSchema.safeParse({ ...p.store.config(), agents }).success).toBe(false)
+  }
+  expect(configSchema.safeParse({ ...p.store.config(), agents: ['codex', 'grok', 'hermes'] }).success).toBe(true)
+})
+test('multi-Agent rollups keep same model and date separate by agent', async () => {
+  const p = await profile()
+  const grok = { ...snapshot(130), identity: { ...snapshot().identity, agent: 'grok' as const } }
+  await save(p.store, snapshot())
+  await save(p.store, grok)
+  expect(p.store.rollupKeys()).toEqual([{ date: '2026-11-15', agent: 'codex' }, { date: '2026-11-15', agent: 'grok' }])
+  expect(p.store.tasks()).toHaveLength(0)
+  p.store.activate(credential())
+  await save(p.store, grok)
+  expect(p.store.tasks().map(task => [task.date, task.agent, task.version])).toEqual([
+    ['2026-11-15', 'codex', '1'], ['2026-11-15', 'grok', '1'],
+  ])
+})
+test('a statisticsVersion-only change creates a new ordered snapshot', async () => {
+  const p = await profile(); p.store.activate(credential())
+  const legacy = snapshot()
+  legacy.metadata.statisticsVersion = 'tokscale-codex-1'
+  await save(p.store, legacy)
+  expect(p.store.tasks().map(task => task.version)).toEqual(['1'])
+  await save(p.store, snapshot())
+  expect(p.store.tasks().map(task => task.version)).toEqual(['1', '2'])
+  const latest = JSON.parse(String(p.store.db.prepare("SELECT snapshot FROM rollups WHERE date='2026-11-15' AND agent='codex'").get()!.snapshot))
+  expect(latest.metadata.statisticsVersion).toBe('tokscale-multi-agent-1')
+  expect(latest.metadata.snapshotVersion).toBe('2')
 })
 test('SQLite file persists latest + immutable A→B→A, deduplicates latest only, exact receipt deletes only its task', async () => {
   const p = await profile(); p.store.activate(credential())
@@ -374,5 +409,44 @@ test('CLI init --replace retains configured custom source home during reauthoriz
     const after = await Store.open(state); stores.push(after)
     expect(after.config().sourceHome).toBe(custom); expect(after.config().hours).toBe(3)
     expect(after.get('registration')).toMatchObject({ requestId: '00000000-0000-4000-8000-000000000219' })
+  } finally { await new Promise<void>(r => server.close(() => r())) }
+})
+
+test('CLI init --agents, sources list/add and upgrade scope stay explicit and idempotent', async () => {
+  const dir = await root(), state = join(dir, 'state'), home = join(dir, 'source')
+  await mkdir(join(home, '.codex', 'sessions'), { recursive: true })
+  const server = createServer((req, res) => {
+    if (req.url !== '/api/token/registrations/start') { res.writeHead(404); res.end(); return }
+    res.writeHead(201, { 'Content-Type': 'application/json' })
+    res.end(JSON.stringify({ requestId: '00000000-0000-4000-8000-000000000233', code: 'ABCDEFGH', claimSecret: randomBytes(32).toString('base64url'), expiresIn: 600, interval: 5, verificationPath: '/token/devices/confirm' }))
+  })
+  server.listen(0, '127.0.0.1'); await once(server, 'listening')
+  const port = (server.address() as { port: number }).port
+  const cli = resolve('tools/token-collector/dist/tools/token-collector/cli.js')
+  const run = (...args: string[]) => promisify(execFile)(process.execPath, [cli, ...args, '--state-dir', state], { timeout: 10000 })
+  try {
+    await run('init', '--server', `http://127.0.0.1:${port}/`, '--source-home', home, '--agents', 'codex,grok', '--test-loopback')
+    const opened = await Store.open(state); stores.push(opened)
+    expect(opened.config().agents).toEqual(['codex', 'grok'])
+    opened.close(); stores.splice(stores.indexOf(opened), 1)
+
+    expect(JSON.parse((await run('sources', 'list')).stdout).agents).toEqual(['codex', 'grok'])
+    const added = JSON.parse((await run('sources', 'add', '--agents', 'hermes,grok')).stdout)
+    expect(added).toMatchObject({ agents: ['codex', 'grok', 'hermes'], added: ['hermes'] })
+    expect(JSON.parse((await run('sources', 'add', '--agents', 'grok')).stdout)).toMatchObject({ agents: ['codex', 'grok', 'hermes'], added: [] })
+    await expect(run('sources', 'add', '--agents', 'future')).rejects.toMatchObject({ stderr: expect.stringContaining('AGENTS_INVALID') })
+    await expect(run('sources', 'add', '--agents', 'hermes,hermes')).rejects.toMatchObject({ stderr: expect.stringContaining('AGENTS_INVALID') })
+    await expect(run('sources', 'add')).rejects.toMatchObject({ stderr: expect.stringContaining('AGENTS_REQUIRED') })
+
+    // Reauthorization and a plain software upgrade must not expand or reset sources.
+    await run('init', '--replace', '--test-loopback')
+    const reopened = await Store.open(state); stores.push(reopened)
+    expect(reopened.config().agents).toEqual(['codex', 'grok', 'hermes'])
+    expect(reopened.config().sourceHome).toBe(home)
+    expect(reopened.status().agents).toEqual(['codex', 'grok', 'hermes'])
+    reopened.close(); stores.splice(stores.indexOf(reopened), 1)
+    const help = (await run('--help')).stdout
+    expect(help).toContain('sources add --agents grok,hermes')
+    expect(help).toContain('Default Agent source is codex')
   } finally { await new Promise<void>(r => server.close(() => r())) }
 })

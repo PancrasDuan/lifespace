@@ -38,7 +38,7 @@ async function fixture() {
   const hash = await tokenUsageContentHash(content)
   const snapshot = {
     identity: { deviceId: 'fixture_device', date: '2026-01-01', agent: 'codex' }, content,
-    metadata: { schemaVersion: 1, statisticsVersion: 'tokscale-codex-1', tool: { name: 'tokscale', version: '4.23.0' }, priceVersion: null,
+    metadata: { schemaVersion: 1, statisticsVersion: 'tokscale-multi-agent-1', tool: { name: 'tokscale', version: '4.23.0' }, priceVersion: null,
       hostname: secretSentinel, scannedAt: '2026-01-02T00:00:00Z', snapshotVersion: '1' },
   }
   db.prepare('INSERT INTO rollups VALUES (?,?,?,?,?,?)').run('2026-01-01', 'codex', '1', '1', hash, JSON.stringify(snapshot))
@@ -70,6 +70,14 @@ test('absent model is reported as absent without manufacturing zero metrics', as
   const f = await fixture()
   const result = await localEvidence({ ...f.options, modelKey: '"absent-model"' })
   assert.deepEqual(result.selectedModel, { modelKey: '"absent-model"', present: false })
+})
+
+test('agent selector reads only the requested rollup and rejects unsupported clients', async () => {
+  const f = await fixture()
+  await assert.rejects(localEvidence({ ...f.options, agent: 'grok' }), /NO_LOCAL_ROLLUP_FOR_DATE/)
+  await assert.rejects(localEvidence({ ...f.options, agent: 'future' }), /AGENT_INVALID/)
+  const result = await localEvidence({ ...f.options, agent: 'codex' })
+  assert.equal(result.agent, 'codex')
 })
 
 test('tampered content/hash is rejected and preserved for diagnosis', async () => {
