@@ -69,8 +69,11 @@ DNSHE 成功结果在边缘缓存 5 分钟；手动刷新可能复用缓存，�
 
 ## 验证与发布
 
+方案设计、技术取舍和契约边界见 [方案设计规范](docs/agents/solution-design.md)；合并、生产发布、迁移、停机停流、回滚和生产验收门禁见 [上线与发布门禁标准](docs/agents/release-standards.md)。
+
 ```bash
 npm run types
+npm run typecheck
 npm run build
 npm run test:api
 npm run test:security
