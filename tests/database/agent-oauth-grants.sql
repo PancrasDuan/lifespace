@@ -2,9 +2,24 @@
 begin;
 insert into auth.users(id) values ('00000000-0000-4000-8000-000000000004'), ('00000000-0000-4000-8000-000000000005');
 do $$
-declare p regprocedure;
+declare p regprocedure; scopes_attnum smallint;
 begin
   if not (select relrowsecurity from pg_class where oid='public.agent_oauth_grants'::regclass) then raise exception 'OAUTH_RLS_REQUIRED'; end if;
+  select attnum into scopes_attnum from pg_attribute
+    where attrelid='public.agent_oauth_grants'::regclass and attname='scopes' and not attisdropped;
+  if not exists(select from pg_constraint where conrelid='public.agent_oauth_grants'::regclass and contype='c'
+    and pg_get_constraintdef(oid) like '%ledger:entries:read%') then raise exception 'OAUTH_SCOPE_MIGRATION'; end if;
+  if (select count(*) from pg_constraint where conrelid='public.agent_oauth_grants'::regclass and contype='c'
+    and conkey=array[scopes_attnum] and pg_get_constraintdef(oid) like '%cardinality(scopes)%'
+    and pg_get_constraintdef(oid) like '%scopes <@%') <> 1 then raise exception 'OAUTH_SCOPE_CHECK_COUNT'; end if;
+  if not exists(select from pg_constraint where conrelid='public.agent_oauth_grants'::regclass and contype='c'
+    and pg_get_constraintdef(oid) like '%char_length(client_id)%') then raise exception 'OAUTH_CLIENT_ID_CHECK'; end if;
+  if not exists(select from pg_constraint where conrelid='public.agent_oauth_grants'::regclass and contype='c'
+    and pg_get_constraintdef(oid) like '%char_length(client_name)%') then raise exception 'OAUTH_CLIENT_NAME_CHECK'; end if;
+  if not exists(select from pg_constraint where conrelid='public.agent_oauth_grants'::regclass and contype='c'
+    and pg_get_constraintdef(oid) like '%char_length(resource)%') then raise exception 'OAUTH_RESOURCE_CHECK'; end if;
+  if not exists(select from pg_constraint where conrelid='public.agent_oauth_grants'::regclass and contype='c'
+    and pg_get_constraintdef(oid) like '%consent_hash%') then raise exception 'OAUTH_CONSENT_HASH_CHECK'; end if;
   if has_table_privilege('anon','public.agent_oauth_grants','SELECT,INSERT,UPDATE,DELETE') or
     has_table_privilege('authenticated','public.agent_oauth_grants','SELECT,INSERT,UPDATE,DELETE') or
     has_table_privilege('service_role','public.agent_oauth_grants','SELECT,INSERT,UPDATE,DELETE') then raise exception 'OAUTH_TABLE_EXPOSED'; end if;
@@ -16,8 +31,13 @@ set local role service_role;
 do $$
 declare g uuid := '00000000-0000-4000-8000-000000000194'; a uuid := '00000000-0000-4000-8000-000000000004'; b uuid := '00000000-0000-4000-8000-000000000005'; r text := 'https://example.invalid/api/agent/mcp'; v jsonb;
 begin
-  v := public.agent_oauth_grant_create(g,a,'shared-client','Client',r,array['ledger:accounts:read'],repeat('a',64));
-  if v->>'ownerId' <> a::text then raise exception 'OAUTH_OWNER'; end if;
+  v := public.agent_oauth_grant_create(g,a,'shared-client','Client',r,array['ledger:accounts:read','ledger:entries:read','ledger:entries:create','ledger:refunds:create'],repeat('a',64));
+  if v->>'ownerId' <> a::text or jsonb_array_length(v->'scopes') <> 4 then raise exception 'OAUTH_OWNER'; end if;
+  begin
+    perform public.agent_oauth_grant_create('00000000-0000-4000-8000-000000000196',a,'shared-client','Client',r,
+      array['ledger:accounts:read','ledger:entries:read','ledger:entries:create','ledger:refunds:create','ledger:unknown:read'],repeat('c',64));
+    raise exception 'OAUTH_SCOPE_LIMIT';
+  exception when check_violation then null; end;
   if public.agent_oauth_grant_check(g,b,'shared-client',r) <> 'null'::jsonb or
     public.agent_oauth_grant_check(g,a,'other-client',r) <> 'null'::jsonb or
     public.agent_oauth_grant_check(g,a,'shared-client',r||'/other') <> 'null'::jsonb then raise exception 'OAUTH_CROSS_BINDING'; end if;

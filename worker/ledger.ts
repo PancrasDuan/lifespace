@@ -4,7 +4,7 @@ import type { AuthEnv, Identity } from './auth'
 import { ApiError } from './upstream'
 import { readBoundedBody } from './read-body'
 import { traceUpstreamFailure, traceUpstreamStatus, upstreamFailureType } from './trace'
-import { ledgerTransferSchema, ledgerTransferReceiptSchema, ledgerAccountCreateSchema, ledgerAccountUpdateSchema, ledgerAccountReceiptSchema, ledgerAccountsSchema, ledgerCreateSchema, ledgerDeletePreviewSchema, ledgerDeleteSchema, ledgerDetailQuerySchema, ledgerDetailSchema, ledgerErrors, ledgerPageSchema, ledgerQuerySchema, ledgerReceiptSchema, ledgerRefundSchema } from '../src/shared/ledger'
+import { ledgerTransferSchema, ledgerTransferReceiptSchema, ledgerAccountCreateSchema, ledgerAccountUpdateSchema, ledgerAccountReceiptSchema, ledgerAccountsSchema, ledgerCreateSchema, ledgerDeletePreviewSchema, ledgerDeleteSchema, ledgerDetailInputSchema, ledgerDetailQuerySchema, ledgerDetailSchema, ledgerErrors, ledgerListInputSchema, ledgerPageSchema, ledgerQuerySchema, ledgerReceiptSchema, ledgerRefundSchema } from '../src/shared/ledger'
 
 type LedgerContext = Context<{ Bindings: AuthEnv; Variables: { identity: Identity } }>
 function failure(code: keyof typeof ledgerErrors, message?: string) {
@@ -78,8 +78,13 @@ export async function listLedger(c: LedgerContext) {
   if (Object.values(c.req.queries()).some(values => values.length !== 1)) throw failure('INVALID_QUERY')
   const query = ledgerQuerySchema.safeParse(c.req.query())
   if (!query.success) throw failure('INVALID_QUERY')
+  return c.json(await readLedgerList(c, query.data))
+}
+export async function readLedgerList(c: LedgerContext, input: unknown) {
+  const query = ledgerListInputSchema.safeParse(input)
+  if (!query.success) throw failure('INVALID_QUERY')
   const params = { p_page: query.data.page, p_start_date: query.data.startDate ?? null, p_end_date: query.data.endDate ?? null, p_version: query.data.version ?? null }
-  return c.json(await rpc(c, query.data.accountId ? 'ledger_list_by_account' : 'ledger_list', query.data.accountId ? { ...params, p_account_id: query.data.accountId } : params, ledgerPageSchema))
+  return rpc(c, query.data.accountId ? 'ledger_list_by_account' : 'ledger_list', query.data.accountId ? { ...params, p_account_id: query.data.accountId } : params, ledgerPageSchema)
 }
 export async function detailLedger(c: LedgerContext) {
   const id = z.uuid().safeParse(c.req.param('id'))
@@ -87,7 +92,14 @@ export async function detailLedger(c: LedgerContext) {
   if (Object.values(c.req.queries()).some(values => values.length !== 1)) throw failure('INVALID_QUERY')
   const query = ledgerDetailQuerySchema.safeParse(c.req.query())
   if (!query.success) throw failure('INVALID_QUERY')
-  return c.json(await rpc(c, 'ledger_detail', { p_id: id.data, p_refund_page: query.data.refundPage, p_version: query.data.version ?? null }, ledgerDetailSchema))
+  return c.json(await readLedgerDetail(c, { id: id.data, ...query.data }))
+}
+export async function readLedgerDetail(c: LedgerContext, input: unknown) {
+  const id = z.uuid().safeParse((input as { id?: unknown } | null)?.id)
+  if (!id.success) throw failure('NOT_FOUND')
+  const value = ledgerDetailInputSchema.safeParse(input)
+  if (!value.success) throw failure('INVALID_QUERY')
+  return rpc(c, 'ledger_detail', { p_id: value.data.id, p_refund_page: value.data.refundPage, p_version: value.data.version ?? null }, ledgerDetailSchema)
 }
 export async function createLedger(c: LedgerContext) {
   return c.json(await createLedgerEntry(c, await readInput(c, 16_384)))

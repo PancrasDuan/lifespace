@@ -6,11 +6,47 @@ import { z } from 'zod'
 const version = '2025-11-25'
 const supportedVersions = ['2025-03-26', '2025-06-18', version]
 const labels = (categories: ReadonlyArray<readonly [string, string]>) => categories.map(([code, label]) => `${code}：${label}`).join('、')
+export type AgentToolName =
+  | 'list_ledger_accounts'
+  | 'list_ledger_entries'
+  | 'get_ledger_entry'
+  | 'create_ledger_entry'
+  | 'create_ledger_refund'
+
 const tools = [
   {
     name: 'list_ledger_accounts', description: '查询当前用户的全部交易账户及余额。',
     inputSchema: { type: 'object', properties: {}, additionalProperties: false },
     annotations: { readOnlyHint: true },
+  },
+  {
+    name: 'list_ledger_entries',
+    description: '查询当前用户的账单流水列表。参数与 GET /api/ledger/entries 的查询参数一致；返回与 REST 相同的 items、total、page、pageSize 和 version。日期范围须成对提供，使用北京时间自然日；page 默认 1，每页固定 30 条。',
+    inputSchema: {
+      type: 'object', additionalProperties: false,
+      properties: {
+        page: { type: 'integer', minimum: 1, maximum: 1_000_000, description: '页码，默认 1。' },
+        startDate: { type: 'string', format: 'date', description: '开始日期（含），YYYY-MM-DD，北京时间；必须与 endDate 同时提供。' },
+        endDate: { type: 'string', format: 'date', description: '结束日期（含），YYYY-MM-DD，北京时间；必须与 startDate 同时提供。' },
+        accountId: { type: 'string', format: 'uuid', description: '本人的交易账户标识；省略表示全部账户。' },
+        version: { type: 'integer', minimum: 0, maximum: Number.MAX_SAFE_INTEGER, description: '已读版本；与当前版本不符时返回 LIST_CHANGED。' },
+      },
+    },
+    annotations: { readOnlyHint: true, destructiveHint: false },
+  },
+  {
+    name: 'get_ledger_entry',
+    description: '读取当前用户的一笔未删除账单流水详情。参数与 GET /api/ledger/entries/:id 一致；返回与 REST 相同的 entry、parentEntry、transferEntry、refunds、refundCount、refundedCents、refundPage、refundPageSize 和 version。refundPage 默认 1，每页固定 30 条。',
+    inputSchema: {
+      type: 'object', additionalProperties: false,
+      properties: {
+        id: { type: 'string', format: 'uuid', description: '对应 GET /api/ledger/entries/:id 的流水标识。' },
+        refundPage: { type: 'integer', minimum: 1, maximum: Number.MAX_SAFE_INTEGER, description: '关联退款页码，默认 1。' },
+        version: { type: 'integer', minimum: 0, maximum: Number.MAX_SAFE_INTEGER, description: '已读版本；与当前版本不符时返回 LIST_CHANGED。' },
+      },
+      required: ['id'],
+    },
+    annotations: { readOnlyHint: true, destructiveHint: false },
   },
   {
     name: 'create_ledger_entry',
@@ -32,7 +68,7 @@ const tools = [
   },
   {
     name: 'create_ledger_refund',
-    description: '为当前用户的一笔普通支出登记退款，新增关联收入流水，原支出金额保持不变。id 对应 REST 退款接口路径参数，其余四个字段与请求正文一致。提交前请用户从财务页提供父支出详情，完整展示父流水关联（标识、原金额及时间）、退款金额、退款时间、继承的交易账户和分类（账户标识、当前名称及分类名称）及备注，等待用户明确确认；修改任何字段后再次完整展示并确认。不得猜测父流水或继承信息。每笔生成唯一 requestId；结果未知时仅用原 requestId 和完全相同参数重试，不得生成新编号重试。服务端无法独立证明外部对话已确认。',
+    description: '为当前用户的一笔普通支出登记退款，新增关联收入流水，原支出金额保持不变。id 对应 REST 退款接口路径参数，其余四个字段与请求正文一致。提交前可用 get_ledger_entry 读取父支出详情；信息不足时请用户从财务页提供。完整展示父流水关联（标识、原金额及时间）、退款金额、退款时间、继承的交易账户和分类（账户标识、当前名称及分类名称）及备注，等待用户明确确认；修改任何字段后再次完整展示并确认。不得猜测父流水或继承信息。每笔生成唯一 requestId；结果未知时仅用原 requestId 和完全相同参数重试，不得生成新编号重试。服务端无法独立证明外部对话已确认。',
     inputSchema: {
       type: 'object', additionalProperties: false,
       properties: {
@@ -46,13 +82,15 @@ const tools = [
     },
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
   },
-]
+] satisfies ReadonlyArray<{ name: AgentToolName; description: string; inputSchema: object; annotations: object }>
 
 export async function handleAgentMcp(request: Request, operations: {
   listAccounts: (input: unknown) => Promise<object>
+  listEntries: (input: unknown) => Promise<object>
+  getEntry: (input: unknown) => Promise<object>
   createEntry: (input: unknown) => Promise<object>
   refundEntry: (id: unknown, input: unknown) => Promise<object>
-}, authorization: { authorizeTool: (name: string) => void }): Promise<Response> {
+}, authorization: { authorizeTool: (name: AgentToolName) => void }): Promise<Response> {
   // Legacy callers retain their non-browser policy. OAuth callers have already
   // checked the exact Origin before validating the token or entering this parser.
   if (request.method !== 'POST') return new Response(null, { status: 405, headers: { Allow: 'POST' } })
@@ -77,20 +115,22 @@ export async function handleAgentMcp(request: Request, operations: {
     const params = z.object({ protocolVersion: z.string().min(1), capabilities: z.record(z.string(), z.unknown()), clientInfo: z.object({ name: z.string().min(1), version: z.string().min(1) }) }).safeParse(message.params)
     if (!params.success) return Response.json({ jsonrpc: '2.0', id: message.id, error: { code: -32602, message: 'Invalid initialization parameters' } })
     const negotiated = supportedVersions.includes(params.data.protocolVersion) ? params.data.protocolVersion : version
-    return Response.json({ jsonrpc: '2.0', id: message.id, result: { protocolVersion: negotiated, capabilities: { tools: {} }, serverInfo: { name: 'lifespace-ledger', version: '2.0.0' } } })
+    return Response.json({ jsonrpc: '2.0', id: message.id, result: { protocolVersion: negotiated, capabilities: { tools: {} }, serverInfo: { name: 'lifespace-ledger', version: '2.1.0' } } })
   }
   if (message.jsonrpc === '2.0' && message.method === 'tools/list' && message.id !== undefined) return Response.json({ jsonrpc: '2.0', id: message.id, result: { tools } })
   if (message.jsonrpc === '2.0' && message.method === 'ping' && message.id !== undefined) return Response.json({ jsonrpc: '2.0', id: message.id, result: {} })
   if (message.jsonrpc === '2.0' && message.method === 'tools/call' && message.id !== undefined && tools.some(tool => tool.name === message.params?.name)) {
     // Authorization failures must remain HTTP 403, outside the business-error envelope.
-    authorization.authorizeTool(message.params!.name!)
-    const args = message.params?.arguments ?? {}
+    authorization.authorizeTool(message.params!.name as AgentToolName)
+    const args = Object.hasOwn(message.params ?? {}, 'arguments') ? message.params!.arguments : {}
     if (typeof args !== 'object' || args === null || Array.isArray(args)) {
       return Response.json({ jsonrpc: '2.0', id: message.id, error: { code: -32602, message: 'Invalid tool arguments' } })
     }
     try {
       let data: object
       if (message.params?.name === 'list_ledger_accounts') data = await operations.listAccounts(args)
+      else if (message.params?.name === 'list_ledger_entries') data = await operations.listEntries(args)
+      else if (message.params?.name === 'get_ledger_entry') data = await operations.getEntry(args)
       else if (message.params?.name === 'create_ledger_refund') {
         const { id, ...input } = args as Record<string, unknown>
         data = await operations.refundEntry(id, input)

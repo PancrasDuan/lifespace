@@ -28,7 +28,7 @@
 
 退款固定服务端收入方向、父标识、交易账户和支出分类，不接受客户端覆盖。父必须为本人未删除普通支出；时间不早于父支出且允许同秒。`ledger_refund` 先持有 owner 版本行排他锁、检查包含已删除记录的请求编号，再校验父资格、时间与全部有效退款额度，最后插入并递增版本；失败完整回滚。重复成功请求在余额减少、已全额或父已删除后仍返回原标识和当前版本，不重建、不重新计入。退款重复请求比较父标识、金额、时间及 trim 后备注；不同编号的相同内容允许分别保存。
 
-Agent 可通过 `/api/agent/mcp` 的 `create_ledger_refund` 使用同一退款服务，以 `id` 传入同名路径父标识，其余四个字段与 REST 相同。沿用可信 owner 注入和稳定错误代码，MCP 业务失败为 `result.isError: true`，并在 `structuredContent` 与文本内容返回与 REST 相同的 `{ error: { code, message } }`；成功返回相同回执。网页退款契约及鉴权不变，Agent 凭据不能直接访问网页退款接口。对话确认及核对父流水的边界见 [Agent MCP](../agent-mcp.md)。
+Agent 可通过 `/api/agent/mcp` 的 `create_ledger_refund` 使用同一退款服务，以 `id` 传入同名路径父标识，其余四个字段与 REST 相同。`list_ledger_entries`／`get_ledger_entry` 分别复用 `GET /api/ledger/entries` 与 `GET /api/ledger/entries/:id` 的读取服务；REST 查询解析保持原样，MCP 使用严格 JSON 输入，成功数据、参数语义及错误体与 REST 一致。沿用可信 owner 注入和稳定错误代码，MCP 业务失败为 `result.isError: true`，并在 `structuredContent` 与文本内容返回与 REST 相同的 `{ error: { code, message } }`；成功返回相同数据。网页契约及鉴权不变，Agent 凭据不能直接访问网页接口。对话确认及读取父流水的边界见 [Agent MCP](../agent-mcp.md)。
 
 失败统一为 `{ error: { code, message } }`。稳定业务错误包括 `INVALID_ENTRY` / `INVALID_QUERY` / `FUTURE_TIME` / `REFUND_TIME`（400）、`REQUEST_ID_REUSED` / `LIST_CHANGED` / `REFUND_PARENT_INVALID` / `REFUND_LIMIT` / `DELETE_SCOPE_CHANGED`（409）、`NOT_FOUND`（404）、`LEDGER_UNAVAILABLE` / `SAVE_UNKNOWN` / `DELETE_UNKNOWN`（503），另沿用现有 `AUTH_*`。未知数据库或传输故障不回传原始响应、输入或凭据；创建／退款在无法确认时返回 `SAVE_UNKNOWN`，删除返回 `DELETE_UNKNOWN`。页面仅在当前挂载期间保存待确认命令供显式重试，不自动重提、不写本地存储；确认成功后重读失败只重试读取。
 

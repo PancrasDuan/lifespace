@@ -113,7 +113,7 @@ export async function beginMcpConsent(c: OAuthContext) {
 
 export async function finishMcpConsent(c: OAuthContext) {
   trustedOAuthOrigin(c.env, c.req.raw)
-  const input = await oauthJson(c.req.raw, z.object({ handle: z.string().min(1).max(256), decision: z.enum(['approve', 'deny']), scopes: z.array(z.enum(mcpScopes)).max(3) }).strict())
+  const input = await oauthJson(c.req.raw, z.object({ handle: z.string().min(1).max(256), decision: z.enum(['approve', 'deny']), scopes: z.array(z.enum(mcpScopes)).max(mcpScopes.length) }).strict())
   if (!c.env.OAUTH_KV) throw oauthUnavailable()
   const ownerId = c.get('identity').id
   if (await c.env.OAUTH_KV.get(`lifespace-consent-owner:${input.handle}`) !== ownerId) throw new ApiError('OAUTH_CONSENT_INVALID', '授权页面已失效，请从客户端重新连接', 400)

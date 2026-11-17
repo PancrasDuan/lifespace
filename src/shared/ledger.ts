@@ -45,13 +45,29 @@ export const ledgerDeleteSchema = z.strictObject({ scope: z.string().regex(/^[a-
 export const ledgerDeletePreviewSchema = z.strictObject({ entry: ledgerEntrySchema, transferEntry: ledgerEntrySchema.nullable(), refundCount: revision, scope: ledgerDeleteSchema.shape.scope, version: revision })
 export const ledgerDateSchema = z.iso.date().refine(value => !value.startsWith('0000-'), '日期无效')
 const queryRevision = z.string().regex(/^(0|[1-9]\d*)$/).pipe(z.coerce.number<string>().int().min(0).max(Number.MAX_SAFE_INTEGER))
+const ledgerListFields = {
+  startDate: ledgerDateSchema.optional(),
+  endDate: ledgerDateSchema.optional(),
+  accountId: z.uuid().optional(),
+}
+const validLedgerDateRange = (value: { startDate?: string; endDate?: string }) =>
+  (!value.startDate && !value.endDate) || (!!value.startDate && !!value.endDate && value.startDate <= value.endDate)
 export const ledgerDetailQuerySchema = z.strictObject({ refundPage: queryRevision.pipe(revision.min(1)).default(1), version: queryRevision.optional() })
 export const ledgerQuerySchema = z.strictObject({
   page: z.coerce.number().int().min(1).max(1_000_000).default(1),
-  startDate: ledgerDateSchema.optional(), endDate: ledgerDateSchema.optional(),
-  accountId: z.uuid().optional(),
+  ...ledgerListFields,
   version: queryRevision.optional(),
-}).refine(value => (!value.startDate && !value.endDate) || (!!value.startDate && !!value.endDate && value.startDate <= value.endDate), '日期范围无效')
+}).refine(validLedgerDateRange, '日期范围无效')
+export const ledgerListInputSchema = z.strictObject({
+  page: z.number().int().min(1).max(1_000_000).default(1),
+  ...ledgerListFields,
+  version: revision.optional(),
+}).refine(validLedgerDateRange, '日期范围无效')
+export const ledgerDetailInputSchema = z.strictObject({
+  id: z.uuid(),
+  refundPage: revision.min(1).default(1),
+  version: revision.optional(),
+})
 export const ledgerErrors = {
   INVALID_ACCOUNT: [400, '账户输入无效，请检查名称与余额'],
   ACCOUNT_NAME_TAKEN: [409, '已有同名账户，请使用其他名称'],

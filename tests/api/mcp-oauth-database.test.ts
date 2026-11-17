@@ -97,4 +97,29 @@ describe.skipIf(!rpcUrl)('OAuth 使用真实隔离 PostgreSQL/PostgREST', () => 
     expect(found.size).toBe(60)
     expect((await f.browser('/api/oauth/grants/revoke', { id: [...found].at(-1) })).status).toBe(200)
   })
+
+  test('四项 scope 的授权可真实写入、读取与撤销', async () => {
+    const f = oauthFixture(rpcUrl)
+    const client = await f.client()
+    const token = await f.issue(client.clientId, mcpScopes)
+    expect(token.scope.split(' ').sort()).toEqual([...mcpScopes].sort())
+    const { grants } = await (await f.browser('/api/oauth/grants')).json() as { grants: { id: string; clientId: string; scopes: string[] }[] }
+    const grant = grants.find(grant => grant.clientId === client.clientId)!
+    expect(grant.scopes.sort()).toEqual([...mcpScopes].sort())
+    expect((await f.mcp(token.access_token)).status).toBe(200)
+    expect((await f.browser('/api/oauth/grants/revoke', { id: grant.id })).status).toBe(200)
+    expect((await f.mcp(token.access_token)).status).toBe(401)
+  })
+
+  test('旧三项授权对新读取工具返回 403，重新授权四项后可调用', async () => {
+    const f = oauthFixture(rpcUrl)
+    const client = await f.client()
+    const oldToken = await f.issue(client.clientId, [mcpScopes[0], mcpScopes[2], mcpScopes[3]])
+    expect((await f.mcp(oldToken.access_token, 'list_ledger_entries')).status).toBe(403)
+    expect((await f.mcp(oldToken.access_token, 'get_ledger_entry', { id: crypto.randomUUID() })).status).toBe(403)
+    const token = await f.issue(client.clientId, mcpScopes)
+    expect((await f.mcp(token.access_token, 'list_ledger_entries')).status).toBe(200)
+    expect(await (await f.mcp(token.access_token, 'get_ledger_entry', { id: crypto.randomUUID() })).json())
+      .toMatchObject({ result: { isError: true, structuredContent: { error: { code: 'NOT_FOUND' } } } })
+  })
 })

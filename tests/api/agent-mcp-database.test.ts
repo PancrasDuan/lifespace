@@ -1,8 +1,8 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
-import { oauthFixture, oauthOwner } from '../support/mcp-oauth'
+import { oauthFixture, oauthOther, oauthOwner } from '../support/mcp-oauth'
 import { installLedgerDatabase, ledgerTestAccount, ledgerRequest, ordinaryEntry } from '../support/ledger-database'
 import { mcpScopes } from '../../worker/mcp-oauth-config'
-import { ledgerAccountsSchema, ledgerDeletePreviewSchema, ledgerDetailSchema, ledgerErrors, ledgerLimits, ledgerReceiptSchema, ledgerTransferReceiptSchema } from '../../src/shared/ledger'
+import { ledgerAccountsSchema, ledgerDeletePreviewSchema, ledgerDetailSchema, ledgerErrors, ledgerLimits, ledgerPageSchema, ledgerReceiptSchema, ledgerTransferReceiptSchema } from '../../src/shared/ledger'
 
 const rpcUrl = process.env.LEDGER_LOCAL_RPC_URL
 // Separate owners keep the OAuth database suite's balances and versions isolated.
@@ -45,6 +45,16 @@ async function detail(id: string) {
 }
 async function accounts() {
   return ledgerAccountsSchema.parse((await call('list_ledger_accounts', {})).result.structuredContent)
+}
+async function list(args: object = {}) {
+  const response = await call('list_ledger_entries', args)
+  expect(response.result.isError).toBeUndefined()
+  return ledgerPageSchema.parse(response.result.structuredContent)
+}
+async function entryDetail(args: object) {
+  const response = await call('get_ledger_entry', args)
+  expect(response.result.isError).toBeUndefined()
+  return ledgerDetailSchema.parse(response.result.structuredContent)
 }
 async function remove(id: string) {
   const preview = ledgerDeletePreviewSchema.parse(await (await ledgerRequest(owner, '/api/ledger/entries/' + id + '/delete-preview')).json())
@@ -238,5 +248,131 @@ describe.skipIf(!rpcUrl)('Agent 通过真实隔离账单数据库操作', () => 
     expect(await accounts()).toEqual(before)
     expect(await detail(id)).toMatchObject({ refundCount: 2, refundedCents: 500, entry: { amountCents: -1000 } })
   })
+
+  it('流水列表与 REST 一致：日期/账户筛选、分页、版本冲突和跨 owner 空结果', async () => {
+    const firstAccount = await ledgerTestAccount(owner, '读取筛选 A')
+    const secondAccount = await ledgerTestAccount(owner, '读取筛选 B')
+    const foreignAccount = await ledgerTestAccount(other, '读取筛选 其他')
+    for (let index = 0; index < 31; index++) {
+      ledgerReceiptSchema.parse(await (await ledgerRequest(owner, '/api/ledger/entries', await ordinaryEntry(owner, {
+        accountId: secondAccount, occurredAt: `2026-03-0${index % 9 + 1}T03:04:05Z`, note: `筛选 ${index}`,
+      }))).json())
+    }
+    const dated = ledgerReceiptSchema.parse(await (await ledgerRequest(owner, '/api/ledger/entries', await ordinaryEntry(owner, {
+      accountId: firstAccount, occurredAt: '2025-12-31T16:00:00Z', note: '北京时间 2026-01-01',
+    }))).json())
+    const outside = ledgerReceiptSchema.parse(await (await ledgerRequest(owner, '/api/ledger/entries', await ordinaryEntry(owner, {
+      accountId: firstAccount, occurredAt: '2025-12-31T15:59:59Z', note: '北京时间 2025-12-31',
+    }))).json())
+    const foreign = ledgerReceiptSchema.parse(await (await ledgerRequest(other, '/api/ledger/entries', await ordinaryEntry(other, {
+      accountId: foreignAccount, occurredAt: '2026-01-01T00:00:00Z',
+    }))).json())
+
+    const all = await list()
+    expect(all.total).toBeGreaterThanOrEqual(33)
+    expect(all.items).toHaveLength(30)
+    expect(JSON.stringify(all)).not.toContain(foreign.entryId)
+
+    const dateRange = { startDate: '2026-01-01', endDate: '2026-01-01' }
+    const datedList = await list({ ...dateRange, accountId: firstAccount })
+    expect(datedList).toMatchObject({ total: 1, page: 1, pageSize: 30 })
+    expect(datedList.items.map(item => item.id)).toEqual([dated.entryId])
+
+    const firstAccountList = await list({ accountId: firstAccount })
+    expect(firstAccountList.total).toBe(2)
+    expect(firstAccountList.items.map(item => item.id)).toEqual(expect.arrayContaining([dated.entryId, outside.entryId]))
+
+    const accountPage = await list({ accountId: secondAccount, page: 1 })
+    expect(accountPage).toMatchObject({ total: 31, page: 1 })
+    expect(accountPage.items).toHaveLength(30)
+    const accountSecondPage = await list({ accountId: secondAccount, page: 2, version: accountPage.version })
+    expect(accountSecondPage.items).toHaveLength(1)
+    expect(new Set([...accountPage.items, ...accountSecondPage.items].map(item => item.id)).size).toBe(31)
+    expect((await list({ accountId: foreignAccount })).total).toBe(0)
+    expect((await list({ accountId: foreignAccount })).items).toEqual([])
+
+    for (const args of [
+      { startDate: '2026-01-01' }, { endDate: '2026-01-01' }, { startDate: '2026-01-02', endDate: '2026-01-01' },
+      { startDate: '2026-02-30', endDate: '2026-03-01' }, { accountId: 'bad' }, { page: 0 }, { page: 1_000_001 },
+      { version: -1 }, { ownerId: other }, { unknown: true },
+    ]) {
+      const mcp = await call('list_ledger_entries', args)
+      expect(mcp.result).toMatchObject({ isError: true, structuredContent: { error: { code: 'INVALID_QUERY' } } })
+    }
+
+    const restPage = ledgerPageSchema.parse(await (await ledgerRequest(owner, '/api/ledger/entries?' + new URLSearchParams({
+      page: '1', startDate: dateRange.startDate, endDate: dateRange.endDate, accountId: firstAccount, version: String(datedList.version),
+    }))).json())
+    expect(restPage).toEqual(datedList)
+
+    await ledgerRequest(owner, '/api/ledger/entries', await ordinaryEntry(owner, { accountId: secondAccount, occurredAt: '2025-01-01T00:00:00Z' }))
+    const stale = await call('list_ledger_entries', { accountId: secondAccount, page: 1, version: accountPage.version })
+    expect(stale.result).toMatchObject({ isError: true, structuredContent: { error: { code: 'LIST_CHANGED' } } })
+  }, 30000)
+
+  it('单笔详情与 REST 一致：父流水、退款关联分页、转账对侧、已删除和跨 owner 隔离', async () => {
+    const account = await ledgerTestAccount(owner, '详情读取 A')
+    const toAccount = await ledgerTestAccount(owner, '详情读取 B')
+    const original = await parent({ accountId: account, amountCents: -1000 })
+    const refunds = []
+    for (let index = 0; index < 31; index++) refunds.push(await refund(refundInput(original.entryId, {
+      amountCents: 1, occurredAt: '2026-01-02T03:04:05Z', note: `关联 ${index}`,
+    })))
+    const transfer = ledgerTransferReceiptSchema.parse(await (await ledgerRequest(owner, '/api/ledger/transfers', {
+      requestId: crypto.randomUUID(), fromAccountId: account, toAccountId: toAccount, amountCents: 100,
+      occurredAt: '2026-01-02T03:04:05Z', note: '转账读取',
+    })).json())
+
+    const first = await entryDetail({ id: original.entryId })
+    expect(first).toMatchObject({
+      entry: { id: original.entryId, amountCents: -1000, status: 'partial-refund' },
+      parentEntry: null, transferEntry: null, refundCount: 31, refundedCents: 31, refundPage: 1, refundPageSize: 30,
+    })
+    expect(first.refunds).toHaveLength(30)
+    const second = await entryDetail({ id: original.entryId, refundPage: 2, version: first.version })
+    expect(second).toMatchObject({ refundPage: 2, refundCount: 31, version: first.version })
+    expect(second.refunds).toHaveLength(1)
+    const seen = [...first.refunds, ...second.refunds].map(item => item.id)
+    expect(new Set(seen).size).toBe(31)
+    expect(seen).toEqual(refunds.map(item => item.entryId).sort().reverse())
+    const child = await entryDetail({ id: seen[0] })
+    expect(child).toMatchObject({ entry: { id: seen[0], parentEntryId: original.entryId, amountCents: 1 }, parentEntry: { id: original.entryId } })
+
+    for (const side of [transfer.outEntryId, transfer.inEntryId]) {
+      const value = await entryDetail({ id: side })
+      expect(value.transferEntry?.id).toBe(side === transfer.outEntryId ? transfer.inEntryId : transfer.outEntryId)
+      expect(value.entry.transferId).toBe(value.transferEntry?.transferId)
+    }
+    expect((await entryDetail({ id: transfer.outEntryId })).transferEntry).toMatchObject({ id: transfer.inEntryId, accountId: toAccount })
+
+    const rest = ledgerDetailSchema.parse(await (await ledgerRequest(owner, `/api/ledger/entries/${original.entryId}?refundPage=2&version=${first.version}`)).json())
+    expect(second).toEqual(rest)
+    const stale = await call('get_ledger_entry', { id: original.entryId, version: first.version - 1 })
+    expect(stale.result).toMatchObject({ isError: true, structuredContent: { error: { code: 'LIST_CHANGED' } } })
+
+    for (const args of [
+      { id: 'invalid' }, { id: crypto.randomUUID() }, { id: original.entryId, refundPage: 0 },
+      { id: original.entryId, refundPage: 1.5 }, { id: original.entryId, version: -1 }, { id: original.entryId, ownerId: other },
+      { id: original.entryId, unknown: true },
+    ]) {
+      const mcp = await call('get_ledger_entry', args)
+      expect(mcp.result.isError).toBe(true)
+    }
+    expect((await call('get_ledger_entry', { id: 'invalid' })).result).toMatchObject({ structuredContent: { error: { code: 'NOT_FOUND' } } })
+    expect((await call('get_ledger_entry', { id: crypto.randomUUID() })).result).toMatchObject({ structuredContent: { error: { code: 'NOT_FOUND' } } })
+    expect((await call('get_ledger_entry', { id: original.entryId, refundPage: 0 })).result).toMatchObject({ structuredContent: { error: { code: 'INVALID_QUERY' } } })
+
+    const otherToken = (await fixture.issue((await fixture.client()).clientId, mcpScopes, oauthOther)).access_token
+    const foreign = await fixture.request('/api/agent/mcp', {
+      method: 'POST', headers: { Authorization: `Bearer ${otherToken}`, 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream' },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'get_ledger_entry', arguments: { id: original.entryId } } }),
+    })
+    expect(await foreign.json()).toMatchObject({ result: { isError: true, structuredContent: { error: { code: 'NOT_FOUND' } } } })
+
+    await remove(original.entryId)
+    expect((await call('get_ledger_entry', { id: original.entryId })).result).toMatchObject({ isError: true, structuredContent: { error: { code: 'NOT_FOUND' } } })
+    expect((await list({ accountId: account })).items.map(item => item.id)).not.toContain(original.entryId)
+    expect((await list({ accountId: account })).items.map(item => item.id)).toContain(transfer.outEntryId)
+  }, 30000)
 
 })
