@@ -1,5 +1,7 @@
 # 开发与交付
 
+方案设计、技术取舍和契约边界的默认要求见 [方案设计规范](solution-design.md)；合并、生产发布、迁移、停机停流和回滚门禁见 [上线与发布门禁标准](release-standards.md)。本文保留日常开发与交付流程，具体方案和生产操作按上述标准执行。
+
 ## 开始任务与创建分支
 
 主目录保留 `main`，作为查阅和同步入口；每个开发任务固定使用一个短期功能分支、一个 Orca worktree 和该工作区中的主 session。
@@ -77,6 +79,8 @@ GitHub 已启用原生 secret scanning 与 push protection，作为已支持密�
 - 预览启动或打开失败时记录实际阻塞及其对验证的影响；关键验证未完成时先解决或交由用户验收。分别记录 Agent 自验和用户验收的实际状态。
 
 ## 发布验收
+
+生产发布、迁移、停流、回退和生产核验的门禁按 [上线与发布门禁标准](release-standards.md)执行。涉及方案取舍或迁移分类时，同时按 [方案设计规范](solution-design.md)记录依据。
 
 main 合并后由 Cloudflare Workers Builds 自动发布；生产分支为 main，非生产分支预览关闭。GitHub CI 负责合并门禁，Cloudflare 构建负责部署。
 
