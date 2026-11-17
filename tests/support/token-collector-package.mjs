@@ -120,11 +120,12 @@ try {
   if (initialVersion === '0.1.5') {
     assert.deepEqual(JSON.parse(status).agents, ['codex'])
     // An installed release expands scope only through the explicit command;
-    // adding grok is the only way its synthetic rows enter the scan.
+    // 0.1.5 can only add its own three sources; the new clients require 0.1.6.
     const added = JSON.parse((await run(process.execPath, [cli, 'sources', 'add', '--agents', 'grok', '--state-dir', state])).stdout)
     assert.deepEqual(added, { agents: ['codex', 'grok'], added: ['grok'] })
     assert.deepEqual(JSON.parse((await run(process.execPath, [cli, 'sources', 'list', '--state-dir', state])).stdout).agents, ['codex', 'grok'])
     assert.deepEqual(JSON.parse((await run(process.execPath, [cli, 'sources', 'add', '--agents', 'grok', '--state-dir', state])).stdout).added, [])
+    await assert.rejects(run(process.execPath, [cli, 'sources', 'add', '--agents', 'claude', '--state-dir', state]), error => /AGENTS_INVALID/.test(String(error.stderr)))
     const combined = JSON.parse((await run(process.execPath, [cli, 'sync', '--offline', '--state-dir', state])).stdout)
     assert.equal(combined.scanFailed, false); assert.equal(combined.pending, 2)
     const agents = await run(process.execPath, ['--input-type=module', '-e', `import {DatabaseSync} from 'node:sqlite';const db=new DatabaseSync(process.argv[1],{readOnly:true});console.log(db.prepare('SELECT date,agent FROM rollups ORDER BY date,agent').all().map(r=>r.date+'/'+r.agent).join(','));db.close()`, join(state, 'state.sqlite')])
@@ -146,7 +147,19 @@ try {
   await run(process.execPath, [cli, 'upgrade', '--state-dir', state, '--archive', archive, '--prefix', prefix, '--apply'])
   assert((await readFile(join(state, 'state.sqlite'))).equals(before), 'SQLite bytes changed during status/timer preview/upgrade')
   const upgradedAgents = JSON.parse((await run(process.execPath, [cli, 'sources', 'list', '--state-dir', state])).stdout).agents
-  assert.deepEqual(upgradedAgents, initialVersion === '0.1.5' ? ['codex', 'grok'] : initialVersion === '0.1.6' ? ['codex', 'grok', 'claude', 'workbuddy'] : ['codex'])
+  assert.deepEqual(upgradedAgents, initialVersion === '0.1.6' ? ['codex', 'grok', 'claude', 'workbuddy'] : initialVersion === '0.1.5' ? ['codex', 'grok'] : ['codex'])
+  if (initialVersion === '0.1.5') {
+    // Upgrading itself must not expand sources; the installed 0.1.6 CLI then
+    // accepts the new clients only through the explicit command.
+    const addedAfterUpgrade = JSON.parse((await run(process.execPath, [cli, 'sources', 'add', '--agents', 'claude,workbuddy', '--state-dir', state])).stdout)
+    assert.deepEqual(addedAfterUpgrade, { agents: ['codex', 'grok', 'claude', 'workbuddy'], added: ['claude', 'workbuddy'] })
+    const upgradedScan = JSON.parse((await run(process.execPath, [cli, 'sync', '--offline', '--state-dir', state])).stdout)
+    // Two immutable tasks from 0.1.5 remain, and the statisticsVersion bump
+    // allocates four new tasks for the four authorized sources.
+    assert.equal(upgradedScan.scanFailed, false); assert.equal(upgradedScan.pending, 6)
+    const upgradedRollups = await run(process.execPath, ['--input-type=module', '-e', `import {DatabaseSync} from 'node:sqlite';const db=new DatabaseSync(process.argv[1],{readOnly:true});console.log(db.prepare('SELECT date,agent FROM rollups ORDER BY date,agent').all().map(r=>r.date+'/'+r.agent).join(','));db.close()`, join(state, 'state.sqlite')])
+    assert.equal(upgradedRollups.stdout.trim(), '2026-11-15/claude,2026-11-15/codex,2026-11-15/grok,2026-11-15/workbuddy')
+  }
   assert.equal(JSON.parse(await readFile(join(packageRoot, 'package.json'), 'utf8')).version, expected.version)
   assert((await run(process.execPath, [cli, '--version'])).stdout.includes(`collector ${expected.version}`))
   // Exercise synthetic aggregate residues from the installed release,
@@ -163,16 +176,16 @@ try {
   await run(process.execPath, ['--input-type=module', '-e', costs])
   const rescanned = JSON.parse((await run(process.execPath, [cli, 'sync', '--offline', '--rescan', '--state-dir', state])).stdout)
   // A same-version reinstall has one task per authorized source. Upgrading a
-  // 0.1.5 state preserves its two sources, but the statisticsVersion bump
-  // reallocates both; a 0.1.4 state has one Codex task and the bump reallocates
-  // that one. No path may lose or duplicate content.
-  assert.equal(rescanned.pending, initialVersion === '0.1.6' ? 4 : initialVersion === '0.1.5' ? 4 : 2)
+  // 0.1.5 state preserves its two old tasks and allocates four new ones after
+  // the explicit source expansion; a 0.1.4 state has one Codex task and the
+  // bump reallocates that one. No path may lose or duplicate content.
+  assert.equal(rescanned.pending, initialVersion === '0.1.5' ? 6 : initialVersion === '0.1.6' ? 4 : 2)
   assert.equal(rescanned.scanFailed, false); assert.deepEqual(rescanned.scan.retainedDates, [])
   const totals = await run(process.execPath, ['--input-type=module', '-e', `import {DatabaseSync} from 'node:sqlite';const db=new DatabaseSync(process.argv[1],{readOnly:true});console.log(JSON.parse(db.prepare("SELECT snapshot FROM rollups WHERE agent='codex'").get().snapshot).content.metrics.total);db.close()`, join(state, 'state.sqlite')])
   assert.equal(Number(totals.stdout), 12)
   await writeFile(join(home, '.codex/sessions/interrupted.jsonl'), JSON.stringify({ timestamp: '2026-11-15T00:00:00Z', type: 'response_item', payload: { type: 'message', content: [{ text: 'synthetic-private-package-warning' }] } }) + '\n')
   const warned = JSON.parse((await run(process.execPath, [cli, 'sync', '--offline', '--rescan', '--state-dir', state])).stdout)
-  assert.equal(warned.scanFailed, false); assert.equal(warned.pending, initialVersion === '0.1.6' ? 4 : initialVersion === '0.1.5' ? 4 : 2)
+  assert.equal(warned.scanFailed, false); assert.equal(warned.pending, initialVersion === '0.1.5' ? 6 : initialVersion === '0.1.6' ? 4 : 2)
   assert(warned.scan.diagnostics.includes('TOKSCALE_MISSING_USAGE'))
   assert(!JSON.stringify(warned).includes('synthetic-private-package-warning'))
   const legacy = await run(process.execPath, ['--input-type=module', '-e', `import {DatabaseSync} from 'node:sqlite';const db=new DatabaseSync(process.argv[1],{readOnly:true});console.log(db.prepare('SELECT proof FROM sources WHERE path=?').get('/synthetic-legacy-source').proof);db.close()`, join(state, 'state.sqlite')])
