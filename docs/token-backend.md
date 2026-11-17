@@ -43,7 +43,7 @@
 { p_generation: "1", p_snapshot: TokenUsageSnapshot, p_hash: "<64-char lowercase SHA-256>" }
 ```
 
-metadata.snapshotVersion 在该传输层必填、正整数十进制字符串，最多 40 位；generation 是成功领取返回的服务器整数字符串。新采集器必须在 SQLite 事务中保存不可变快照、版本和摘要；同主汇总每次实际替换递增版本，重试沿用原请求。无需每次扫描都变化版本，但有不同内容在途时，A→B→A 的最终 A 必须形成更新版本。版本不是时间戳/摘要。数据库以代际优先、版本其次比较，锁定设备后校验与写入；新代际接受从 1 开始，旧 token 立即失效；不能因相同 deviceId 恢复权限。服务端不解析原始日志。[ADR0020](adr/0020-token-recorded-usage-authority.md)已在 #223 更新采集职责：接受Tokscale成功且通过输出校验的已记录统计，允许有效更正下降，不再以独立逐日志完整性证明或上游warning冻结；graph缺席旧日期不自动清空，真正失败不生成替代快照。
+metadata.snapshotVersion 在该传输层必填、正整数十进制字符串，最多 40 位；generation 是成功领取返回的服务器整数字符串。新采集器必须在 SQLite 事务中保存不可变快照、版本和摘要；同主汇总每次实际替换递增版本，重试沿用原请求。无需每次扫描都变化版本，但内容摘要或 statisticsVersion 变化都算新的待传统计，有不同内容在途时，A→B→A 的最终 A 必须形成更新版本。版本不是时间戳/摘要。数据库以代际优先、版本其次比较，锁定设备后校验与写入；新代际接受从 1 开始，旧 token 立即失效；不能因相同 deviceId 恢复权限。服务端不解析原始日志。[ADR0020](adr/0020-token-recorded-usage-authority.md)已在 #223 更新采集职责：接受Tokscale成功且通过输出校验的已记录统计，允许有效更正下降，不再以独立逐日志完整性证明或上游warning冻结；graph缺席旧日期不自动清空，真正失败不生成替代快照。
 
 每次最多 1 MiB（数据库 JSONB 文本大小）、500 模型项、单份主汇总整体替换；不提供局部模型 patch 或批量多主汇总事务。共享传输 schema 是 `src/shared/token-backend-contract.ts`；PostgreSQL jsonb 无法表示 NUL/孤立 surrogate，日期限定 0001–9999，传输层提前拒绝，不改变阶段 01 对正常 JSON 的摘要算法。数据库重新验证所有字段/主子对账，重建紧凑 JSON/UTF-16 字典序，再对 UTF-8 字节取 SHA-256，不能直接 digest(jsonb::text)。
 

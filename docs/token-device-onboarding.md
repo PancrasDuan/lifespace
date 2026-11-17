@@ -20,7 +20,7 @@
 
 0.1.5在显式授权后支持Codex、Grok Build（`grok`）和Hermes Agent（`hermes`）；默认仍只采Codex，旧状态库无`agents`时按Codex读取。已有设备升级不会自动扩大来源；要新增来源须由操作者执行`sources add --agents grok,hermes`（或只加其中一个），再用`sources list`核对。一次调用只传授权列表，缺少某个来源目录不影响其他来源。已有0.1.4安装先校验归档，再用原CLI的`upgrade --archive /absolute/lifespace-token-collector-0.1.5.tgz --prefix /absolute/installation --apply --state-dir /absolute/private/state`保持原state升级，不重跑全新接入向导。无需因升级重绑有效授权；先手动核对新扫描成功和实际回执，再按指定设备授权安排timer。旧队列成功上传不能代替`scanFailed=false`。
 
-0.1.0–0.1.4各自的原归档及目录和校验值均保留，未覆盖。0.1.5有独立归档、来源映射和六文件目录 `test-results/token233/onboarding-0.1.5/`，包括包、向导、只读对账辅助、本说明、SHA256SUMS和来源记录。只传该目录，不传 `.env`、用户状态、原始日志或整个工作区。
+0.1.0–0.1.4的归档、目录和校验值按受控私有位置分别保存，不覆盖；本仓库只记录映射，不证明每个历史副本在当前机器仍可取得。0.1.5有独立归档、来源映射和六文件目录 `test-results/token233/onboarding-0.1.5/`，包括包、向导、只读对账辅助、本说明、SHA256SUMS和来源记录。只传该目录，不传 `.env`、用户状态、原始日志或整个工作区。
 
 已发现的 Orca CLI 提供本地文件打开和浏览器 upload/download，但没有通用的主机间文件传输命令，当前也没有远程目标。操作者能直接读本机文件时复制上述目录；远端设备则由总控取得已有受控 SSH/SFTP/文件传输目标后，先列出准确源目录和目标目录，再通过该已有连接复制。缺少连接时由用户以自己的受控文件渠道取得这几个非敏感发行文件。尚未进行跨主机传输，不公开 npm、GitHub Release、生产下载路由或临时公网服务。
 
