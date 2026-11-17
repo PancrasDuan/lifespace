@@ -238,6 +238,17 @@ test.each([
   expect(reads).toBe(0)
 })
 
+test.each([
+  ['list_ledger_entries', { version: '4' }],
+  ['get_ledger_entry', { id: entryId, version: '4' }],
+] as const)('%s 拒绝字符串形式的 version，未调用数据库', async (name, args) => {
+  let reads = 0
+  upstream(url => { if (url.includes('/rpc/ledger_')) reads++; return undefined })
+  const body = await (await request({ jsonrpc: '2.0', id: 'string-version', method: 'tools/call', params: { name, arguments: args } })).json() as { result: { structuredContent: object } }
+  expect(body.result).toMatchObject({ isError: true, structuredContent: { error: { code: 'INVALID_QUERY' } } })
+  expect(reads).toBe(0)
+})
+
 test('流水列表版本冲突沿用 REST 的 LIST_CHANGED 业务错误', async () => {
   upstream(url => url.endsWith('/rpc/ledger_list') ? Response.json({ message: 'LIST_CHANGED' }, { status: 409 }) : undefined)
   const body = await (await request({ jsonrpc: '2.0', id: 'list', method: 'tools/call', params: { name: 'list_ledger_entries', arguments: { version: 3 } } })).json() as { result: { structuredContent: object } }
