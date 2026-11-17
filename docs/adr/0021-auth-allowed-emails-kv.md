@@ -14,7 +14,7 @@ Cloudflare KV 为最终一致存储：写入或移除通常在当前边缘位置
 
 生产迁移采用停流量窗口：先由获准运维人员将现有白名单写入 `AUTH_KV/AUTH_ALLOWED_EMAILS`（旧 Worker 仍读 Secret，不受影响），确认键可读且格式合法；再停止生产流量，部署只读取 KV 的代码。恢复流量前，从生产入口用受控探针确认已路由到新 Worker 且名单读取成功，覆盖实际使用的生产域名/边缘；探针失败或仍命中旧 Worker 时保持停流量并等待/重试，不回退旧 secret。顺序颠倒会使新代码在键写入前对全部业务请求返回 503。停流量窗口只解决迁移空窗，不改变日常白名单更新的最终一致语义。真实名单不得进入 Issue、PR、日志或聊天；运维步骤只引用配置位置和受控写入方式。
 
-仓库在用户提供真实 namespace ID 前保留显式占位绑定；`npm run deploy` 的配置检查会拒绝占位或重复的 `AUTH_KV` 绑定、与其他 KV namespace 重复的 ID，以及仍以 secret、普通变量或 binding 形式保留 `AUTH_ALLOWED_EMAILS` 的配置，且不会自动创建生产资源。
+`AUTH_KV` 绑定独立 namespace `lifespace-auth`（`fcf99c6175854fd2a850e41d81589865`）。`npm run deploy` 的配置检查会拒绝占位或重复的 `AUTH_KV` 绑定、与其他 KV namespace 重复的 ID，以及仍以 secret、普通变量或 binding 形式保留 `AUTH_ALLOWED_EMAILS` 的配置，且不会自动创建生产资源。
 
 ## 回退
 
