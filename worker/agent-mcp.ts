@@ -115,7 +115,7 @@ export async function handleAgentMcp(request: Request, operations: {
   if (message.jsonrpc === '2.0' && message.method === 'tools/call' && message.id !== undefined && tools.some(tool => tool.name === message.params?.name)) {
     // Authorization failures must remain HTTP 403, outside the business-error envelope.
     authorization.authorizeTool(message.params!.name!)
-    const args = message.params?.arguments ?? {}
+    const args = Object.hasOwn(message.params ?? {}, 'arguments') ? message.params!.arguments : {}
     if (typeof args !== 'object' || args === null || Array.isArray(args)) {
       return Response.json({ jsonrpc: '2.0', id: message.id, error: { code: -32602, message: 'Invalid tool arguments' } })
     }

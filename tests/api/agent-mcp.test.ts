@@ -154,6 +154,12 @@ test('没有 id 的工具调用不能触发流水写入', async () => {
   expect(writes).toBe(0)
 })
 
+test('tools/call 的 arguments 显式为 null 时返回协议参数错误', async () => {
+  upstream()
+  const response = await request({ jsonrpc: '2.0', id: 'null-args', method: 'tools/call', params: { name: 'list_ledger_entries', arguments: null } })
+  expect(await response.json()).toMatchObject({ id: 'null-args', error: { code: -32602, message: 'Invalid tool arguments' } })
+})
+
 test('创建结果未知时通过 MCP 提示沿用原编号和参数重试', async () => {
   upstream(url => url.endsWith('/rpc/ledger_create') ? new Response(null, { status: 503 }) : undefined)
   const entry = { requestId: '00000000-0000-4000-8000-000000000007', direction: 'expense', amountCents: -3500, occurredAt: '2026-01-02T03:04:05Z', accountId: '00000000-0000-4000-8000-000000000004', categoryCode: 'dining', note: '午饭' }
