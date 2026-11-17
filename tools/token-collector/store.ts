@@ -6,10 +6,10 @@ import { tokenUsageContentHash, type TokenUsageSnapshot } from '../../src/shared
 import { LocalError, privateDirectory, privateFile } from './local.ts'
 
 export const hoursSchema = z.union([z.literal(1), z.literal(3), z.literal(6), z.literal(8), z.literal(12), z.literal(24)])
-export const supportedAgents = ['codex', 'grok', 'hermes'] as const
+export const supportedAgents = ['codex', 'grok', 'hermes', 'claude', 'workbuddy', 'cursor'] as const
 export const agentSchema = z.enum(supportedAgents)
 export type Agent = z.infer<typeof agentSchema>
-export const agentsSchema = z.array(agentSchema).min(1).max(3).superRefine((value, ctx) => {
+export const agentsSchema = z.array(agentSchema).min(1).max(6).superRefine((value, ctx) => {
   if (new Set(value).size !== value.length) ctx.addIssue({ code: 'custom', message: 'Agent 来源不能重复' })
 })
 const configObjectSchema = z.strictObject({

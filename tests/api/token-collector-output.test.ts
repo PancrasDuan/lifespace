@@ -36,6 +36,7 @@ test('valid graph with missing-usage and unknown private stderr is accepted with
   const synced = await synchronize(store, state, { offline: true })
   expect(synced.scanFailed).toBe(false)
   expect(store.status().rollups).toBe(2); expect(store.tasks()).toHaveLength(2)
+  expect(JSON.parse(String(store.db.prepare("SELECT snapshot FROM rollups WHERE agent='codex' LIMIT 1").get()!.snapshot)).metadata.statisticsVersion).toBe('tokscale-multi-agent-2')
   expect(store.get('scan')).toMatchObject({ diagnostics: ['TOKSCALE_DIAGNOSTIC', 'TOKSCALE_MISSING_USAGE'] })
   expect(JSON.stringify([synced, store.status(), store.tasks()])).not.toContain('synthetic-private-body')
   expect(JSON.stringify(store.status())).not.toContain(home)
@@ -87,6 +88,15 @@ test('scan passes only configured Agents and keeps legacy state on codex', async
   expect(execute.mock.calls[3][1]).toEqual(expect.arrayContaining(['--client', 'codex,grok,hermes']))
 })
 
+test('all six supported Agents can be authorized and are passed in one ordered client list', async () => {
+  const { store, state } = await profile()
+  const agents = ['codex', 'grok', 'hermes', 'claude', 'workbuddy', 'cursor']
+  store.set('config', { ...store.config(), agents })
+  result()
+  await synchronize(store, state, { offline: true })
+  expect(execute.mock.calls[1][1]).toEqual(expect.arrayContaining(['--client', agents.join(',')]))
+})
+
 test('an authorized Agent with no graph rows does not prevent another Agent from being saved', async () => {
   const { store, state } = await profile()
   store.set('config', { ...store.config(), agents: ['codex', 'grok'] })
@@ -130,4 +140,34 @@ test('only authorized Agent roots are exposed to the CLI environment', async () 
   expect(env.GROK_HOME).toContain('.grok')
   expect(env.CODEX_HOME).toBeUndefined()
   expect(env.HERMES_HOME).toBeUndefined()
+})
+
+test('Claude, WorkBuddy and Cursor rely on --home and never receive extra root variables', async () => {
+  const { store, state } = await profile()
+  store.set('config', { ...store.config(), agents: ['claude', 'workbuddy', 'cursor'] })
+  result(JSON.stringify({
+    meta: { version: '4.23.0' }, summary: { totalTokens: 0, totalCost: 0 }, contributions: [],
+  }))
+  await synchronize(store, state, { offline: true })
+  const env = execute.mock.calls[1][2].env as Record<string, string>
+  expect(env.CLAUDE_CONFIG_DIR).toBeUndefined()
+  expect(env.WORKBUDDY_HOME).toBeUndefined()
+  expect(env.CURSOR_HOME).toBeUndefined()
+  expect(env.CODEX_HOME).toBeUndefined()
+  expect(env.GROK_HOME).toBeUndefined()
+  expect(env.HERMES_HOME).toBeUndefined()
+  expect(execute.mock.calls[1][1]).toEqual(expect.arrayContaining(['--home', expect.any(String), '--client', 'claude,workbuddy,cursor']))
+})
+
+test('Cursor cache warnings are reduced to a fixed diagnostic without the cache path', async () => {
+  const { store, state, home } = await profile()
+  store.set('config', { ...store.config(), agents: ['cursor'] })
+  const cache = join(home, '.config/tokscale/cursor-cache/usage*.json')
+  result(JSON.stringify({
+    meta: { version: '4.23.0' }, summary: { totalTokens: 0, totalCost: 0 }, contributions: [],
+  }), `  Warning: Cursor usage requires Tokscale's Cursor API cache at \`${cache}\`; run \`tokscale cursor login\` (auto-detects Cursor desktop when signed in) and \`tokscale cursor sync --json\`, or populate that cache before running a report with --home. Tokscale does not parse local \`~/.cursor\` session data.\n`)
+  const synced = await synchronize(store, state, { offline: true })
+  expect(synced.scanFailed).toBe(false)
+  expect(synced.scan.diagnostics).toEqual(['TOKSCALE_CURSOR_CACHE_UNAVAILABLE'])
+  expect(JSON.stringify([synced, store.status()])).not.toContain(home)
 })

@@ -1,11 +1,11 @@
 {
-  "archive": "test-results/token233/onboarding-0.1.5/lifespace-token-collector-0.1.5.tgz",
-  "version": "0.1.5",
-  "sha256": "c029b83353ad36df6725906a24e0fcf7871bed3cb12d351fd8b36e92c7210646",
-  "bytes": 26433,
+  "archive": "test-results/token235/onboarding-0.1.6/lifespace-token-collector-0.1.6.tgz",
+  "version": "0.1.6",
+  "sha256": "e94ccf6489735acdfc19d8e1b1f0032ab84637db1fd2aab66fe55a23d44a3273",
+  "bytes": 27000,
   "files": 13,
   "runtime": "Node>=24.22.1<25; CI24.22.1; macOS/Linux; @tokscale/cli4.23.0 and zod4.6.7 unchanged",
-  "sourceSha256": "954d9a5cc9ded77a28af3be5b14dd2813366997f42d95b0f34becb68f84e82cb",
+  "sourceSha256": "e76d4c5ef385b43c11a62d5377969edefcb07f83303747af247f259d7b791dba",
   "sourceFiles": [
     "src/shared/token-backend-contract.ts",
     "src/shared/token-usage-contract.ts",
@@ -63,8 +63,16 @@
       "sourceSha256": "54d6391bf0433fd62e60f6883332ab752a941e07a9c2ad371d5e62524f5a78d0",
       "archive": "test-results/token223/onboarding-0.1.4/lifespace-token-collector-0.1.4.tgz",
       "preserved": true
+    },
+    {
+      "version": "0.1.5",
+      "sha256": "c029b83353ad36df6725906a24e0fcf7871bed3cb12d351fd8b36e92c7210646",
+      "bytes": 26433,
+      "sourceSha256": "954d9a5cc9ded77a28af3be5b14dd2813366997f42d95b0f34becb68f84e82cb",
+      "archive": "test-results/token233/onboarding-0.1.5/lifespace-token-collector-0.1.5.tgz",
+      "preserved": true
     }
   ],
-  "reason": "Add explicit multi-Agent collection for Codex, Grok Build and Hermes Agent while retaining Codex-only defaults and legacy state compatibility",
-  "verification": "0.1.5 archive 13 files/26,433 bytes and 14-source digest matched;local typecheck/build/API/browser/collector-evidence and 0.1.4-to-0.1.5 package gates passed;final CI/two-axis review and real-device onboarding pending"
+  "reason": "Add explicit multi-Agent collection for Claude Code, WorkBuddy and Cursor while retaining Codex-only defaults, explicit source authorization and legacy state compatibility",
+  "verification": "0.1.6 archive 13 files/27,000 bytes and 14-source digest matched;local typecheck/build/API/browser/collector-evidence/package gates passed;final CI/two-axis review and real-device onboarding pending"
 }

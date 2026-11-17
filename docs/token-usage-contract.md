@@ -13,7 +13,7 @@
 | `tools/token-collector/tokscale-cli.ts` | Node-only 子进程；固定本项目依赖，不从 PATH/npx 自动拉取最新版 |
 | `build-plugins/token-collector-boundary.ts` | Vite 全环境阻止 collector 或 `@tokscale` 进入浏览器/Worker bundle |
 
-`collectTokscaleUsage({ homeDir, configDir, agents?, since?, until? }, context)` 要求绝对目录，日期为有效公历日且起止有序；`agents` 缺省为 `['codex']`，只接受 `codex`／`grok`／`hermes` 的非空去重列表。它强制 `TZ=Asia/Shanghai`、独立 `TOKSCALE_CONFIG_DIR`、显式 `--home`、`--client <授权列表>` 和 `--offline`；只对授权 Agent 设置 `CODEX_HOME`／`GROK_HOME`／`HERMES_HOME`。调用前检查显式 home 下 `.config/tokscale/settings.json`，缺失时在 Linux/macOS 都检查旧布局 `Library/Application Support/tokscale/settings.json`。拒绝无效配置或非北京 `scanner.bucketTimezone`，因为有效 pin 优先于 TZ，不擅改已有设置。子进程不继承服务凭据，不调用登录、提交或自动同步命令，超时 60 秒，stdout 上限 32 MiB。错误不返回原始 stdout/stderr/路径；stderr只返回`TOKSCALE_PRICING_WARNING`／`TOKSCALE_MISSING_USAGE`／`TOKSCALE_DIAGNOSTIC`固定类别。按[ADR0020](adr/0020-token-recorded-usage-authority.md)，这些告警不阻断成功且通过联合校验的已记录统计；不另证原始日志完整性。真正CLI失败／超时或输出无效仍拒绝替换，同步成功另需严格回执。
+`collectTokscaleUsage({ homeDir, configDir, agents?, since?, until? }, context)` 要求绝对目录，日期为有效公历日且起止有序；`agents` 缺省为 `['codex']`，只接受 `codex`／`grok`／`hermes`／`claude`／`workbuddy`／`cursor` 的非空去重列表。它强制 `TZ=Asia/Shanghai`、独立 `TOKSCALE_CONFIG_DIR`、显式 `--home`、`--client <授权列表>` 和 `--offline`；只对授权 Agent 设置 `CODEX_HOME`／`GROK_HOME`／`HERMES_HOME`。`claude`／`workbuddy`／`cursor` 不设置额外根：Claude 的 `--home` 优先于 `CLAUDE_CONFIG_DIR`，WorkBuddy 读取 `<home>/.workbuddy/workbuddy.db`，Cursor 只读 `<home>/.config/tokscale/cursor-cache/usage*.json`。采集器不执行 Cursor 登录或同步，也不读取本地 `~/.cursor` 会话。调用前检查显式 home 下 `.config/tokscale/settings.json`，缺失时在 Linux/macOS 都检查旧布局 `Library/Application Support/tokscale/settings.json`。拒绝无效配置或非北京 `scanner.bucketTimezone`，因为有效 pin 优先于 TZ，不擅改已有设置。子进程不继承服务凭据，不调用登录、提交或自动同步命令，超时 60 秒，stdout 上限 32 MiB。错误不返回原始 stdout/stderr/路径；stderr只返回`TOKSCALE_PRICING_WARNING`／`TOKSCALE_MISSING_USAGE`／`TOKSCALE_CURSOR_CACHE_UNAVAILABLE`／`TOKSCALE_DIAGNOSTIC`固定类别。按[ADR0020](adr/0020-token-recorded-usage-authority.md)，这些告警不阻断成功且通过联合校验的已记录统计；不另证原始日志完整性。真正CLI失败／超时或输出无效仍拒绝替换，同步成功另需严格回执。
 
 安装的工具为精确 devDependency `@tokscale/cli@4.23.0`，平台包及 integrity 固定在 `package-lock.json`。2026-11-15 重新查询 npm 官方 `latest` 确认此版本，未直接沿用旧研究。已实跑 Linux x64，Node **24.22.1**；仓库已有 `.node-version` 不由本任务改动。macOS 的真实执行留待后续设备验收。
 
@@ -23,7 +23,7 @@
 
 | 部分 | 字段与含义 |
 | --- | --- |
-| identity | `deviceId` 应用专用 opaque ID；`date` 北京公历日；`agent` 工具来源，取 Tokscale `client`（`codex`／`grok`／`hermes`） |
+| identity | `deviceId` 应用专用 opaque ID；`date` 北京公历日；`agent` 工具来源，取 Tokscale `client`（`codex`／`grok`／`hermes`／`claude`／`workbuddy`／`cursor`） |
 | content | `metrics` 主汇总；`cost` 费用；`models: { coverage, items }` 模型分类 |
 | metadata | `schemaVersion: 1`、`statisticsVersion`、`tool: { name, version }`、`priceVersion`、`scannedAt`；可选 `hostname`、`snapshotVersion` |
 
@@ -92,13 +92,15 @@ TZ=Asia/Shanghai TOKSCALE_CONFIG_DIR=<synthetic-config> CODEX_HOME=<synthetic-ho
   --since 2026-11-14 --until 2026-11-15 --no-spinner
 ```
 
-多 Agent 调用使用同一形状，只把 `--client` 换成显式授权列表，并为授权来源设置对应根：
+多 Agent 调用使用同一形状，只把 `--client` 换成显式授权列表，并为 `codex`／`grok`／`hermes` 设置对应根；Claude、WorkBuddy 与 Cursor 只依赖 `--home`：
 
 ```sh
 TZ=Asia/Shanghai TOKSCALE_CONFIG_DIR=<synthetic-config> \
   CODEX_HOME=<synthetic-home>/.codex GROK_HOME=<synthetic-home>/.grok HERMES_HOME=<synthetic-home>/.hermes \
-  tokscale graph --offline --home <synthetic-home> --client codex,grok,hermes --no-spinner
+  tokscale graph --offline --home <synthetic-home> --client codex,grok,hermes,claude,workbuddy,cursor --no-spinner
 ```
+
+Claude 合成会话实测 `<home>/.claude/projects/**/*.jsonl` 解析为 input 150（含 cacheRead 20、cacheWrite 30）、output 40、total 190；WorkBuddy 合成 SQLite 的 `sessions` + `session_usage` 实测为 input 42、output 0、费用 unknown。Cursor 在缓存缺失、损坏、空数组、空对象或无 `usage` 字段时均返回空 graph、退出码 0，并在 stderr 输出含缓存绝对路径的固定告警；采集器将其归类为 `TOKSCALE_CURSOR_CACHE_UNAVAILABLE`，不透传原文或路径。本机没有 Cursor 账号，有效缓存形状和真实数据未验证；`cursor sync --offline` 明确失败，必须在线，因此采集器不代为登录或同步。
 
 本机 4.23.0 的 Grok 真实探针可能返回 `cost: 0` 且 `costProvenance.kind=unknown`，即使底层会话有 `costUsdTicks`；本项目不读原始日志补价，按未知费用保存。Hermes 可能同样为 unknown；正数未知费用保守映射为 `unclassified/partial`，不猜成实际或 API 估算。Hermes 按日拆分依赖会话日志与 `logs/agent.log`，跨日未覆盖部分留在开始日，日趋势可用但不宣称逐次调用精确。Hermes 可能启动 `codex app-server` 而 Codex 也写 `~/.codex`；若同时授权两者，可能对同一调用重复计量，文档只提示重叠风险，不做静默去重。
 

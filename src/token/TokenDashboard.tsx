@@ -10,7 +10,7 @@ import { TokenCalendar } from './TokenCalendar'
 import { TokenDevices } from './TokenDevices'
 import { Feedback } from './Feedback'
 
-const agentNames: Record<string, string> = { codex: 'Codex', grok: 'Grok Build', hermes: 'Hermes Agent' }
+const agentNames: Record<string, string> = { codex: 'Codex', grok: 'Grok Build', hermes: 'Hermes Agent', claude: 'Claude Code', workbuddy: 'WorkBuddy', cursor: 'Cursor' }
 const agentName = (agent: string) => agentNames[agent] ?? agent
 
 export function TokenDashboard() {
@@ -49,7 +49,7 @@ export function TokenDashboard() {
     let index = 0
     return new Map([...modelOptions.keys()].map(key => [key, key === 'null' ? modelColor(3) : modelColor(index++ % 3)]))
   }, [modelOptions])
-  const [agents, setAgents] = useState(['codex', 'grok', 'hermes'])
+  const [agents, setAgents] = useState(['codex', 'grok', 'hermes', 'claude', 'workbuddy', 'cursor'])
   useEffect(() => {
     if (usage.data) setAgents(known => [...new Set([...known, ...usage.data!.map(row => row.agent)])])
   }, [usage.data])
@@ -77,7 +77,7 @@ export function TokenDashboard() {
       <div className="page-heading"><h1 id="page-title" tabIndex={-1}>Token 用量</h1></div>
       <search><form className="filters" aria-label="用量筛选" onSubmit={event => event.preventDefault()}>
         <label><span id="token-period-label">时间范围</span><select aria-labelledby="token-period-label" name="period" value={period} onChange={event => setPeriod(event.target.value as Period)}>{(['1', 'week', 'month', '7', '30', '90', 'year'] as Period[]).map(value => <option value={value} key={value}>{periods[value]}</option>)}</select></label>
-        <label><span id="token-agent-label">Agent</span><select aria-labelledby="token-agent-label" name="agent" value={agent} onChange={event => setAgent(event.target.value)}><option value="">全部 Agent</option>{agents.map(value => <option key={value} value={value}>{agentName(value)}</option>)}<option disabled>Claude Code · 尚未接入</option></select></label>
+        <label><span id="token-agent-label">Agent</span><select aria-labelledby="token-agent-label" name="agent" value={agent} onChange={event => setAgent(event.target.value)}><option value="">全部 Agent</option>{agents.map(value => <option key={value} value={value}>{agentName(value)}</option>)}</select></label>
         <label><span id="token-device-label">设备</span><select aria-labelledby="token-device-label" name="device" value={deviceId} onChange={event => setDevice(event.target.value)}><option value="">全部设备</option>{devices.data?.map(device => <option key={device.deviceId} value={device.deviceId}>{device.hostname}{!device.enabled ? '（已停用）' : ''}</option>)}</select></label>
         <label><span id="token-model-label">模型</span><select aria-labelledby="token-model-label" name="model" value={modelKey} onChange={event => setModel(event.target.value)}><option value="">全部模型</option>{[...modelOptions].map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label>
         <button type="button" className="reset-button" disabled={period === '30' && !agent && !deviceId && !modelKey} onClick={reset}><RotateCcw size={15} />重置</button><span className="timezone">北京时间</span>

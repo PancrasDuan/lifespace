@@ -86,6 +86,25 @@ test('同一天多 Agent 的同名模型生成独立快照，组内重复仍拒�
   expect(() => adaptTokscaleGraph(duplicate, collectionContext)).toThrow('Tokscale 联合模型键重复')
 })
 
+test('Claude、WorkBuddy 与 Cursor 的 graph client 被接受并保留 cacheWrite 桶', () => {
+  const graph: any = structuredClone(rawGraph)
+  graph.contributions = [structuredClone(graph.contributions[0])]
+  const row = graph.contributions[0].clients[0]
+  row.tokens.cacheWrite = 9
+  graph.contributions[0].tokenBreakdown.cacheWrite = 9
+  graph.contributions[0].totals.tokens += 9
+  graph.summary.totalTokens = graph.contributions[0].totals.tokens
+  graph.summary.totalCost = graph.contributions[0].totals.cost
+  for (const client of ['claude', 'workbuddy', 'cursor'] as const) {
+    const candidate = structuredClone(graph)
+    candidate.contributions[0].clients[0].client = client
+    const [snapshot] = adaptTokscaleGraph(candidate, collectionContext)
+    expect(snapshot.identity.agent).toBe(client)
+    expect(snapshot.content.models.items[0].metrics.cacheWrite).toBe(9)
+    expect(snapshot.content.metrics.cacheWrite).toBe(9)
+  }
+})
+
 test('未定价与未知模型不补零；有价部分保留为 API 估算，币种 USD', () => {
   const result = snapshots()
   expect(result[0].content.cost).toEqual({ currency: 'USD', apiEstimate: '0.00014199999999999998', coverage: 'unverified' })

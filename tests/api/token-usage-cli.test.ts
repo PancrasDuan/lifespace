@@ -1,11 +1,12 @@
 import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { DatabaseSync } from 'node:sqlite'
 import { afterEach, expect, test } from 'vitest'
 import { build } from 'vite'
 import { tokenCollectorBoundary } from '../../build-plugins/token-collector-boundary'
 import { collectTokscaleUsage } from '../../tools/token-collector/tokscale-cli'
-import { syntheticCodexLog, syntheticUnknownModelLog } from '../fixtures/token-usage/synthetic'
+import { syntheticClaudeLog, syntheticCodexLog, syntheticUnknownModelLog } from '../fixtures/token-usage/synthetic'
 
 const temporaryDirs: string[] = []
 afterEach(async () => { await Promise.all(temporaryDirs.splice(0).map(path => rm(path, { recursive: true, force: true }))) })
@@ -91,6 +92,61 @@ test('只把显式授权 Agent 传给 Tokscale；默认仅 codex，缺少其他�
   await expect(collectTokscaleUsage({ ...options, agents: ['grok', 'grok'] }, context)).rejects.toThrow()
   await expect(collectTokscaleUsage({ ...options, agents: [] }, context)).rejects.toThrow()
   await expect(collectTokscaleUsage({ ...options, agents: ['future'] as any }, context)).rejects.toThrow()
+})
+
+test('Claude 只按 --home 读取合成会话，且不继承外部 CLAUDE_CONFIG_DIR', async () => {
+  const options = await profile()
+  await mkdir(join(options.homeDir, '.claude/projects/-synthetic'), { recursive: true })
+  await writeFile(join(options.homeDir, '.claude/projects/-synthetic/synthetic.jsonl'), syntheticClaudeLog())
+  const emptyConfig = join(options.homeDir, 'empty-claude-config')
+  await mkdir(emptyConfig)
+  const previous = process.env.CLAUDE_CONFIG_DIR
+  process.env.CLAUDE_CONFIG_DIR = emptyConfig
+  try {
+    const report = await collectTokscaleUsage({ ...options, agents: ['claude'] }, context)
+    expect(report.snapshots.map(row => [row.identity.date, row.identity.agent, row.content.metrics.total])).toEqual([['2026-11-15', 'claude', 190]])
+    expect(report.snapshots[0].content.metrics).toEqual({ input: 150, output: 40, total: 190, cacheRead: 20, cacheWrite: 30, reasoning: 0 })
+    expect(report.snapshots[0].content.models.items[0].modelId).toBe('synthetic-claude-model')
+    expect(JSON.stringify(report)).not.toContain(options.homeDir)
+  } finally {
+    if (previous === undefined) delete process.env.CLAUDE_CONFIG_DIR
+    else process.env.CLAUDE_CONFIG_DIR = previous
+  }
+})
+
+test('WorkBuddy 合成 SQLite 按 --home 读取，空库或仅有 sessions 表不报错', async () => {
+  const options = await profile()
+  await mkdir(join(options.homeDir, '.workbuddy'), { recursive: true })
+  const database = join(options.homeDir, '.workbuddy/workbuddy.db')
+  let db = new DatabaseSync(database)
+  db.exec('CREATE TABLE sessions (id TEXT PRIMARY KEY, model TEXT, cwd TEXT)')
+  db.close()
+  expect((await collectTokscaleUsage({ ...options, agents: ['workbuddy'] }, context)).snapshots).toEqual([])
+  db = new DatabaseSync(database)
+  db.exec('CREATE TABLE session_usage (session_id TEXT, used INTEGER, updated_at INTEGER)')
+  db.prepare('INSERT INTO sessions VALUES (?,?,?)').run('synthetic-workbuddy-235', 'synthetic-workbuddy-model', '/synthetic')
+  db.prepare('INSERT INTO session_usage VALUES (?,?,?)').run('synthetic-workbuddy-235', 42, 1794697200000)
+  db.close()
+  const report = await collectTokscaleUsage({ ...options, agents: ['workbuddy'] }, context)
+  expect(report.snapshots.map(row => [row.identity.date, row.identity.agent, row.content.metrics.total])).toEqual([['2026-11-15', 'workbuddy', 42]])
+  expect(report.snapshots[0].content.metrics).toEqual({ input: 42, output: 0, total: 42, cacheRead: 0, cacheWrite: 0, reasoning: 0 })
+  expect(report.snapshots[0].content.models.items[0].modelId).toBe('synthetic-workbuddy-model')
+})
+
+test('Cursor 只读已有缓存；缺失或损坏时返回空图与固定缓存告警，不联网登录', async () => {
+  const options = await profile()
+  for (const content of [undefined, '{bad json\n']) {
+    const cache = join(options.homeDir, '.config/tokscale/cursor-cache')
+    if (content === undefined) await rm(cache, { recursive: true, force: true })
+    else {
+      await mkdir(cache, { recursive: true })
+      await writeFile(join(cache, 'usage-synthetic.json'), content)
+    }
+    const report = await collectTokscaleUsage({ ...options, agents: ['cursor'] }, context)
+    expect(report.snapshots).toEqual([])
+    expect(report.diagnostics).toContain('TOKSCALE_CURSOR_CACHE_UNAVAILABLE')
+    expect(JSON.stringify(report)).not.toContain(options.homeDir)
+  }
 })
 
 test('已有时区固定值不能被 TZ 悄悄覆盖；拒绝冲突并保留原配置', async () => {

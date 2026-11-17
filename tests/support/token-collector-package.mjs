@@ -42,6 +42,10 @@ try {
     assert.match(initialHelp, /sources add --agents grok,hermes/)
     assert.match(initialHelp, /collector 0\.1\.5/)
   }
+  if (initialVersion === '0.1.6') {
+    assert.match(initialHelp, /sources add --agents claude,workbuddy,cursor/)
+    assert.match(initialHelp, /collector 0\.1\.6/)
+  }
   // Exercise the real OS identity probe without printing its value. Synthetic
   // logs below stay separate from the user's real sources and device state.
   const identity = `import assert from 'node:assert/strict'; import {systemDeviceId} from ${JSON.stringify(pathToFileURL(join(packageRoot, 'dist/tools/token-collector/local.js')).href)}; const a=await systemDeviceId();assert.match(a,/^lsd1_[a-f0-9]{64}$/);assert.equal(await systemDeviceId(),a);`
@@ -84,6 +88,17 @@ try {
     { ts: '2026-11-15T01:00:00Z', type: 'turn_started', session_id: 'synthetic-grok-233', model_id: 'synthetic-grok-pack' },
     { ts: '2026-11-15T01:01:00Z', type: 'turn_ended', outcome: 'success' },
   ].map(row => JSON.stringify(row)).join('\n') + '\n', { mode: 0o600 })
+  const claude = join(home, '.claude/projects/-synthetic')
+  await mkdir(claude, { recursive: true, mode: 0o700 })
+  await writeFile(join(claude, 'synthetic.jsonl'), [
+    { type: 'user', uuid: 'synthetic-claude-user-pack', parentUuid: null, sessionId: 'synthetic-claude-pack', cwd: '/synthetic', timestamp: '2026-11-15T02:00:00.000Z', message: { role: 'user', content: 'synthetic' } },
+    { type: 'assistant', uuid: 'synthetic-claude-assistant-pack', parentUuid: 'synthetic-claude-user-pack', sessionId: 'synthetic-claude-pack', cwd: '/synthetic', timestamp: '2026-11-15T02:00:01.000Z', message: { id: 'synthetic-claude-message-pack', role: 'assistant', model: 'synthetic-claude-pack-model', usage: { input_tokens: 100, output_tokens: 40, cache_read_input_tokens: 20, cache_creation_input_tokens: 30 } } },
+  ].map(row => JSON.stringify(row)).join('\n') + '\n', { mode: 0o600 })
+  const workbuddy = join(home, '.workbuddy')
+  await mkdir(workbuddy, { recursive: true, mode: 0o700 })
+  const workbuddyDb = join(workbuddy, 'workbuddy.db')
+  const workbuddyRows = `import {DatabaseSync} from 'node:sqlite';const db=new DatabaseSync(process.argv[1]);db.exec('CREATE TABLE sessions (id TEXT PRIMARY KEY, model TEXT, cwd TEXT); CREATE TABLE session_usage (session_id TEXT, used INTEGER, updated_at INTEGER);');db.prepare('INSERT INTO sessions VALUES (?,?,?)').run('synthetic-workbuddy-pack','synthetic-workbuddy-pack-model','/synthetic');db.prepare('INSERT INTO session_usage VALUES (?,?,?)').run('synthetic-workbuddy-pack',42,1794697200000);db.close();`
+  await run(process.execPath, ['--input-type=module', '-e', workbuddyRows, workbuddyDb])
   // Run all state preparation from the installed package in a separate Node
   // process. No imports or devDependencies resolve from the repository.
   const prepare = `import {Store} from ${JSON.stringify(pathToFileURL(join(packageRoot, 'dist/tools/token-collector/store.js')).href)};
@@ -116,12 +131,22 @@ try {
     assert.equal(agents.stdout.trim(), '2026-11-15/codex,2026-11-15/grok')
     assert.equal(JSON.parse((await run(process.execPath, [cli, 'status', '--state-dir', state])).stdout).agents.join(','), 'codex,grok')
   }
+  if (initialVersion === '0.1.6') {
+    assert.deepEqual(JSON.parse(status).agents, ['codex'])
+    const added = JSON.parse((await run(process.execPath, [cli, 'sources', 'add', '--agents', 'grok,claude,workbuddy', '--state-dir', state])).stdout)
+    assert.deepEqual(added, { agents: ['codex', 'grok', 'claude', 'workbuddy'], added: ['grok', 'claude', 'workbuddy'] })
+    assert.deepEqual(JSON.parse((await run(process.execPath, [cli, 'sources', 'list', '--state-dir', state])).stdout).agents, ['codex', 'grok', 'claude', 'workbuddy'])
+    const combined = JSON.parse((await run(process.execPath, [cli, 'sync', '--offline', '--state-dir', state])).stdout)
+    assert.equal(combined.scanFailed, false); assert.equal(combined.pending, 4)
+    const agents = await run(process.execPath, ['--input-type=module', '-e', `import {DatabaseSync} from 'node:sqlite';const db=new DatabaseSync(process.argv[1],{readOnly:true});console.log(db.prepare('SELECT date,agent FROM rollups ORDER BY date,agent').all().map(r=>r.date+'/'+r.agent).join(','));db.close()`, join(state, 'state.sqlite')])
+    assert.equal(agents.stdout.trim(), '2026-11-15/claude,2026-11-15/codex,2026-11-15/grok,2026-11-15/workbuddy')
+  }
   const before = await readFile(join(state, 'state.sqlite'))
   await run(process.execPath, [cli, 'timer', 'install', '--state-dir', state])
   await run(process.execPath, [cli, 'upgrade', '--state-dir', state, '--archive', archive, '--prefix', prefix, '--apply'])
   assert((await readFile(join(state, 'state.sqlite'))).equals(before), 'SQLite bytes changed during status/timer preview/upgrade')
   const upgradedAgents = JSON.parse((await run(process.execPath, [cli, 'sources', 'list', '--state-dir', state])).stdout).agents
-  assert.deepEqual(upgradedAgents, initialVersion === '0.1.5' ? ['codex', 'grok'] : ['codex'])
+  assert.deepEqual(upgradedAgents, initialVersion === '0.1.5' ? ['codex', 'grok'] : initialVersion === '0.1.6' ? ['codex', 'grok', 'claude', 'workbuddy'] : ['codex'])
   assert.equal(JSON.parse(await readFile(join(packageRoot, 'package.json'), 'utf8')).version, expected.version)
   assert((await run(process.execPath, [cli, '--version'])).stdout.includes(`collector ${expected.version}`))
   // Exercise synthetic aggregate residues from the installed release,
@@ -137,16 +162,17 @@ try {
     }`
   await run(process.execPath, ['--input-type=module', '-e', costs])
   const rescanned = JSON.parse((await run(process.execPath, [cli, 'sync', '--offline', '--rescan', '--state-dir', state])).stdout)
-  // The 0.1.4 archive already has one Codex task. Upgrading preserves it and
-  // the statisticsVersion bump allocates one new task; a same-version reinstall
-  // has two agents/tasks already. Neither path may lose or duplicate content.
-  assert.equal(rescanned.pending, 2)
+  // A same-version reinstall has one task per authorized source. Upgrading a
+  // 0.1.5 state preserves its two sources, but the statisticsVersion bump
+  // reallocates both; a 0.1.4 state has one Codex task and the bump reallocates
+  // that one. No path may lose or duplicate content.
+  assert.equal(rescanned.pending, initialVersion === '0.1.6' ? 4 : initialVersion === '0.1.5' ? 4 : 2)
   assert.equal(rescanned.scanFailed, false); assert.deepEqual(rescanned.scan.retainedDates, [])
   const totals = await run(process.execPath, ['--input-type=module', '-e', `import {DatabaseSync} from 'node:sqlite';const db=new DatabaseSync(process.argv[1],{readOnly:true});console.log(JSON.parse(db.prepare("SELECT snapshot FROM rollups WHERE agent='codex'").get().snapshot).content.metrics.total);db.close()`, join(state, 'state.sqlite')])
   assert.equal(Number(totals.stdout), 12)
   await writeFile(join(home, '.codex/sessions/interrupted.jsonl'), JSON.stringify({ timestamp: '2026-11-15T00:00:00Z', type: 'response_item', payload: { type: 'message', content: [{ text: 'synthetic-private-package-warning' }] } }) + '\n')
   const warned = JSON.parse((await run(process.execPath, [cli, 'sync', '--offline', '--rescan', '--state-dir', state])).stdout)
-  assert.equal(warned.scanFailed, false); assert.equal(warned.pending, 2)
+  assert.equal(warned.scanFailed, false); assert.equal(warned.pending, initialVersion === '0.1.6' ? 4 : initialVersion === '0.1.5' ? 4 : 2)
   assert(warned.scan.diagnostics.includes('TOKSCALE_MISSING_USAGE'))
   assert(!JSON.stringify(warned).includes('synthetic-private-package-warning'))
   const legacy = await run(process.execPath, ['--input-type=module', '-e', `import {DatabaseSync} from 'node:sqlite';const db=new DatabaseSync(process.argv[1],{readOnly:true});console.log(db.prepare('SELECT proof FROM sources WHERE path=?').get('/synthetic-legacy-source').proof);db.close()`, join(state, 'state.sqlite')])
@@ -154,5 +180,5 @@ try {
   assert.equal((await stat(join(state, 'state.sqlite'))).mode & 0o777, 0o600)
   const tokscale = JSON.parse(await readFile(join(prefix, 'node_modules/@tokscale/cli/package.json'), 'utf8'))
   assert.equal(tokscale.version, '4.23.0')
-  console.log(JSON.stringify({ packedFiles: result.files.length, archiveSha256: createHash('sha256').update(await readFile(archive)).digest('hex'), package: `${expected.name}@${expected.version}`, runtimeTokscale: tokscale.version, platform: process.platform, systemIdentity: 'real read-only probe stable; value not logged', outsideRepository: true, actualScan: '12 Codex tokens and 24 Grok tokens before/after upgrade, unknown cost, pending task preserved', agents: 'legacy default codex; sources add grok idempotent; explicit codex+grok produced separate rollups', upgrade: { from: initialVersion, to: expected.version, sqlitePreserved: true }, costResidues: 'three independent repeated-sum scenarios accepted; significant errors rejected', warnings: 'accepted/redacted; legacy source proof preserved without use', timer: 'plan only; no system timer installed' }))
+  console.log(JSON.stringify({ packedFiles: result.files.length, archiveSha256: createHash('sha256').update(await readFile(archive)).digest('hex'), package: `${expected.name}@${expected.version}`, runtimeTokscale: tokscale.version, platform: process.platform, systemIdentity: 'real read-only probe stable; value not logged', outsideRepository: true, actualScan: '12 Codex, 24 Grok, 190 Claude and 42 WorkBuddy tokens before/after upgrade; Cursor was not authorized in the package scan', agents: 'legacy default codex; sources add idempotent; explicit codex+grok+claude+workbuddy produced separate rollups', upgrade: { from: initialVersion, to: expected.version, sqlitePreserved: true }, costResidues: 'three independent repeated-sum scenarios accepted; significant errors rejected', warnings: 'accepted/redacted; Cursor cache warning covered by API test; legacy source proof preserved without use', timer: 'plan only; no system timer installed' }))
 } finally { await rm(work, { recursive: true, force: true }) }

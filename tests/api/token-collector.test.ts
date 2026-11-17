@@ -50,6 +50,8 @@ test('legacy config without agents reads as codex; invalid or duplicate authoriz
     expect(configSchema.safeParse({ ...p.store.config(), agents }).success).toBe(false)
   }
   expect(configSchema.safeParse({ ...p.store.config(), agents: ['codex', 'grok', 'hermes'] }).success).toBe(true)
+  expect(configSchema.safeParse({ ...p.store.config(), agents: ['codex', 'grok', 'hermes', 'claude', 'workbuddy', 'cursor'] }).success).toBe(true)
+  expect(configSchema.safeParse({ ...p.store.config(), agents: ['codex', 'grok', 'hermes', 'claude', 'workbuddy', 'cursor', 'codex'] }).success).toBe(false)
 })
 test('multi-Agent rollups keep same model and date separate by agent', async () => {
   const p = await profile()
@@ -431,9 +433,9 @@ test('CLI init --agents, sources list/add and upgrade scope stay explicit and id
     opened.close(); stores.splice(stores.indexOf(opened), 1)
 
     expect(JSON.parse((await run('sources', 'list')).stdout).agents).toEqual(['codex', 'grok'])
-    const added = JSON.parse((await run('sources', 'add', '--agents', 'hermes,grok')).stdout)
-    expect(added).toMatchObject({ agents: ['codex', 'grok', 'hermes'], added: ['hermes'] })
-    expect(JSON.parse((await run('sources', 'add', '--agents', 'grok')).stdout)).toMatchObject({ agents: ['codex', 'grok', 'hermes'], added: [] })
+    const added = JSON.parse((await run('sources', 'add', '--agents', 'hermes,grok,claude,workbuddy,cursor')).stdout)
+    expect(added).toMatchObject({ agents: ['codex', 'grok', 'hermes', 'claude', 'workbuddy', 'cursor'], added: ['hermes', 'claude', 'workbuddy', 'cursor'] })
+    expect(JSON.parse((await run('sources', 'add', '--agents', 'grok')).stdout)).toMatchObject({ agents: ['codex', 'grok', 'hermes', 'claude', 'workbuddy', 'cursor'], added: [] })
     await expect(run('sources', 'add', '--agents', 'future')).rejects.toMatchObject({ stderr: expect.stringContaining('AGENTS_INVALID') })
     await expect(run('sources', 'add', '--agents', 'hermes,hermes')).rejects.toMatchObject({ stderr: expect.stringContaining('AGENTS_INVALID') })
     await expect(run('sources', 'add')).rejects.toMatchObject({ stderr: expect.stringContaining('AGENTS_REQUIRED') })
@@ -441,12 +443,12 @@ test('CLI init --agents, sources list/add and upgrade scope stay explicit and id
     // Reauthorization and a plain software upgrade must not expand or reset sources.
     await run('init', '--replace', '--test-loopback')
     const reopened = await Store.open(state); stores.push(reopened)
-    expect(reopened.config().agents).toEqual(['codex', 'grok', 'hermes'])
+    expect(reopened.config().agents).toEqual(['codex', 'grok', 'hermes', 'claude', 'workbuddy', 'cursor'])
     expect(reopened.config().sourceHome).toBe(home)
-    expect(reopened.status().agents).toEqual(['codex', 'grok', 'hermes'])
+    expect(reopened.status().agents).toEqual(['codex', 'grok', 'hermes', 'claude', 'workbuddy', 'cursor'])
     reopened.close(); stores.splice(stores.indexOf(reopened), 1)
     const help = (await run('--help')).stdout
-    expect(help).toContain('sources add --agents grok,hermes')
+    expect(help).toContain('sources add --agents claude,workbuddy,cursor')
     expect(help).toContain('Default Agent source is codex')
   } finally { await new Promise<void>(r => server.close(() => r())) }
 })

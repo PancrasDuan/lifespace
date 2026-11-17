@@ -267,4 +267,4 @@ LifeSpace 是围绕个人日常信息的工作台。此文件统一项目中的�
 
 **持久化回执**：服务端明确确认某设备、主汇总归属、授权代际、快照版本与内容指纹已接收的结果；只能确认与其完全对应的本地待传快照。
 
-Token 统计决策见 [ADR0019](docs/adr/0019-token-local-rollup-contract.md)（原 Token ADR0016）、[授权代际](docs/adr/0017-token-device-generations.md)、[本地覆盖/队列历史](docs/adr/0018-token-source-coverage-and-local-queue.md)与当前[已记录用量职责](docs/adr/0020-token-recorded-usage-authority.md)；旧机器绑定退役仍使用 main 的 ADR0016。
+Token 统计决策见 [ADR0019](docs/adr/0019-token-local-rollup-contract.md)（原 Token ADR0016）、[授权代际](docs/adr/0017-token-device-generations.md)、[本地覆盖/队列历史](docs/adr/0018-token-source-coverage-and-local-queue.md)、当前[已记录用量职责](docs/adr/0020-token-recorded-usage-authority.md)与[来源扩展及 Cursor 取舍](docs/adr/0022-token-agent-source-expansion.md)；旧机器绑定退役仍使用 main 的 ADR0016。

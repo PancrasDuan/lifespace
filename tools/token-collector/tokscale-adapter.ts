@@ -13,7 +13,7 @@ const provenance = z.object({
 })
 const breakdown = z.object({ input: count, output: count, cacheRead: count, cacheWrite: count, reasoning: count })
 const row = z.object({
-  client: z.enum(['codex', 'grok', 'hermes']), modelId: z.string().min(1).max(200), providerId: z.string().max(200).optional(),
+  client: z.enum(['codex', 'grok', 'hermes', 'claude', 'workbuddy', 'cursor']), modelId: z.string().min(1).max(200), providerId: z.string().max(200).optional(),
   tokens: breakdown, cost: amount, costProvenance: provenance.optional(),
 })
 export const tokscaleGraphSchema = z.object({

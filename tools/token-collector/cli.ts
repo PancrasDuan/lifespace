@@ -12,12 +12,13 @@ import { refreshPrices } from './prices.ts'
 import { applySchedule, schedulePlan, scheduleStatus } from './schedule.ts'
 
 process.umask(0o077)
-const help = `LifeSpace usage collector 0.1.5 (Node >=24.22.1 <25, Tokscale 4.23.0)
-init --server https://lifespace.example [--source-home /absolute/home] [--agents codex,grok,hermes] [--replace]
+const help = `LifeSpace usage collector 0.1.6 (Node >=24.22.1 <25, Tokscale 4.23.0)
+init --server https://lifespace.example [--source-home /absolute/home] [--agents codex,grok,hermes,claude,workbuddy,cursor] [--replace]
 authorize [--wait]                 Continue saved browser authorization
 sync [--rescan] [--offline]        Scan all history; upload immutable queue
 sources list                       Show locally authorized Agent sources
-sources add --agents grok,hermes   Explicitly expand authorized sources
+sources add --agents claude,workbuddy,cursor
+                                   Explicitly expand authorized sources
 status                            Local redacted diagnostics
 prices refresh                    Refresh official Tokscale price caches
 timer install|uninstall|status [--hours 1|3|6|8|12|24] [--apply]
