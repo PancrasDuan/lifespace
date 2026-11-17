@@ -5,7 +5,7 @@
 ## 工具与 REST 契约
 
 - `list_ledger_accounts` 返回本人完整账户列表和版本，包括账户名称、标识及余额；与 `GET /api/ledger/accounts` 共用空参数校验与服务。
-- `list_ledger_entries` 与 `GET /api/ledger/entries` 共用读取服务；REST 查询解析保持原样，MCP 使用严格 JSON 输入。`page` 默认 1，`startDate`／`endDate` 必须成对提供，可选 `accountId` 与 `version`；返回同一 `{ items, total, page, pageSize, version }`，保留北京时间自然日、账户筛选、30 条分页及版本冲突 `LIST_CHANGED` 规则。未知字段、重复或非法参数返回 `INVALID_QUERY`，不调用数据库。
+- `list_ledger_entries` 与 `GET /api/ledger/entries` 共用读取服务；REST 查询解析保持原样，MCP 使用严格 JSON 输入。`page` 默认 1，`startDate`／`endDate` 必须成对提供，可选 `accountId` 与 `version`；返回同一 `{ items, total, page, pageSize, version }`，保留北京时间自然日、账户筛选、30 条分页及版本冲突 `LIST_CHANGED` 规则。未知字段或非法参数返回 `INVALID_QUERY`，不调用数据库；REST 的重复查询参数仍由现有路由拒绝。
 - `get_ledger_entry` 与 `GET /api/ledger/entries/:id` 共用读取服务。`id` 必填，`refundPage` 默认 1，可选 `version`；返回同一 `{ entry, parentEntry, transferEntry, refunds, refundCount, refundedCents, refundPage, refundPageSize, version }`，保留本人未删除流水隔离、父流水、退款关联分页、转账对侧及版本冲突语义。非法或不存在/跨 owner 的 `id` 返回 `NOT_FOUND`；其他非法或未知查询字段返回 `INVALID_QUERY`，不调用数据库。
 - `create_ledger_entry` 与 `POST /api/ledger/entries` 共用普通收支创建契约，字段及校验提示一致；分类代码和名称来自共享定义。
 - `create_ledger_refund` 与 `POST /api/ledger/entries/:id/refunds` 共用退款服务。MCP 的 `id` 对应 REST 路径参数 `id`，其余 `requestId`、`amountCents`、`occurredAt`、`note` 与 REST 请求正文一致，不再使用另一套父标识名称。金额为 1–99,999,999,999 正整数分；时间为 UTC 秒精度；备注必填、可空，trim 后最多 500 个 Unicode 码点。额外字段及非法输入均由同一业务校验处理，非法父标识同样返回 `NOT_FOUND`。

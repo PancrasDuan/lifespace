@@ -13,7 +13,7 @@ import { newsSources } from '../src/shared/news-sources'
 import { readNews } from './news'
 import { readAiStatus } from './ai-status'
 import { publicConfig, registrationHook, verifyIdentity, type Identity } from './auth'
-import { handleAgentMcp } from './agent-mcp'
+import { handleAgentMcp, type AgentToolName } from './agent-mcp'
 import { beginTrace, traceErrorCode, withRootSpan } from './trace'
 import { McpAuthError, bearerChallenge, mcpScopes, oauthConfig, trustedOAuthOrigin, type McpScope, type OAuthEnv } from './mcp-oauth-config'
 // The OAuth dependency imports a Workers-only builtin. Load it only for OAuth
@@ -120,7 +120,7 @@ app.use('/api/*', async (c, next) => {
   await next()
 })
 app.all('/api/agent/mcp', async c => {
-  const toolScopes: Record<string, McpScope> = {
+  const toolScopes: Record<AgentToolName, McpScope> = {
     list_ledger_accounts: 'ledger:accounts:read',
     list_ledger_entries: 'ledger:entries:read',
     get_ledger_entry: 'ledger:entries:read',
@@ -135,7 +135,8 @@ app.all('/api/agent/mcp', async c => {
     refundEntry: (id, input) => createLedgerRefund(c, id, input),
   }, { authorizeTool: name => {
     const required = toolScopes[name]
-    if (required && !(c.get('identity').mcpScopes ?? []).includes(required)) throw new McpAuthError('insufficient_scope', [required])
+    if (!required) throw new McpAuthError('invalid_token')
+    if (!(c.get('identity').mcpScopes ?? []).includes(required)) throw new McpAuthError('insufficient_scope', [required])
   } })
   response.headers.set('Cache-Control', 'no-store')
   return response

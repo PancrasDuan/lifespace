@@ -6,6 +6,13 @@ import { z } from 'zod'
 const version = '2025-11-25'
 const supportedVersions = ['2025-03-26', '2025-06-18', version]
 const labels = (categories: ReadonlyArray<readonly [string, string]>) => categories.map(([code, label]) => `${code}：${label}`).join('、')
+export type AgentToolName =
+  | 'list_ledger_accounts'
+  | 'list_ledger_entries'
+  | 'get_ledger_entry'
+  | 'create_ledger_entry'
+  | 'create_ledger_refund'
+
 const tools = [
   {
     name: 'list_ledger_accounts', description: '查询当前用户的全部交易账户及余额。',
@@ -75,7 +82,7 @@ const tools = [
     },
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
   },
-]
+] satisfies ReadonlyArray<{ name: AgentToolName; description: string; inputSchema: object; annotations: object }>
 
 export async function handleAgentMcp(request: Request, operations: {
   listAccounts: (input: unknown) => Promise<object>
@@ -83,7 +90,7 @@ export async function handleAgentMcp(request: Request, operations: {
   getEntry: (input: unknown) => Promise<object>
   createEntry: (input: unknown) => Promise<object>
   refundEntry: (id: unknown, input: unknown) => Promise<object>
-}, authorization: { authorizeTool: (name: string) => void }): Promise<Response> {
+}, authorization: { authorizeTool: (name: AgentToolName) => void }): Promise<Response> {
   // Legacy callers retain their non-browser policy. OAuth callers have already
   // checked the exact Origin before validating the token or entering this parser.
   if (request.method !== 'POST') return new Response(null, { status: 405, headers: { Allow: 'POST' } })
@@ -114,7 +121,7 @@ export async function handleAgentMcp(request: Request, operations: {
   if (message.jsonrpc === '2.0' && message.method === 'ping' && message.id !== undefined) return Response.json({ jsonrpc: '2.0', id: message.id, result: {} })
   if (message.jsonrpc === '2.0' && message.method === 'tools/call' && message.id !== undefined && tools.some(tool => tool.name === message.params?.name)) {
     // Authorization failures must remain HTTP 403, outside the business-error envelope.
-    authorization.authorizeTool(message.params!.name!)
+    authorization.authorizeTool(message.params!.name as AgentToolName)
     const args = Object.hasOwn(message.params ?? {}, 'arguments') ? message.params!.arguments : {}
     if (typeof args !== 'object' || args === null || Array.isArray(args)) {
       return Response.json({ jsonrpc: '2.0', id: message.id, error: { code: -32602, message: 'Invalid tool arguments' } })
