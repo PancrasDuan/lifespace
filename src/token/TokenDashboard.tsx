@@ -10,6 +10,9 @@ import { TokenCalendar } from './TokenCalendar'
 import { TokenDevices } from './TokenDevices'
 import { Feedback } from './Feedback'
 
+const agentNames: Record<string, string> = { codex: 'Codex', grok: 'Grok Build', hermes: 'Hermes Agent' }
+const agentName = (agent: string) => agentNames[agent] ?? agent
+
 export function TokenDashboard() {
   const [today, setToday] = useState(beijingToday)
   useEffect(() => {
@@ -46,7 +49,7 @@ export function TokenDashboard() {
     let index = 0
     return new Map([...modelOptions.keys()].map(key => [key, key === 'null' ? modelColor(3) : modelColor(index++ % 3)]))
   }, [modelOptions])
-  const [agents, setAgents] = useState(['codex'])
+  const [agents, setAgents] = useState(['codex', 'grok', 'hermes'])
   useEffect(() => {
     if (usage.data) setAgents(known => [...new Set([...known, ...usage.data!.map(row => row.agent)])])
   }, [usage.data])
@@ -74,12 +77,12 @@ export function TokenDashboard() {
       <div className="page-heading"><h1 id="page-title" tabIndex={-1}>Token 用量</h1></div>
       <search><form className="filters" aria-label="用量筛选" onSubmit={event => event.preventDefault()}>
         <label><span id="token-period-label">时间范围</span><select aria-labelledby="token-period-label" name="period" value={period} onChange={event => setPeriod(event.target.value as Period)}>{(['1', 'week', 'month', '7', '30', '90', 'year'] as Period[]).map(value => <option value={value} key={value}>{periods[value]}</option>)}</select></label>
-        <label><span id="token-agent-label">Agent</span><select aria-labelledby="token-agent-label" name="agent" value={agent} onChange={event => setAgent(event.target.value)}><option value="">全部 Agent</option>{agents.map(value => <option key={value} value={value}>{value === 'codex' ? 'Codex' : value}</option>)}<option disabled>Claude Code · 尚未接入</option></select></label>
+        <label><span id="token-agent-label">Agent</span><select aria-labelledby="token-agent-label" name="agent" value={agent} onChange={event => setAgent(event.target.value)}><option value="">全部 Agent</option>{agents.map(value => <option key={value} value={value}>{agentName(value)}</option>)}<option disabled>Claude Code · 尚未接入</option></select></label>
         <label><span id="token-device-label">设备</span><select aria-labelledby="token-device-label" name="device" value={deviceId} onChange={event => setDevice(event.target.value)}><option value="">全部设备</option>{devices.data?.map(device => <option key={device.deviceId} value={device.deviceId}>{device.hostname}{!device.enabled ? '（已停用）' : ''}</option>)}</select></label>
         <label><span id="token-model-label">模型</span><select aria-labelledby="token-model-label" name="model" value={modelKey} onChange={event => setModel(event.target.value)}><option value="">全部模型</option>{[...modelOptions].map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label>
         <button type="button" className="reset-button" disabled={period === '30' && !agent && !deviceId && !modelKey} onClick={reset}><RotateCcw size={15} />重置</button><span className="timezone">北京时间</span>
       </form></search>
-      <div className="scope-line"><span>{range.startDate.replaceAll('-', '/')} — {today.replaceAll('-', '/')}</span><span>{deviceId ? devices.data?.find(device => device.deviceId === deviceId)?.hostname ?? '所选设备' : devices.data ? `${devices.data.length} 台设备` : '设备查询中'} · {agent || '全部 Agent'}</span></div>
+      <div className="scope-line"><span>{range.startDate.replaceAll('-', '/')} — {today.replaceAll('-', '/')}</span><span>{deviceId ? devices.data?.find(device => device.deviceId === deviceId)?.hostname ?? '所选设备' : devices.data ? `${devices.data.length} 台设备` : '设备查询中'} · {agent ? agentName(agent) : '全部 Agent'}</span></div>
       <Feedback resource={current} retry={retry} />
       <div className="metric-band" aria-label="筛选范围内的统计" aria-busy={current.loading}>
         <div className="metric metric-primary"><span className="metric-label">{periods[period]}总用量</span><div className="metric-number"><strong data-testid="token-total" data-value={totals?.metrics.total ?? ''} title={totals ? fullCount(totals.metrics.total) : '没有记录'}>{compact(totals?.metrics.total)}</strong><span>Token</span></div><span className={`metric-foot ${delta == null ? '' : delta >= 0 ? 'positive' : 'negative'}`}>{delta === null ? current.loading ? '读取中' : totals ? previous.error ? '对比暂不可用' : `暂无${range.comparison}` : '暂无数据' : `${delta > 0 ? '+' : ''}${delta.toFixed(1)}% · 相比${range.comparison}`}</span>{previous.error !== undefined && <button className="text-button" type="button" onClick={retry}>重试对比</button>}</div>

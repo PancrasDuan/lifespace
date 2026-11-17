@@ -5,7 +5,7 @@ import { sumTokenMoney, tokenUsageContentHash, tokenUsageContentSchema } from '.
 const context = {
   deviceId: 'synthetic-cost-223',
   metadata: {
-    schemaVersion: 1 as const, statisticsVersion: 'tokscale-codex-1',
+    schemaVersion: 1 as const, statisticsVersion: 'tokscale-multi-agent-1',
     tool: { name: 'tokscale' as const, version: tokscaleVersion }, priceVersion: null,
     scannedAt: '2030-01-03T00:00:00Z',
   },

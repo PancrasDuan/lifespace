@@ -13,7 +13,7 @@
 | `tools/token-collector/tokscale-cli.ts` | Node-only 子进程；固定本项目依赖，不从 PATH/npx 自动拉取最新版 |
 | `build-plugins/token-collector-boundary.ts` | Vite 全环境阻止 collector 或 `@tokscale` 进入浏览器/Worker bundle |
 
-`collectTokscaleUsage({ homeDir, configDir, since?, until? }, context)` 要求绝对目录，日期为有效公历日且起止有序。它强制 `TZ=Asia/Shanghai`、独立 `TOKSCALE_CONFIG_DIR`、显式 `--home`、`--client codex` 和 `--offline`；调用前检查显式 home 下 `.config/tokscale/settings.json`，缺失时在 Linux/macOS 都检查旧布局 `Library/Application Support/tokscale/settings.json`。拒绝无效配置或非北京 `scanner.bucketTimezone`，因为有效 pin 优先于 TZ，不擅改已有设置。子进程不继承服务凭据，不调用登录、提交或自动同步命令，超时 60 秒，stdout 上限 32 MiB。错误不返回原始 stdout/stderr/路径；stderr只返回`TOKSCALE_PRICING_WARNING`／`TOKSCALE_MISSING_USAGE`／`TOKSCALE_DIAGNOSTIC`固定类别。按[ADR0020](adr/0020-token-recorded-usage-authority.md)，这些告警不阻断成功且通过联合校验的已记录统计；不另证原始日志完整性。真正CLI失败／超时或输出无效仍拒绝替换，同步成功另需严格回执。
+`collectTokscaleUsage({ homeDir, configDir, agents?, since?, until? }, context)` 要求绝对目录，日期为有效公历日且起止有序；`agents` 缺省为 `['codex']`，只接受 `codex`／`grok`／`hermes` 的非空去重列表。它强制 `TZ=Asia/Shanghai`、独立 `TOKSCALE_CONFIG_DIR`、显式 `--home`、`--client <授权列表>` 和 `--offline`；只对授权 Agent 设置 `CODEX_HOME`／`GROK_HOME`／`HERMES_HOME`。调用前检查显式 home 下 `.config/tokscale/settings.json`，缺失时在 Linux/macOS 都检查旧布局 `Library/Application Support/tokscale/settings.json`。拒绝无效配置或非北京 `scanner.bucketTimezone`，因为有效 pin 优先于 TZ，不擅改已有设置。子进程不继承服务凭据，不调用登录、提交或自动同步命令，超时 60 秒，stdout 上限 32 MiB。错误不返回原始 stdout/stderr/路径；stderr只返回`TOKSCALE_PRICING_WARNING`／`TOKSCALE_MISSING_USAGE`／`TOKSCALE_DIAGNOSTIC`固定类别。按[ADR0020](adr/0020-token-recorded-usage-authority.md)，这些告警不阻断成功且通过联合校验的已记录统计；不另证原始日志完整性。真正CLI失败／超时或输出无效仍拒绝替换，同步成功另需严格回执。
 
 安装的工具为精确 devDependency `@tokscale/cli@4.23.0`，平台包及 integrity 固定在 `package-lock.json`。2026-11-15 重新查询 npm 官方 `latest` 确认此版本，未直接沿用旧研究。已实跑 Linux x64，Node **24.22.1**；仓库已有 `.node-version` 不由本任务改动。macOS 的真实执行留待后续设备验收。
 
@@ -23,13 +23,13 @@
 
 | 部分 | 字段与含义 |
 | --- | --- |
-| identity | `deviceId` 应用专用 opaque ID；`date` 北京公历日；`agent` 工具来源，本适配器仅 `codex` |
+| identity | `deviceId` 应用专用 opaque ID；`date` 北京公历日；`agent` 工具来源，取 Tokscale `client`（`codex`／`grok`／`hermes`） |
 | content | `metrics` 主汇总；`cost` 费用；`models: { coverage, items }` 模型分类 |
 | metadata | `schemaVersion: 1`、`statisticsVersion`、`tool: { name, version }`、`priceVersion`、`scannedAt`；可选 `hostname`、`snapshotVersion` |
 
 `deviceId` 的实际派生算法/登记不在本阶段实现；验证字符串形状不证明它是正确派生值。有序快照版本暂为可选正整数字符串，避免 JS 安全整数上限；本阶段不分配、不持久化、不确认版本。`priceVersion: null` 表示没有可取得的可靠价格快照版本，不能拿工具版本充当价格版本。schema v1 之外的格式应升级契约后再验证。
 
-每份主汇总与携带的全部模型子项是一个替换单元；未来删去旧模型或数值下调必须整体替换。模型子项稳定键是 JSON 编码的 canonical `modelId`，未知为 `null`；上游 `unknown` 映射为未知桶，不按名称猜测真实模型。同一模型键不允许重复，模型重归属不改变主汇总 identity。`providerId` 是上游提供方标签，缺失/空/unknown 映射 null；上游按 client+模型聚合，可能把多个 provider 拼为同一标签，故不把它伪装成可独立筛分的维度，也不将它加入子项键。
+每份主汇总与携带的全部模型子项是一个替换单元；未来删去旧模型或数值下调必须整体替换。适配器按 graph 的 `(date, client)` 分组，每组生成一个快照，`identity.agent` 直接取 `client`；同一天同名模型出现在不同 Agent 下是合法且互不替代的。模型子项稳定键是 JSON 编码的 canonical `modelId`，未知为 `null`；上游 `unknown` 映射为未知桶，不按名称猜测真实模型。同一 `(date, client)` 内同一模型键不允许重复，模型重归属不改变主汇总 identity。`providerId` 是上游提供方标签，缺失/空/unknown 映射 null；上游按 client+模型聚合，可能把多个 provider 拼为同一标签，故不把它伪装成可独立筛分的维度，也不将它加入子项键。
 
 ## Token 与缺失
 
@@ -39,7 +39,7 @@
 | output | 包含推理的输出总数 | `tokens.output + reasoning` |
 | total | 输入加输出，只加一次 | 五个互斥 graph 桶之和 |
 | cacheRead | 输入的缓存读取分量 | `tokens.cacheRead` |
-| cacheWrite | 输入的缓存写入分量 | Codex 无此测量，省略；不把默认桶零称为来源测量 |
+| cacheWrite | 输入的缓存写入分量 | Codex 无此测量，省略；Grok/Hermes 仅在 graph 给出正数时保留，默认桶零不作为来源测量 |
 | reasoning | 输出中的推理分量 | `tokens.reasoning` |
 
 计数为非负安全整数，超出范围拒绝。已知的 total 必须等于 input+output，包含分量不能大于所属总数。缓存读取率由合计 `cacheRead / input` 计算，不平均各设备/模型的百分比；分母零、缺失或未知时无可用比例。本阶段不增加展示层。
@@ -81,7 +81,7 @@ SHA-256：`d79d902b2a4f9729093d471e38a8dfac7c4fc755f0569502e454eecb84d5d526`。�
 
 ## 实跑证据与复现
 
-合成日志生成器 `tests/fixtures/token-usage/synthetic.ts` 不含正文、路径、真实设备标识或凭据；测试在 mkdtemp 中创建 source home 与独立 config，完成后只删除本测试目录。固定报表 `tests/fixtures/token-usage/tokscale-4.23.0-graph.json` 是本次实际 `graph` 输出（含运行时间，不进入统计摘要），没有用全局模型占比分摊日用量。
+合成日志生成器 `tests/fixtures/token-usage/synthetic.ts` 不含正文、路径、真实设备标识或凭据；测试在 mkdtemp 中创建 source home 与独立 config，完成后只删除本测试目录。固定报表 `tests/fixtures/token-usage/tokscale-4.23.0-graph.json` 是本次实际 `graph` 输出（含运行时间，不进入统计摘要），没有用全局模型占比分摊日用量。多 Agent 同名模型与组内重复用例在内存中基于该合成图构造，不写入仓库真实来源。
 
 已在隔离目录实际执行的命令形状：
 
@@ -91,6 +91,16 @@ TZ=Asia/Shanghai TOKSCALE_CONFIG_DIR=<synthetic-config> CODEX_HOME=<synthetic-ho
   tokscale graph --offline --home <synthetic-home> --client codex \
   --since 2026-11-14 --until 2026-11-15 --no-spinner
 ```
+
+多 Agent 调用使用同一形状，只把 `--client` 换成显式授权列表，并为授权来源设置对应根：
+
+```sh
+TZ=Asia/Shanghai TOKSCALE_CONFIG_DIR=<synthetic-config> \
+  CODEX_HOME=<synthetic-home>/.codex GROK_HOME=<synthetic-home>/.grok HERMES_HOME=<synthetic-home>/.hermes \
+  tokscale graph --offline --home <synthetic-home> --client codex,grok,hermes --no-spinner
+```
+
+本机 4.23.0 的 Grok 真实探针可能返回 `cost: 0` 且 `costProvenance.kind=unknown`，即使底层会话有 `costUsdTicks`；本项目不读原始日志补价，按未知费用保存。Hermes 可能同样为 unknown；正数未知费用保守映射为 `unclassified/partial`，不猜成实际或 API 估算。Hermes 按日拆分依赖会话日志与 `logs/agent.log`，跨日未覆盖部分留在开始日，日趋势可用但不宣称逐次调用精确。Hermes 可能启动 `codex app-server` 而 Codex 也写 `~/.codex`；若同时授权两者，可能对同一调用重复计量，文档只提示重叠风险，不做静默去重。
 
 `graph` 原生输出 JSON，无需 `--json`，也没有 `daily` 子命令。实际调用使用锁定依赖的绝对 bin 入口，见 Node 封装。
 

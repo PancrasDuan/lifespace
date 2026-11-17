@@ -67,6 +67,10 @@ npm run setup:dnshe
 
 DNSHE 成功结果在边缘缓存 5 分钟；手动刷新可能复用缓存，更新时间保留来源读取时间。缓存未命中时，读取限流目标为每个 Cloudflare 节点每 60 秒一次，超限返回 `429`。缓存故障仍受限流保护，缺少限流配置时停止读取。查询参数不能绕过缓存或指定上游地址。读取采用 12 秒网络超时与分页起点预算检查，最多 10 页、每页 100 条；最终页同步处理可能跨过预算。已检测到的超时、超页或任一页失败时返回错误，不缓存部分列表。
 
+## Token 用量
+
+通过侧边导航进入 `/token` 查看按北京时间汇总的 Token 用量；筛选支持时间、Agent、设备与模型。当前支持 Codex、Grok Build（来源标识 `grok`）和 Hermes Agent（`hermes`）。本地采集器默认只采 Codex；新增来源必须由设备操作者显式授权，升级软件不会自动扩大扫描范围。采集协议见 [Token 采集器](docs/token-collector.md)，安装与接入见 [设备接入](docs/token-device-onboarding.md)。
+
 ## 验证与发布
 
 方案设计、技术取舍和契约边界见 [方案设计规范](docs/agents/solution-design.md)；合并、生产发布、迁移、停机停流、回滚和生产验收门禁见 [上线与发布门禁标准](docs/agents/release-standards.md)。

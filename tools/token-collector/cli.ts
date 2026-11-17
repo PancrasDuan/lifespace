@@ -5,17 +5,19 @@ import { isAbsolute, join, resolve } from 'node:path'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { defaultStateDir, LocalError, noSymlinkPath, platform, requireNode24, systemDeviceId } from './local.ts'
-import { configSchema, hoursSchema, Store } from './store.ts'
+import { agentsSchema, configSchema, hoursSchema, Store, supportedAgents, type Agent } from './store.ts'
 import { claimRegistration, endpoint, registrationDisplay, startRegistration } from './transport.ts'
 import { synchronize } from './collector.ts'
 import { refreshPrices } from './prices.ts'
 import { applySchedule, schedulePlan, scheduleStatus } from './schedule.ts'
 
 process.umask(0o077)
-const help = `LifeSpace usage collector 0.1.4 (Node >=24.22.1 <25, Tokscale 4.23.0)
-init --server https://lifespace.example [--source-home /absolute/home] [--replace]
+const help = `LifeSpace usage collector 0.1.5 (Node >=24.22.1 <25, Tokscale 4.23.0)
+init --server https://lifespace.example [--source-home /absolute/home] [--agents codex,grok,hermes] [--replace]
 authorize [--wait]                 Continue saved browser authorization
 sync [--rescan] [--offline]        Scan all history; upload immutable queue
+sources list                       Show locally authorized Agent sources
+sources add --agents grok,hermes   Explicitly expand authorized sources
 status                            Local redacted diagnostics
 prices refresh                    Refresh official Tokscale price caches
 timer install|uninstall|status [--hours 1|3|6|8|12|24] [--apply]
@@ -23,11 +25,20 @@ upgrade --archive /absolute/release.tgz --prefix /absolute/install [--apply]
 All stateful commands accept --state-dir /absolute/private/directory.
 Timer/upgrade print a plan unless --apply is explicitly supplied.
 init --test-loopback permits numeric loopback HTTP for isolated tests only.
+Default Agent source is codex; upgrades never expand it implicitly.
 `
+function parseAgents(value: string | undefined, fallback: Agent[]): Agent[] {
+  if (value === undefined) return fallback
+  if (!value.trim()) throw new LocalError('AGENTS_REQUIRED')
+  const parsed = agentsSchema.safeParse(value.split(',').map(item => item.trim()))
+  if (!parsed.success) throw new LocalError('AGENTS_INVALID')
+  return parsed.data
+}
 async function main() {
   requireNode24()
   const { values, positionals } = parseArgs({ allowPositionals: true, options: {
     'state-dir': { type: 'string' }, server: { type: 'string' }, 'source-home': { type: 'string' }, hours: { type: 'string' },
+    agents: { type: 'string' },
     'test-loopback': { type: 'boolean' }, replace: { type: 'boolean' }, wait: { type: 'boolean' }, rescan: { type: 'boolean' }, offline: { type: 'boolean' },
     apply: { type: 'boolean' }, archive: { type: 'string' }, prefix: { type: 'string' }, help: { type: 'boolean' }, version: { type: 'boolean' },
   } })
@@ -44,13 +55,29 @@ async function main() {
       if (new URL(server).pathname !== '/') throw new LocalError('SERVER_ORIGIN_REQUIRED')
       const sourceHome = values['source-home'] ?? (prior ? store.config().sourceHome : homedir()); if (!isAbsolute(sourceHome)) throw new LocalError('SOURCE_HOME_ABSOLUTE_REQUIRED')
       if (prior && store.config().deviceId !== deviceId) throw new LocalError('SYSTEM_ID_CHANGED')
-      const config = configSchema.parse({ deviceId, server, sourceHome: resolve(sourceHome), hours: hoursSchema.parse(Number(values.hours ?? (prior ? store.config().hours : 1))), loopback: values['test-loopback'] === true })
+      const agents = parseAgents(values.agents, prior ? store.config().agents : ['codex'])
+      if (prior && (agents.length !== store.config().agents.length || agents.some(agent => !store.config().agents.includes(agent)))) {
+        throw new LocalError('AGENTS_CHANGE_REQUIRES_SOURCES_ADD')
+      }
+      const config = configSchema.parse({ deviceId, server, sourceHome: resolve(sourceHome), hours: hoursSchema.parse(Number(values.hours ?? (prior ? store.config().hours : 1))), loopback: values['test-loopback'] === true, agents })
       if (prior && (config.server !== store.config().server || config.sourceHome !== store.config().sourceHome)) throw new LocalError('EXISTING_PROFILE_SCOPE_CANNOT_CHANGE')
       store.set('config', config)
       console.log(JSON.stringify(await startRegistration(store, config, hostname(), platform())))
       return
     }
     const config = store.config()
+    if (command === 'sources') {
+      const action = positionals[1]
+      if (!['list', 'add'].includes(action)) throw new LocalError('COMMAND_INVALID')
+      if (action === 'list') { console.log(JSON.stringify({ agents: config.agents, supported: supportedAgents })); return }
+      if (values.agents === undefined) throw new LocalError('AGENTS_REQUIRED')
+      const requested = parseAgents(values.agents, [])
+      const added = requested.filter(agent => !config.agents.includes(agent))
+      const agents = agentsSchema.parse([...config.agents, ...added])
+      store.set('config', { ...config, agents })
+      console.log(JSON.stringify({ agents, added }))
+      return
+    }
     if (command === 'authorize') {
       if (!store.get('registration')) throw new LocalError('REGISTRATION_MISSING_RUN_INIT_REPLACE')
       console.log(JSON.stringify(registrationDisplay(store)))

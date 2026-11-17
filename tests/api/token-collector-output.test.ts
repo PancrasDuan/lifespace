@@ -74,3 +74,60 @@ test('diagnostic classification is bounded to known categories, deduplicated and
   expect(tokscaleDiagnostics('private one\nprivate two\n')).toEqual(['TOKSCALE_DIAGNOSTIC'])
   expect(tokscaleDiagnostics(' \n')).toEqual([])
 })
+
+test('scan passes only configured Agents and keeps legacy state on codex', async () => {
+  const { store, state } = await profile()
+  result()
+  await synchronize(store, state, { offline: true })
+  expect(execute.mock.calls[1][1]).toEqual(expect.arrayContaining(['--client', 'codex']))
+  expect(execute.mock.calls[1][1]).not.toContain('codex,grok,hermes')
+  store.set('config', { ...store.config(), agents: ['codex', 'grok', 'hermes'] })
+  result()
+  await synchronize(store, state, { offline: true })
+  expect(execute.mock.calls[3][1]).toEqual(expect.arrayContaining(['--client', 'codex,grok,hermes']))
+})
+
+test('configured source without any matching directory still scans authorized codex data', async () => {
+  const { store, state } = await profile()
+  store.set('config', { ...store.config(), agents: ['codex', 'grok'] })
+  result()
+  const synced = await synchronize(store, state, { offline: true })
+  expect(synced.scanFailed).toBe(false)
+  expect(execute.mock.calls[1][1]).toEqual(expect.arrayContaining(['--client', 'codex,grok']))
+  expect(store.dates()).toEqual(['2026-11-14', '2026-11-15'])
+})
+
+test('a successful empty graph does not manufacture zero snapshots', async () => {
+  const { store, state } = await profile()
+  result(JSON.stringify({
+    meta: { version: '4.23.0' }, summary: { totalTokens: 0, totalCost: 0 }, contributions: [],
+  }))
+  const synced = await synchronize(store, state, { offline: true })
+  expect(synced.scanFailed).toBe(false)
+  expect(store.dates()).toEqual([])
+  expect(store.tasks()).toEqual([])
+})
+
+test('unexpected upstream Agent is rejected before it can be saved', async () => {
+  const { store, state } = await profile()
+  const grokOnly = structuredClone(graph)
+  for (const day of grokOnly.contributions) for (const row of day.clients) row.client = 'grok'
+  result(JSON.stringify(grokOnly))
+  const synced = await synchronize(store, state, { offline: true })
+  expect(synced.scanFailed).toBe(true)
+  expect(store.dates()).toEqual([])
+  expect(store.tasks()).toEqual([])
+})
+
+test('only authorized Agent roots are exposed to the CLI environment', async () => {
+  const { store, state } = await profile()
+  store.set('config', { ...store.config(), agents: ['grok'] })
+  const grokOnly = structuredClone(graph)
+  for (const day of grokOnly.contributions) for (const row of day.clients) row.client = 'grok'
+  result(JSON.stringify(grokOnly))
+  await synchronize(store, state, { offline: true })
+  const env = execute.mock.calls[1][2].env as Record<string, string>
+  expect(env.GROK_HOME).toContain('.grok')
+  expect(env.CODEX_HOME).toBeUndefined()
+  expect(env.HERMES_HOME).toBeUndefined()
+})

@@ -6,7 +6,18 @@ import { tokenUsageContentHash, type TokenUsageSnapshot } from '../../src/shared
 import { LocalError, privateDirectory, privateFile } from './local.ts'
 
 export const hoursSchema = z.union([z.literal(1), z.literal(3), z.literal(6), z.literal(8), z.literal(12), z.literal(24)])
-export const configSchema = z.strictObject({ deviceId: z.string(), server: z.string(), sourceHome: z.string(), hours: hoursSchema, loopback: z.boolean() })
+export const supportedAgents = ['codex', 'grok', 'hermes'] as const
+export const agentSchema = z.enum(supportedAgents)
+export type Agent = z.infer<typeof agentSchema>
+export const agentsSchema = z.array(agentSchema).min(1).max(3).superRefine((value, ctx) => {
+  if (new Set(value).size !== value.length) ctx.addIssue({ code: 'custom', message: 'Agent 来源不能重复' })
+})
+const configObjectSchema = z.strictObject({
+  deviceId: z.string(), server: z.string(), sourceHome: z.string(), hours: hoursSchema, loopback: z.boolean(),
+  // Optional only for reading state written before multi-Agent support.
+  agents: agentsSchema.optional(),
+})
+export const configSchema = configObjectSchema.transform(value => ({ ...value, agents: value.agents ?? ['codex'] }))
 export type Config = z.infer<typeof configSchema>
 export const credentialSchema = z.strictObject({ deviceId: z.string(), generation: z.string().regex(/^[1-9]\d{0,18}$/), uploadToken: z.string().regex(/^[A-Za-z0-9_-]{43}$/),
   upload: z.strictObject({ url: z.string(), publishableKey: z.string().regex(/^sb_publishable_[A-Za-z0-9_-]+$/), header: z.literal('X-LifeSpace-Device-Token') }) })
@@ -54,6 +65,10 @@ export class Store {
   config(): Config { return configSchema.parse(this.get('config')) }
   credential(): Credential | undefined { const v = this.get('credential'); return v === undefined ? undefined : credentialSchema.parse(v) }
   dates(): string[] { return this.db.prepare('SELECT DISTINCT date FROM rollups').all().map(r => String(r.date)) }
+  rollupKeys(): Array<{ date: string; agent: string }> {
+    return this.db.prepare('SELECT date,agent FROM rollups ORDER BY date,agent').all()
+      .map(row => ({ date: String(row.date), agent: String(row.agent) }))
+  }
   tasks(): QueueTask[] { return this.db.prepare('SELECT * FROM queue ORDER BY id').all() as unknown as QueueTask[] }
   async prepareSnapshots(snapshots: TokenUsageSnapshot[]) {
     return Promise.all(snapshots.map(async snapshot => ({ snapshot, hash: await tokenUsageContentHash(snapshot.content) })))
@@ -114,7 +129,9 @@ export class Store {
     this.db.prepare('UPDATE queue SET attempts=?,next_at=?,error=? WHERE id=?').run(attempts, now + delay, code, task.id)
   }
   status() {
-    return { configured: this.get('config') !== undefined, authorized: this.credential() !== undefined, authorization: this.get('authorization') ?? 'not_started',
+    const configured = this.get('config') !== undefined
+    return { configured, authorized: this.credential() !== undefined, authorization: this.get('authorization') ?? 'not_started',
+      agents: configured ? this.config().agents : null,
       rollups: Number(this.db.prepare('SELECT count(*) n FROM rollups').get()!.n), pending: this.tasks().length,
       errors: [...new Set(this.tasks().map(t => t.error).filter(Boolean))], scan: this.get('scan') ?? null, heartbeat: this.get('heartbeat') ?? null,
       price: this.get('price') ?? null, schedule: this.get('schedule') ?? null }

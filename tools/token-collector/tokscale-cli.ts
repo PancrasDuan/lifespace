@@ -6,6 +6,7 @@ import { dirname, isAbsolute, join } from 'node:path'
 import { promisify } from 'node:util'
 import { z } from 'zod'
 import { adaptTokscaleGraph, tokscaleVersion, type TokenCollectionContext } from './tokscale-adapter.ts'
+import { agentsSchema } from './store.ts'
 
 const exec = promisify(execFile)
 const cliEntry = join(dirname(createRequire(import.meta.url).resolve('@tokscale/cli/package.json')), 'bin.js')
@@ -13,8 +14,9 @@ const absolutePath = z.string().min(1).refine(isAbsolute, '必须使用绝对路
 const optionsSchema = z.strictObject({
   homeDir: absolutePath, configDir: absolutePath,
   since: z.iso.date().optional(), until: z.iso.date().optional(),
+  agents: agentsSchema.default(['codex']),
 }).refine(value => !value.since || !value.until || value.since <= value.until, '日期范围倒置')
-export type TokscaleOptions = z.infer<typeof optionsSchema>
+export type TokscaleOptions = z.input<typeof optionsSchema>
 
 export function tokscaleDiagnostics(stderr: string): string[] {
   const codes = new Set<string>()
@@ -55,10 +57,13 @@ export async function collectTokscaleUsage(input: TokscaleOptions, context: Toke
     }
   }
   // An explicit profile keeps auth, prices and parser caches separate from the
-  // user's profile. --home suppresses environment scan roots in this version.
+  // user's profile. --home scopes discovery to the selected home; the client
+  // specific roots below are set only for explicitly authorized Agents.
   const env = {
     TZ: 'Asia/Shanghai', TOKSCALE_CONFIG_DIR: options.configDir,
-    CODEX_HOME: join(options.homeDir, '.codex'),
+    ...(options.agents.includes('codex') ? { CODEX_HOME: join(options.homeDir, '.codex') } : {}),
+    ...(options.agents.includes('grok') ? { GROK_HOME: join(options.homeDir, '.grok') } : {}),
+    ...(options.agents.includes('hermes') ? { HERMES_HOME: join(options.homeDir, '.hermes') } : {}),
   }
   async function run(args: string[]) {
     try {
@@ -74,7 +79,7 @@ export async function collectTokscaleUsage(input: TokscaleOptions, context: Toke
   }
   const version = await run(['--version'])
   if (version.stdout.trim() !== `tokscale ${tokscaleVersion}`) throw new Error('Tokscale CLI 版本不匹配')
-  const args = ['graph', '--offline', '--home', options.homeDir, '--client', 'codex', '--no-spinner']
+  const args = ['graph', '--offline', '--home', options.homeDir, '--client', options.agents.join(','), '--no-spinner']
   if (options.since) args.push('--since', options.since)
   if (options.until) args.push('--until', options.until)
   const result = await run(args)

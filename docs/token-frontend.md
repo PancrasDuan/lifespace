@@ -10,7 +10,7 @@
 
 `/token` 和 `/token/devices/confirm` 复用现有 App/AuthGate/PageContent/AppLayout/navigation；所有 Token CSS 限于 `.token-page`。浏览器请求复用 `authorizedFetch/authorizedMutation` 与 verified identity 撤销信号；没有第二套路由框架或公开 demo。短设备码保存在同源确认 URL 与最多10分钟的本标签页上下文；邮箱验证 callback 只允许回到固定确认路由，邮件回跳携带校验后的 deviceCode，不接受任意返回 URL。正常邮箱密码登录留在原路径；任何 claimSecret/uploadToken 均只在终端。
 
-摘要、上一周期和年度日历分别调用 summary；devices 与 usage 均跟随 nextCursor 直到 null，重复 cursor 作为协议错误。模型堆叠按分页读取的真实逐日模型子项合计；主摘要仍由服务端提供。筛选后的旧请求取消且返回前检查撤销信号；渲染同时检查查询键，禁止旧范围数据暂时冒充当前范围。
+摘要、上一周期和年度日历分别调用 summary；devices 与 usage 均跟随 nextCursor 直到 null，重复 cursor 作为协议错误。模型堆叠按分页读取的真实逐日模型子项合计；主摘要仍由服务端提供。筛选后的旧请求取消且返回前检查撤销信号；渲染同时检查查询键，禁止旧范围数据暂时冒充当前范围。Agent 筛选初始包含 Codex、Grok Build（存储标识 `grok`）和 Hermes Agent（`hermes`），显示名只用于界面，不改变上传或查询使用的 client 标识；无数据时不伪造 0。
 
 模型下拉从不带维度筛选的当前周期目录与当前摘要获得，选中的模型保留；年度日历单独完整年范围并继承维度筛选。日期使用现有 Temporal polyfill 的 PlainDate 与北京时间 Instant 投影；本周周一至今天、本月月初至今天，对比上周/上月相同已过天数并钳制短月。
 

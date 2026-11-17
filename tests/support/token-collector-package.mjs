@@ -37,6 +37,8 @@ try {
   assert.equal(initialVersion, previous ? previousRelease.version : expected.version)
   const cli = join(packageRoot, 'dist/tools/token-collector/cli.js')
   assert.match((await run(process.execPath, [cli, '--help'])).stdout, /Tokscale 4.23.0/)
+  assert.match((await run(process.execPath, [cli, '--help'])).stdout, /sources add --agents grok,hermes/)
+  assert.match((await run(process.execPath, [cli, '--help'])).stdout, /collector 0\.1\.5/)
   // Exercise the real OS identity probe without printing its value. Synthetic
   // logs below stay separate from the user's real sources and device state.
   const identity = `import assert from 'node:assert/strict'; import {systemDeviceId} from ${JSON.stringify(pathToFileURL(join(packageRoot, 'dist/tools/token-collector/local.js')).href)}; const a=await systemDeviceId();assert.match(a,/^lsd1_[a-f0-9]{64}$/);assert.equal(await systemDeviceId(),a);`
@@ -49,6 +51,36 @@ try {
     { timestamp: '2026-11-15T00:00:02Z', type: 'event_msg', payload: { type: 'token_count', info: { total_token_usage: { input_tokens: 10, output_tokens: 2 }, last_token_usage: { input_tokens: 10, output_tokens: 2 } } } },
   ]
   await writeFile(join(home, '.codex/sessions/synthetic.jsonl'), rows.map(r => JSON.stringify(r)).join('\n') + '\n', { mode: 0o600 })
+  // Synthetic Grok session data follows the 4.23.0 Grok Build layout. It
+  // remains independent from any real .grok home and is removed with `work`.
+  const grok = join(home, '.grok/sessions/%2Ftmp/synthetic-grok-233')
+  await mkdir(grok, { recursive: true, mode: 0o700 })
+  await writeFile(join(grok, 'summary.json'), JSON.stringify({
+    info: { id: 'synthetic-grok-233', cwd: '/synthetic' }, created_at: '2026-11-15T01:00:00Z',
+    updated_at: '2026-11-15T01:01:00Z', last_active_at: '2026-11-15T01:01:00Z',
+    current_model_id: 'synthetic-grok-pack', session_kind: 'headless',
+  }), { mode: 0o600 })
+  await writeFile(join(grok, 'usage.json'), JSON.stringify({
+    sessionId: 'synthetic-grok-233', updatedAt: '2026-11-15T01:01:00Z', session: {
+      inputTokens: 20, outputTokens: 4, cachedReadTokens: 2, cacheCreationTokens: 0, reasoningTokens: 1,
+      totalTokens: 24, modelCalls: 1, costUsdTicks: 1000000, turnCount: 1, primaryModelId: 'synthetic-grok-pack',
+      modelUsage: { 'synthetic-grok-pack': { inputTokens: 20, outputTokens: 4, cachedReadTokens: 2,
+        cacheCreationTokens: 0, reasoningTokens: 1, totalTokens: 24, modelCalls: 1, costUsdTicks: 1000000 } },
+    },
+  }), { mode: 0o600 })
+  await writeFile(join(grok, 'updates.jsonl'), JSON.stringify({
+    timestamp: 1794697200, method: 'session/update', params: { sessionId: 'synthetic-grok-233',
+      update: { sessionUpdate: 'turn_completed', numTurns: 1, usage: {
+        inputTokens: 20, outputTokens: 4, cachedReadTokens: 2, cacheCreationTokens: 0,
+        reasoningTokens: 1, totalTokens: 24, modelCalls: 1, costUsdTicks: 1000000,
+        modelUsage: { 'synthetic-grok-pack': { inputTokens: 20, outputTokens: 4, cachedReadTokens: 2,
+          cacheCreationTokens: 0, reasoningTokens: 1, totalTokens: 24, modelCalls: 1, costUsdTicks: 1000000 } },
+      } } },
+  }) + '\n', { mode: 0o600 })
+  await writeFile(join(grok, 'events.jsonl'), [
+    { ts: '2026-11-15T01:00:00Z', type: 'turn_started', session_id: 'synthetic-grok-233', model_id: 'synthetic-grok-pack' },
+    { ts: '2026-11-15T01:01:00Z', type: 'turn_ended', outcome: 'success' },
+  ].map(row => JSON.stringify(row)).join('\n') + '\n', { mode: 0o600 })
   // Run all state preparation from the installed package in a separate Node
   // process. No imports or devDependencies resolve from the repository.
   const prepare = `import {Store} from ${JSON.stringify(pathToFileURL(join(packageRoot, 'dist/tools/token-collector/store.js')).href)};
@@ -65,19 +97,32 @@ try {
   // Legacy source evidence survives upgrade, but the new collector neither
   // parses nor maintains it. The value is intentionally not a valid proof.
   await run(process.execPath, ['--input-type=module', '-e', `import {DatabaseSync} from 'node:sqlite';const db=new DatabaseSync(process.argv[1]);db.prepare('INSERT INTO sources VALUES (?,?)').run('/synthetic-legacy-source','synthetic-legacy-proof');db.close()`, join(state, 'state.sqlite')])
-  const before = await readFile(join(state, 'state.sqlite'))
   const status = (await run(process.execPath, [cli, 'status', '--state-dir', state])).stdout
   assert.equal(JSON.parse(status).pending, 1); assert(!status.includes(secret)); assert(!status.includes(home))
+  assert.deepEqual(JSON.parse(status).agents, ['codex'])
+  // An installed release expands scope only through the explicit command; the
+  // missing .grok directory must not prevent the already authorized Codex scan.
+  const added = JSON.parse((await run(process.execPath, [cli, 'sources', 'add', '--agents', 'grok', '--state-dir', state])).stdout)
+  assert.deepEqual(added, { agents: ['codex', 'grok'], added: ['grok'] })
+  assert.deepEqual(JSON.parse((await run(process.execPath, [cli, 'sources', 'list', '--state-dir', state])).stdout).agents, ['codex', 'grok'])
+  assert.deepEqual(JSON.parse((await run(process.execPath, [cli, 'sources', 'add', '--agents', 'grok', '--state-dir', state])).stdout).added, [])
+  const combined = JSON.parse((await run(process.execPath, [cli, 'sync', '--offline', '--state-dir', state])).stdout)
+  assert.equal(combined.scanFailed, false); assert.equal(combined.pending, 2)
+  const agents = await run(process.execPath, ['--input-type=module', '-e', `import {DatabaseSync} from 'node:sqlite';const db=new DatabaseSync(process.argv[1],{readOnly:true});console.log(db.prepare('SELECT date,agent FROM rollups ORDER BY date,agent').all().map(r=>r.date+'/'+r.agent).join(','));db.close()`, join(state, 'state.sqlite')])
+  assert.equal(agents.stdout.trim(), '2026-11-15/codex,2026-11-15/grok')
+  assert.equal(JSON.parse((await run(process.execPath, [cli, 'status', '--state-dir', state])).stdout).agents.join(','), 'codex,grok')
+  const before = await readFile(join(state, 'state.sqlite'))
   await run(process.execPath, [cli, 'timer', 'install', '--state-dir', state])
   await run(process.execPath, [cli, 'upgrade', '--state-dir', state, '--archive', archive, '--prefix', prefix, '--apply'])
   assert((await readFile(join(state, 'state.sqlite'))).equals(before), 'SQLite bytes changed during status/timer preview/upgrade')
+  assert.deepEqual(JSON.parse((await run(process.execPath, [cli, 'sources', 'list', '--state-dir', state])).stdout).agents, ['codex', 'grok'])
   assert.equal(JSON.parse(await readFile(join(packageRoot, 'package.json'), 'utf8')).version, expected.version)
   assert((await run(process.execPath, [cli, '--version'])).stdout.includes(`collector ${expected.version}`))
   // Exercise synthetic aggregate residues from the installed release,
   // without accessing a user graph or resolving repository modules.
   const costs = `import assert from 'node:assert/strict';import {adaptTokscaleGraph} from ${JSON.stringify(pathToFileURL(join(packageRoot, 'dist/tools/token-collector/tokscale-adapter.js')).href)};
     const tokens={input:1,output:0,cacheRead:0,cacheWrite:0,reasoning:0};
-    const context={deviceId:'synthetic-pack-cost',metadata:{schemaVersion:1,statisticsVersion:'tokscale-codex-1',tool:{name:'tokscale',version:'4.23.0'},priceVersion:null,scannedAt:'2030-01-03T00:00:00Z'}};
+    const context={deviceId:'synthetic-pack-cost',metadata:{schemaVersion:1,statisticsVersion:'tokscale-multi-agent-1',tool:{name:'tokscale',version:'4.23.0'},priceVersion:null,scannedAt:'2030-01-03T00:00:00Z'}};
     for(const unit of [0.01,0.1,0.001]){
       const total=Array.from({length:10000},()=>unit).reduce((sum,cost)=>sum+cost,0),sum=unit*10000;
       const graph={meta:{version:'4.23.0'},summary:{totalTokens:2,totalCost:total},contributions:[{date:'2030-01-02',totals:{tokens:2,cost:total},tokenBreakdown:{...tokens,input:2},clients:[0,1].map(i=>({client:'codex',modelId:'synthetic-model-'+i,tokens,cost:sum/2,costProvenance:{kind:'estimated'}}))}]};
@@ -86,12 +131,12 @@ try {
     }`
   await run(process.execPath, ['--input-type=module', '-e', costs])
   const rescanned = JSON.parse((await run(process.execPath, [cli, 'sync', '--offline', '--rescan', '--state-dir', state])).stdout)
-  assert.equal(rescanned.pending, 1); assert.equal(rescanned.scanFailed, false); assert.deepEqual(rescanned.scan.retainedDates, [])
-  const totals = await run(process.execPath, ['--input-type=module', '-e', `import {DatabaseSync} from 'node:sqlite';const db=new DatabaseSync(process.argv[1],{readOnly:true});console.log(JSON.parse(db.prepare('SELECT snapshot FROM rollups').get().snapshot).content.metrics.total);db.close()`, join(state, 'state.sqlite')])
+  assert.equal(rescanned.pending, 2); assert.equal(rescanned.scanFailed, false); assert.deepEqual(rescanned.scan.retainedDates, [])
+  const totals = await run(process.execPath, ['--input-type=module', '-e', `import {DatabaseSync} from 'node:sqlite';const db=new DatabaseSync(process.argv[1],{readOnly:true});console.log(JSON.parse(db.prepare("SELECT snapshot FROM rollups WHERE agent='codex'").get().snapshot).content.metrics.total);db.close()`, join(state, 'state.sqlite')])
   assert.equal(Number(totals.stdout), 12)
   await writeFile(join(home, '.codex/sessions/interrupted.jsonl'), JSON.stringify({ timestamp: '2026-11-15T00:00:00Z', type: 'response_item', payload: { type: 'message', content: [{ text: 'synthetic-private-package-warning' }] } }) + '\n')
   const warned = JSON.parse((await run(process.execPath, [cli, 'sync', '--offline', '--rescan', '--state-dir', state])).stdout)
-  assert.equal(warned.scanFailed, false); assert.equal(warned.pending, 1)
+  assert.equal(warned.scanFailed, false); assert.equal(warned.pending, 2)
   assert(warned.scan.diagnostics.includes('TOKSCALE_MISSING_USAGE'))
   assert(!JSON.stringify(warned).includes('synthetic-private-package-warning'))
   const legacy = await run(process.execPath, ['--input-type=module', '-e', `import {DatabaseSync} from 'node:sqlite';const db=new DatabaseSync(process.argv[1],{readOnly:true});console.log(db.prepare('SELECT proof FROM sources WHERE path=?').get('/synthetic-legacy-source').proof);db.close()`, join(state, 'state.sqlite')])
@@ -99,5 +144,5 @@ try {
   assert.equal((await stat(join(state, 'state.sqlite'))).mode & 0o777, 0o600)
   const tokscale = JSON.parse(await readFile(join(prefix, 'node_modules/@tokscale/cli/package.json'), 'utf8'))
   assert.equal(tokscale.version, '4.23.0')
-  console.log(JSON.stringify({ packedFiles: result.files.length, archiveSha256: createHash('sha256').update(await readFile(archive)).digest('hex'), package: `${expected.name}@${expected.version}`, runtimeTokscale: tokscale.version, platform: process.platform, systemIdentity: 'real read-only probe stable; value not logged', outsideRepository: true, actualScan: '12 tokens before/after upgrade, unknown cost, pending task preserved', upgrade: { from: initialVersion, to: expected.version, sqlitePreserved: true }, costResidues: 'three independent repeated-sum scenarios accepted; significant errors rejected', warnings: 'accepted/redacted; legacy source proof preserved without use', timer: 'plan only; no system timer installed' }))
+  console.log(JSON.stringify({ packedFiles: result.files.length, archiveSha256: createHash('sha256').update(await readFile(archive)).digest('hex'), package: `${expected.name}@${expected.version}`, runtimeTokscale: tokscale.version, platform: process.platform, systemIdentity: 'real read-only probe stable; value not logged', outsideRepository: true, actualScan: '12 Codex tokens and 24 Grok tokens before/after upgrade, unknown cost, pending task preserved', agents: 'legacy default codex; sources add grok idempotent; explicit codex+grok produced separate rollups', upgrade: { from: initialVersion, to: expected.version, sqlitePreserved: true }, costResidues: 'three independent repeated-sum scenarios accepted; significant errors rejected', warnings: 'accepted/redacted; legacy source proof preserved without use', timer: 'plan only; no system timer installed' }))
 } finally { await rm(work, { recursive: true, force: true }) }

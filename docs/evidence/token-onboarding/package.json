@@ -1,11 +1,11 @@
 {
-  "archive": "test-results/token223/onboarding-0.1.4/lifespace-token-collector-0.1.4.tgz",
-  "version": "0.1.4",
-  "sha256": "c5c9a05373b34037bcf6519a7d26d1df7917172112ec75064f9c9cba83a44168",
-  "bytes": 24802,
+  "archive": "test-results/token233/onboarding-0.1.5/lifespace-token-collector-0.1.5.tgz",
+  "version": "0.1.5",
+  "sha256": "689a17a7c82ab11fcfaa1081404735388cd9236637597c98fd9942a13b00c2fa",
+  "bytes": 26361,
   "files": 13,
   "runtime": "Node>=24.22.1<25; CI24.22.1; macOS/Linux; @tokscale/cli4.23.0 and zod4.6.7 unchanged",
-  "sourceSha256": "54d6391bf0433fd62e60f6883332ab752a941e07a9c2ad371d5e62524f5a78d0",
+  "sourceSha256": "470fe04760abdbb1cc2d6e79ef1e1f681d433438b45f65665b0b643c234f8565",
   "sourceFiles": [
     "src/shared/token-backend-contract.ts",
     "src/shared/token-usage-contract.ts",
@@ -55,8 +55,16 @@
       "sourceSha256": "32728ec14c6871251f42e5dae87429814153b77d1d09d09d1307073c9b244f84",
       "archive": "test-results/token223/onboarding-0.1.3/lifespace-token-collector-0.1.3.tgz",
       "preserved": true
+    },
+    {
+      "version": "0.1.4",
+      "sha256": "c5c9a05373b34037bcf6519a7d26d1df7917172112ec75064f9c9cba83a44168",
+      "bytes": 24802,
+      "sourceSha256": "54d6391bf0433fd62e60f6883332ab752a941e07a9c2ad371d5e62524f5a78d0",
+      "archive": "test-results/token223/onboarding-0.1.4/lifespace-token-collector-0.1.4.tgz",
+      "preserved": true
     }
   ],
-  "reason": "Fix false rejection of upstream f64 cost aggregation residues with explicit absolute/relative validation budgets; retain exact tokens, decimal amounts and hashes",
-  "verification": "13 archive files and14-source digest matched;local14cost/53target/API526+245 conditional skips/evidence6/installed0.1.3-to0.1.4 passed;newHEAD final CI/two-axis review pending;actual running evidence retained privately"
+  "reason": "Add explicit multi-Agent collection for Codex, Grok Build and Hermes Agent while retaining Codex-only defaults and legacy state compatibility",
+  "verification": "0.1.5 archive 13 files/26,361 bytes and 14-source digest matched;local contract/CLI/collector/output/frontend tests passed;remaining API failures limited by sandbox loopback EPERM;final CI/two-axis review and real-device onboarding pending"
 }

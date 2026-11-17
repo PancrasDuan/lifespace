@@ -20,7 +20,7 @@ async function profile() {
 }
 const context = {
   deviceId: 'synthetic-device-206', metadata: {
-    schemaVersion: 1 as const, statisticsVersion: 'tokscale-codex-1',
+    schemaVersion: 1 as const, statisticsVersion: 'tokscale-multi-agent-1',
     tool: { name: 'tokscale' as const, version: '4.23.0' }, priceVersion: null,
     scannedAt: '2026-11-15T04:00:00Z',
   },
@@ -78,6 +78,19 @@ test('实际 CLI 部分价格仍给 estimated，适配器保留金额但不承�
   const report = await collectTokscaleUsage(options, context)
   expect(Number(report.snapshots[0].content.cost.apiEstimate)).toBeGreaterThan(0)
   expect(report.snapshots[0].content.cost.coverage).toBe('unverified')
+})
+
+test('只把显式授权 Agent 传给 Tokscale；默认仅 codex，缺少其他来源目录不影响扫描', async () => {
+  const options = await profile()
+  await writeFile(join(options.homeDir, '.codex', 'sessions', 'synthetic.jsonl'), syntheticCodexLog())
+  const explicit = await collectTokscaleUsage({ ...options, agents: ['codex'] }, context)
+  expect(explicit.snapshots.map(row => row.identity.agent)).toEqual(['codex', 'codex'])
+  const combined = await collectTokscaleUsage({ ...options, agents: ['codex', 'grok', 'hermes'] }, context)
+  expect(combined.snapshots.map(row => [row.identity.date, row.identity.agent])).toEqual([['2026-11-14', 'codex'], ['2026-11-15', 'codex']])
+  expect(JSON.stringify(combined)).not.toContain(options.homeDir)
+  await expect(collectTokscaleUsage({ ...options, agents: ['grok', 'grok'] }, context)).rejects.toThrow()
+  await expect(collectTokscaleUsage({ ...options, agents: [] }, context)).rejects.toThrow()
+  await expect(collectTokscaleUsage({ ...options, agents: ['future'] as any }, context)).rejects.toThrow()
 })
 
 test('已有时区固定值不能被 TZ 悄悄覆盖；拒绝冲突并保留原配置', async () => {

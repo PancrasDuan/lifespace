@@ -73,6 +73,22 @@ test('period/model/device filters, full pagination, independent year and chart c
   expect(queries.some(url => url.searchParams.get('startDate') === '2026-01-01' && url.searchParams.get('endDate') === '2026-12-31' && url.searchParams.has('modelKey'))).toBe(true)
 })
 
+test('agent options name Grok Build and Hermes Agent and filter by client id', async ({ page }) => {
+  const queries: URL[] = []
+  page.on('request', request => { if (request.url().includes('/api/token/summary')) queries.push(new URL(request.url())) })
+  await page.goto('/token')
+  const agent = page.getByLabel('Agent', { exact: true })
+  await expect(agent.locator('option')).toHaveText(['全部 Agent', 'Codex', 'Grok Build', 'Hermes Agent', 'Claude Code · 尚未接入'])
+  await agent.selectOption('grok')
+  await expect(page.locator('.scope-line')).toContainText('Grok Build')
+  await expect.poll(() => queries.some(url => url.searchParams.get('agent') === 'grok')).toBe(true)
+  await agent.selectOption('hermes')
+  await expect(page.locator('.scope-line')).toContainText('Hermes Agent')
+  await expect.poll(() => queries.some(url => url.searchParams.get('agent') === 'hermes')).toBe(true)
+  await agent.selectOption('')
+  await expect(page.locator('.scope-line')).toContainText('全部 Agent')
+})
+
 test('calendar hover, persistence, focus, arrows, Escape and findable detail semantics', async ({ page }) => {
   await page.setViewportSize({ width: 952, height: 1000 })
   await page.goto('/token')

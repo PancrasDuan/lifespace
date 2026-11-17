@@ -2,25 +2,25 @@
 
 正式看板已在 `https://lifespace.onepeace.cc.cd/token` 上线，本阶段使用现有生产。阶段06的隔离目标讨论是历史资料；真实设备、正常网页登录、有效设备直传、长期任务与用户人工仍分别待验。
 
-每台macOS/Linux实际设备均须由操作者明确设备、受控连接与source-home；正式state由总控单写，worker不读取真实来源或正式state。运行证据仅保存在受控私有文件，公共文档不记录真实用量、设备状态、回执hash或托管数据。source-home 是包含 `.codex` 的 home，不是 `.codex` 本身；来源格式／roots 由固定 Tokscale 及该 home 的 scanner 配置决定，不再运行独立 `coverage.ts` 审计。**扫描和同步覆盖所指定来源的全部历史，固定日期 D 只限定对账，不限制上传范围。**
+每台macOS/Linux实际设备均须由操作者明确设备、受控连接、source-home 和要授权的 Agent 来源；正式state由总控单写，worker不读取真实来源或正式state。运行证据仅保存在受控私有文件，公共文档不记录真实用量、设备状态、回执hash或托管数据。source-home 是包含所选 Agent 数据目录（如 `.codex`、`.grok`、`.hermes`）的 home，不是 Agent 目录本身；来源格式／roots 由固定 Tokscale 及该 home 的 scanner 配置决定，不再运行独立 `coverage.ts` 审计。**扫描和同步覆盖所指定来源的全部历史，固定日期 D 只限定对账，不限制上传范围。**
 
 ## 同一包和私有传输
 
-发行包未发布 npm；不使用 `npm install @lifespace/token-collector`。两设备使用同一份 0.1.4 归档，不在设备端重新 pack：
+发行包未发布 npm；不使用 `npm install @lifespace/token-collector`。两设备使用同一份 0.1.5 归档，不在设备端重新 pack：
 
 | 项目 | 固定值 |
 | --- | --- |
-| 包 | `lifespace-token-collector-0.1.4.tgz`，24,802 字节，13 个文件 |
-| SHA-256 | `c5c9a05373b34037bcf6519a7d26d1df7917172112ec75064f9c9cba83a44168` |
-| 声明源码 | `docs/evidence/token-onboarding/package.json` 中的 14 项；摘要 `54d6391bf0433fd62e60f6883332ab752a941e07a9c2ad371d5e62524f5a78d0` |
+| 包 | `lifespace-token-collector-0.1.5.tgz`，26,361 字节，13 个文件 |
+| SHA-256 | `689a17a7c82ab11fcfaa1081404735388cd9236637597c98fd9942a13b00c2fa` |
+| 声明源码 | `docs/evidence/token-onboarding/package.json` 中的 14 项；摘要 `470fe04760abdbb1cc2d6e79ef1e1f681d433438b45f65665b0b643c234f8565` |
 | 运行时 | Node >=24.22.1 <25；仓库CI固定24.22.1；安装自动取得固定 Tokscale 4.23.0 和 Zod 4.6.7，保留 optional dependencies |
-| 私有副本 | 当前工作区 `test-results/token223/onboarding-0.1.4/lifespace-token-collector-0.1.4.tgz` |
+| 私有副本 | 当前工作区 `test-results/token233/onboarding-0.1.5/lifespace-token-collector-0.1.5.tgz` |
 
 0.1.3 按[ADR0020](adr/0020-token-recorded-usage-authority.md)接受固定 Tokscale 成功且通过输出校验的已记录用量。missing-usage／价格／未知告警只保留固定脱敏类别，不再逐文件审计或冻结有效统计；真正失败、无效输出、版本／时区冲突继续保留旧统计与待传请求。有效更正可增可减或移除模型，graph缺席的旧日期保留，不补未知为0。Node >=24.22.1 <25的已测基线保持。
 
-0.1.4修复费用f64聚合误判，仅聚合比较使用`max(1e-12 USD, 1e-12 × max(总额, 分项和))`绝对／相对误差预算；零与正数及明显差额仍拒绝，Token整数、规范十进制金额与内容SHA保持精确。已有0.1.3安装先校验归档，再用原CLI的`upgrade --archive /absolute/lifespace-token-collector-0.1.4.tgz --prefix /absolute/installation --apply --state-dir /absolute/private/state`保持原state升级，不重跑全新接入向导。无需因升级重绑有效授权；先手动核对新扫描成功和实际回执，再按指定设备授权安排timer。旧队列成功上传不能代替`scanFailed=false`。
+0.1.5在显式授权后支持Codex、Grok Build（`grok`）和Hermes Agent（`hermes`）；默认仍只采Codex，旧状态库无`agents`时按Codex读取。已有设备升级不会自动扩大来源；要新增来源须由操作者执行`sources add --agents grok,hermes`（或只加其中一个），再用`sources list`核对。一次调用只传授权列表，缺少某个来源目录不影响其他来源。已有0.1.4安装先校验归档，再用原CLI的`upgrade --archive /absolute/lifespace-token-collector-0.1.5.tgz --prefix /absolute/installation --apply --state-dir /absolute/private/state`保持原state升级，不重跑全新接入向导。无需因升级重绑有效授权；先手动核对新扫描成功和实际回执，再按指定设备授权安排timer。旧队列成功上传不能代替`scanFailed=false`。
 
-0.1.0–0.1.3各自的原归档及 `onboarding/`、`onboarding-0.1.1/`、`onboarding-0.1.2/`、`onboarding-0.1.3/` 目录和校验值均保留，未覆盖。0.1.4有独立归档、来源映射和六文件目录 `test-results/token223/onboarding-0.1.4/`，包括包、向导、只读对账辅助、本说明、SHA256SUMS和来源记录。只传该目录，不传 `.env`、用户状态、原始日志或整个工作区。
+0.1.0–0.1.4各自的原归档及目录和校验值均保留，未覆盖。0.1.5有独立归档、来源映射和六文件目录 `test-results/token233/onboarding-0.1.5/`，包括包、向导、只读对账辅助、本说明、SHA256SUMS和来源记录。只传该目录，不传 `.env`、用户状态、原始日志或整个工作区。
 
 已发现的 Orca CLI 提供本地文件打开和浏览器 upload/download，但没有通用的主机间文件传输命令，当前也没有远程目标。操作者能直接读本机文件时复制上述目录；远端设备则由总控取得已有受控 SSH/SFTP/文件传输目标后，先列出准确源目录和目标目录，再通过该已有连接复制。缺少连接时由用户以自己的受控文件渠道取得这几个非敏感发行文件。尚未进行跨主机传输，不公开 npm、GitHub Release、生产下载路由或临时公网服务。
 
@@ -39,7 +39,7 @@ bash token-device-onboarding.sh
 
 ## 向导执行边界
 
-向导先检查 Node >=24.22.1 <25、包字节/SHA、绝对路径和新建的私有独立 install/state，显示生产目标及 source-home，取得本机操作者确认后安装。它不复用默认状态、不覆盖已有安装、不执行 `init --replace`。中断后保留 install/state，按已安装 CLI 的正常命令继续；重新运行向导请选择新路径，已有设备重绑仍须网页明确确认，不能删除状态续权。
+向导先检查 Node >=24.22.1 <25、包字节/SHA、绝对路径和新建的私有独立 install/state，显示生产目标、source-home 与已授权 Agent，取得本机操作者确认后安装。它不复用默认状态、不覆盖已有安装、不执行 `init --replace`；全新接入默认只采 Codex，扩大来源须在向导中明确选择或由操作者执行 `sources add`。中断后保留 install/state，按已安装 CLI 的正常命令继续；重新运行向导请选择新路径，已有设备重绑仍须网页明确确认，不能删除状态续权。
 
 随后打开正式 `/token`，由获准账户正常登录；在终端 `init` 后显示8位码，网页「核对设备」确认设备名称、平台、设备标识，再「批准连接」。若提示替换已有设备，必须先确认确实为本设备，并在网页勾选明确替换；不能因名称相似就替换。返回终端 `authorize --wait` 后核对 `authorized=true`，过期/拒绝时退出，不把进程退出0当领取成功。
 
@@ -47,7 +47,7 @@ bash token-device-onboarding.sh
 
 ## 固定范围四方对账
 
-先在两设备选同一个已完成北京日期 D、Agent=`codex`、同一个 canonical modelId M（未知为 JSON 字面值 `null`），分别设备 A/B 与合计 A+B。使用设备标识确认范围，hostname 不要求唯一。冻结 D 的来源与价格/统计版本，再开始对账。
+先在两设备选同一个已完成北京日期 D、同一个已授权 Agent（例如 `codex`；启用 Grok/Hermes 后也可分别选 `grok`/`hermes`）、同一个 canonical modelId M（未知为 JSON 字面值 `null`），分别设备 A/B 与合计 A+B。不同 Agent 的同名模型不能互相替代，必须按 Agent 分别对账。使用设备标识确认范围，hostname 不要求唯一。冻结 D 的来源与价格/统计版本，再开始对账。
 
 已安装采集器没有导出命令；辅助脚本只读 SQLite 的该日期 `rollups` 与队列描述，检查快照内容 hash，输出白名单统计，**不读 meta、credential、sources 或 queue.body**：
 
@@ -56,8 +56,9 @@ node token-local-evidence.mjs \
   --installation '/absolute/private/install' \
   --state-dir '/absolute/private/state' \
   --date '2026-11-15' \
+  --agent codex \
   --model-key '"your-canonical-model-id"'
-# 未知模型用 --model-key null；日期是示例，应选择两设备都有数据的已完成 D。
+# 未知模型用 --model-key null；Agent 默认 codex，可显式传 grok/hermes；日期是示例，应选择两设备都有数据的已完成 D。
 ```
 
 辅助输出保留缺失字段、null、实际0、费用分类/coverage、模型覆盖及是否存在所选模型；模型缺席不制造零值。输出仅为本地证据，不能称托管 summary 或 HTTP 回执。Node SQLite 的运行时提示与业务错误分开；失败只打印固定码，不输出原始数据库错误和路径。
@@ -66,7 +67,7 @@ node token-local-evidence.mjs \
 
 | 证据 | 记录内容与取得方式 |
 | --- | --- |
-| 本地快照 | 上述只读辅助，D/codex/M、deviceId、generation/version/hash、metrics/cost/models |
+| 本地快照 | 上述只读辅助，D/Agent/M、deviceId、generation/version/hash、metrics/cost/models |
 | 上报回执 | 正常 CLI 内部严格校验 persisted/device/date/agent/generation/version/hash 后清任务；记录同步结果及前后队列变化 |
 | 托管 summary | 获准网页登录后，查看同 D/Agent/设备/M 的 `/api/token/summary` 响应；同时看 `/api/token/usage` 的已收版本/hash，分页须完整 |
 | 页面 | 正式看板同 D/Agent/设备/M，截图与实际值；A/B分别核对，再设备全选核对 A+B |
@@ -93,4 +94,6 @@ state='/absolute/private/state'
 
 Linux另查 `systemctl --user status com.lifespace.token-collector.timer` 和同名 service；若本任务 oneshot 仍在运行，只停止自己的 service。macOS查 `launchctl print gui/$(id -u)/com.lifespace.token-collector`。确认不再加载/运行后，可人工移走准确的独立 install，**保留 state 和其私有备份**。本向导未安装 timer 时无需卸载系统任务。卸载不撤销设备令牌；撤权使用网页停用，历史汇总保留。
 
-每步写：`设备别名 | OS/Node/Codex版本 | 包SHA | D/codex/M/设备范围 | 动作 | 预期 | 实际白名单值/固定错误码 | PASS/FAIL/未执行 | 私有证据位置`。分别签认接入辅助、Agent/CI、真实设备/线上、长期任务、用户桌面手机人工。桌面/真实手机均通过正式 HTTPS 看板登录并操作日期、筛选、趋势、日历提示、日统计与设备状态；窄视口 Agent 检查不充当人工签认。没有获准会话和指定设备时，#223 与 #205 保持开放。
+每步写：`设备别名 | OS/Node/Tokscale版本 | 包SHA | 授权Agent | D/Agent/M/设备范围 | 动作 | 预期 | 实际白名单值/固定错误码 | PASS/FAIL/未执行 | 私有证据位置`。分别签认接入辅助、Agent/CI、真实设备/线上、长期任务、用户桌面手机人工。桌面/真实手机均通过正式 HTTPS 看板登录并操作日期、Agent/设备/模型筛选、趋势、日历提示、日统计与设备状态；窄视口 Agent 检查不充当人工签认。没有获准会话和指定设备时，#223 与 #205 保持开放。
+
+Grok 费用可能因上游 4.23.0 返回 `cost=0`/unknown 而显示未知，不读原始日志补价。Hermes 跨日拆分可能把未覆盖部分留在会话开始日；其 `codex_app_server` 与 Codex 可能重复计量，同时授权时须记录这一限制，不把采集器结果当作去重后的账单。真实 `.grok`/`.hermes` 来源、托管上传和页面四方对账必须由用户指定设备后另验，不能用合成测试替代。
