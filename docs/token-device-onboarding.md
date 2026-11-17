@@ -43,7 +43,7 @@ bash token-device-onboarding.sh
 
 随后打开正式 `/token`，由获准账户正常登录；在终端 `init` 后显示8位码，网页「核对设备」确认设备名称、平台、设备标识，再「批准连接」。若提示替换已有设备，必须先确认确实为本设备，并在网页勾选明确替换；不能因名称相似就替换。返回终端 `authorize --wait` 后核对 `authorized=true`，过期/拒绝时退出，不把进程退出0当领取成功。
 
-操作者分别确认 `sync --offline`（读取来源，写本机 SQLite/缓存）和正常 `sync`（上传该来源全部汇总）。scanFailed 或无日期结果不会被向导记为成功；Tokscale告警和retainedDates仅留诊断，不阻断其他有效日期；计价unknown如实保留。输出不留原始日志、来源路径、系统原始 ID 或凭据。向导最后只生成 1 小时 timer **计划**，不安装长期任务、不创建常驻进程、不自动停用设备或删除数据。
+操作者分别确认 `sync --offline`（读取来源，写本机 SQLite/缓存）和正常 `sync`（上传该来源全部汇总）。scanFailed 或 `scan.snapshots=0` 不会被向导记为成功；Tokscale告警和retainedDates仅留诊断，不阻断其他有效日期；计价unknown如实保留。输出不留原始日志、来源路径、系统原始 ID 或凭据。向导最后只生成 1 小时 timer **计划**，不安装长期任务、不创建常驻进程、不自动停用设备或删除数据。
 
 ## 固定范围四方对账
 
