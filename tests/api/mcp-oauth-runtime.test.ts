@@ -11,14 +11,14 @@ test.skipIf(!rpc)('生产构建配置驱动真实 workerd + KV + 隔离 PostgreS
   const user = { id: owner, email: 'runtime@example.invalid', email_confirmed_at: '2026-01-01T00:00:00Z', is_anonymous: false }
   const productionConfig = JSON.parse(await readFile(resolve('dist/lifespace/wrangler.json'), 'utf8'))
   // Deliberately inject obsolete configuration into the built Worker.
-  const env = { MCP_LEGACY_ENABLED: 'true', CF_ACCESS_TEAM_DOMAIN: 'https://retired.cloudflareaccess.com', CF_ACCESS_AUD: 'synthetic-retired-audience', MCP_OAUTH_DCR_ENABLED: productionConfig.vars?.MCP_OAUTH_DCR_ENABLED ?? 'false', MCP_OAUTH_ISSUER: issuer, SUPABASE_URL: 'https://runtime-auth.supabase.co', SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_runtime-test-only', SUPABASE_SECRET_KEY: 'sb_secret_runtime-test-only', AUTH_ALLOWED_EMAILS: user.email }
+  const env = { MCP_LEGACY_ENABLED: 'true', CF_ACCESS_TEAM_DOMAIN: 'https://retired.cloudflareaccess.com', CF_ACCESS_AUD: 'synthetic-retired-audience', MCP_OAUTH_DCR_ENABLED: productionConfig.vars?.MCP_OAUTH_DCR_ENABLED ?? 'false', MCP_OAUTH_ISSUER: issuer, SUPABASE_URL: 'https://runtime-auth.supabase.co', SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_runtime-test-only', SUPABASE_SECRET_KEY: 'sb_secret_runtime-test-only' }
   const workerFiles = await readdir(resolve('dist/lifespace'), { recursive: true })
   const modules = ['index.js', ...workerFiles.filter(path => path.endsWith('.js') && path !== 'index.js')].map(path => ({ type: 'ESModule' as const, path: resolve('dist/lifespace', path) }))
   let upstreamCalls = 0
   const runtime = new Miniflare(convertV4MiniflareOptions({ workers: [{
     name: 'lifespace-oauth-runtime-test', modules, modulesRoot: resolve('dist/lifespace'),
     compatibilityDate: '2026-10-01', compatibilityFlags: ['nodejs_compat', 'global_fetch_strictly_public'], bindings: env,
-    kvNamespaces: ['OAUTH_KV', 'HOROSCOPE_KV'],
+    kvNamespaces: ['AUTH_KV', 'OAUTH_KV', 'HOROSCOPE_KV'],
     assets: { directory: resolve('dist/client'), binding: 'ASSETS', run_worker_first: ['/api/*', '/oauth/*', '/.well-known/*'], routerConfig: { has_user_worker: true }, assetConfig: { not_found_handling: 'single-page-application' } },
     outboundService: async request => {
       upstreamCalls++
@@ -31,6 +31,7 @@ test.skipIf(!rpc)('生产构建配置驱动真实 workerd + KV + 隔离 PostgreS
     },
   }] }))
   try {
+    await (await runtime.getKVNamespace('AUTH_KV')).put('AUTH_ALLOWED_EMAILS', user.email)
     const request = (path: string, init?: Parameters<Miniflare['dispatchFetch']>[1]) => runtime.dispatchFetch(new URL(path, issuer).href, init)
     const encode = (value: object) => Buffer.from(JSON.stringify(value)).toString('base64url')
     const token = `${encode({ alg: 'HS256' })}.${encode({ sub: owner, session_id: owner, exp: 4102444800 })}.runtime-test`

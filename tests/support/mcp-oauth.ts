@@ -4,6 +4,7 @@ import app from '../../worker/index'
 import { authorizationServer } from '../../worker/mcp-oauth'
 import { mcpScopes, type OAuthEnv } from '../../worker/mcp-oauth-config'
 import type { McpGrant } from '../../worker/mcp-grants'
+import { AuthTestKv } from './auth-kv'
 
 export const oauthOwner = '00000000-0000-4000-8000-000000000007'
 export const oauthOther = '00000000-0000-4000-8000-000000000008'
@@ -33,12 +34,13 @@ export class OAuthTestKv {
 export function oauthFixture(databaseUrl?: string) {
   const nativeFetch = globalThis.fetch
   const kv = new OAuthTestKv()
+  const authKv = new AuthTestKv('oauth@example.invalid')
   const grants = new Map<string, McpGrant & { codeUsed?: boolean; consentHash?: string }>()
   const users = new Map([oauthOwner, oauthOther].map(id => [id, { id, email: 'oauth@example.invalid', email_confirmed_at: '2026-01-01T00:00:00Z', is_anonymous: false, banned_until: null as string | null, deleted_at: null as string | null }]))
   const env: OAuthEnv = {
     MCP_OAUTH_ISSUER: oauthIssuer, OAUTH_KV: kv.binding(),
     SUPABASE_URL: 'https://oauth-test.supabase.co', SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_test-only',
-    SUPABASE_SECRET_KEY: 'sb_secret_test-only', AUTH_ALLOWED_EMAILS: 'oauth@example.invalid',
+    SUPABASE_SECRET_KEY: 'sb_secret_test-only', AUTH_KV: authKv.binding(),
     ASSETS: { fetch: async () => new Response('<!doctype html><div id="root"></div>', { headers: { 'Content-Type': 'text/html' } }) } as unknown as Fetcher,
   }
   const writes: { name: string; input: Record<string, unknown> }[] = []
@@ -128,5 +130,5 @@ export function oauthFixture(databaseUrl?: string) {
     if (response.status !== 200) throw new Error('synthetic token exchange failed: ' + response.status + ' ' + JSON.stringify(token))
     return { ...consent, ...token }
   }
-  return { env, kv, grants, users, writes, documents, request, browser, tokenRequest, mcp, client, start, approve, issue, browserToken, failDatabase: () => { databaseFailed = true }, setRpcGate: (gate: (name: string) => Promise<void>) => { rpcGate = gate } }
+  return { env, kv, authKv, grants, users, writes, documents, request, browser, tokenRequest, mcp, client, start, approve, issue, browserToken, failDatabase: () => { databaseFailed = true }, setRpcGate: (gate: (name: string) => Promise<void>) => { rpcGate = gate } }
 }

@@ -2,14 +2,14 @@ import { afterEach, expect, it, vi } from 'vitest'
 import app from '../../worker/index'
 import { adventureClientVersion, adventureClientVersionHeader } from '../../src/shared/adventure-client-version'
 import { goalRewardSchema, planningCommandSchema } from '../../src/shared/adventure-planning'
+import { authEnv } from '../support/auth-kv'
 
 const owner = '00000000-0000-4000-8000-000000000054'
-const env = {
+const env = authEnv('planning@example.com', {
   SUPABASE_URL: 'https://planning-test.supabase.co',
   SUPABASE_SECRET_KEY: 'sb_secret_planning-test-only',
   SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_planning-test-only',
-  AUTH_ALLOWED_EMAILS: 'planning@example.com',
-}
+})
 const encode = (value: unknown) => btoa(JSON.stringify(value)).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_')
 const token = `${encode({ alg: 'HS256' })}.${encode({ sub: owner, session_id: owner, exp: 4102444800 })}.test-signature`
 const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', [adventureClientVersionHeader]: adventureClientVersion }

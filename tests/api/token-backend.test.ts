@@ -1,7 +1,8 @@
 import { afterEach, expect, test, vi } from 'vitest'
 import app from '../../worker/index'
+import { authEnv } from '../support/auth-kv'
 
-const env = { SUPABASE_URL: 'https://synthetic-token.supabase.co', SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_test-only', SUPABASE_SECRET_KEY: 'synthetic-server-only', AUTH_ALLOWED_EMAILS: 'demo@example.com' }
+const env = authEnv('demo@example.com', { SUPABASE_URL: 'https://synthetic-token.supabase.co', SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_test-only', SUPABASE_SECRET_KEY: 'synthetic-server-only' })
 const claims = { sub: '00000000-0000-4000-8000-000000000209', session_id: '00000000-0000-4000-8000-000000000002', exp: 4102444800 }
 const jwt = `${btoa('{}').replace(/=/g, '')}.${btoa(JSON.stringify(claims)).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_')}.synthetic`
 const auth = { Authorization: `Bearer ${jwt}` }

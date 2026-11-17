@@ -293,7 +293,7 @@ test.each(['create_ledger_refund'])('%s 仍需 Agent 鉴权与在线准入，Age
   upstream()
   const headers = { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream' }
   const body = JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name, arguments: refund } })
-  fixture.env.AUTH_ALLOWED_EMAILS = 'removed@example.invalid'
+  fixture.authKv.value = 'removed@example.invalid'
   expect((await fixture.request('/api/agent/mcp', { method: 'POST', headers, body })).status).toBe(403)
   expect((await fixture.request('/api/agent/mcp', { method: 'POST', headers: { ...headers, Authorization: '' }, body })).status).toBe(401)
   expect((await fixture.request('/api/ledger/entries/' + refund.id + '/refunds', { method: 'POST', headers, body: JSON.stringify(refund) })).status).toBe(401)

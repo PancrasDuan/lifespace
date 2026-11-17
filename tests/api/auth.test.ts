@@ -1,13 +1,14 @@
 import { afterEach, expect, test, vi } from 'vitest'
 import app from '../../worker/index'
 import { Webhook } from 'standardwebhooks'
+import { AuthTestKv, failingKv } from '../support/auth-kv'
 
 afterEach(() => vi.unstubAllGlobals())
 
 const env = {
   SUPABASE_URL: 'https://auth-test.supabase.co',
   SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_test-only',
-  AUTH_ALLOWED_EMAILS: 'demo@example.com',
+  AUTH_KV: new AuthTestKv('demo@example.com').binding(),
 }
 const claims = { sub: '00000000-0000-4000-8000-000000000001', session_id: '00000000-0000-4000-8000-000000000002', exp: 4102444800 }
 const encode = (value: unknown) => btoa(JSON.stringify(value)).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_')
@@ -58,8 +59,12 @@ test('名单内已验证账户经在线会话检查后取得最小准入身份',
 })
 
 test.each([
-  ['AUTH_DENIED', 403, { ...env, AUTH_ALLOWED_EMAILS: 'other@example.com' }, 200],
-  ['AUTH_UNAVAILABLE', 503, { ...env, AUTH_ALLOWED_EMAILS: '' }, 200],
+  ['AUTH_DENIED', 403, { ...env, AUTH_KV: new AuthTestKv('other@example.com').binding() }, 200],
+  ['AUTH_UNAVAILABLE', 503, { ...env, AUTH_KV: new AuthTestKv(null).binding() }, 200],
+  ['AUTH_UNAVAILABLE', 503, { ...env, AUTH_KV: new AuthTestKv('').binding() }, 200],
+  ['AUTH_UNAVAILABLE', 503, { ...env, AUTH_KV: new AuthTestKv('demo@example.com,invalid').binding() }, 200],
+  ['AUTH_UNAVAILABLE', 503, { ...env, AUTH_KV: undefined }, 200],
+  ['AUTH_UNAVAILABLE', 503, { ...env, AUTH_KV: failingKv('demo@example.com') }, 200],
   ['AUTH_INVALID', 401, env, 401],
   ['AUTH_UNAVAILABLE', 503, env, 500],
 ] as const)('%s 拒绝业务访问（%s）', async (code, status, bindings, upstreamStatus) => {
@@ -89,8 +94,10 @@ test.each([['demo@example.com', 200], ['other@example.com', 403]])('签名注册
   expect(response.status).toBe(status)
 })
 test('无签名不能调用注册 Hook', async () => {
-  const response = await app.request('/api/auth/hooks/before-user-created', { method: 'POST', body: '{}' }, { ...env, AUTH_HOOK_SECRET: hookSecret })
+  const kv = new AuthTestKv('demo@example.com')
+  const response = await app.request('/api/auth/hooks/before-user-created', { method: 'POST', body: '{}' }, { ...env, AUTH_HOOK_SECRET: hookSecret, AUTH_KV: kv.binding() })
   expect(response.status).toBe(403)
+  expect(kv.reads).toBe(0)
 })
 
 test.each([
@@ -116,6 +123,38 @@ test('每次访问重新验证会话，已撤销会话不能复用准入结果',
   const request = () => app.request('/api/news/sources', { headers: { Authorization: `Bearer ${token}` } }, env)
   expect((await request()).status).toBe(200); expect((await request()).status).toBe(401)
   expect(upstream).toHaveBeenCalledTimes(2)
+})
+
+test('每次鉴权读取当前 KV 值，白名单更新在下一次请求生效', async () => {
+  const kv = new AuthTestKv('demo@example.com')
+  vi.stubGlobal('fetch', vi.fn(async () => Response.json({ id: claims.sub, email: 'demo@example.com', email_confirmed_at: '2026-10-11', is_anonymous: false })))
+  const request = () => app.request('/api/news/sources', { headers: { Authorization: `Bearer ${token}` } }, { ...env, AUTH_KV: kv.binding() })
+  expect((await request()).status).toBe(200)
+  kv.value = 'other@example.com'
+  expect((await request()).status).toBe(403)
+  expect(kv.reads).toBe(2)
+})
+
+test('注册 Hook 使用同一 KV 白名单并拒绝缺失或损坏配置', async () => {
+  const kv = new AuthTestKv('demo@example.com')
+  const body = JSON.stringify({ user: { email: 'demo@example.com', is_anonymous: false } })
+  const date = new Date()
+  const headers = {
+    'webhook-id': 'test-event', 'webhook-timestamp': String(Math.floor(date.getTime() / 1000)),
+    'webhook-signature': new Webhook(hookSecret).sign('test-event', date, body),
+  }
+  const request = (bindings: Partial<CloudflareEnv>) => app.request('/api/auth/hooks/before-user-created', { method: 'POST', body, headers }, { ...bindings, AUTH_HOOK_SECRET: hookSecret })
+  expect((await request({ ...env, AUTH_KV: kv.binding() })).status).toBe(200)
+  kv.value = 'other@example.com'
+  expect((await request({ ...env, AUTH_KV: kv.binding() })).status).toBe(403)
+  kv.value = null
+  expect((await request({ ...env, AUTH_KV: kv.binding() })).status).toBe(503)
+  expect((await request({ ...env, AUTH_KV: undefined })).status).toBe(503)
+  kv.value = ''
+  expect((await request({ ...env, AUTH_KV: kv.binding() })).status).toBe(503)
+  kv.value = 'demo@example.com,invalid'
+  expect((await request({ ...env, AUTH_KV: kv.binding() })).status).toBe(503)
+  expect((await request({ ...env, AUTH_KV: failingKv('demo@example.com') })).status).toBe(503)
 })
 
 test('篡改签名原文或过期签名都不能注册', async () => {

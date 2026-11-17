@@ -9,9 +9,17 @@ export type Identity = { id: string; email: string; mcpScopes?: string[] }
 const unavailable = () => new ApiError('AUTH_UNAVAILABLE', '认证服务暂时不可用，请稍后重试', 503)
 const invalid = () => new ApiError('AUTH_INVALID', '登录已失效，请重新登录', 401)
 const email = z.email()
-export function allowedEmails(env: AuthEnv): Set<string> {
-  const values = env.AUTH_ALLOWED_EMAILS?.split(',').map(value => value.trim().toLowerCase())
-  if (!values?.length || values.some(value => !email.safeParse(value).success)) throw unavailable()
+const allowedEmailsKey = 'AUTH_ALLOWED_EMAILS'
+// Always read the current KV value; admission results must not be cached in-process.
+export async function allowedEmails(env: AuthEnv): Promise<Set<string>> {
+  const kv = env.AUTH_KV
+  if (!kv) throw unavailable()
+  let value: string | null
+  try { value = await kv.get(allowedEmailsKey) }
+  catch { throw unavailable() }
+  if (value == null || value === '') throw unavailable()
+  const values = value.split(',').map(item => item.trim().toLowerCase())
+  if (values.some(item => !email.safeParse(item).success)) throw unavailable()
   return new Set(values)
 }
 export function publicConfig(env: AuthEnv) {
@@ -27,7 +35,6 @@ export function publicConfig(env: AuthEnv) {
 
 export async function registrationHook(env: AuthEnv, request: Request) {
   const denied = { error: { http_code: 403, message: '此邮箱暂未获准注册' } }
-  const allowed = allowedEmails(env)
   if (!env.AUTH_HOOK_SECRET) throw unavailable()
   if (!request.body) return { body: denied, status: 403 as const }
   let raw: string
@@ -39,7 +46,9 @@ export async function registrationHook(env: AuthEnv, request: Request) {
   try { payload = webhook.verify(raw, Object.fromEntries(request.headers)) }
   catch { return { body: denied, status: 403 as const } }
   const result = z.object({ user: z.object({ email: z.email(), is_anonymous: z.boolean().optional() }) }).safeParse(payload)
-  if (!result.success || result.data.user.is_anonymous || !allowed.has(result.data.user.email.trim().toLowerCase())) return { body: denied, status: 403 as const }
+  if (!result.success || result.data.user.is_anonymous) return { body: denied, status: 403 as const }
+  const allowed = await allowedEmails(env)
+  if (!allowed.has(result.data.user.email.trim().toLowerCase())) return { body: denied, status: 403 as const }
   return { body: {}, status: 200 as const }
 }
 
@@ -58,7 +67,7 @@ export async function verifyIdentity(env: AuthEnv, authorization?: string, route
     if (parts.length !== 3) throw invalid()
     claims = claimsSchema.parse(JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/'))))
   } catch { throw invalid() }
-  const allowed = allowedEmails(env)
+  const allowed = await allowedEmails(env)
   const config = publicConfig(env)
   let response: Response | undefined
   try {

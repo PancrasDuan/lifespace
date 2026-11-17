@@ -6,6 +6,7 @@ import { test, expect } from './authenticated-test'
 import { planningDatabase } from '../support/planning-database'
 import { planningReceiptSchema } from '../../src/shared/adventure-planning'
 import newWorker from '../../worker/index'
+import { authEnv } from '../support/auth-kv'
 
 const oldRoot = process.env.OLD_ADVENTURE_DIST
 const port = Number(process.env.OLD_CUTOVER_PG_PORT)
@@ -13,7 +14,7 @@ const rpc = process.env.ADVENTURE_LOCAL_RPC_URL
 const owner = '00000000-0000-4000-8000-000000000174'
 const encode = (value: unknown) => btoa(JSON.stringify(value)).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_')
 const authorization = `Bearer ${encode({ alg: 'HS256' })}.${encode({ sub: owner, session_id: owner, exp: 4102444800 })}.local-test`
-const env = { SUPABASE_URL: 'https://planning-local-test.supabase.co', SUPABASE_SECRET_KEY: 'sb_secret_local-test-only', SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_local-test-only', AUTH_ALLOWED_EMAILS: 'legacy@example.invalid' }
+const env = authEnv('legacy@example.invalid', { SUPABASE_URL: 'https://planning-local-test.supabase.co', SUPABASE_SECRET_KEY: 'sb_secret_local-test-only', SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_local-test-only' })
 
 test('真实旧构建跨切换保留未知封套并由受控人员核对', async ({ page, context }) => {
   test.setTimeout(90000)

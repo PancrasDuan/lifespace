@@ -4,8 +4,10 @@ SUPABASE_SECRET_KEY=""
 DNSHE_API_KEY=""
 DNSHE_API_SECRET=""
 SUPABASE_PUBLISHABLE_KEY=sb_publishable_replace_me
-AUTH_ALLOWED_EMAILS=replace-me@example.com
 AUTH_HOOK_SECRET=replace_me_with_supabase_hook_signing_secret
+
+# 本地白名单写入 AUTH_KV；先启动一次 `npm run dev`，再执行：
+# npx wrangler kv key put AUTH_ALLOWED_EMAILS replace-me@example.com --binding AUTH_KV --local
 
 # ALAPI 星座接口 Token；真实验收阶段配置，仅 Worker 服务端使用。
 ALAPI_TOKEN=""

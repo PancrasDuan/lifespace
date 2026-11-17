@@ -3,6 +3,7 @@ import { createServer as createViteServer } from 'vite'
 import type workerApp from '../../worker/index'
 import { alapiSuccess } from './horoscope'
 import { beijingDate } from '../../src/shared/horoscope-contracts'
+import { AuthTestKv } from '../support/auth-kv'
 
 export const horoscopeTestUser = { id: '00000000-0000-4000-8000-000000000001', email: 'demo@example.com', email_confirmed_at: '2026-10-11', is_anonymous: false }
 const encode = (value: unknown) => Buffer.from(JSON.stringify(value)).toString('base64url')
@@ -33,14 +34,15 @@ export async function startHoroscopeWorker(options: { day?: string; longText?: b
     get: async (key: string) => { calls.kvReads++; return entries.get(key) ?? null },
     put: async (key: string, value: string) => { calls.kvWrites++; entries.set(key, value) },
   } as unknown as KVNamespace
+  const authKv = new AuthTestKv(horoscopeTestUser.email)
   const server = createServer(async (req, res) => {
     try {
       calls.api++
       const headers = new Headers()
       for (const [key, value] of Object.entries(req.headers)) if (value) headers.set(key, Array.isArray(value) ? value.join(', ') : value)
       const response = await app.request(`http://127.0.0.1${req.url}`, { method: req.method, headers }, {
-        SUPABASE_URL: 'https://auth-test.supabase.co', SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_test-only', AUTH_ALLOWED_EMAILS: horoscopeTestUser.email,
-        ALAPI_TOKEN: 'test-horoscope-credential', HOROSCOPE_KV: kv,
+        SUPABASE_URL: 'https://auth-test.supabase.co', SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_test-only',
+        ALAPI_TOKEN: 'test-horoscope-credential', HOROSCOPE_KV: kv, AUTH_KV: authKv.binding(),
       })
       res.writeHead(response.status, Object.fromEntries(response.headers))
       res.end(await response.text())

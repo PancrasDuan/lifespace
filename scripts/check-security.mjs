@@ -14,12 +14,13 @@ const markers = {
   DNSHE_API_KEY: 'cfsd_SECURITY_TEST_KEY_20261006',
   DNSHE_API_SECRET: 'SECURITY_TEST_DNSHE_SECRET_20261006',
   SUPABASE_SECRET_KEY: 'sb_secret_SECURITY_TEST_SUPABASE_20261006',
-  AUTH_ALLOWED_EMAILS: 'security-user@example.com',
   AUTH_HOOK_SECRET: 'SECURITY_TEST_HOOK_SECRET_20261011',
   ALAPI_TOKEN: 'SECURITY_TEST_ALAPI_TOKEN_20261022',
 }
+const allowedEmail = 'security-user@example.com'
+const allowlistMarkers = [allowedEmail, 'security-other@example.com']
 const publicBindings = { SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_security-test-only' }
-const authUser = { id: '00000000-0000-4000-8000-000000000001', email: markers.AUTH_ALLOWED_EMAILS, email_confirmed_at: '2026-10-11', is_anonymous: false }
+const authUser = { id: '00000000-0000-4000-8000-000000000001', email: allowedEmail, email_confirmed_at: '2026-10-11', is_anonymous: false }
 const encode = value => Buffer.from(JSON.stringify(value)).toString('base64url')
 const userToken = `${encode({ alg: 'HS256' })}.${encode({ sub: authUser.id, session_id: '00000000-0000-4000-8000-000000000002', exp: 4102444800 })}.test-signature`
 const authHeaders = { Authorization: `Bearer ${userToken}` }
@@ -29,7 +30,7 @@ if (process.env.LIFESPACE_SECURITY_CHILD !== '1') {
     cwd: root, env: { ...process.env, LIFESPACE_SECURITY_CHILD: '1' }, encoding: 'utf8', timeout: 90000, maxBuffer: 4000000,
   })
   const output = `${result.stdout ?? ''}\n${result.stderr ?? ''}`
-  if (Object.values(markers).some(marker => output.includes(marker))) {
+  if ([...Object.values(markers), ...allowlistMarkers].some(marker => output.includes(marker))) {
     await rm(resolve(root, '.cache/security-report.json'), { force: true })
     console.error('安全验证未通过：运行输出包含虚构凭据，原始内容已隐藏。')
     process.exit(1)
@@ -58,7 +59,7 @@ for (const stream of [process.stdout, process.stderr]) stream.write = (chunk, en
 const logger = createLogger('silent')
 for (const method of ['info', 'warn', 'warnOnce', 'error']) logger[method] = message => { logs.push(String(message)) }
 const assertClean = (text, label) => {
-  assert(!Object.values(markers).some(marker => String(text).includes(marker)), `${label}含虚构凭据，隔离失败`)
+  assert(![...Object.values(markers), ...allowlistMarkers].some(marker => String(text).includes(marker)), `${label}含虚构凭据，隔离失败`)
 }
 async function files(directory) {
   const result = []
@@ -102,7 +103,7 @@ try {
     name: generated.name, modules: workerModules.map(path => ({ type: 'ESModule', path })), modulesRoot: workerOutput,
     compatibilityDate: generated.compatibility_date, compatibilityFlags: generated.compatibility_flags,
     bindings: { ...generated.vars, ...markers, ...publicBindings },
-    kvNamespaces: ['HOROSCOPE_KV'],
+    kvNamespaces: ['AUTH_KV', 'HOROSCOPE_KV'],
     ratelimits: Object.fromEntries(generated.ratelimits.map(binding => [binding.name, binding])),
     assets: { directory: publicDir, binding: 'ASSETS', run_worker_first: generated.assets.run_worker_first,
       routerConfig: { has_user_worker: true }, assetConfig: { not_found_handling: 'single-page-application' } },
@@ -143,8 +144,9 @@ try {
   }] }))
   const runtimeBindings = await runtime.getBindings()
   assert.equal(typeof runtimeBindings.SUPABASE_URL, 'string', '隔离运行时缺少认证 URL')
-  assert.equal(runtimeBindings.AUTH_ALLOWED_EMAILS, markers.AUTH_ALLOWED_EMAILS, '隔离白名单绑定缺失')
+  assert(!('AUTH_ALLOWED_EMAILS' in runtimeBindings), '旧白名单 secret 不得作为运行时绑定')
   assert.equal(runtimeBindings.SUPABASE_PUBLISHABLE_KEY, publicBindings.SUPABASE_PUBLISHABLE_KEY, '隔离公开 key 绑定缺失')
+  await (await runtime.getKVNamespace('AUTH_KV')).put('AUTH_ALLOWED_EMAILS', allowedEmail)
   assert((await runtimeBindings.DNSHE_READ_LIMITER.limit({ key: 'security-probe' })).success, '运行时读取限流绑定不可用')
   assert((await runtimeBindings.NEWS_READ_LIMITER.limit({ key: 'security-probe' })).success, '新闻读取限流绑定不可用')
   const newsProtection = generated.ratelimits.find(binding => binding.name === 'NEWS_READ_LIMITER')
@@ -166,6 +168,17 @@ try {
     if (response.status !== 200) throw new Error(`生产域名接口返回 ${response.status}（认证调用 ${authCalls} 次，上游调用 ${upstreamCalls} 次）：${body.slice(0, 1000)}`)
     assertClean(body, '生产域名接口响应')
   }
+  const authMe = await runtime.dispatchFetch('https://lifespace.onepeace.cc.cd/api/auth/me', { headers: authHeaders })
+  assert.equal(authMe.status, 200)
+  // The account's own email is the intended response; never use it as a leak fixture.
+  assert.deepEqual(await authMe.json(), { user: { id: authUser.id, email: allowedEmail } })
+  const cachedDomains = await runtime.dispatchFetch('https://lifespace.onepeace.cc.cd/api/domains', { headers: authHeaders })
+  assert.equal(cachedDomains.status, 200)
+  await (await runtime.getKVNamespace('AUTH_KV')).put('AUTH_ALLOWED_EMAILS', 'security-other@example.com')
+  const denied = await runtime.dispatchFetch('https://lifespace.onepeace.cc.cd/api/domains', { headers: authHeaders })
+  assert.equal(denied.status, 403)
+  assertClean(await denied.text(), '白名单拒绝响应')
+  await (await runtime.getKVNamespace('AUTH_KV')).put('AUTH_ALLOWED_EMAILS', allowedEmail)
   assert.equal(upstreamCalls, 1, '生产运行时未复用边缘缓存')
   let firstNewsTime
   for (const [index, path] of ['/api/news/source?id=baidu', '/api/news/source?id=baidu&refresh=force'].entries()) {
@@ -182,7 +195,7 @@ try {
     else assert.equal(result.fetchedAt, firstNewsTime)
   }
   assert.equal(newsCalls, 1, '生产运行时新闻缓存未命中')
-  assert.equal(authCalls, 4, '业务缓存命中也必须逐次在线验证会话')
+  assert.equal(authCalls, 7, '业务缓存命中也必须逐次在线验证会话')
   const horoscopeUrl = 'https://lifespace.onepeace.cc.cd/api/horoscope?sign=libra'
   assert.equal((await runtime.dispatchFetch(horoscopeUrl)).status, 401)
   assert.equal(horoscopeCalls, 0)
@@ -203,11 +216,11 @@ try {
     const anonymousHit = await runtime.dispatchFetch(horoscopeUrl)
     assert.equal(anonymousHit.status, 401)
     assert.equal(horoscopeCalls, 1, '未登录的运势缓存命中不得回源')
-    assert.equal(authCalls, 5, '缺少凭据时不得调用 Auth')
+    assert.equal(authCalls, 8, '缺少凭据时不得调用 Auth')
     const signedHit = await runtime.dispatchFetch(horoscopeUrl, { headers: authHeaders })
     assert.equal(signedHit.status, 200)
     assert.equal((await signedHit.json()).cacheHit, true)
-    assert.equal(authCalls, 6, '运势缓存命中也必须逐次在线验证会话')
+    assert.equal(authCalls, 9, '运势缓存命中也必须逐次在线验证会话')
     assert.equal(horoscopeCalls, 1)
   }
   checks.push({ name: '生产构建在隔离运行时的公开路径、接口与缓存', passed: true })
@@ -244,7 +257,7 @@ try {
 } catch (error) {
   restoreOutput()
   let message = error instanceof Error ? error.message : '未知错误'
-  for (const marker of Object.values(markers)) message = message.split(marker).join('[REDACTED]')
+  for (const marker of [...Object.values(markers), ...allowlistMarkers]) message = message.split(marker).join('[REDACTED]')
   console.error(`安全验证未通过（已完成 ${checks.length} 项）：${message.slice(0, 500)}`)
   process.exitCode = 1
 } finally {

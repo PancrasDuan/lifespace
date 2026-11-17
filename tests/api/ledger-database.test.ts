@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createHmac } from 'node:crypto'
 import { ledgerPageSchema, ledgerReceiptSchema, ledgerDetailSchema } from '../../src/shared/ledger'
-import { installLedgerDatabase, ledgerEnv, ledgerRequest, ledgerRpc, ledgerTestAccount, ordinaryEntry } from '../support/ledger-database'
+import { installLedgerDatabase, ledgerAuthKv, ledgerEnv, ledgerRequest, ledgerRpc, ledgerTestAccount, ordinaryEntry } from '../support/ledger-database'
 import app from '../../worker/index'
 
 describe.skipIf(!ledgerRpc)('账单正式 HTTP 与隔离 PostgreSQL/PostgREST 边界补充', () => {
@@ -109,9 +109,9 @@ describe.skipIf(!ledgerRpc)('账单正式 HTTP 与隔离 PostgreSQL/PostgREST �
     expect((await ledgerRequest(owner, `/api/ledger/entries/${receipt.entryId}/delete`, {})).status).toBe(400)
     const unauthenticated = await app.request('/api/ledger/entries', {}, ledgerEnv)
     expect(unauthenticated.status).toBe(401)
-    const oldAllowed = ledgerEnv.AUTH_ALLOWED_EMAILS
-    ledgerEnv.AUTH_ALLOWED_EMAILS = 'removed@example.invalid'
-    try { expect((await ledgerRequest(owner)).status).toBe(403) } finally { ledgerEnv.AUTH_ALLOWED_EMAILS = oldAllowed }
+    const oldAllowed = ledgerAuthKv.value
+    ledgerAuthKv.value = 'removed@example.invalid'
+    try { expect((await ledgerRequest(owner)).status).toBe(403) } finally { ledgerAuthKv.value = oldAllowed }
     for (const query of ['?ownerId=' + other, '?page=0', '?page=1.2', '?pageSize=100']) expect((await ledgerRequest(owner, '/api/ledger/entries' + query)).status).toBe(400)
     expect(await read(owner)).toMatchObject({ total: 1, version: 2 })
   })

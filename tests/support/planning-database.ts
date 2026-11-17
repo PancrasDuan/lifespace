@@ -2,16 +2,17 @@ import { strict as assert } from 'node:assert'
 import app from '../../worker/index'
 import { planningPageSchema, planningReceiptSchema, type PlanningCommand } from '../../src/shared/adventure-planning'
 import { adventureClientVersion, adventureClientVersionHeader } from '../../src/shared/adventure-client-version'
+import { authEnv } from './auth-kv'
 
 export const localPlanningRpc = process.env.ADVENTURE_LOCAL_RPC_URL
 const encode = (value: unknown) => btoa(JSON.stringify(value)).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_')
 
 // Identity and the RPC address are controlled; business requests still use the real Worker and database.
 export function planningDatabase(email = 'lifecycle@example.invalid') {
-  const env = {
+  const env = authEnv(email, {
     SUPABASE_URL: 'https://planning-local-test.supabase.co', SUPABASE_SECRET_KEY: 'sb_secret_local-test-only',
-    SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_local-test-only', AUTH_ALLOWED_EMAILS: email,
-  }
+    SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_local-test-only',
+  })
   let previousFetch: typeof fetch | undefined
   const request = (owner: string, path = '/api/adventure', body?: unknown, clientVersion: string | null = adventureClientVersion) => app.request(path, {
     method: body === undefined ? 'GET' : 'POST',

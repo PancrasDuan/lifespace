@@ -1,4 +1,5 @@
 import app from '../../worker/index'
+import { AuthTestKv } from '../support/auth-kv'
 
 const identity = { id: '00000000-0000-4000-8000-000000000001', email: 'demo@example.com', email_confirmed_at: '2026-10-11', is_anonymous: false }
 const encode = (value: unknown) => btoa(JSON.stringify(value)).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_')
@@ -18,7 +19,8 @@ export default {
       headers.set('Authorization', `Bearer ${token}`)
       return await app.request(input, { ...init, headers }, {
         ...env, SUPABASE_URL: env.SUPABASE_URL ?? 'https://auth-test.supabase.co',
-        SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_test-only', AUTH_ALLOWED_EMAILS: identity.email,
+        SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_test-only',
+        AUTH_KV: env.AUTH_KV ?? new AuthTestKv(identity.email).binding(),
       })
     } finally { globalThis.fetch = upstream }
   },

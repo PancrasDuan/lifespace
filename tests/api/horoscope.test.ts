@@ -1,6 +1,7 @@
 import { afterEach, expect, test, vi } from 'vitest'
 import app from './authenticated-app'
 import { alapiSuccess } from '../fixtures/horoscope'
+import { authEnv } from '../support/auth-kv'
 
 afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers() })
 
@@ -57,7 +58,7 @@ test('未登录或非白名单不读取缓存、不回源、不写 KV', async ()
   const encode = (value: unknown) => btoa(JSON.stringify(value)).replace(/=/g, '')
   const jwt = `${encode({ alg: 'HS256' })}.${encode({ sub: '00000000-0000-4000-8000-000000000001', session_id: '00000000-0000-4000-8000-000000000002', exp: 4102444800 })}.test-signature`
   s.fetch.mockImplementation(async () => Response.json({ id: '00000000-0000-4000-8000-000000000001', email: 'other@example.com', email_confirmed_at: '2026-10-22', is_anonymous: false }))
-  const denied = await raw.request('/api/horoscope?sign=libra', { headers: { Authorization: `Bearer ${jwt}` } }, { ...s.env, SUPABASE_URL: 'https://auth-test.supabase.co', SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_test-only', AUTH_ALLOWED_EMAILS: 'demo@example.com' })
+  const denied = await raw.request('/api/horoscope?sign=libra', { headers: { Authorization: `Bearer ${jwt}` } }, authEnv('demo@example.com', { ...s.env, SUPABASE_URL: 'https://auth-test.supabase.co', SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_test-only' }))
   expect(denied.status).toBe(403)
   expect(await denied.json()).toEqual({ error: { code: 'AUTH_DENIED', message: '此账户暂未获准访问' } })
   expect(s.get).not.toHaveBeenCalled(); expect(s.put).not.toHaveBeenCalled()
@@ -100,7 +101,7 @@ test('未登录请求不能加入正在回源的读取，也不阻碍获准请�
     upstreamCalls++; await gate
     return Response.json(alapiSuccess())
   })
-  const env = { ...s.env, SUPABASE_URL: 'https://auth-test.supabase.co', SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_test-only', AUTH_ALLOWED_EMAILS: horoscopeTestUser.email }
+  const env = authEnv(horoscopeTestUser.email, { ...s.env, SUPABASE_URL: 'https://auth-test.supabase.co', SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_test-only' })
   const first = raw.request('/api/horoscope?sign=libra', { headers: { Authorization: `Bearer ${horoscopeTestToken}` } }, env)
   await vi.waitFor(() => expect(upstreamCalls).toBe(1))
   expect((await raw.request('/api/horoscope?sign=libra', {}, env)).status).toBe(401)
@@ -218,6 +219,24 @@ test('KV 读故障关闭回源，写失败仍返回本次合法内容并限制�
   expect(write.fetch).toHaveBeenCalledTimes(1)
 })
 
+test('白名单更新或读取故障时，运势缓存命中也不能绕过准入', async () => {
+  const { default: raw } = await import('../../worker/index')
+  const { horoscopeTestToken, horoscopeTestUser } = await import('../fixtures/horoscope-worker')
+  const { AuthTestKv } = await import('../support/auth-kv')
+  const s = setup()
+  const authKv = new AuthTestKv(horoscopeTestUser.email)
+  const env = { ...s.env, SUPABASE_URL: 'https://auth-test.supabase.co', SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_test-only', AUTH_KV: authKv.binding() }
+  vi.stubGlobal('fetch', async (input: string | URL | Request) => String(input).includes('/auth/v1/user') ? Response.json(horoscopeTestUser) : Response.json(alapiSuccess()))
+  const request = () => raw.request('/api/horoscope?sign=libra', { headers: { Authorization: `Bearer ${horoscopeTestToken}` } }, env)
+  expect((await request()).status).toBe(200)
+  const writes = s.put.mock.calls.length
+  authKv.value = 'other@example.com'
+  expect((await request()).status).toBe(403)
+  authKv.failReads = true
+  expect((await request()).status).toBe(503)
+  expect(s.put).toHaveBeenCalledTimes(writes)
+})
+
 test('不完整合法内容保留 null，纯文本不改写；请求只传星座与服务端 token', async () => {
   const s = setup()
   s.fetch.mockImplementation(async () => Response.json({ success: true, code: 200, data: { day: { date: '2026-10-22', love: '0%', all_text: '<script>alert(1)</script>' } } }))
@@ -263,7 +282,7 @@ test('同实例在途读取合并，跨实例负缓存允许少量重复且同 k
     await gate
     return Response.json(alapiSuccess())
   })
-  const auth = { SUPABASE_URL: 'https://auth-test.supabase.co', SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_test-only', AUTH_ALLOWED_EMAILS: 'demo@example.com' }
+  const auth = authEnv('demo@example.com', { SUPABASE_URL: 'https://auth-test.supabase.co', SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_test-only' })
   const request = (kv: KVNamespace) => raw.request('/api/horoscope?sign=libra', { headers: { Authorization: `Bearer ${horoscopeTestToken}` } }, { ...s.env, ...auth, HOROSCOPE_KV: kv })
   const first = request(s.env.HOROSCOPE_KV)
   const second = request(s.env.HOROSCOPE_KV)
@@ -293,7 +312,7 @@ test('首请求尚未完成时，合并等待有界退出，不借用其 I/O Pro
     calls++; await gate
     return Response.json(alapiSuccess())
   })
-  const env = { ...s.env, SUPABASE_URL: 'https://auth-test.supabase.co', SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_test-only', AUTH_ALLOWED_EMAILS: horoscopeTestUser.email }
+  const env = authEnv(horoscopeTestUser.email, { ...s.env, SUPABASE_URL: 'https://auth-test.supabase.co', SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_test-only' })
   const request = () => raw.request('/api/horoscope?sign=libra', { headers: { Authorization: `Bearer ${horoscopeTestToken}` } }, env)
   const first = request()
   await vi.waitFor(() => expect(calls).toBe(1))

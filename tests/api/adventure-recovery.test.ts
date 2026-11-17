@@ -4,10 +4,11 @@ import { planningApi, PlanningError } from '../../src/adventure/planning-api'
 import { authorizedFetch, authorizedMutation } from '../../src/auth/request'
 import { adventureClientVersion, adventureClientVersionHeader } from '../../src/shared/adventure-client-version'
 import { canRetryPlanningEnvelope, storedPlanningEnvelopeSchema } from '../../src/shared/adventure-recovery'
+import { authEnv } from '../support/auth-kv'
 
 vi.mock('../../src/auth/request', () => ({ authorizedFetch: vi.fn(), authorizedMutation: vi.fn() }))
 const owner = '00000000-0000-4000-8000-000000000224'
-const env = { SUPABASE_URL: 'https://planning-test.supabase.co', SUPABASE_SECRET_KEY: 'sb_secret_planning-test-only', SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_planning-test-only', AUTH_ALLOWED_EMAILS: 'planning@example.com' }
+const env = authEnv('planning@example.com', { SUPABASE_URL: 'https://planning-test.supabase.co', SUPABASE_SECRET_KEY: 'sb_secret_planning-test-only', SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_planning-test-only' })
 const encode = (value: unknown) => btoa(JSON.stringify(value)).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_')
 const headers = { Authorization: `Bearer ${encode({ alg: 'HS256' })}.${encode({ sub: owner, session_id: owner, exp: 4102444800 })}.signature`, 'Content-Type': 'application/json', [adventureClientVersionHeader]: adventureClientVersion }
 const envelope = { requestId: 'original-recovery-224', expectedVersion: 2, command: { type: 'createGoal' as const, title: '原目标', standards: ['标准'] } }
