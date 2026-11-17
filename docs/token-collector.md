@@ -36,6 +36,6 @@ Claude 读取 `<home>/.claude/projects/**/*.jsonl`，`--home` 优先于 `CLAUDE_
 
 `npm run test:api` 覆盖警告不拦、有效降值／模型移除、缺席日保留、失败／无效输出不改旧统计或待传任务、敏感 stderr 不泄露，以及既有身份／锁／回执／重试。旧 inventory／压缩前缀测试随已授权职责调整删除，不以改宽坏帧断言伪装原策略继续通过。
 
-`npm run test:collector-package` 在仓库外实际 pack/install，只从安装包运行；默认验证同版本重装保留 SQLite／身份／待传任务及旧 sources 行。设置 `TOKEN_PACKAGE_PREVIOUS_ARCHIVE` 为映射中已保留的旧归档时，才实际验证旧→新升级及“不扩范围”行为；CI 未设置该变量，旧包升级由维护者在保留归档的机器上本地执行，不拉 latest。`test:collector-evidence` 继续只读白名单对账；一次性OS任务、隔离PG/PostgREST/TLS和完整12CI门禁继续保留，合成或本地网关不冒充托管／真实来源／用户验收。
+`npm run test:collector-package` 在仓库外实际 pack/install，只从安装包运行；默认验证同版本重装保留 SQLite／身份／待传任务及旧 sources 行。设置 `TOKEN_PACKAGE_PREVIOUS_ARCHIVE` 为映射中已保留的旧归档时，才实际验证旧→新升级及“不扩范围”行为；CI 未设置该变量，因此 CI 的默认包门禁不证明 0.1.5→0.1.6 升级路径。本次已在本地用记录中的 0.1.5 归档（`c029b833…`）跑通该路径，结果为旧来源保持、SQLite 字节不变、Claude/WorkBuddy 独立汇总；该结果只覆盖本机 Linux 合成来源，不代替 CI 或真实设备验收。`test:collector-evidence` 继续只读白名单对账；一次性OS任务、隔离PG/PostgREST/TLS和完整12CI门禁继续保留，合成或本地网关不冒充托管／真实来源／用户验收。
 
 独立0.1.6包及源码映射见 `docs/evidence/token-onboarding/package.json`；0.1.0–0.1.5原包和旧分发目录保持。正式state仍由总控单写，先审新包再升级指定设备。实际设备／新扫描、获准HTTP／页面及四方对账、双设备、长期任务和桌面手机人工分别留证，不从旧队列上传成功推定新扫描成功；实际运行证据保存在受控私有文件，不公开真实用量、设备状态、回执hash或托管数据。#223／#205是否完成以总控的完整验收记录为准。

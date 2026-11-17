@@ -69,7 +69,7 @@ DNSHE 成功结果在边缘缓存 5 分钟；手动刷新可能复用缓存，�
 
 ## Token 用量
 
-通过侧边导航进入 `/token` 查看按北京时间汇总的 Token 用量；筛选支持时间、Agent、设备与模型。当前支持 Codex、Grok Build（来源标识 `grok`）和 Hermes Agent（`hermes`）。本地采集器默认只采 Codex；新增来源必须由设备操作者显式授权，升级软件不会自动扩大扫描范围。采集协议见 [Token 采集器](docs/token-collector.md)，安装与接入见 [设备接入](docs/token-device-onboarding.md)。
+通过侧边导航进入 `/token` 查看按北京时间汇总的 Token 用量；筛选支持时间、Agent、设备与模型。当前支持 Codex、Grok Build（来源标识 `grok`）、Hermes Agent（`hermes`）、Claude Code（`claude`）、WorkBuddy（`workbuddy`）和 Cursor（`cursor`）。本地采集器默认只采 Codex；新增来源必须由设备操作者显式授权，升级软件不会自动扩大扫描范围。Cursor 只读操作者已在采集器之外准备的 Tokscale API 缓存，采集器不会代为登录或同步。采集协议见 [Token 采集器](docs/token-collector.md)，安装与接入见 [设备接入](docs/token-device-onboarding.md)。
 
 ## 验证与发布
 

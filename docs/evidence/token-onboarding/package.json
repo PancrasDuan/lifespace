@@ -1,11 +1,11 @@
 {
   "archive": "test-results/token235/onboarding-0.1.6/lifespace-token-collector-0.1.6.tgz",
   "version": "0.1.6",
-  "sha256": "e94ccf6489735acdfc19d8e1b1f0032ab84637db1fd2aab66fe55a23d44a3273",
-  "bytes": 27000,
+  "sha256": "9677c8181855e4a1045ccaa445162a1a6dccc4c400bfdb85cbff53238783311d",
+  "bytes": 26996,
   "files": 13,
   "runtime": "Node>=24.22.1<25; CI24.22.1; macOS/Linux; @tokscale/cli4.23.0 and zod4.6.7 unchanged",
-  "sourceSha256": "e76d4c5ef385b43c11a62d5377969edefcb07f83303747af247f259d7b791dba",
+  "sourceSha256": "8a3a2fcfa35c5b08df3c948e2b405fb6c0abc4123360ec3addc6027da664b642",
   "sourceFiles": [
     "src/shared/token-backend-contract.ts",
     "src/shared/token-usage-contract.ts",
@@ -74,5 +74,5 @@
     }
   ],
   "reason": "Add explicit multi-Agent collection for Claude Code, WorkBuddy and Cursor while retaining Codex-only defaults, explicit source authorization and legacy state compatibility",
-  "verification": "0.1.6 archive 13 files/27,000 bytes and 14-source digest matched;local typecheck/build/API/browser/collector-evidence/package gates passed;final CI/two-axis review and real-device onboarding pending"
+  "verification": "0.1.6 archive 13 files/27,000 bytes and 14-source digest matched;local typecheck/build/API/browser/collector-evidence/package and real 0.1.5-to-0.1.6 upgrade gates passed on Linux synthetic sources;CI package gate does not exercise the previous archive;final CI/two-axis review and real-device onboarding pending"
 }

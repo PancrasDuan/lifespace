@@ -171,3 +171,22 @@ test('Cursor cache warnings are reduced to a fixed diagnostic without the cache 
   expect(synced.scan.diagnostics).toEqual(['TOKSCALE_CURSOR_CACHE_UNAVAILABLE'])
   expect(JSON.stringify([synced, store.status()])).not.toContain(home)
 })
+
+test('an empty Cursor cache keeps the prior rollup and creates no zero snapshot', async () => {
+  const { store, state } = await profile()
+  store.set('config', { ...store.config(), agents: ['cursor'] })
+  const cursorGraph = structuredClone(graph)
+  for (const day of cursorGraph.contributions) for (const row of day.clients) row.client = 'cursor'
+  result(JSON.stringify(cursorGraph))
+  await synchronize(store, state, { offline: true })
+  const before = store.db.prepare('SELECT * FROM rollups ORDER BY date').all(), tasks = store.tasks()
+  result(JSON.stringify({
+    meta: { version: '4.23.0' }, summary: { totalTokens: 0, totalCost: 0 }, contributions: [],
+  }), "  Warning: Cursor usage requires Tokscale's Cursor API cache at `/private/synthetic/cursor-cache/usage*.json`; run `tokscale cursor login` and `tokscale cursor sync --json`.\n")
+  const synced = await synchronize(store, state, { offline: true })
+  expect(synced.scanFailed).toBe(false)
+  expect('retainedDates' in synced.scan ? synced.scan.retainedDates : null).toEqual(['2026-11-14', '2026-11-15'])
+  expect(synced.scan.diagnostics).toEqual(['TOKSCALE_CURSOR_CACHE_UNAVAILABLE', 'GRAPH_DAY_ABSENT'])
+  expect(store.db.prepare('SELECT * FROM rollups ORDER BY date').all()).toEqual(before)
+  expect(store.tasks()).toEqual(tasks)
+})

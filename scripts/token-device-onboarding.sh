@@ -201,7 +201,7 @@ finish() {
 run_wizard() {
   TOTAL_STAGES=8
   local server='https://lifespace.onepeace.cc.cd'
-  local expected='e94ccf6489735acdfc19d8e1b1f0032ab84637db1fd2aab66fe55a23d44a3273'
+  local expected='9677c8181855e4a1045ccaa445162a1a6dccc4c400bfdb85cbff53238783311d'
   local wizard_dir node_path npm_path collector status_json scan_json
   local TOKEN_ARCHIVE TOKEN_INSTALL TOKEN_STATE TOKEN_SOURCE TOKEN_AGENTS
   # No wizard profile, ambient .env, or secrets are read or written.
@@ -238,10 +238,10 @@ try {
   const [archive, expected] = process.argv.slice(2)
   if (!isAbsolute(archive)) throw 0
   const stat = await lstat(archive)
-  if (!stat.isFile() || stat.isSymbolicLink() || stat.size !== 27000) throw 0
+  if (!stat.isFile() || stat.isSymbolicLink() || stat.size !== 26996) throw 0
   const bytes = await readFile(archive)
-  if (bytes.length !== 27000 || createHash('sha256').update(bytes).digest('hex') !== expected) throw 0
-  console.log('  包校验通过：27,000 字节 / e94ccf64… / Node ' + process.versions.node + ' / ' + process.platform + '/' + process.arch)
+  if (bytes.length !== 26996 || createHash('sha256').update(bytes).digest('hex') !== expected) throw 0
+  console.log('  包校验通过：26,996 字节 / 9677c818… / Node ' + process.versions.node + ' / ' + process.platform + '/' + process.arch)
 } catch { console.error('ARCHIVE_UNCONFIRMED'); process.exitCode = 1 }
 JS
   say '私有本地包，未发布 npm；安装需要联网取得固定依赖，不使用 --omit=optional。'

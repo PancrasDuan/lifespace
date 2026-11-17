@@ -39,7 +39,7 @@
 | output | 包含推理的输出总数 | `tokens.output + reasoning` |
 | total | 输入加输出，只加一次 | 五个互斥 graph 桶之和 |
 | cacheRead | 输入的缓存读取分量 | `tokens.cacheRead` |
-| cacheWrite | 输入的缓存写入分量 | Codex 无此测量，省略；Grok/Hermes 保留 graph 桶，包括 0，以保证模型子项与主汇总对账 |
+| cacheWrite | 输入的缓存写入分量 | Codex 无此测量，省略；Grok/Hermes/Claude/WorkBuddy/Cursor 保留 graph 桶，包括 0，以保证模型子项与主汇总对账 |
 | reasoning | 输出中的推理分量 | `tokens.reasoning` |
 
 计数为非负安全整数，超出范围拒绝。已知的 total 必须等于 input+output，包含分量不能大于所属总数。缓存读取率由合计 `cacheRead / input` 计算，不平均各设备/模型的百分比；分母零、缺失或未知时无可用比例。本阶段不增加展示层。
@@ -100,7 +100,7 @@ TZ=Asia/Shanghai TOKSCALE_CONFIG_DIR=<synthetic-config> \
   tokscale graph --offline --home <synthetic-home> --client codex,grok,hermes,claude,workbuddy,cursor --no-spinner
 ```
 
-Claude 合成会话实测 `<home>/.claude/projects/**/*.jsonl` 解析为 input 150（含 cacheRead 20、cacheWrite 30）、output 40、total 190；WorkBuddy 合成 SQLite 的 `sessions` + `session_usage` 实测为 input 42、output 0、费用 unknown。Cursor 在缓存缺失、损坏、空数组、空对象或无 `usage` 字段时均返回空 graph、退出码 0，并在 stderr 输出含缓存绝对路径的固定告警；采集器将其归类为 `TOKSCALE_CURSOR_CACHE_UNAVAILABLE`，不透传原文或路径。本机没有 Cursor 账号，有效缓存形状和真实数据未验证；`cursor sync --offline` 明确失败，必须在线，因此采集器不代为登录或同步。
+Claude 合成会话实测 `<home>/.claude/projects/**/*.jsonl` 解析为 input 150（含 cacheRead 20、cacheWrite 30）、output 40、total 190；`--home` 优先于 `CLAUDE_CONFIG_DIR` 的结论来自这一手工探针，自动化测试只证明采集器不转发外部 `CLAUDE_CONFIG_DIR`，不单独重演上游优先级。WorkBuddy 合成 SQLite 的 `sessions` + `session_usage` 实测为 input 42、output 0、费用 unknown。Cursor 在缓存缺失、损坏、空数组、空对象或无 `usage` 字段时均返回空 graph、退出码 0，并在 stderr 输出含缓存绝对路径的固定告警；采集器将其归类为 `TOKSCALE_CURSOR_CACHE_UNAVAILABLE`，不透传原文或路径。仓库测试覆盖缺失和损坏两种形态；空数组、空对象与无 `usage` 字段只做了手工探针，未固化为自动化用例。本机没有 Cursor 账号，有效缓存形状和真实数据未验证；`cursor sync --offline` 明确失败，必须在线，因此采集器不代为登录或同步。采集器不调用任何登录或同步命令，但“无网络访问”由调用边界和 `--offline` 保证，没有以网络拦截测试单独证明。
 
 本机 4.23.0 的 Grok 真实探针可能返回 `cost: 0` 且 `costProvenance.kind=unknown`，即使底层会话有 `costUsdTicks`；本项目不读原始日志补价，按未知费用保存。Hermes 可能同样为 unknown；正数未知费用保守映射为 `unclassified/partial`，不猜成实际或 API 估算。Hermes 按日拆分依赖会话日志与 `logs/agent.log`，跨日未覆盖部分留在开始日，日趋势可用但不宣称逐次调用精确。Hermes 可能启动 `codex app-server` 而 Codex 也写 `~/.codex`；若同时授权两者，可能对同一调用重复计量，文档只提示重叠风险，不做静默去重。
 

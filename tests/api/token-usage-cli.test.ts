@@ -5,7 +5,7 @@ import { DatabaseSync } from 'node:sqlite'
 import { afterEach, expect, test } from 'vitest'
 import { build } from 'vite'
 import { tokenCollectorBoundary } from '../../build-plugins/token-collector-boundary'
-import { collectTokscaleUsage } from '../../tools/token-collector/tokscale-cli'
+import { collectTokscaleUsage, tokscaleDiagnostics } from '../../tools/token-collector/tokscale-cli'
 import { syntheticClaudeLog, syntheticCodexLog, syntheticUnknownModelLog } from '../fixtures/token-usage/synthetic'
 
 const temporaryDirs: string[] = []
@@ -94,7 +94,7 @@ test('只把显式授权 Agent 传给 Tokscale；默认仅 codex，缺少其他�
   await expect(collectTokscaleUsage({ ...options, agents: ['future'] as any }, context)).rejects.toThrow()
 })
 
-test('Claude 只按 --home 读取合成会话，且不继承外部 CLAUDE_CONFIG_DIR', async () => {
+test('Claude 只按 --home 读取合成会话，且不转发外部 CLAUDE_CONFIG_DIR', async () => {
   const options = await profile()
   await mkdir(join(options.homeDir, '.claude/projects/-synthetic'), { recursive: true })
   await writeFile(join(options.homeDir, '.claude/projects/-synthetic/synthetic.jsonl'), syntheticClaudeLog())
@@ -147,6 +147,12 @@ test('Cursor 只读已有缓存；缺失或损坏时返回空图与固定缓存�
     expect(report.diagnostics).toContain('TOKSCALE_CURSOR_CACHE_UNAVAILABLE')
     expect(JSON.stringify(report)).not.toContain(options.homeDir)
   }
+})
+
+test('Cursor 的固定缓存告警即使没有路径也归入专用诊断，不回显原文', async () => {
+  expect(tokscaleDiagnostics("Warning: Cursor usage requires Tokscale's Cursor API cache at an unavailable path; run `tokscale cursor login`.\n"))
+    .toEqual(['TOKSCALE_CURSOR_CACHE_UNAVAILABLE'])
+  expect(tokscaleDiagnostics("Warning: Cursor usage requires Tokscale's Cursor API cache.\n")).toEqual(['TOKSCALE_CURSOR_CACHE_UNAVAILABLE'])
 })
 
 test('已有时区固定值不能被 TZ 悄悄覆盖；拒绝冲突并保留原配置', async () => {

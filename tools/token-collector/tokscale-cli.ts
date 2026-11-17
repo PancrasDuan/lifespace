@@ -23,7 +23,7 @@ export function tokscaleDiagnostics(stderr: string): string[] {
   for (const line of stderr.split('\n').map(value => value.trim()).filter(Boolean)) {
     if (line === 'tokscale: some usage is partial, unpriced, or has stale pricing; cost totals may be incomplete. Run `tokscale pricing explain --json --no-spinner` for local billing-channel details.') {
       codes.add('TOKSCALE_PRICING_WARNING')
-    } else if (line.startsWith("Warning: Cursor usage requires Tokscale's Cursor API cache at `")) {
+    } else if (line.startsWith("Warning: Cursor usage requires Tokscale's Cursor API cache")) {
       // Upstream reports both a missing and an unreadable cache with the same
       // warning, including its absolute path. Keep only a fixed category.
       codes.add('TOKSCALE_CURSOR_CACHE_UNAVAILABLE')
