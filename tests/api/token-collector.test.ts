@@ -464,6 +464,10 @@ test('CLI defaults to all sources; explicit lists, sources add/set and reauthori
     expect(reopened.config().sourceHome).toBe(home)
     expect(reopened.status().agents).toEqual(['codex', 'grok', 'hermes', 'claude', 'workbuddy', 'cursor'])
     reopened.close(); stores.splice(stores.indexOf(reopened), 1)
+    // In all-mode there is nothing to add; the operator must set explicitly.
+    await expect(run('sources', 'add', '--agents', 'grok')).rejects.toMatchObject({ stderr: expect.stringContaining('AGENTS_ALREADY_ALL_USE_SOURCES_SET') })
+    // Scope is immutable across re-initialization.
+    await expect(run('init', '--replace', '--test-loopback', '--source-home', join(dir, 'other-source'))).rejects.toMatchObject({ stderr: expect.stringContaining('EXISTING_PROFILE_SCOPE_CANNOT_CHANGE') })
     const help = (await run('--help')).stdout
     expect(help).toContain('sources set --agents codex,grok')
     expect(help).toContain('All supported Agent sources are collected by default')

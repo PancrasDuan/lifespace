@@ -1,11 +1,11 @@
 {
   "archive": "test-results/token235/onboarding-0.1.6/lifespace-token-collector-0.1.6.tgz",
   "version": "0.1.6",
-  "sha256": "0972bf88522e70084ac738e28d02d5dcbcba1a478a9753d8531be89772f7a2af",
-  "bytes": 27660,
+  "sha256": "f215164541b0b7e770d3f6a0c6d5cd99b36466db8b03e57759dd2f61f3c9202a",
+  "bytes": 27725,
   "files": 13,
   "runtime": "Node>=24.22.1<25; CI24.22.1; macOS/Linux; @tokscale/cli4.23.0 and zod4.6.7 unchanged",
-  "sourceSha256": "f43fff4bf677ec37e80d84c3f8ba5a1d895226270bd1f249c65eab2db95369c3",
+  "sourceSha256": "f96bcc1907c94bb8f80346a75a9c82401daede5741736d2ace1968ff91a7a17b",
   "sourceFiles": [
     "src/shared/token-backend-contract.ts",
     "src/shared/token-usage-contract.ts",
@@ -73,6 +73,6 @@
       "preserved": true
     }
   ],
-  "reason": "Add Claude Code, WorkBuddy and Cursor sources and collect all six supported Agents by default; explicit --agents or sources set narrows the list, and legacy state without a source mode expands to all six",
-  "verification": "0.1.6 archive 13 files/27,652 bytes and 14-source digest matched;local typecheck/build/API/browser/collector-evidence/package gates passed;legacy 0.1.5 state without a source mode is not runnable: status reports reinitRequired and sync/sources return REINIT_REQUIRED;explicit init --replace rebuilds to all six sources without inheriting the old list, preserves old immutable tasks and produces four synthetic agent rollups;CI package gate does not exercise the previous archive;final CI/two-axis review and real-device onboarding pending"
+  "reason": "Add Claude Code, WorkBuddy and Cursor sources and collect all six supported Agents by default; explicit --agents or sources set narrows the list; legacy state without a source mode is not runnable and must be rebuilt with init --replace, which never inherits the old source list",
+  "verification": "0.1.6 archive 13 files/27,725 bytes and 14-source digest matched;local typecheck/build/API/browser/collector-evidence/package gates passed;legacy 0.1.5 state without a source mode is not runnable: status reports reinitRequired and sync/sources return REINIT_REQUIRED;explicit rebuild to all six sources without inheriting the old list produces four synthetic agent rollups, and a same-content rescan keeps the content hash unchanged;CI package gate does not exercise the previous archive;final CI/two-axis review and real-device onboarding pending"
 }

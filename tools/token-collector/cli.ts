@@ -81,8 +81,9 @@ async function main() {
         return
       }
       if (config.agentsMode === 'all') {
-        console.log(JSON.stringify({ agents: config.agents, agentsMode: config.agentsMode, added: [] }))
-        return
+        // All-mode already includes every supported source; adding cannot
+        // narrow or extend anything, so require an explicit set instead.
+        throw new LocalError('AGENTS_ALREADY_ALL_USE_SOURCES_SET')
       }
       const added = requested.filter(agent => !config.agents.includes(agent))
       const agents = agentsSchema.parse([...config.agents, ...added])

@@ -15,6 +15,8 @@
 
 `collectTokscaleUsage({ homeDir, configDir, agents?, since?, until? }, context)` 要求绝对目录，日期为有效公历日且起止有序；`agents` 缺省为全部六个来源，只接受 `codex`／`grok`／`hermes`／`claude`／`workbuddy`／`cursor` 的非空去重列表。它强制 `TZ=Asia/Shanghai`、独立 `TOKSCALE_CONFIG_DIR`、显式 `--home`、`--client <当前列表>` 和 `--offline`；只对列表内 Agent 设置 `CODEX_HOME`／`GROK_HOME`／`HERMES_HOME`。`claude`／`workbuddy`／`cursor` 不设置额外根：Claude 的 `--home` 优先于 `CLAUDE_CONFIG_DIR`，WorkBuddy 读取 `<home>/.workbuddy/workbuddy.db`，Cursor 只读 `<home>/.config/tokscale/cursor-cache/usage*.json`。采集器不执行 Cursor 登录或同步，也不读取本地 `~/.cursor` 会话。调用前检查显式 home 下 `.config/tokscale/settings.json`，缺失时在 Linux/macOS 都检查旧布局 `Library/Application Support/tokscale/settings.json`。拒绝无效配置或非北京 `scanner.bucketTimezone`，因为有效 pin 优先于 TZ，不擅改已有设置。子进程不继承服务凭据，不调用登录、提交或自动同步命令，超时 60 秒，stdout 上限 32 MiB。错误不返回原始 stdout/stderr/路径；stderr只返回`TOKSCALE_PRICING_WARNING`／`TOKSCALE_MISSING_USAGE`／`TOKSCALE_CURSOR_CACHE_UNAVAILABLE`／`TOKSCALE_DIAGNOSTIC`固定类别。按[ADR0020](adr/0020-token-recorded-usage-authority.md)，这些告警不阻断成功且通过联合校验的已记录统计；不另证原始日志完整性。真正CLI失败／超时或输出无效仍拒绝替换，同步成功另需严格回执。
 
+该函数只接收已经确定的来源列表，不读取采集器状态库。0.1.5 及更早写入的采集器状态缺少来源模式，须先 `init --replace` 重建；不能把旧状态直接交给本函数。
+
 安装的工具为精确 devDependency `@tokscale/cli@4.23.0`，平台包及 integrity 固定在 `package-lock.json`。2026-11-15 重新查询 npm 官方 `latest` 确认此版本，未直接沿用旧研究。已实跑 Linux x64，Node **24.22.1**；仓库已有 `.node-version` 不由本任务改动。macOS 的真实执行留待后续设备验收。
 
 ## 三部分契约
