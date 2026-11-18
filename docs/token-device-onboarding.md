@@ -14,7 +14,7 @@
 | SHA-256 | `64cc719bf0cb262f5895f5e81792574b5d48b1892df4db28ba4e808ee21c306e` |
 | 声明源码 | `docs/evidence/token-onboarding/package.json` 中的 14 项；摘要 `df412fd9c01e2645bc1fc8e2f25fb2ad21c502d16ef0662d9fbadc7d4c37d1c0` |
 | 运行时 | Node >=24.22.1 <25；仓库CI固定24.22.1；安装自动取得固定 Tokscale 4.23.0 和 Zod 4.6.7，保留 optional dependencies |
-| 私有副本 | 当前工作区 `test-results/token235/onboarding-0.1.6/lifespace-token-collector-0.1.6.tgz` |
+| 私有副本 | 受控私有目录中的 `lifespace-token-collector-0.1.6.tgz`；不在仓库或公共位置 |
 
 0.1.3 按[ADR0020](adr/0020-token-recorded-usage-authority.md)接受固定 Tokscale 成功且通过输出校验的已记录用量。missing-usage／价格／未知告警只保留固定脱敏类别，不再逐文件审计或冻结有效统计；真正失败、无效输出、版本／时区冲突继续保留旧统计与待传请求。有效更正可增可减或移除模型，graph缺席的旧日期保留，不补未知为0。Node >=24.22.1 <25的已测基线保持。
 
@@ -36,6 +36,81 @@ bash token-device-onboarding.sh
 ```
 
 `SHA256SUMS` 校验复制完整性，不能替代可信来源；采集器归档还由向导对照上表硬编码 SHA 验证。安装要联网下载精确 runtime 依赖，这不是全离线镜像。向导保留 wizard 技能原库，仅新增阶段；交互只在选定设备本机运行，不把登录密码或令牌复制到聊天。
+
+## macOS 从 0.1.5 升级到 0.1.6
+
+以下命令在目标 Mac 的用户终端执行，不要用 `sudo`。先确认归档 SHA-256 与字节数，再升级。
+
+```sh
+INSTALL="$HOME/.local/lib/lifespace-token-collector"   # 替换为实际安装目录
+STATE="$HOME/Library/Application Support/LifeSpace/token"
+ARCHIVE="$HOME/Downloads/lifespace-token-collector-0.1.6.tgz"
+
+shasum -a 256 "$ARCHIVE"   # 期望 64cc719bf0cb262f5895f5e81792574b5d48b1892df4db28ba4e808ee21c306e
+stat -f%z "$ARCHIVE"       # 期望 27779
+```
+
+1. 停定时任务并备份状态：
+
+```sh
+"$INSTALL/node_modules/.bin/lifespace-usage" timer uninstall --apply --state-dir "$STATE"
+cp -pR "$STATE" "$HOME/lifespace-token-backup-0.1.5"
+```
+
+2. 用旧 CLI 升级安装：
+
+```sh
+"$INSTALL/node_modules/.bin/lifespace-usage" upgrade \
+  --archive "$ARCHIVE" --prefix "$INSTALL" --apply --state-dir "$STATE"
+node -e "console.log(require('$INSTALL/node_modules/@lifespace/token-collector/package.json').version)"
+```
+
+3. 确认旧状态被识别为需重建，然后重建配置：
+
+```sh
+"$INSTALL/node_modules/.bin/lifespace-usage" status --state-dir "$STATE"
+# 期望 reinitRequired: true、agents: null
+
+"$INSTALL/node_modules/.bin/lifespace-usage" init --replace --state-dir "$STATE"
+# 默认全部六个来源；收窄时追加 --agents codex,grok
+```
+
+用浏览器打开输出的确认地址并输入设备码批准（约 10 分钟有效），再领取凭据：
+
+```sh
+"$INSTALL/node_modules/.bin/lifespace-usage" authorize --wait --state-dir "$STATE"
+# 期望 {"status":"claimed"}
+```
+
+4. 先本地扫描，再在线同步：
+
+```sh
+"$INSTALL/node_modules/.bin/lifespace-usage" sync --offline --state-dir "$STATE"
+"$INSTALL/node_modules/.bin/lifespace-usage" sync --state-dir "$STATE"
+# 期望 scanFailed: false、pending: 0、heartbeat: true
+```
+
+5. 恢复定时任务并核对：
+
+```sh
+"$INSTALL/node_modules/.bin/lifespace-usage" timer install --hours 1 --apply --state-dir "$STATE"
+launchctl print "gui/$(id -u)/com.lifespace.token-collector" | head -20
+"$INSTALL/node_modules/.bin/lifespace-usage" status --state-dir "$STATE"
+# 期望 reinitRequired: false、agentsMode: all、agents 为六个、pending: 0、errors: []
+```
+
+6. 可选启用 Cursor（采集器不会代登录）：
+
+```sh
+"$INSTALL/node_modules/.bin/tokscale" cursor login
+"$INSTALL/node_modules/.bin/tokscale" cursor sync --json
+```
+
+之后 `status` 中的 `TOKSCALE_CURSOR_CACHE_UNAVAILABLE` 应消失。
+
+回退：先 `timer uninstall --apply`，再用 `upgrade --archive <0.1.5 归档> --prefix "$INSTALL" --apply` 重装。0.1.5 归档为 `lifespace-token-collector-0.1.5.tgz`，26,433 字节，SHA-256 `c029b83353ad36df6725906a24e0fcf7871bed3cb12d351fd8b36e92c7210646`；如需回退状态库，停任务后用备份覆盖 `$STATE`。
+
+注意事项：`init --replace` 不允许改 server 或 source-home；重新 init 会重新登记同一设备（generation +1）并触发一次全量重扫与重传，服务端对相同内容返回 `unchanged`，不会重复计数。`COLLECTOR_BUSY` 表示有同步进程在跑，等待后重试。
 
 ## 向导执行边界
 
