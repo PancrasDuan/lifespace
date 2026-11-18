@@ -20,7 +20,7 @@ try {
     { timestamp: '2026-11-15T00:00:02Z', type: 'event_msg', payload: { type: 'token_count', info: { total_token_usage: { input_tokens: 100, output_tokens: 30 }, last_token_usage: { input_tokens: 100, output_tokens: 30 } } } },
   ].map(r => JSON.stringify(r)).join('\n') + '\n')
   store = await Store.open(state)
-  store.set('config', { deviceId: 'synthetic-price-213', server: 'https://example.invalid/', sourceHome: home, hours: 1, loopback: false })
+  store.set('config', { deviceId: 'synthetic-price-213', server: 'https://example.invalid/', sourceHome: home, hours: 1, loopback: false, agents: ['codex', 'grok', 'hermes', 'claude', 'workbuddy', 'cursor'], agentsMode: 'all' })
   await scan(store, state, { offline: true })
   const latest = () => JSON.parse(store.db.prepare('select snapshot from rollups').get().snapshot)
   assert.equal(latest().content.cost.coverage, 'unknown')

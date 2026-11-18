@@ -31,3 +31,10 @@ export function syntheticUnknownModelLog() {
     } } },
   ].map(row => JSON.stringify(row)).join('\n') + '\n'
 }
+
+export function syntheticClaudeLog() {
+  return [
+    { type: 'user', uuid: 'synthetic-claude-user-1', parentUuid: null, sessionId: 'synthetic-claude-235', cwd: '/synthetic', timestamp: '2026-11-15T00:00:00.000Z', message: { role: 'user', content: 'synthetic' } },
+    { type: 'assistant', uuid: 'synthetic-claude-assistant-1', parentUuid: 'synthetic-claude-user-1', sessionId: 'synthetic-claude-235', cwd: '/synthetic', timestamp: '2026-11-15T00:00:01.000Z', message: { id: 'synthetic-claude-message-1', role: 'assistant', model: 'synthetic-claude-model', usage: { input_tokens: 100, output_tokens: 40, cache_read_input_tokens: 20, cache_creation_input_tokens: 30 } } },
+  ].map(row => JSON.stringify(row)).join('\n') + '\n'
+}

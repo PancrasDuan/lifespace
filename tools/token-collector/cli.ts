@@ -12,12 +12,13 @@ import { refreshPrices } from './prices.ts'
 import { applySchedule, schedulePlan, scheduleStatus } from './schedule.ts'
 
 process.umask(0o077)
-const help = `LifeSpace usage collector 0.1.5 (Node >=24.22.1 <25, Tokscale 4.23.0)
-init --server https://lifespace.example [--source-home /absolute/home] [--agents codex,grok,hermes] [--replace]
+const help = `LifeSpace usage collector 0.1.6 (Node >=24.22.1 <25, Tokscale 4.23.0)
+init --server https://lifespace.example [--source-home /absolute/home] [--agents codex,grok] [--replace]
 authorize [--wait]                 Continue saved browser authorization
 sync [--rescan] [--offline]        Scan all history; upload immutable queue
 sources list                       Show locally authorized Agent sources
-sources add --agents grok,hermes   Explicitly expand authorized sources
+sources add --agents claude        Add explicit sources
+sources set --agents codex,grok    Replace sources with an explicit list
 status                            Local redacted diagnostics
 prices refresh                    Refresh official Tokscale price caches
 timer install|uninstall|status [--hours 1|3|6|8|12|24] [--apply]
@@ -25,7 +26,8 @@ upgrade --archive /absolute/release.tgz --prefix /absolute/install [--apply]
 All stateful commands accept --state-dir /absolute/private/directory.
 Timer/upgrade print a plan unless --apply is explicitly supplied.
 init --test-loopback permits numeric loopback HTTP for isolated tests only.
-Default Agent source is codex; upgrades never expand it implicitly.
+All supported Agent sources are collected by default; pass --agents to narrow.
+State written before 0.1.6 must be re-initialized with init --replace.
 `
 function parseAgents(value: string | undefined, fallback: Agent[]): Agent[] {
   if (value === undefined) return fallback
@@ -51,16 +53,16 @@ async function main() {
     if (command === 'init') {
       const deviceId = await systemDeviceId(), prior = store.get('config')
       if (prior && !values.replace) throw new LocalError('ALREADY_INITIALIZED_USE_AUTHORIZE_OR_REPLACE')
-      const server = endpoint(values.server ?? (prior ? store.config().server : ''), values['test-loopback'] === true).href
+      const priorConfig = prior ? store.legacyConfig() : undefined
+      const server = endpoint(values.server ?? priorConfig?.server ?? '', values['test-loopback'] === true).href
       if (new URL(server).pathname !== '/') throw new LocalError('SERVER_ORIGIN_REQUIRED')
-      const sourceHome = values['source-home'] ?? (prior ? store.config().sourceHome : homedir()); if (!isAbsolute(sourceHome)) throw new LocalError('SOURCE_HOME_ABSOLUTE_REQUIRED')
-      if (prior && store.config().deviceId !== deviceId) throw new LocalError('SYSTEM_ID_CHANGED')
-      const agents = parseAgents(values.agents, prior ? store.config().agents : ['codex'])
-      if (prior && (agents.length !== store.config().agents.length || agents.some(agent => !store.config().agents.includes(agent)))) {
-        throw new LocalError('AGENTS_CHANGE_REQUIRES_SOURCES_ADD')
-      }
-      const config = configSchema.parse({ deviceId, server, sourceHome: resolve(sourceHome), hours: hoursSchema.parse(Number(values.hours ?? (prior ? store.config().hours : 1))), loopback: values['test-loopback'] === true, agents })
-      if (prior && (config.server !== store.config().server || config.sourceHome !== store.config().sourceHome)) throw new LocalError('EXISTING_PROFILE_SCOPE_CANNOT_CHANGE')
+      const sourceHome = values['source-home'] ?? priorConfig?.sourceHome ?? homedir(); if (!isAbsolute(sourceHome)) throw new LocalError('SOURCE_HOME_ABSOLUTE_REQUIRED')
+      if (priorConfig && priorConfig.deviceId !== deviceId) throw new LocalError('SYSTEM_ID_CHANGED')
+      // Sources are never inherited: init always states them explicitly.
+      const agents = parseAgents(values.agents, [...supportedAgents])
+      const agentsMode = values.agents === undefined ? 'all' : 'explicit'
+      const config = configSchema.parse({ deviceId, server, sourceHome: resolve(sourceHome), hours: hoursSchema.parse(Number(values.hours ?? priorConfig?.hours ?? 1)), loopback: values['test-loopback'] === true, agents, agentsMode })
+      if (priorConfig && (config.server !== priorConfig.server || config.sourceHome !== priorConfig.sourceHome)) throw new LocalError('EXISTING_PROFILE_SCOPE_CANNOT_CHANGE')
       store.set('config', config)
       console.log(JSON.stringify(await startRegistration(store, config, hostname(), platform())))
       return
@@ -68,14 +70,25 @@ async function main() {
     const config = store.config()
     if (command === 'sources') {
       const action = positionals[1]
-      if (!['list', 'add'].includes(action)) throw new LocalError('COMMAND_INVALID')
-      if (action === 'list') { console.log(JSON.stringify({ agents: config.agents, supported: supportedAgents })); return }
+      if (!['list', 'add', 'set'].includes(action)) throw new LocalError('COMMAND_INVALID')
+      if (action === 'list') { console.log(JSON.stringify({ agents: config.agents, agentsMode: config.agentsMode, supported: supportedAgents })); return }
       if (values.agents === undefined) throw new LocalError('AGENTS_REQUIRED')
       const requested = parseAgents(values.agents, [])
+      if (action === 'set') {
+        const agents = agentsSchema.parse(requested)
+        store.set('config', { ...config, agents, agentsMode: 'explicit' })
+        console.log(JSON.stringify({ agents, agentsMode: 'explicit' }))
+        return
+      }
+      if (config.agentsMode === 'all') {
+        // All-mode already includes every supported source; adding cannot
+        // narrow or extend anything, so require an explicit set instead.
+        throw new LocalError('AGENTS_ALREADY_ALL_USE_SOURCES_SET')
+      }
       const added = requested.filter(agent => !config.agents.includes(agent))
       const agents = agentsSchema.parse([...config.agents, ...added])
-      store.set('config', { ...config, agents })
-      console.log(JSON.stringify({ agents, added }))
+      store.set('config', { ...config, agents, agentsMode: 'explicit' })
+      console.log(JSON.stringify({ agents, agentsMode: 'explicit', added }))
       return
     }
     if (command === 'authorize') {

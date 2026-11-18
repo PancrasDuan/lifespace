@@ -75,6 +75,9 @@ test('absent model is reported as absent without manufacturing zero metrics', as
 test('agent selector reads only the requested rollup and rejects unsupported clients', async () => {
   const f = await fixture()
   await assert.rejects(localEvidence({ ...f.options, agent: 'grok' }), /NO_LOCAL_ROLLUP_FOR_DATE/)
+  for (const agent of ['claude', 'workbuddy', 'cursor']) {
+    await assert.rejects(localEvidence({ ...f.options, agent }), /NO_LOCAL_ROLLUP_FOR_DATE/)
+  }
   await assert.rejects(localEvidence({ ...f.options, agent: 'future' }), /AGENT_INVALID/)
   const result = await localEvidence({ ...f.options, agent: 'codex' })
   assert.equal(result.agent, 'codex')

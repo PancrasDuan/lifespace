@@ -14,7 +14,7 @@ export async function localEvidence({ installation, stateDir, date, agent = 'cod
   }
   if (!/^\d{4}-\d\d-\d\d$/.test(date) || !Number.isFinite(Date.parse(date))
     || new Date(date).toISOString().slice(0, 10) !== date) throw new Error('DATE_INVALID')
-  if (!['codex', 'grok', 'hermes'].includes(agent)) throw new Error('AGENT_INVALID')
+  if (!['codex', 'grok', 'hermes', 'claude', 'workbuddy', 'cursor'].includes(agent)) throw new Error('AGENT_INVALID')
   const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())
   if (date >= today) throw new Error('COMPLETED_BEIJING_DATE_REQUIRED')
   if (modelKey !== undefined) {
@@ -60,7 +60,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
   try {
     const { values } = parseArgs({ options: { installation: { type: 'string' }, 'state-dir': { type: 'string' }, date: { type: 'string' }, agent: { type: 'string' }, 'model-key': { type: 'string' }, help: { type: 'boolean' } } })
     if (values.help) {
-      console.log(`Node >=24.22.1 <25 token-local-evidence.mjs --installation /private/install --state-dir /private/state --date YYYY-MM-DD [--agent codex|grok|hermes] [--model-key '"model-id"' | --model-key null]`)
+      console.log(`Node >=24.22.1 <25 token-local-evidence.mjs --installation /private/install --state-dir /private/state --date YYYY-MM-DD [--agent codex|grok|hermes|claude|workbuddy|cursor] [--model-key '"model-id"' | --model-key null]`)
     } else {
       console.log(JSON.stringify(await localEvidence({ installation: values.installation, stateDir: values['state-dir'], date: values.date, agent: values.agent, modelKey: values['model-key'] }), null, 2))
     }

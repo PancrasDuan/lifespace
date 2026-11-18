@@ -6,7 +6,7 @@ import { dirname, isAbsolute, join } from 'node:path'
 import { promisify } from 'node:util'
 import { z } from 'zod'
 import { adaptTokscaleGraph, tokscaleVersion, type TokenCollectionContext } from './tokscale-adapter.ts'
-import { agentsSchema } from './store.ts'
+import { agentsSchema, supportedAgents } from './store.ts'
 
 const exec = promisify(execFile)
 const cliEntry = join(dirname(createRequire(import.meta.url).resolve('@tokscale/cli/package.json')), 'bin.js')
@@ -14,7 +14,7 @@ const absolutePath = z.string().min(1).refine(isAbsolute, '必须使用绝对路
 const optionsSchema = z.strictObject({
   homeDir: absolutePath, configDir: absolutePath,
   since: z.iso.date().optional(), until: z.iso.date().optional(),
-  agents: agentsSchema.default(['codex']),
+  agents: agentsSchema.default([...supportedAgents]),
 }).refine(value => !value.since || !value.until || value.since <= value.until, '日期范围倒置')
 export type TokscaleOptions = z.input<typeof optionsSchema>
 
@@ -23,6 +23,10 @@ export function tokscaleDiagnostics(stderr: string): string[] {
   for (const line of stderr.split('\n').map(value => value.trim()).filter(Boolean)) {
     if (line === 'tokscale: some usage is partial, unpriced, or has stale pricing; cost totals may be incomplete. Run `tokscale pricing explain --json --no-spinner` for local billing-channel details.') {
       codes.add('TOKSCALE_PRICING_WARNING')
+    } else if (line.startsWith("Warning: Cursor usage requires Tokscale's Cursor API cache")) {
+      // Upstream reports both a missing and an unreadable cache with the same
+      // warning, including its absolute path. Keep only a fixed category.
+      codes.add('TOKSCALE_CURSOR_CACHE_UNAVAILABLE')
     } else if (/^Warning: \d+ of \d+ inspected rollout files contain Codex activity but no supported usage records for the selected clients\b/.test(line)) {
       codes.add('TOKSCALE_MISSING_USAGE')
     } else codes.add('TOKSCALE_DIAGNOSTIC')
@@ -59,6 +63,10 @@ export async function collectTokscaleUsage(input: TokscaleOptions, context: Toke
   // An explicit profile keeps auth, prices and parser caches separate from the
   // user's profile. --home scopes discovery to the selected home; the client
   // specific roots below are set only for explicitly authorized Agents.
+  // Claude, WorkBuddy and Cursor stay on --home: Claude's --home takes
+  // precedence over CLAUDE_CONFIG_DIR, so setting that variable would only add
+  // a second root outside the explicitly selected source. Cursor reads its API
+  // cache under --home and is never logged in or synced here.
   const env = {
     TZ: 'Asia/Shanghai', TOKSCALE_CONFIG_DIR: options.configDir,
     ...(options.agents.includes('codex') ? { CODEX_HOME: join(options.homeDir, '.codex') } : {}),

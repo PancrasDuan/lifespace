@@ -15,7 +15,7 @@ export async function scan(store: Store, stateDir: string, options: { rescan?: b
   if (!options.offline && (!price || Date.now() - price.at >= 86400000)) await refreshPrices(store, configDir)
   if (options.rescan) await clearParserCache(configDir)
   const report = await collectTokscaleUsage({ homeDir: config.sourceHome, configDir, agents: config.agents }, {
-    deviceId: config.deviceId, metadata: { schemaVersion: 1, statisticsVersion: 'tokscale-multi-agent-1', tool: { name: 'tokscale', version: '4.23.0' },
+    deviceId: config.deviceId, metadata: { schemaVersion: 1, statisticsVersion: 'tokscale-multi-agent-2', tool: { name: 'tokscale', version: '4.23.0' },
       priceVersion: await priceFingerprint(configDir), scannedAt: new Date().toISOString(), hostname: hostname() },
   })
   if (report.snapshots.some(snapshot => !config.agents.includes(snapshot.identity.agent as Agent))) {

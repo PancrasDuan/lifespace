@@ -40,11 +40,15 @@ describe('Token frontend date and display contract', () => {
 })
 
 describe('Token Agent display contract', () => {
-  test('dashboard exposes Grok Build and Hermes Agent without renaming stored client ids', async () => {
+  test('dashboard exposes all six Agents without renaming stored client ids', async () => {
     const source = await readFile('src/token/TokenDashboard.tsx', 'utf8')
     expect(source).toContain("grok: 'Grok Build'")
     expect(source).toContain("hermes: 'Hermes Agent'")
-    expect(source).toContain("useState(['codex', 'grok', 'hermes'])")
+    expect(source).toContain("claude: 'Claude Code'")
+    expect(source).toContain("workbuddy: 'WorkBuddy'")
+    expect(source).toContain("cursor: 'Cursor'")
+    expect(source).toContain("useState(['codex', 'grok', 'hermes', 'claude', 'workbuddy', 'cursor'])")
+    expect(source).not.toContain('尚未接入')
     expect(source).toContain("agentName(agent)")
   })
 })

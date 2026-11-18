@@ -42,6 +42,10 @@ try {
     assert.match(initialHelp, /sources add --agents grok,hermes/)
     assert.match(initialHelp, /collector 0\.1\.5/)
   }
+  if (initialVersion === '0.1.6') {
+    assert.match(initialHelp, /sources set --agents codex,grok/)
+    assert.match(initialHelp, /collector 0\.1\.6/)
+  }
   // Exercise the real OS identity probe without printing its value. Synthetic
   // logs below stay separate from the user's real sources and device state.
   const identity = `import assert from 'node:assert/strict'; import {systemDeviceId} from ${JSON.stringify(pathToFileURL(join(packageRoot, 'dist/tools/token-collector/local.js')).href)}; const a=await systemDeviceId();assert.match(a,/^lsd1_[a-f0-9]{64}$/);assert.equal(await systemDeviceId(),a);`
@@ -84,10 +88,26 @@ try {
     { ts: '2026-11-15T01:00:00Z', type: 'turn_started', session_id: 'synthetic-grok-233', model_id: 'synthetic-grok-pack' },
     { ts: '2026-11-15T01:01:00Z', type: 'turn_ended', outcome: 'success' },
   ].map(row => JSON.stringify(row)).join('\n') + '\n', { mode: 0o600 })
+  const claude = join(home, '.claude/projects/-synthetic')
+  await mkdir(claude, { recursive: true, mode: 0o700 })
+  await writeFile(join(claude, 'synthetic.jsonl'), [
+    { type: 'user', uuid: 'synthetic-claude-user-pack', parentUuid: null, sessionId: 'synthetic-claude-pack', cwd: '/synthetic', timestamp: '2026-11-15T02:00:00.000Z', message: { role: 'user', content: 'synthetic' } },
+    { type: 'assistant', uuid: 'synthetic-claude-assistant-pack', parentUuid: 'synthetic-claude-user-pack', sessionId: 'synthetic-claude-pack', cwd: '/synthetic', timestamp: '2026-11-15T02:00:01.000Z', message: { id: 'synthetic-claude-message-pack', role: 'assistant', model: 'synthetic-claude-pack-model', usage: { input_tokens: 100, output_tokens: 40, cache_read_input_tokens: 20, cache_creation_input_tokens: 30 } } },
+  ].map(row => JSON.stringify(row)).join('\n') + '\n', { mode: 0o600 })
+  const workbuddy = join(home, '.workbuddy')
+  await mkdir(workbuddy, { recursive: true, mode: 0o700 })
+  const workbuddyDb = join(workbuddy, 'workbuddy.db')
+  const workbuddyRows = `import {DatabaseSync} from 'node:sqlite';const db=new DatabaseSync(process.argv[1]);db.exec('CREATE TABLE sessions (id TEXT PRIMARY KEY, model TEXT, cwd TEXT); CREATE TABLE session_usage (session_id TEXT, used INTEGER, updated_at INTEGER);');db.prepare('INSERT INTO sessions VALUES (?,?,?)').run('synthetic-workbuddy-pack','synthetic-workbuddy-pack-model','/synthetic');db.prepare('INSERT INTO session_usage VALUES (?,?,?)').run('synthetic-workbuddy-pack',42,1794697200000);db.close();`
+  await run(process.execPath, ['--input-type=module', '-e', workbuddyRows, workbuddyDb])
   // Run all state preparation from the installed package in a separate Node
   // process. No imports or devDependencies resolve from the repository.
+  // 0.1.5 predates source modes, so it can only hold a legacy config. Later
+  // releases require an explicit mode; legacy state must be re-initialized.
+  const initialConfig = initialVersion === '0.1.5'
+    ? "{deviceId:'synthetic-pack-213',server:'https://example.invalid/',sourceHome:process.argv[2],hours:1,loopback:false}"
+    : "{deviceId:'synthetic-pack-213',server:'https://example.invalid/',sourceHome:process.argv[2],hours:1,loopback:false,agents:['codex','grok','hermes','claude','workbuddy','cursor'],agentsMode:'all'}"
   const prepare = `import {Store} from ${JSON.stringify(pathToFileURL(join(packageRoot, 'dist/tools/token-collector/store.js')).href)};
-    const s=await Store.open(process.argv[1]);s.set('config',{deviceId:'synthetic-pack-213',server:'https://example.invalid/',sourceHome:process.argv[2],hours:1,loopback:false});s.activate({deviceId:'synthetic-pack-213',generation:'1',uploadToken:process.argv[3],upload:{url:'https://example.invalid/rest/v1/rpc/token_usage_upload',publishableKey:'sb_publishable_synthetic',header:'X-LifeSpace-Device-Token'}});s.close();`
+    const s=await Store.open(process.argv[1]);s.set('config',${initialConfig});s.activate({deviceId:'synthetic-pack-213',generation:'1',uploadToken:process.argv[3],upload:{url:'https://example.invalid/rest/v1/rpc/token_usage_upload',publishableKey:'sb_publishable_synthetic',header:'X-LifeSpace-Device-Token'}});s.close();`
   // Pass random test material through stdin, never command arguments.
   const secret = randomBytes(32).toString('base64url')
   const preparation = prepare.replace('process.argv[3]', "(await import('node:fs')).readFileSync(0,'utf8')")
@@ -95,33 +115,52 @@ try {
     const child = execFile(process.execPath, ['--input-type=module', '-e', preparation, state, home], { cwd: work, env }, error => error ? reject(new Error('installed preparation failed')) : done())
     child.stdin.end(secret)
   })
-  const scanned = JSON.parse((await run(process.execPath, [cli, 'sync', '--offline', '--state-dir', state])).stdout)
-  assert.equal(scanned.pending, 1); assert.equal(scanned.scanFailed, false)
+  const allAgents = ['codex', 'grok', 'hermes', 'claude', 'workbuddy', 'cursor']
+  if (initialVersion !== '0.1.5') {
+    const scanned = JSON.parse((await run(process.execPath, [cli, 'sync', '--offline', '--state-dir', state])).stdout)
+    assert.equal(scanned.pending, 4); assert.equal(scanned.scanFailed, false)
+  }
   // Legacy source evidence survives upgrade, but the new collector neither
   // parses nor maintains it. The value is intentionally not a valid proof.
   await run(process.execPath, ['--input-type=module', '-e', `import {DatabaseSync} from 'node:sqlite';const db=new DatabaseSync(process.argv[1]);db.prepare('INSERT INTO sources VALUES (?,?)').run('/synthetic-legacy-source','synthetic-legacy-proof');db.close()`, join(state, 'state.sqlite')])
   const status = (await run(process.execPath, [cli, 'status', '--state-dir', state])).stdout
-  assert.equal(JSON.parse(status).pending, 1); assert(!status.includes(secret)); assert(!status.includes(home))
-  if (initialVersion === '0.1.5') {
-    assert.deepEqual(JSON.parse(status).agents, ['codex'])
-    // An installed release expands scope only through the explicit command;
-    // adding grok is the only way its synthetic rows enter the scan.
-    const added = JSON.parse((await run(process.execPath, [cli, 'sources', 'add', '--agents', 'grok', '--state-dir', state])).stdout)
-    assert.deepEqual(added, { agents: ['codex', 'grok'], added: ['grok'] })
-    assert.deepEqual(JSON.parse((await run(process.execPath, [cli, 'sources', 'list', '--state-dir', state])).stdout).agents, ['codex', 'grok'])
-    assert.deepEqual(JSON.parse((await run(process.execPath, [cli, 'sources', 'add', '--agents', 'grok', '--state-dir', state])).stdout).added, [])
+  assert(!status.includes(secret)); assert(!status.includes(home))
+  if (initialVersion === '0.1.6') {
+    assert.deepEqual(JSON.parse(status).agents, allAgents)
+    assert.equal(JSON.parse(status).agentsMode, 'all')
+    assert.equal(JSON.parse(status).reinitRequired, false)
+    const narrowed = JSON.parse((await run(process.execPath, [cli, 'sources', 'set', '--agents', 'codex,grok,claude,workbuddy', '--state-dir', state])).stdout)
+    assert.deepEqual(narrowed, { agents: ['codex', 'grok', 'claude', 'workbuddy'], agentsMode: 'explicit' })
+    assert.deepEqual(JSON.parse((await run(process.execPath, [cli, 'sources', 'list', '--state-dir', state])).stdout).agents, ['codex', 'grok', 'claude', 'workbuddy'])
     const combined = JSON.parse((await run(process.execPath, [cli, 'sync', '--offline', '--state-dir', state])).stdout)
-    assert.equal(combined.scanFailed, false); assert.equal(combined.pending, 2)
+    assert.equal(combined.scanFailed, false); assert.equal(combined.pending, 4)
     const agents = await run(process.execPath, ['--input-type=module', '-e', `import {DatabaseSync} from 'node:sqlite';const db=new DatabaseSync(process.argv[1],{readOnly:true});console.log(db.prepare('SELECT date,agent FROM rollups ORDER BY date,agent').all().map(r=>r.date+'/'+r.agent).join(','));db.close()`, join(state, 'state.sqlite')])
-    assert.equal(agents.stdout.trim(), '2026-11-15/codex,2026-11-15/grok')
-    assert.equal(JSON.parse((await run(process.execPath, [cli, 'status', '--state-dir', state])).stdout).agents.join(','), 'codex,grok')
+    assert.equal(agents.stdout.trim(), '2026-11-15/claude,2026-11-15/codex,2026-11-15/grok,2026-11-15/workbuddy')
   }
   const before = await readFile(join(state, 'state.sqlite'))
   await run(process.execPath, [cli, 'timer', 'install', '--state-dir', state])
   await run(process.execPath, [cli, 'upgrade', '--state-dir', state, '--archive', archive, '--prefix', prefix, '--apply'])
   assert((await readFile(join(state, 'state.sqlite'))).equals(before), 'SQLite bytes changed during status/timer preview/upgrade')
-  const upgradedAgents = JSON.parse((await run(process.execPath, [cli, 'sources', 'list', '--state-dir', state])).stdout).agents
-  assert.deepEqual(upgradedAgents, initialVersion === '0.1.5' ? ['codex', 'grok'] : ['codex'])
+  if (initialVersion === '0.1.5') {
+    // Legacy state is diagnosable but not runnable after the upgrade. Every
+    // stateful command requires an explicit re-init; sources are not inherited.
+    const upgradedStatus = (await run(process.execPath, [cli, 'status', '--state-dir', state])).stdout
+    assert.equal(JSON.parse(upgradedStatus).reinitRequired, true)
+    assert.equal(JSON.parse(upgradedStatus).agents, null)
+    for (const args of [['sync', '--offline'], ['sources', 'list']]) {
+      await assert.rejects(run(process.execPath, [cli, ...args, '--state-dir', state]), error => /REINIT_REQUIRED/.test(String(error.stderr)))
+    }
+    await run(process.execPath, ['--input-type=module', '-e', `import {Store} from ${JSON.stringify(pathToFileURL(join(packageRoot, 'dist/tools/token-collector/store.js')).href)};const s=await Store.open(process.argv[1]);s.set('config',{...s.legacyConfig(),agents:${JSON.stringify(allAgents)},agentsMode:'all'});s.close();`, state])
+    const reinitialized = JSON.parse((await run(process.execPath, [cli, 'status', '--state-dir', state])).stdout)
+    assert.deepEqual(reinitialized.agents, allAgents); assert.equal(reinitialized.agentsMode, 'all'); assert.equal(reinitialized.reinitRequired, false)
+    const combined = JSON.parse((await run(process.execPath, [cli, 'sync', '--offline', '--state-dir', state])).stdout)
+    assert.equal(combined.scanFailed, false); assert.equal(combined.pending, 4)
+    const agents = await run(process.execPath, ['--input-type=module', '-e', `import {DatabaseSync} from 'node:sqlite';const db=new DatabaseSync(process.argv[1],{readOnly:true});console.log(db.prepare('SELECT date,agent FROM rollups ORDER BY date,agent').all().map(r=>r.date+'/'+r.agent).join(','));db.close()`, join(state, 'state.sqlite')])
+    assert.equal(agents.stdout.trim(), '2026-11-15/claude,2026-11-15/codex,2026-11-15/grok,2026-11-15/workbuddy')
+  } else {
+    const upgradedAgents = JSON.parse((await run(process.execPath, [cli, 'sources', 'list', '--state-dir', state])).stdout).agents
+    assert.deepEqual(upgradedAgents, initialVersion === '0.1.6' ? ['codex', 'grok', 'claude', 'workbuddy'] : allAgents)
+  }
   assert.equal(JSON.parse(await readFile(join(packageRoot, 'package.json'), 'utf8')).version, expected.version)
   assert((await run(process.execPath, [cli, '--version'])).stdout.includes(`collector ${expected.version}`))
   // Exercise synthetic aggregate residues from the installed release,
@@ -137,16 +176,16 @@ try {
     }`
   await run(process.execPath, ['--input-type=module', '-e', costs])
   const rescanned = JSON.parse((await run(process.execPath, [cli, 'sync', '--offline', '--rescan', '--state-dir', state])).stdout)
-  // The 0.1.4 archive already has one Codex task. Upgrading preserves it and
-  // the statisticsVersion bump allocates one new task; a same-version reinstall
-  // has two agents/tasks already. Neither path may lose or duplicate content.
-  assert.equal(rescanned.pending, 2)
+  // A same-version reinstall has one task per authorized source. A legacy
+  // 0.1.5 state is re-initialized to all sources first; a 0.1.4 state has one
+  // Codex task and the statisticsVersion bump reallocates that one.
+  assert.equal(rescanned.pending, initialVersion === '0.1.5' ? 4 : initialVersion === '0.1.6' ? 4 : 2)
   assert.equal(rescanned.scanFailed, false); assert.deepEqual(rescanned.scan.retainedDates, [])
   const totals = await run(process.execPath, ['--input-type=module', '-e', `import {DatabaseSync} from 'node:sqlite';const db=new DatabaseSync(process.argv[1],{readOnly:true});console.log(JSON.parse(db.prepare("SELECT snapshot FROM rollups WHERE agent='codex'").get().snapshot).content.metrics.total);db.close()`, join(state, 'state.sqlite')])
   assert.equal(Number(totals.stdout), 12)
   await writeFile(join(home, '.codex/sessions/interrupted.jsonl'), JSON.stringify({ timestamp: '2026-11-15T00:00:00Z', type: 'response_item', payload: { type: 'message', content: [{ text: 'synthetic-private-package-warning' }] } }) + '\n')
   const warned = JSON.parse((await run(process.execPath, [cli, 'sync', '--offline', '--rescan', '--state-dir', state])).stdout)
-  assert.equal(warned.scanFailed, false); assert.equal(warned.pending, 2)
+  assert.equal(warned.scanFailed, false); assert.equal(warned.pending, initialVersion === '0.1.5' ? 4 : initialVersion === '0.1.6' ? 4 : 2)
   assert(warned.scan.diagnostics.includes('TOKSCALE_MISSING_USAGE'))
   assert(!JSON.stringify(warned).includes('synthetic-private-package-warning'))
   const legacy = await run(process.execPath, ['--input-type=module', '-e', `import {DatabaseSync} from 'node:sqlite';const db=new DatabaseSync(process.argv[1],{readOnly:true});console.log(db.prepare('SELECT proof FROM sources WHERE path=?').get('/synthetic-legacy-source').proof);db.close()`, join(state, 'state.sqlite')])
@@ -154,5 +193,5 @@ try {
   assert.equal((await stat(join(state, 'state.sqlite'))).mode & 0o777, 0o600)
   const tokscale = JSON.parse(await readFile(join(prefix, 'node_modules/@tokscale/cli/package.json'), 'utf8'))
   assert.equal(tokscale.version, '4.23.0')
-  console.log(JSON.stringify({ packedFiles: result.files.length, archiveSha256: createHash('sha256').update(await readFile(archive)).digest('hex'), package: `${expected.name}@${expected.version}`, runtimeTokscale: tokscale.version, platform: process.platform, systemIdentity: 'real read-only probe stable; value not logged', outsideRepository: true, actualScan: '12 Codex tokens and 24 Grok tokens before/after upgrade, unknown cost, pending task preserved', agents: 'legacy default codex; sources add grok idempotent; explicit codex+grok produced separate rollups', upgrade: { from: initialVersion, to: expected.version, sqlitePreserved: true }, costResidues: 'three independent repeated-sum scenarios accepted; significant errors rejected', warnings: 'accepted/redacted; legacy source proof preserved without use', timer: 'plan only; no system timer installed' }))
+  console.log(JSON.stringify({ packedFiles: result.files.length, archiveSha256: createHash('sha256').update(await readFile(archive)).digest('hex'), package: `${expected.name}@${expected.version}`, runtimeTokscale: tokscale.version, platform: process.platform, systemIdentity: 'real read-only probe stable; value not logged', outsideRepository: true, actualScan: '12 Codex, 24 Grok, 190 Claude and 42 WorkBuddy tokens before/after upgrade; Cursor cache absent', agents: 'default all six sources; explicit narrowing via --agents or sources set; add remains idempotent', upgrade: { from: initialVersion, to: expected.version, sqlitePreserved: true }, costResidues: 'three independent repeated-sum scenarios accepted; significant errors rejected', warnings: 'accepted/redacted; Cursor cache warning covered by API test; legacy source proof preserved without use', timer: 'plan only; no system timer installed' }))
 } finally { await rm(work, { recursive: true, force: true }) }

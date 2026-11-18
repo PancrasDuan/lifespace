@@ -201,7 +201,7 @@ finish() {
 run_wizard() {
   TOTAL_STAGES=8
   local server='https://lifespace.onepeace.cc.cd'
-  local expected='c029b83353ad36df6725906a24e0fcf7871bed3cb12d351fd8b36e92c7210646'
+  local expected='64cc719bf0cb262f5895f5e81792574b5d48b1892df4db28ba4e808ee21c306e'
   local wizard_dir node_path npm_path collector status_json scan_json
   local TOKEN_ARCHIVE TOKEN_INSTALL TOKEN_STATE TOKEN_SOURCE TOKEN_AGENTS
   # No wizard profile, ambient .env, or secrets are read or written.
@@ -211,7 +211,7 @@ run_wizard() {
   say '1. 检查 Node 和归档  2. 选择全新私有路径、明确来源与 Agent  3. 私有安装'
     say '4. 获准网页登录与设备登记  5. 核对设备码/批准/领取'
     say '6. 手动 offline 扫描  7. 确认后 online 同步  8. 对账/仅展示 timer 计划'
-    say '默认只采 Codex；新增 Grok Build/Hermes Agent 必须显式授权。读取所选 source-home 的全部支持历史，D 只限定对账；不会安装 timer 或删除状态。'
+    say '默认采集全部支持的 Agent；只有显式填写 Agent 列表才收窄。Cursor 只读已存在的 Tokscale API 缓存，不自动登录或同步。读取所选 source-home 的全部支持历史，D 只限定对账；不会安装 timer 或删除状态。'
     say '运行：bash token-device-onboarding.sh [--archive /absolute/package.tgz]'
     return 0
   fi
@@ -226,7 +226,7 @@ run_wizard() {
   export PATH="$(dirname "$node_path"):$PATH"
   node -e 'if (!["linux","darwin"].includes(process.platform)) process.exit(1)' || { warn '只支持 macOS/Linux。'; return 1; }
   wizard_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
-  TOKEN_ARCHIVE="${2:-$wizard_dir/lifespace-token-collector-0.1.5.tgz}"
+  TOKEN_ARCHIVE="${2:-$wizard_dir/lifespace-token-collector-0.1.6.tgz}"
   banner 'LifeSpace 正式设备接入（需已指定实际设备/来源）'
 
   stage '检查最终原包'
@@ -238,10 +238,10 @@ try {
   const [archive, expected] = process.argv.slice(2)
   if (!isAbsolute(archive)) throw 0
   const stat = await lstat(archive)
-  if (!stat.isFile() || stat.isSymbolicLink() || stat.size !== 26433) throw 0
+  if (!stat.isFile() || stat.isSymbolicLink() || stat.size !== 27779) throw 0
   const bytes = await readFile(archive)
-  if (bytes.length !== 26433 || createHash('sha256').update(bytes).digest('hex') !== expected) throw 0
-  console.log('  包校验通过：26,433 字节 / c029b833… / Node ' + process.versions.node + ' / ' + process.platform + '/' + process.arch)
+  if (bytes.length !== 27779 || createHash('sha256').update(bytes).digest('hex') !== expected) throw 0
+  console.log('  包校验通过：27,779 字节 / 64cc719b… / Node ' + process.versions.node + ' / ' + process.platform + '/' + process.arch)
 } catch { console.error('ARCHIVE_UNCONFIRMED'); process.exitCode = 1 }
 JS
   say '私有本地包，未发布 npm；安装需要联网取得固定依赖，不使用 --omit=optional。'
@@ -249,17 +249,16 @@ JS
 
   stage '明确来源和私有独立目录'
   ask TOKEN_SOURCE '允许读取的绝对 source-home（包含所选 Agent 数据目录的 home）：'
-  ask TOKEN_AGENTS '显式授权的 Agent（codex、grok、hermes；逗号分隔，默认 codex）：'
-  TOKEN_AGENTS="${TOKEN_AGENTS:-codex}"
+  ask TOKEN_AGENTS '要采集的 Agent（codex、grok、hermes、claude、workbuddy、cursor；逗号分隔，留空=全部）：'
   ask TOKEN_INSTALL '全新私有安装目录（绝对路径，末级须不存在）：'
   ask TOKEN_STATE '全新私有状态目录（绝对路径，末级须不存在）：'
-  node --input-type=module - "$TOKEN_SOURCE" "$TOKEN_INSTALL" "$TOKEN_STATE" "$TOKEN_AGENTS" <<'JS'
+  node --input-type=module - "$TOKEN_SOURCE" "$TOKEN_INSTALL" "$TOKEN_STATE" "${TOKEN_AGENTS:-all}" <<'JS'
 import { lstat } from 'node:fs/promises'
 import { isAbsolute, resolve, dirname } from 'node:path'
 try {
   const [source, install, state, agentsText] = process.argv.slice(2)
-  const agents = agentsText.split(',').map(value => value.trim())
-  if (!agents.length || agents.some(agent => !['codex', 'grok', 'hermes'].includes(agent))
+  const agents = agentsText === 'all' ? ['codex', 'grok', 'hermes', 'claude', 'workbuddy', 'cursor'] : agentsText.split(',').map(value => value.trim())
+  if (!agents.length || agents.some(agent => !['codex', 'grok', 'hermes', 'claude', 'workbuddy', 'cursor'].includes(agent))
     || new Set(agents).size !== agents.length) throw 0
   for (const path of [source, install, state]) {
     if (!path || path === '/' || !isAbsolute(path) || resolve(path) !== path || /[\0\r\n]/.test(path)) throw 0
@@ -279,7 +278,7 @@ try {
 JS
   say "生产目标：$server"
   say "本机只读来源：$TOKEN_SOURCE"
-  say "显式授权 Agent：$TOKEN_AGENTS（默认仅 Codex；升级/重复运行不会自动扩大）"
+  say "要采集的 Agent：${TOKEN_AGENTS:-全部}（留空默认全部；显式列表会收窄）"
   say "独立安装：$TOKEN_INSTALL"
   say "独立状态：$TOKEN_STATE"
   warn '该来源下所选 Agent 的全部支持历史会被扫描并在在线同步时上传汇总，不能只上传对账日期 D。'
@@ -299,7 +298,11 @@ JS
   say '在浏览器正常登录已有获准账户，确认能进入 Token 看板。'
   say '若出现账户未获准，请停在这里并告知总控；不要修改白名单或复制登录凭据。'
   confirm '网页已获准，且允许为本设备创建登记申请？' || return 1
-  "$collector" init --server "$server" --source-home "$TOKEN_SOURCE" --agents "$TOKEN_AGENTS" --state-dir "$TOKEN_STATE"
+  if [[ -n "${TOKEN_AGENTS:-}" && "${TOKEN_AGENTS}" != 'all' ]]; then
+    "$collector" init --server "$server" --source-home "$TOKEN_SOURCE" --agents "$TOKEN_AGENTS" --state-dir "$TOKEN_STATE"
+  else
+    "$collector" init --server "$server" --source-home "$TOKEN_SOURCE" --state-dir "$TOKEN_STATE"
+  fi
   say '上方 code 是8位设备码；记录于本机，不把状态库或领取凭据发到聊天。'
   pause '记住设备码，按 Enter 打开确认页。'
 
@@ -348,7 +351,7 @@ JS
   printf '  %q sync --offline --state-dir %q\n' "$collector" "$TOKEN_STATE"
   printf '  %q status --state-dir %q\n' "$collector" "$TOKEN_STATE"
   printf '  %q sources list --state-dir %q\n' "$collector" "$TOKEN_STATE"
-  printf '  %q sources add --agents grok,hermes --state-dir %q\n' "$collector" "$TOKEN_STATE"
+  printf '  %q sources set --agents codex,grok,hermes,claude,workbuddy,cursor --state-dir %q\n' "$collector" "$TOKEN_STATE"
   say '长期 timer 的设备/周期/观察窗口另行安排；实际网络恢复、停用重绑及桌面手机人工仍须留证。'
   say '本向导结束仅表示手动接入步骤执行；不表示 #223/#205 整体验收通过。'
 }

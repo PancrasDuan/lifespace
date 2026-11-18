@@ -1,11 +1,11 @@
 {
-  "archive": "test-results/token233/onboarding-0.1.5/lifespace-token-collector-0.1.5.tgz",
-  "version": "0.1.5",
-  "sha256": "c029b83353ad36df6725906a24e0fcf7871bed3cb12d351fd8b36e92c7210646",
-  "bytes": 26433,
+  "archive": "test-results/token235/onboarding-0.1.6/lifespace-token-collector-0.1.6.tgz",
+  "version": "0.1.6",
+  "sha256": "64cc719bf0cb262f5895f5e81792574b5d48b1892df4db28ba4e808ee21c306e",
+  "bytes": 27779,
   "files": 13,
   "runtime": "Node>=24.22.1<25; CI24.22.1; macOS/Linux; @tokscale/cli4.23.0 and zod4.6.7 unchanged",
-  "sourceSha256": "954d9a5cc9ded77a28af3be5b14dd2813366997f42d95b0f34becb68f84e82cb",
+  "sourceSha256": "df412fd9c01e2645bc1fc8e2f25fb2ad21c502d16ef0662d9fbadc7d4c37d1c0",
   "sourceFiles": [
     "src/shared/token-backend-contract.ts",
     "src/shared/token-usage-contract.ts",
@@ -63,8 +63,16 @@
       "sourceSha256": "54d6391bf0433fd62e60f6883332ab752a941e07a9c2ad371d5e62524f5a78d0",
       "archive": "test-results/token223/onboarding-0.1.4/lifespace-token-collector-0.1.4.tgz",
       "preserved": true
+    },
+    {
+      "version": "0.1.5",
+      "sha256": "c029b83353ad36df6725906a24e0fcf7871bed3cb12d351fd8b36e92c7210646",
+      "bytes": 26433,
+      "sourceSha256": "954d9a5cc9ded77a28af3be5b14dd2813366997f42d95b0f34becb68f84e82cb",
+      "archive": "test-results/token233/onboarding-0.1.5/lifespace-token-collector-0.1.5.tgz",
+      "preserved": true
     }
   ],
-  "reason": "Add explicit multi-Agent collection for Codex, Grok Build and Hermes Agent while retaining Codex-only defaults and legacy state compatibility",
-  "verification": "0.1.5 archive 13 files/26,433 bytes and 14-source digest matched;local typecheck/build/API/browser/collector-evidence and 0.1.4-to-0.1.5 package gates passed;final CI/two-axis review and real-device onboarding pending"
+  "reason": "Add Claude Code, WorkBuddy and Cursor sources and collect all six supported Agents by default; explicit --agents or sources set narrows the list; legacy state without a source mode is not runnable and must be rebuilt with init --replace, which never inherits the old source list",
+  "verification": "0.1.6 archive 13 files/27,779 bytes and 14-source digest matched;local typecheck/build/API/browser/collector-evidence/package gates passed;legacy 0.1.5 state without a source mode is not runnable: status reports reinitRequired and sync/sources return REINIT_REQUIRED;explicit rebuild to all six sources without inheriting the old list produces four synthetic agent rollups;CI package gate does not exercise the previous archive;final CI/two-axis review and real-device onboarding pending"
 }

@@ -1,7 +1,7 @@
 {
   "name": "@lifespace/token-collector",
-  "version": "0.1.5",
-  "description": "Private local Codex, Grok Build and Hermes Agent usage collector for LifeSpace",
+  "version": "0.1.6",
+  "description": "Private local Codex, Grok Build, Hermes Agent, Claude Code, WorkBuddy and Cursor usage collector for LifeSpace",
   "type": "module",
   "engines": {
     "node": ">=24.22.1 <25"

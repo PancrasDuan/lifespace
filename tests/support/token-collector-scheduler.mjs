@@ -113,7 +113,7 @@ try {
   await writeFile(join(source, '.codex/sessions/synthetic.jsonl'), rows.map(r => JSON.stringify(r)).join('\n') + '\n', { mode: 0o600 })
   const store = await Store.open(state)
   try {
-    store.set('config', { deviceId, server: origin, sourceHome: source, hours: 1, loopback: true })
+    store.set('config', { deviceId, server: origin, sourceHome: source, hours: 1, loopback: true, agents: ['codex', 'grok', 'hermes', 'claude', 'workbuddy', 'cursor'], agentsMode: 'all' })
     store.activate({ deviceId, generation: '1', uploadToken: secret, upload: { url: new URL('/rest/v1/rpc/token_usage_upload', origin).href, publishableKey: 'sb_publishable_synthetic_scheduler', header: 'X-LifeSpace-Device-Token' } })
     // Freeze the price-refresh clock only, so this OS gate has no external HTTP dependencies.
     store.set('price', { at: Date.now(), result: 'synthetic CI: no price catalog' })
