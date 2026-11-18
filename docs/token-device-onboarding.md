@@ -10,9 +10,9 @@
 
 | 项目 | 固定值 |
 | --- | --- |
-| 包 | `lifespace-token-collector-0.1.6.tgz`，27,725 字节，13 个文件 |
-| SHA-256 | `f215164541b0b7e770d3f6a0c6d5cd99b36466db8b03e57759dd2f61f3c9202a` |
-| 声明源码 | `docs/evidence/token-onboarding/package.json` 中的 14 项；摘要 `f96bcc1907c94bb8f80346a75a9c82401daede5741736d2ace1968ff91a7a17b` |
+| 包 | `lifespace-token-collector-0.1.6.tgz`，27,779 字节，13 个文件 |
+| SHA-256 | `64cc719bf0cb262f5895f5e81792574b5d48b1892df4db28ba4e808ee21c306e` |
+| 声明源码 | `docs/evidence/token-onboarding/package.json` 中的 14 项；摘要 `df412fd9c01e2645bc1fc8e2f25fb2ad21c502d16ef0662d9fbadc7d4c37d1c0` |
 | 运行时 | Node >=24.22.1 <25；仓库CI固定24.22.1；安装自动取得固定 Tokscale 4.23.0 和 Zod 4.6.7，保留 optional dependencies |
 | 私有副本 | 当前工作区 `test-results/token235/onboarding-0.1.6/lifespace-token-collector-0.1.6.tgz` |
 
