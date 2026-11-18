@@ -58,7 +58,7 @@ node token-local-evidence.mjs \
   --date '2026-11-15' \
   --agent codex \
   --model-key '"your-canonical-model-id"'
-# 未知模型用 --model-key null；Agent 默认 codex，可显式传 grok/hermes/claude/workbuddy/cursor；日期是示例，应选择两设备都有数据的已完成 D。
+# 未知模型用 --model-key null；该辅助脚本的 --agent 默认 codex（不代表采集器默认），可显式传 grok/hermes/claude/workbuddy/cursor；日期是示例，应选择两设备都有数据的已完成 D。
 ```
 
 辅助输出保留缺失字段、null、实际0、费用分类/coverage、模型覆盖及是否存在所选模型；模型缺席不制造零值。输出仅为本地证据，不能称托管 summary 或 HTTP 回执。Node SQLite 的运行时提示与业务错误分开；失败只打印固定码，不输出原始数据库错误和路径。

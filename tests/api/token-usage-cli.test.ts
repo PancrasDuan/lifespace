@@ -81,7 +81,7 @@ test('实际 CLI 部分价格仍给 estimated，适配器保留金额但不承�
   expect(report.snapshots[0].content.cost.coverage).toBe('unverified')
 })
 
-test('只把显式授权 Agent 传给 Tokscale；默认仅 codex，缺少其他来源目录不影响扫描', async () => {
+test('只把显式授权 Agent 传给 Tokscale；收窄列表时缺少其他来源目录不影响扫描', async () => {
   const options = await profile()
   await writeFile(join(options.homeDir, '.codex', 'sessions', 'synthetic.jsonl'), syntheticCodexLog())
   const explicit = await collectTokscaleUsage({ ...options, agents: ['codex'] }, context)
