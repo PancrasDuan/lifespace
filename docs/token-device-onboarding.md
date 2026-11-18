@@ -10,15 +10,15 @@
 
 | 项目 | 固定值 |
 | --- | --- |
-| 包 | `lifespace-token-collector-0.1.6.tgz`，27,321 字节，13 个文件 |
-| SHA-256 | `31a2fc931440896daeac3c2d15cdcfa4c433c9d80916cb4e8b0cd1c576a49e05` |
-| 声明源码 | `docs/evidence/token-onboarding/package.json` 中的 14 项；摘要 `f5db738f292594359c8fd525c9de0cdf8a89686f25d8faf852a0372acd21d46d` |
+| 包 | `lifespace-token-collector-0.1.6.tgz`，27,660 字节，13 个文件 |
+| SHA-256 | `0972bf88522e70084ac738e28d02d5dcbcba1a478a9753d8531be89772f7a2af` |
+| 声明源码 | `docs/evidence/token-onboarding/package.json` 中的 14 项；摘要 `f43fff4bf677ec37e80d84c3f8ba5a1d895226270bd1f249c65eab2db95369c3` |
 | 运行时 | Node >=24.22.1 <25；仓库CI固定24.22.1；安装自动取得固定 Tokscale 4.23.0 和 Zod 4.6.7，保留 optional dependencies |
 | 私有副本 | 当前工作区 `test-results/token235/onboarding-0.1.6/lifespace-token-collector-0.1.6.tgz` |
 
 0.1.3 按[ADR0020](adr/0020-token-recorded-usage-authority.md)接受固定 Tokscale 成功且通过输出校验的已记录用量。missing-usage／价格／未知告警只保留固定脱敏类别，不再逐文件审计或冻结有效统计；真正失败、无效输出、版本／时区冲突继续保留旧统计与待传请求。有效更正可增可减或移除模型，graph缺席的旧日期保留，不补未知为0。Node >=24.22.1 <25的已测基线保持。
 
-0.1.6支持Codex、Grok Build（`grok`）、Hermes Agent（`hermes`）、Claude Code（`claude`）、WorkBuddy（`workbuddy`）和Cursor（`cursor`）；默认采集全部六个来源，只有显式填写`--agents`才收窄。旧状态库无`agents`或`agentsMode`时按全部读取，因此已有设备升级后也会扩展到全部。要收窄或重新指定来源，执行`sources set --agents ...`，再用`sources list`核对；`sources add` 只会在现有列表上追加。一次调用只传当前列表，缺少某个来源目录不影响其他来源。Claude、WorkBuddy与Cursor只依赖`--home`；Cursor只读`<source-home>/.config/tokscale/cursor-cache/usage*.json`，采集器不代为`cursor login`/`sync`，操作者须在采集器之外准备缓存。已有0.1.5安装先校验归档，再用原CLI的`upgrade --archive /absolute/lifespace-token-collector-0.1.6.tgz --prefix /absolute/installation --apply --state-dir /absolute/private/state`保持原state升级，不重跑全新接入向导。无需因升级重绑有效授权；先手动核对新扫描成功和实际回执，再按指定设备授权安排timer。旧队列成功上传不能代替`scanFailed=false`。
+0.1.6支持Codex、Grok Build（`grok`）、Hermes Agent（`hermes`）、Claude Code（`claude`）、WorkBuddy（`workbuddy`）和Cursor（`cursor`）；默认采集全部六个来源，只有显式填写`--agents`才收窄。0.1.5及更早写入的状态不含来源模式，不能直接运行：`status`只读显示`reinitRequired`，其余命令返回`REINIT_REQUIRED`。升级后须用`init --replace`重建配置并重新完成一次浏览器批准；旧来源列表不会被继承，未传`--agents`即采集全部六个，需要收窄就显式传。重新init会重新登记设备并触发一次按新来源的全量扫描与重传，服务端按内容指纹去重，相同内容不会重复计数。要收窄或重新指定来源，执行`sources set --agents ...`，再用`sources list`核对；`sources add` 只会在显式列表上追加。一次调用只传当前列表，缺少某个来源目录不影响其他来源。Claude、WorkBuddy与Cursor只依赖`--home`；Cursor只读`<source-home>/.config/tokscale/cursor-cache/usage*.json`，采集器不代为`cursor login`/`sync`，操作者须在采集器之外准备缓存。已有0.1.5安装先校验归档，再用原CLI的`upgrade --archive /absolute/lifespace-token-collector-0.1.6.tgz --prefix /absolute/installation --apply --state-dir /absolute/private/state`保持原state升级，然后执行`init --replace`。重建后先手动核对新扫描成功和实际回执，再按指定设备授权安排timer。旧队列成功上传不能代替`scanFailed=false`。
 
 0.1.0–0.1.5的归档、目录和校验值按受控私有位置分别保存，不覆盖；本仓库只记录映射，不证明每个历史副本在当前机器仍可取得。0.1.6有独立归档、来源映射和六文件目录 `test-results/token235/onboarding-0.1.6/`，包括包、向导、只读对账辅助、本说明、SHA256SUMS和来源记录。只传该目录，不传 `.env`、用户状态、原始日志或整个工作区。
 
@@ -39,7 +39,7 @@ bash token-device-onboarding.sh
 
 ## 向导执行边界
 
-向导先检查 Node >=24.22.1 <25、包字节/SHA、绝对路径和新建的私有独立 install/state，显示生产目标、source-home 与要采集的 Agent，取得本机操作者确认后安装。它不复用默认状态、不覆盖已有安装、不执行 `init --replace`；全新接入默认采集全部六个来源，只有操作者在向导中显式填写 Agent 列表才收窄。中断后保留 install/state，按已安装 CLI 的正常命令继续；重新运行向导请选择新路径，已有设备重绑仍须网页明确确认，不能删除状态续权。
+向导先检查 Node >=24.22.1 <25、包字节/SHA、绝对路径和新建的私有独立 install/state，显示生产目标、source-home 与要采集的 Agent，取得本机操作者确认后安装。它不复用默认状态、不覆盖已有安装、不执行 `init --replace`；全新接入默认采集全部六个来源，只有操作者在向导中显式填写 Agent 列表才收窄。旧版本升级不走向导，按上一节的 `upgrade` + `init --replace` 执行。中断后保留 install/state，按已安装 CLI 的正常命令继续；重新运行向导请选择新路径，已有设备重绑仍须网页明确确认，不能删除状态续权。
 
 随后打开正式 `/token`，由获准账户正常登录；在终端 `init` 后显示8位码，网页「核对设备」确认设备名称、平台、设备标识，再「批准连接」。若提示替换已有设备，必须先确认确实为本设备，并在网页勾选明确替换；不能因名称相似就替换。返回终端 `authorize --wait` 后核对 `authorized=true`，过期/拒绝时退出，不把进程退出0当领取成功。
 

@@ -15,19 +15,25 @@ export const agentsSchema = z.array(agentSchema).min(1).max(6).superRefine((valu
 export const agentsModeSchema = z.enum(['all', 'explicit'])
 const configObjectSchema = z.strictObject({
   deviceId: z.string(), server: z.string(), sourceHome: z.string(), hours: hoursSchema, loopback: z.boolean(),
-  // Optional only for reading state written before source modes existed.
+  agents: agentsSchema,
+  agentsMode: agentsModeSchema,
+})
+export const configSchema = configObjectSchema.superRefine((value, ctx) => {
+  if (value.agentsMode === 'all' && (value.agents.length !== supportedAgents.length
+    || supportedAgents.some(agent => !value.agents.includes(agent)))) {
+    ctx.addIssue({ code: 'custom', message: '全量模式必须包含全部支持的 Agent' })
+  }
+})
+// Read-only view of state written before source modes existed. It is used only
+// by init --replace so an upgrade can rebuild the profile; it is never treated
+// as a runnable configuration.
+export const legacyConfigSchema = z.strictObject({
+  deviceId: z.string(), server: z.string(), sourceHome: z.string(), hours: hoursSchema, loopback: z.boolean(),
   agents: agentsSchema.optional(),
   agentsMode: agentsModeSchema.optional(),
 })
-export const configSchema = configObjectSchema.transform(value => {
-  // 0.1.6 and earlier stored only an array. Existing installations now expand
-  // to every supported source; only an explicitly narrowed list stays narrow.
-  if (value.agentsMode === 'explicit') {
-    return { ...value, agents: value.agents ?? [...supportedAgents], agentsMode: 'explicit' as const }
-  }
-  return { ...value, agents: [...supportedAgents], agentsMode: 'all' as const }
-})
 export type Config = z.infer<typeof configSchema>
+export type LegacyConfig = z.infer<typeof legacyConfigSchema>
 export const credentialSchema = z.strictObject({ deviceId: z.string(), generation: z.string().regex(/^[1-9]\d{0,18}$/), uploadToken: z.string().regex(/^[A-Za-z0-9_-]{43}$/),
   upload: z.strictObject({ url: z.string(), publishableKey: z.string().regex(/^sb_publishable_[A-Za-z0-9_-]+$/), header: z.literal('X-LifeSpace-Device-Token') }) })
 export type Credential = z.infer<typeof credentialSchema>
@@ -71,7 +77,18 @@ export class Store {
   }
   set(key: string, value: unknown) { this.db.prepare('INSERT INTO meta VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value').run(key, JSON.stringify(value)) }
   remove(key: string) { this.db.prepare('DELETE FROM meta WHERE key=?').run(key) }
-  config(): Config { return configSchema.parse(this.get('config')) }
+  config(): Config {
+    const raw = this.get('config')
+    if (raw === undefined) throw new LocalError('CONFIG_MISSING_RUN_INIT')
+    const parsed = configSchema.safeParse(raw)
+    if (!parsed.success) throw new LocalError('REINIT_REQUIRED')
+    return parsed.data
+  }
+  legacyConfig(): LegacyConfig {
+    const parsed = legacyConfigSchema.safeParse(this.get('config'))
+    if (!parsed.success) throw new LocalError('LEGACY_CONFIG_UNREADABLE')
+    return parsed.data
+  }
   credential(): Credential | undefined { const v = this.get('credential'); return v === undefined ? undefined : credentialSchema.parse(v) }
   dates(): string[] { return this.db.prepare('SELECT DISTINCT date FROM rollups').all().map(r => String(r.date)) }
   rollupKeys(): Array<{ date: string; agent: string }> {
@@ -143,10 +160,13 @@ export class Store {
     this.db.prepare('UPDATE queue SET attempts=?,next_at=?,error=? WHERE id=?').run(attempts, now + delay, code, task.id)
   }
   status() {
-    const configured = this.get('config') !== undefined
-    return { configured, authorized: this.credential() !== undefined, authorization: this.get('authorization') ?? 'not_started',
-      agents: configured ? this.config().agents : null,
-      agentsMode: configured ? this.config().agentsMode : null,
+    const raw = this.get('config'), configured = raw !== undefined
+    const parsed = configured ? configSchema.safeParse(raw) : undefined
+    const config = parsed?.success ? parsed.data : undefined
+    return { configured, reinitRequired: configured && config === undefined,
+      authorized: this.credential() !== undefined, authorization: this.get('authorization') ?? 'not_started',
+      agents: config?.agents ?? null,
+      agentsMode: config?.agentsMode ?? null,
       rollups: Number(this.db.prepare('SELECT count(*) n FROM rollups').get()!.n), pending: this.tasks().length,
       errors: [...new Set(this.tasks().map(t => t.error).filter(Boolean))], scan: this.get('scan') ?? null, heartbeat: this.get('heartbeat') ?? null,
       price: this.get('price') ?? null, schedule: this.get('schedule') ?? null }

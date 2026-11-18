@@ -103,7 +103,7 @@ try {
       await writeFile(join(home, '.codex/sessions', `synthetic-${days}.jsonl`), source, { mode: 0o600 })
     }
     const store = await Store.open(state)
-    store.set('config', { deviceId: `synthetic-token219-${kind}`, server: origin + '/', sourceHome: home, hours: 3, loopback: true })
+    store.set('config', { deviceId: `synthetic-token219-${kind}`, server: origin + '/', sourceHome: home, hours: 3, loopback: true, agents: ['codex', 'grok', 'hermes', 'claude', 'workbuddy', 'cursor'], agentsMode: 'all' })
     stores.set(kind, { store, state })
   }
   const workerRequest = (path, body) => app.request(origin + path, { method: body ? 'POST' : 'GET', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + browserToken }, ...(body ? { body: JSON.stringify(body) } : {}) }, bindings)

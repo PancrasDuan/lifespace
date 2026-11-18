@@ -8,7 +8,7 @@ Node **>=24.22.1 <25**，固定 Tokscale 4.23.0。安装、命令与恢复见[�
 
 Tokscale 独占来源解析、继承／fork／归档去重、模型与 token／价格统计。采集器执行固定 CLI，接受成功退出且通过版本、时区、JSON 结构、合法数值及日期／模型／总量一致性校验的已记录用量，不另读原始日志做 JSON、UTF-8、换行、压缩、时间戳、文件／祖先目录 stamp 或 prefix 完整性审计。正常追加、新建会话与 missing-usage 告警不阻断有效结果；支持的来源形态与 scanner 配置由固定 Tokscale 决定。
 
-一次调用传入配置的完整 Agent 列表，并按 graph 的 `(date, client)` 分组生成快照；`identity.agent` 即 `client`。同一天同名模型在不同 Agent 下合法，只有同一 `(date, client)` 内重复模型才拒绝；任一未授权 `client` 或任一分项对账失败都拒绝整份结果并保留旧快照。默认 `agents` 为全部六个来源；旧状态库没有 `agents` 或 `agentsMode` 时也按全部读取，因此已有安装升级后扩展为全部。`sources set --agents` 是显式收窄入口，`sources add --agents` 在显式列表上追加；`init --replace`、`upgrade`、`sync` 不改变已有模式。Claude、WorkBuddy 与 Cursor 不设置额外根，统一依赖显式 `--home`；Cursor 只读已有 Tokscale API 缓存，不自动登录或同步。
+一次调用传入配置的完整 Agent 列表，并按 graph 的 `(date, client)` 分组生成快照；`identity.agent` 即 `client`。同一天同名模型在不同 Agent 下合法，只有同一 `(date, client)` 内重复模型才拒绝；任一未授权 `client` 或任一分项对账失败都拒绝整份结果并保留旧快照。默认 `agents` 为全部六个来源；0.1.5 及更早写入的状态不含 `agentsMode`，不能直接运行，`status` 只读显示 `reinitRequired`，其余命令返回 `REINIT_REQUIRED`，须先 `init --replace` 重建。重新 `init` 不继承旧来源列表，未传 `--agents` 即全部六个。`sources set --agents` 是显式收窄入口，`sources add --agents` 在显式列表上追加；普通 `upgrade` 与 `sync` 不改变已有模式。Claude、WorkBuddy 与 Cursor 不设置额外根，统一依赖显式 `--home`；Cursor 只读已有 Tokscale API 缓存，不自动登录或同步。
 
 stderr 只转为固定本地诊断：`TOKSCALE_PRICING_WARNING`、`TOKSCALE_MISSING_USAGE`、`TOKSCALE_CURSOR_CACHE_UNAVAILABLE` 或 `TOKSCALE_DIAGNOSTIC`。不回显原始内容、路径、ID 或日志片段，不把所有 warning 当过程失败。失败退出／超时、JSON／结构／数值异常、版本／时区冲突或联合总量不一致则不替换旧汇总，不分配新请求。有效重算可以增加、减少或移除旧模型；未知／null／缺失不补零。新 graph 中没有旧日期时保留该日期旧值，用 `retainedDates` 和 `GRAPH_DAY_ABSENT` 说明，不制造零或清空。
 
@@ -36,6 +36,6 @@ Claude 读取 `<home>/.claude/projects/**/*.jsonl`，`--home` 优先于 `CLAUDE_
 
 `npm run test:api` 覆盖警告不拦、有效降值／模型移除、缺席日保留、失败／无效输出不改旧统计或待传任务、敏感 stderr 不泄露，以及既有身份／锁／回执／重试。旧 inventory／压缩前缀测试随已授权职责调整删除，不以改宽坏帧断言伪装原策略继续通过。
 
-`npm run test:collector-package` 在仓库外实际 pack/install，只从安装包运行；默认验证同版本重装保留 SQLite／身份／待传任务及旧 sources 行。设置 `TOKEN_PACKAGE_PREVIOUS_ARCHIVE` 为映射中已保留的旧归档时，才实际验证旧→新升级路径；CI 未设置该变量，因此 CI 的默认包门禁不证明 0.1.5→0.1.6 升级路径。本次已在本地用记录中的 0.1.5 归档（`c029b833…`）跑通该路径：0.1.5 阶段只添加其支持的 `grok`，并确认 `claude` 被拒；升级到 0.1.6 后旧状态无模式，按全部六个来源读取，旧的两个不可变任务保留并新增四个合成来源版本。该结果只覆盖本机 Linux 合成来源，不代替 CI 或真实设备验收。`test:collector-evidence` 继续只读白名单对账；一次性OS任务、隔离PG/PostgREST/TLS和完整12CI门禁继续保留，合成或本地网关不冒充托管／真实来源／用户验收。
+`npm run test:collector-package` 在仓库外实际 pack/install，只从安装包运行；默认验证同版本重装保留 SQLite／身份／待传任务及旧 sources 行。设置 `TOKEN_PACKAGE_PREVIOUS_ARCHIVE` 为映射中已保留的旧归档时，才实际验证旧→新升级路径；CI 未设置该变量，因此 CI 的默认包门禁不证明 0.1.5→0.1.6 升级路径。本次已在本地用记录中的 0.1.5 归档（`c029b833…`）跑通该路径：0.1.5 状态无来源模式，升级后 `status` 报 `reinitRequired`、`sync`／`sources` 返回 `REINIT_REQUIRED`；显式重建为全部六个来源后，旧不可变任务保留并按新来源生成合成 rollup。该结果只覆盖本机 Linux 合成来源，不代替 CI 或真实设备验收。`test:collector-evidence` 继续只读白名单对账；一次性OS任务、隔离PG/PostgREST/TLS和完整12CI门禁继续保留，合成或本地网关不冒充托管／真实来源／用户验收。
 
 独立0.1.6包及源码映射见 `docs/evidence/token-onboarding/package.json`；0.1.0–0.1.5原包和旧分发目录保持。正式state仍由总控单写，先审新包再升级指定设备。实际设备／新扫描、获准HTTP／页面及四方对账、双设备、长期任务和桌面手机人工分别留证，不从旧队列上传成功推定新扫描成功；实际运行证据保存在受控私有文件，不公开真实用量、设备状态、回执hash或托管数据。#223／#205是否完成以总控的完整验收记录为准。

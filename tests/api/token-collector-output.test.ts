@@ -22,7 +22,7 @@ async function profile() {
   const home = join(root, 'home'), state = join(root, 'state')
   await mkdir(home)
   const store = await Store.open(state); stores.push(store)
-  store.set('config', { deviceId: 'synthetic-output-223', server: 'https://example.invalid/', sourceHome: home, hours: 1, loopback: false })
+  store.set('config', { deviceId: 'synthetic-output-223', server: 'https://example.invalid/', sourceHome: home, hours: 1, loopback: false, agents: ['codex', 'grok', 'hermes', 'claude', 'workbuddy', 'cursor'], agentsMode: 'all' })
   store.activate({ deviceId: 'synthetic-output-223', generation: '1', uploadToken: 'a'.repeat(43),
     upload: { url: 'https://example.invalid/rest/v1/rpc/token_usage_upload', publishableKey: 'sb_publishable_synthetic', header: 'X-LifeSpace-Device-Token' } })
   return { store, state, home }

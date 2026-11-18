@@ -1,11 +1,11 @@
 {
   "archive": "test-results/token235/onboarding-0.1.6/lifespace-token-collector-0.1.6.tgz",
   "version": "0.1.6",
-  "sha256": "31a2fc931440896daeac3c2d15cdcfa4c433c9d80916cb4e8b0cd1c576a49e05",
-  "bytes": 27321,
+  "sha256": "0972bf88522e70084ac738e28d02d5dcbcba1a478a9753d8531be89772f7a2af",
+  "bytes": 27660,
   "files": 13,
   "runtime": "Node>=24.22.1<25; CI24.22.1; macOS/Linux; @tokscale/cli4.23.0 and zod4.6.7 unchanged",
-  "sourceSha256": "f5db738f292594359c8fd525c9de0cdf8a89686f25d8faf852a0372acd21d46d",
+  "sourceSha256": "f43fff4bf677ec37e80d84c3f8ba5a1d895226270bd1f249c65eab2db95369c3",
   "sourceFiles": [
     "src/shared/token-backend-contract.ts",
     "src/shared/token-usage-contract.ts",
@@ -74,5 +74,5 @@
     }
   ],
   "reason": "Add Claude Code, WorkBuddy and Cursor sources and collect all six supported Agents by default; explicit --agents or sources set narrows the list, and legacy state without a source mode expands to all six",
-  "verification": "0.1.6 archive 13 files/27,321 bytes and 14-source digest matched;local typecheck/build/API/browser/collector-evidence/package gates passed;legacy 0.1.5 state without a source mode expands to all six sources on upgrade, preserving old immutable tasks and producing four synthetic agent rollups;CI package gate does not exercise the previous archive;final CI/two-axis review and real-device onboarding pending"
+  "verification": "0.1.6 archive 13 files/27,652 bytes and 14-source digest matched;local typecheck/build/API/browser/collector-evidence/package gates passed;legacy 0.1.5 state without a source mode is not runnable: status reports reinitRequired and sync/sources return REINIT_REQUIRED;explicit init --replace rebuilds to all six sources without inheriting the old list, preserves old immutable tasks and produces four synthetic agent rollups;CI package gate does not exercise the previous archive;final CI/two-axis review and real-device onboarding pending"
 }

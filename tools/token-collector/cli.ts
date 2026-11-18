@@ -27,6 +27,7 @@ All stateful commands accept --state-dir /absolute/private/directory.
 Timer/upgrade print a plan unless --apply is explicitly supplied.
 init --test-loopback permits numeric loopback HTTP for isolated tests only.
 All supported Agent sources are collected by default; pass --agents to narrow.
+State written before 0.1.6 must be re-initialized with init --replace.
 `
 function parseAgents(value: string | undefined, fallback: Agent[]): Agent[] {
   if (value === undefined) return fallback
@@ -52,18 +53,16 @@ async function main() {
     if (command === 'init') {
       const deviceId = await systemDeviceId(), prior = store.get('config')
       if (prior && !values.replace) throw new LocalError('ALREADY_INITIALIZED_USE_AUTHORIZE_OR_REPLACE')
-      const server = endpoint(values.server ?? (prior ? store.config().server : ''), values['test-loopback'] === true).href
+      const priorConfig = prior ? store.legacyConfig() : undefined
+      const server = endpoint(values.server ?? priorConfig?.server ?? '', values['test-loopback'] === true).href
       if (new URL(server).pathname !== '/') throw new LocalError('SERVER_ORIGIN_REQUIRED')
-      const sourceHome = values['source-home'] ?? (prior ? store.config().sourceHome : homedir()); if (!isAbsolute(sourceHome)) throw new LocalError('SOURCE_HOME_ABSOLUTE_REQUIRED')
-      if (prior && store.config().deviceId !== deviceId) throw new LocalError('SYSTEM_ID_CHANGED')
-      const priorConfig = prior ? store.config() : undefined
-      const agents = parseAgents(values.agents, priorConfig ? priorConfig.agents : [...supportedAgents])
-      const agentsMode = values.agents === undefined ? (priorConfig?.agentsMode ?? 'all') : 'explicit'
-      if (prior && (agents.length !== store.config().agents.length || agents.some(agent => !store.config().agents.includes(agent)))) {
-        throw new LocalError('AGENTS_CHANGE_REQUIRES_SOURCES_ADD')
-      }
-      const config = configSchema.parse({ deviceId, server, sourceHome: resolve(sourceHome), hours: hoursSchema.parse(Number(values.hours ?? (prior ? store.config().hours : 1))), loopback: values['test-loopback'] === true, agents, agentsMode })
-      if (prior && (config.server !== store.config().server || config.sourceHome !== store.config().sourceHome)) throw new LocalError('EXISTING_PROFILE_SCOPE_CANNOT_CHANGE')
+      const sourceHome = values['source-home'] ?? priorConfig?.sourceHome ?? homedir(); if (!isAbsolute(sourceHome)) throw new LocalError('SOURCE_HOME_ABSOLUTE_REQUIRED')
+      if (priorConfig && priorConfig.deviceId !== deviceId) throw new LocalError('SYSTEM_ID_CHANGED')
+      // Sources are never inherited: init always states them explicitly.
+      const agents = parseAgents(values.agents, [...supportedAgents])
+      const agentsMode = values.agents === undefined ? 'all' : 'explicit'
+      const config = configSchema.parse({ deviceId, server, sourceHome: resolve(sourceHome), hours: hoursSchema.parse(Number(values.hours ?? priorConfig?.hours ?? 1)), loopback: values['test-loopback'] === true, agents, agentsMode })
+      if (priorConfig && (config.server !== priorConfig.server || config.sourceHome !== priorConfig.sourceHome)) throw new LocalError('EXISTING_PROFILE_SCOPE_CANNOT_CHANGE')
       store.set('config', config)
       console.log(JSON.stringify(await startRegistration(store, config, hostname(), platform())))
       return

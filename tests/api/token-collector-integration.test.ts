@@ -82,7 +82,7 @@ describe.skipIf(!process.env.TOKEN_DB_URL)('collector actual Worker HTTPS gatewa
     await mkdir(join(home, '.codex/sessions'), { recursive: true })
     await writeFile(join(home, '.codex/sessions/source.jsonl'), syntheticCodexLog())
     store = await Store.open(state)
-    store.set('config', { deviceId: device, server: workerUrl + '/', sourceHome: home, hours: 3, loopback: true })
+    store.set('config', { deviceId: device, server: workerUrl + '/', sourceHome: home, hours: 3, loopback: true, agents: ['codex', 'grok', 'hermes', 'claude', 'workbuddy', 'cursor'], agentsMode: 'all' })
   }, 15000)
   afterAll(async () => { store?.close(); setGlobalDispatcher(previousDispatcher); await dispatcher?.close(); await close(worker); await close(gateway); await db?.end(); if (root) await rm(root, { recursive: true, force: true }) })
   test('real registration/browser approval and lost claim retry retain same credential; actual CLI accounting matches PG', async () => {
@@ -198,7 +198,7 @@ describe.skipIf(!process.env.TOKEN_DB_URL)('collector actual Worker HTTPS gatewa
     await writeFile(join(secondHome, '.codex/sessions/source.jsonl'), syntheticUnknownModelLog())
     const second = await Store.open(secondState)
     try {
-      second.set('config', { deviceId: 'synthetic-second-state-219', server: workerUrl + '/', sourceHome: secondHome, hours: 3, loopback: true })
+      second.set('config', { deviceId: 'synthetic-second-state-219', server: workerUrl + '/', sourceHome: secondHome, hours: 3, loopback: true, agents: ['codex', 'grok', 'hermes', 'claude', 'workbuddy', 'cursor'], agentsMode: 'all' })
       const display = await startRegistration(second, second.config(), 'synthetic-second-state', 'linux')
       await withTokenBrowser(workerUrl, browserToken(), owner, async page => {
         await page.clock.setFixedTime(new Date('2026-11-15T06:32:00Z'))

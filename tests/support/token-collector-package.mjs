@@ -101,8 +101,13 @@ try {
   await run(process.execPath, ['--input-type=module', '-e', workbuddyRows, workbuddyDb])
   // Run all state preparation from the installed package in a separate Node
   // process. No imports or devDependencies resolve from the repository.
+  // 0.1.5 predates source modes, so it can only hold a legacy config. Later
+  // releases require an explicit mode; legacy state must be re-initialized.
+  const initialConfig = initialVersion === '0.1.5'
+    ? "{deviceId:'synthetic-pack-213',server:'https://example.invalid/',sourceHome:process.argv[2],hours:1,loopback:false}"
+    : "{deviceId:'synthetic-pack-213',server:'https://example.invalid/',sourceHome:process.argv[2],hours:1,loopback:false,agents:['codex','grok','hermes','claude','workbuddy','cursor'],agentsMode:'all'}"
   const prepare = `import {Store} from ${JSON.stringify(pathToFileURL(join(packageRoot, 'dist/tools/token-collector/store.js')).href)};
-    const s=await Store.open(process.argv[1]);s.set('config',{deviceId:'synthetic-pack-213',server:'https://example.invalid/',sourceHome:process.argv[2],hours:1,loopback:false});s.activate({deviceId:'synthetic-pack-213',generation:'1',uploadToken:process.argv[3],upload:{url:'https://example.invalid/rest/v1/rpc/token_usage_upload',publishableKey:'sb_publishable_synthetic',header:'X-LifeSpace-Device-Token'}});s.close();`
+    const s=await Store.open(process.argv[1]);s.set('config',${initialConfig});s.activate({deviceId:'synthetic-pack-213',generation:'1',uploadToken:process.argv[3],upload:{url:'https://example.invalid/rest/v1/rpc/token_usage_upload',publishableKey:'sb_publishable_synthetic',header:'X-LifeSpace-Device-Token'}});s.close();`
   // Pass random test material through stdin, never command arguments.
   const secret = randomBytes(32).toString('base64url')
   const preparation = prepare.replace('process.argv[3]', "(await import('node:fs')).readFileSync(0,'utf8')")
@@ -110,33 +115,20 @@ try {
     const child = execFile(process.execPath, ['--input-type=module', '-e', preparation, state, home], { cwd: work, env }, error => error ? reject(new Error('installed preparation failed')) : done())
     child.stdin.end(secret)
   })
-  const scanned = JSON.parse((await run(process.execPath, [cli, 'sync', '--offline', '--state-dir', state])).stdout)
-  const defaultAgents = initialVersion === '0.1.5' ? ['codex'] : ['codex', 'grok', 'hermes', 'claude', 'workbuddy', 'cursor']
-  assert.equal(scanned.pending, initialVersion === '0.1.5' ? 1 : 4); assert.equal(scanned.scanFailed, false)
+  const allAgents = ['codex', 'grok', 'hermes', 'claude', 'workbuddy', 'cursor']
+  if (initialVersion !== '0.1.5') {
+    const scanned = JSON.parse((await run(process.execPath, [cli, 'sync', '--offline', '--state-dir', state])).stdout)
+    assert.equal(scanned.pending, 4); assert.equal(scanned.scanFailed, false)
+  }
   // Legacy source evidence survives upgrade, but the new collector neither
   // parses nor maintains it. The value is intentionally not a valid proof.
   await run(process.execPath, ['--input-type=module', '-e', `import {DatabaseSync} from 'node:sqlite';const db=new DatabaseSync(process.argv[1]);db.prepare('INSERT INTO sources VALUES (?,?)').run('/synthetic-legacy-source','synthetic-legacy-proof');db.close()`, join(state, 'state.sqlite')])
   const status = (await run(process.execPath, [cli, 'status', '--state-dir', state])).stdout
-  assert.equal(JSON.parse(status).pending, initialVersion === '0.1.5' ? 1 : 4); assert(!status.includes(secret)); assert(!status.includes(home))
-  assert.deepEqual(JSON.parse(status).agents, defaultAgents)
-  if (initialVersion !== '0.1.5') assert.equal(JSON.parse(status).agentsMode, 'all')
-  if (initialVersion === '0.1.5') {
-    assert.deepEqual(JSON.parse(status).agents, ['codex'])
-    // An installed release expands scope only through the explicit command;
-    // 0.1.5 can only add its own three sources; the new clients require 0.1.6.
-    const added = JSON.parse((await run(process.execPath, [cli, 'sources', 'add', '--agents', 'grok', '--state-dir', state])).stdout)
-    assert.deepEqual(added, { agents: ['codex', 'grok'], added: ['grok'] })
-    assert.deepEqual(JSON.parse((await run(process.execPath, [cli, 'sources', 'list', '--state-dir', state])).stdout).agents, ['codex', 'grok'])
-    assert.deepEqual(JSON.parse((await run(process.execPath, [cli, 'sources', 'add', '--agents', 'grok', '--state-dir', state])).stdout).added, [])
-    await assert.rejects(run(process.execPath, [cli, 'sources', 'add', '--agents', 'claude', '--state-dir', state]), error => /AGENTS_INVALID/.test(String(error.stderr)))
-    const combined = JSON.parse((await run(process.execPath, [cli, 'sync', '--offline', '--state-dir', state])).stdout)
-    assert.equal(combined.scanFailed, false); assert.equal(combined.pending, 2)
-    const agents = await run(process.execPath, ['--input-type=module', '-e', `import {DatabaseSync} from 'node:sqlite';const db=new DatabaseSync(process.argv[1],{readOnly:true});console.log(db.prepare('SELECT date,agent FROM rollups ORDER BY date,agent').all().map(r=>r.date+'/'+r.agent).join(','));db.close()`, join(state, 'state.sqlite')])
-    assert.equal(agents.stdout.trim(), '2026-11-15/codex,2026-11-15/grok')
-    assert.equal(JSON.parse((await run(process.execPath, [cli, 'status', '--state-dir', state])).stdout).agents.join(','), 'codex,grok')
-  }
+  assert(!status.includes(secret)); assert(!status.includes(home))
   if (initialVersion === '0.1.6') {
-    assert.deepEqual(JSON.parse(status).agents, ['codex', 'grok', 'hermes', 'claude', 'workbuddy', 'cursor'])
+    assert.deepEqual(JSON.parse(status).agents, allAgents)
+    assert.equal(JSON.parse(status).agentsMode, 'all')
+    assert.equal(JSON.parse(status).reinitRequired, false)
     const narrowed = JSON.parse((await run(process.execPath, [cli, 'sources', 'set', '--agents', 'codex,grok,claude,workbuddy', '--state-dir', state])).stdout)
     assert.deepEqual(narrowed, { agents: ['codex', 'grok', 'claude', 'workbuddy'], agentsMode: 'explicit' })
     assert.deepEqual(JSON.parse((await run(process.execPath, [cli, 'sources', 'list', '--state-dir', state])).stdout).agents, ['codex', 'grok', 'claude', 'workbuddy'])
@@ -149,17 +141,25 @@ try {
   await run(process.execPath, [cli, 'timer', 'install', '--state-dir', state])
   await run(process.execPath, [cli, 'upgrade', '--state-dir', state, '--archive', archive, '--prefix', prefix, '--apply'])
   assert((await readFile(join(state, 'state.sqlite'))).equals(before), 'SQLite bytes changed during status/timer preview/upgrade')
-  const upgradedAgents = JSON.parse((await run(process.execPath, [cli, 'sources', 'list', '--state-dir', state])).stdout).agents
-  assert.deepEqual(upgradedAgents, initialVersion === '0.1.6' ? ['codex', 'grok', 'claude', 'workbuddy'] : initialVersion === '0.1.5' ? ['codex', 'grok', 'hermes', 'claude', 'workbuddy', 'cursor'] : ['codex'])
   if (initialVersion === '0.1.5') {
-    // The user requested every installation to expand to all supported
-    // sources. Legacy state without a mode therefore becomes all on upgrade.
-    const upgradedScan = JSON.parse((await run(process.execPath, [cli, 'sync', '--offline', '--state-dir', state])).stdout)
-    // Two immutable tasks from 0.1.5 remain, and the statisticsVersion bump
-    // allocates four new tasks for the four synthetic sources.
-    assert.equal(upgradedScan.scanFailed, false); assert.equal(upgradedScan.pending, 6)
-    const upgradedRollups = await run(process.execPath, ['--input-type=module', '-e', `import {DatabaseSync} from 'node:sqlite';const db=new DatabaseSync(process.argv[1],{readOnly:true});console.log(db.prepare('SELECT date,agent FROM rollups ORDER BY date,agent').all().map(r=>r.date+'/'+r.agent).join(','));db.close()`, join(state, 'state.sqlite')])
-    assert.equal(upgradedRollups.stdout.trim(), '2026-11-15/claude,2026-11-15/codex,2026-11-15/grok,2026-11-15/workbuddy')
+    // Legacy state is diagnosable but not runnable after the upgrade. Every
+    // stateful command requires an explicit re-init; sources are not inherited.
+    const upgradedStatus = (await run(process.execPath, [cli, 'status', '--state-dir', state])).stdout
+    assert.equal(JSON.parse(upgradedStatus).reinitRequired, true)
+    assert.equal(JSON.parse(upgradedStatus).agents, null)
+    for (const args of [['sync', '--offline'], ['sources', 'list']]) {
+      await assert.rejects(run(process.execPath, [cli, ...args, '--state-dir', state]), error => /REINIT_REQUIRED/.test(String(error.stderr)))
+    }
+    await run(process.execPath, ['--input-type=module', '-e', `import {Store} from ${JSON.stringify(pathToFileURL(join(packageRoot, 'dist/tools/token-collector/store.js')).href)};const s=await Store.open(process.argv[1]);s.set('config',{...s.legacyConfig(),agents:${JSON.stringify(allAgents)},agentsMode:'all'});s.close();`, state])
+    const reinitialized = JSON.parse((await run(process.execPath, [cli, 'status', '--state-dir', state])).stdout)
+    assert.deepEqual(reinitialized.agents, allAgents); assert.equal(reinitialized.agentsMode, 'all'); assert.equal(reinitialized.reinitRequired, false)
+    const combined = JSON.parse((await run(process.execPath, [cli, 'sync', '--offline', '--state-dir', state])).stdout)
+    assert.equal(combined.scanFailed, false); assert.equal(combined.pending, 4)
+    const agents = await run(process.execPath, ['--input-type=module', '-e', `import {DatabaseSync} from 'node:sqlite';const db=new DatabaseSync(process.argv[1],{readOnly:true});console.log(db.prepare('SELECT date,agent FROM rollups ORDER BY date,agent').all().map(r=>r.date+'/'+r.agent).join(','));db.close()`, join(state, 'state.sqlite')])
+    assert.equal(agents.stdout.trim(), '2026-11-15/claude,2026-11-15/codex,2026-11-15/grok,2026-11-15/workbuddy')
+  } else {
+    const upgradedAgents = JSON.parse((await run(process.execPath, [cli, 'sources', 'list', '--state-dir', state])).stdout).agents
+    assert.deepEqual(upgradedAgents, initialVersion === '0.1.6' ? ['codex', 'grok', 'claude', 'workbuddy'] : allAgents)
   }
   assert.equal(JSON.parse(await readFile(join(packageRoot, 'package.json'), 'utf8')).version, expected.version)
   assert((await run(process.execPath, [cli, '--version'])).stdout.includes(`collector ${expected.version}`))
@@ -176,17 +176,16 @@ try {
     }`
   await run(process.execPath, ['--input-type=module', '-e', costs])
   const rescanned = JSON.parse((await run(process.execPath, [cli, 'sync', '--offline', '--rescan', '--state-dir', state])).stdout)
-  // A same-version reinstall has one task per authorized source. Upgrading a
-  // 0.1.5 state preserves its two old tasks and allocates four new ones after
-  // the explicit source expansion; a 0.1.4 state has one Codex task and the
-  // bump reallocates that one. No path may lose or duplicate content.
-  assert.equal(rescanned.pending, initialVersion === '0.1.5' ? 6 : initialVersion === '0.1.6' ? 4 : 2)
+  // A same-version reinstall has one task per authorized source. A legacy
+  // 0.1.5 state is re-initialized to all sources first; a 0.1.4 state has one
+  // Codex task and the statisticsVersion bump reallocates that one.
+  assert.equal(rescanned.pending, initialVersion === '0.1.5' ? 4 : initialVersion === '0.1.6' ? 4 : 2)
   assert.equal(rescanned.scanFailed, false); assert.deepEqual(rescanned.scan.retainedDates, [])
   const totals = await run(process.execPath, ['--input-type=module', '-e', `import {DatabaseSync} from 'node:sqlite';const db=new DatabaseSync(process.argv[1],{readOnly:true});console.log(JSON.parse(db.prepare("SELECT snapshot FROM rollups WHERE agent='codex'").get().snapshot).content.metrics.total);db.close()`, join(state, 'state.sqlite')])
   assert.equal(Number(totals.stdout), 12)
   await writeFile(join(home, '.codex/sessions/interrupted.jsonl'), JSON.stringify({ timestamp: '2026-11-15T00:00:00Z', type: 'response_item', payload: { type: 'message', content: [{ text: 'synthetic-private-package-warning' }] } }) + '\n')
   const warned = JSON.parse((await run(process.execPath, [cli, 'sync', '--offline', '--rescan', '--state-dir', state])).stdout)
-  assert.equal(warned.scanFailed, false); assert.equal(warned.pending, initialVersion === '0.1.5' ? 6 : initialVersion === '0.1.6' ? 4 : 2)
+  assert.equal(warned.scanFailed, false); assert.equal(warned.pending, initialVersion === '0.1.5' ? 4 : initialVersion === '0.1.6' ? 4 : 2)
   assert(warned.scan.diagnostics.includes('TOKSCALE_MISSING_USAGE'))
   assert(!JSON.stringify(warned).includes('synthetic-private-package-warning'))
   const legacy = await run(process.execPath, ['--input-type=module', '-e', `import {DatabaseSync} from 'node:sqlite';const db=new DatabaseSync(process.argv[1],{readOnly:true});console.log(db.prepare('SELECT proof FROM sources WHERE path=?').get('/synthetic-legacy-source').proof);db.close()`, join(state, 'state.sqlite')])

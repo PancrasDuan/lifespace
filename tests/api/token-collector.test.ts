@@ -29,7 +29,7 @@ async function profile() {
   const dir = await root(), state = join(dir, 'state'), home = join(dir, 'home')
   await mkdir(join(home, '.codex/sessions'), { recursive: true })
   const store = await Store.open(state); stores.push(store)
-  store.set('config', { deviceId: 'synthetic-device-213', server: 'https://example.invalid/', sourceHome: home, hours: 1, loopback: false })
+  store.set('config', { deviceId: 'synthetic-device-213', server: 'https://example.invalid/', sourceHome: home, hours: 1, loopback: false, agents: ['codex'], agentsMode: 'explicit' })
   return { dir, state, home, store }
 }
 const credential = (generation = '1'): Credential => ({ deviceId: 'synthetic-device-213', generation, uploadToken: randomBytes(32).toString('base64url'), upload: { url: 'https://example.invalid/rest/v1/rpc/token_usage_upload', publishableKey: 'sb_publishable_synthetic', header: 'X-LifeSpace-Device-Token' } })
@@ -41,28 +41,28 @@ test('collector keeps its tested stable Node24 runtime boundary', () => {
   for (const version of ['24.22.1', '24.23.0', '24.99.0']) expect(() => requireNode24(version)).not.toThrow()
   for (const version of ['22.22.0', '24.0.0', '24.18.0', '24.20.0', '24.22.0', '25.0.0', '24.22.1-rc.1', 'invalid']) expect(() => requireNode24(version)).toThrow('NODE_24_22_1_REQUIRED')
 })
-test('legacy config without agents expands to all sources; invalid or duplicate authorization is rejected', async () => {
+test('state written before source modes is readable only for re-initialization; invalid or duplicate authorization is rejected', async () => {
   const p = await profile()
   p.store.set('config', { deviceId: 'synthetic-device-213', server: 'https://example.invalid/', sourceHome: p.home, hours: 1, loopback: false })
-  expect(p.store.config().agents).toEqual(['codex', 'grok', 'hermes', 'claude', 'workbuddy', 'cursor'])
-  expect(p.store.config().agentsMode).toBe('all')
-  expect(p.store.status().agents).toEqual(['codex', 'grok', 'hermes', 'claude', 'workbuddy', 'cursor'])
-  expect(p.store.status().agentsMode).toBe('all')
+  expect(() => p.store.config()).toThrow('REINIT_REQUIRED')
+  expect(p.store.legacyConfig()).toMatchObject({ deviceId: 'synthetic-device-213', hours: 1 })
+  expect(p.store.status()).toMatchObject({ configured: true, reinitRequired: true, agents: null, agentsMode: null })
   for (const agents of [[], ['codex', 'codex'], ['future']]) {
-    expect(configSchema.safeParse({ ...p.store.config(), agents }).success).toBe(false)
+    expect(configSchema.safeParse({ ...p.store.legacyConfig(), agents, agentsMode: 'explicit' }).success).toBe(false)
   }
-  expect(configSchema.safeParse({ ...p.store.config(), agents: ['codex', 'grok', 'hermes'] }).success).toBe(true)
-  expect(configSchema.safeParse({ ...p.store.config(), agents: ['codex', 'grok', 'hermes', 'claude', 'workbuddy', 'cursor'] }).success).toBe(true)
-  expect(configSchema.safeParse({ ...p.store.config(), agents: ['codex', 'grok', 'hermes', 'claude', 'workbuddy', 'cursor', 'codex'] }).success).toBe(false)
+  expect(configSchema.safeParse({ ...p.store.legacyConfig(), agents: ['codex', 'grok', 'hermes'], agentsMode: 'explicit' }).success).toBe(true)
+  expect(configSchema.safeParse({ ...p.store.legacyConfig(), agents: ['codex', 'grok', 'hermes', 'claude', 'workbuddy', 'cursor'], agentsMode: 'all' }).success).toBe(true)
+  expect(configSchema.safeParse({ ...p.store.legacyConfig(), agents: ['codex', 'grok', 'hermes', 'claude', 'workbuddy', 'cursor', 'codex'], agentsMode: 'all' }).success).toBe(false)
 })
-test('an explicit narrowed source list stays narrowed while all-mode expands', async () => {
+test('all-mode requires every supported source while an explicit list may narrow', async () => {
   const p = await profile()
   p.store.set('config', { deviceId: 'synthetic-device-213', server: 'https://example.invalid/', sourceHome: p.home, hours: 1, loopback: false, agents: ['claude'], agentsMode: 'explicit' })
   expect(p.store.config().agents).toEqual(['claude'])
   expect(p.store.config().agentsMode).toBe('explicit')
   p.store.set('config', { ...p.store.config(), agents: ['codex'], agentsMode: 'all' })
+  expect(() => p.store.config()).toThrow('REINIT_REQUIRED')
+  p.store.set('config', { ...p.store.legacyConfig(), agents: ['codex', 'grok', 'hermes', 'claude', 'workbuddy', 'cursor'], agentsMode: 'all' })
   expect(p.store.config().agents).toEqual(['codex', 'grok', 'hermes', 'claude', 'workbuddy', 'cursor'])
-  expect(p.store.config().agentsMode).toBe('all')
 })
 test('multi-Agent rollups keep same model and date separate by agent', async () => {
   const p = await profile()
@@ -404,7 +404,7 @@ test('launchd configuration update recovers after plist write interruption and f
 })
 
 
-test('CLI init --replace retains configured custom source home during reauthorization', async () => {
+test('CLI init --replace rebuilds legacy state, keeping scope but not inheriting sources', async () => {
   const dir = await root(), state = join(dir, 'state'), custom = join(dir, 'custom-source')
   await mkdir(custom, { mode: 0o700 })
   const server = createServer((req, res) => {
@@ -421,6 +421,8 @@ test('CLI init --replace retains configured custom source home during reauthoriz
     expect(JSON.parse(result.stdout)).toMatchObject({ code: 'ABCDEFGH' })
     const after = await Store.open(state); stores.push(after)
     expect(after.config().sourceHome).toBe(custom); expect(after.config().hours).toBe(3)
+    expect(after.config().agents).toEqual(['codex', 'grok', 'hermes', 'claude', 'workbuddy', 'cursor'])
+    expect(after.config().agentsMode).toBe('all')
     expect(after.get('registration')).toMatchObject({ requestId: '00000000-0000-4000-8000-000000000219' })
   } finally { await new Promise<void>(r => server.close(() => r())) }
 })
@@ -453,13 +455,14 @@ test('CLI defaults to all sources; explicit lists, sources add/set and reauthori
     await expect(run('sources', 'add', '--agents', 'hermes,hermes')).rejects.toMatchObject({ stderr: expect.stringContaining('AGENTS_INVALID') })
     await expect(run('sources', 'add')).rejects.toMatchObject({ stderr: expect.stringContaining('AGENTS_REQUIRED') })
 
-    // Reauthorization keeps the explicitly narrowed list.
+    // Re-initialization never inherits the previous source list: with no
+    // --agents it returns to the all-sources default.
     await run('init', '--replace', '--test-loopback')
     const reopened = await Store.open(state); stores.push(reopened)
-    expect(reopened.config().agents).toEqual(['claude'])
-    expect(reopened.config().agentsMode).toBe('explicit')
+    expect(reopened.config().agents).toEqual(['codex', 'grok', 'hermes', 'claude', 'workbuddy', 'cursor'])
+    expect(reopened.config().agentsMode).toBe('all')
     expect(reopened.config().sourceHome).toBe(home)
-    expect(reopened.status().agents).toEqual(['claude'])
+    expect(reopened.status().agents).toEqual(['codex', 'grok', 'hermes', 'claude', 'workbuddy', 'cursor'])
     reopened.close(); stores.splice(stores.indexOf(reopened), 1)
     const help = (await run('--help')).stdout
     expect(help).toContain('sources set --agents codex,grok')
