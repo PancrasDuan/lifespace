@@ -37,7 +37,7 @@ test('固定 CLI + 合成日志：北京跨日、日期筛选、已知缓存/推
   expect(report.snapshots[0].content.metrics).toEqual({ input: 100, output: 30, total: 130, cacheRead: 20, reasoning: 10 })
   expect(report.snapshots.every(row => row.content.cost.coverage === 'unknown')).toBe(true)
   expect(report.snapshots[1].content.models.items.find(row => row.modelId === null)?.metrics.total).toBe(50)
-  expect(report.diagnostics).toEqual(['TOKSCALE_PRICING_WARNING'])
+  expect(report.diagnostics).toEqual(['TOKSCALE_CURSOR_CACHE_UNAVAILABLE', 'TOKSCALE_PRICING_WARNING'])
   expect(JSON.stringify(report)).not.toContain(options.homeDir)
   const filtered = await collectTokscaleUsage({ ...options, since: '2026-11-15', until: '2026-11-15' }, context)
   expect(filtered.snapshots).toHaveLength(1)

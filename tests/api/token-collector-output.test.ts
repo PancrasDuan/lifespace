@@ -76,13 +76,12 @@ test('diagnostic classification is bounded to known categories, deduplicated and
   expect(tokscaleDiagnostics(' \n')).toEqual([])
 })
 
-test('scan passes only configured Agents and keeps legacy state on codex', async () => {
+test('scan defaults to every Agent and honors an explicitly narrowed list', async () => {
   const { store, state } = await profile()
   result()
   await synchronize(store, state, { offline: true })
-  expect(execute.mock.calls[1][1]).toEqual(expect.arrayContaining(['--client', 'codex']))
-  expect(execute.mock.calls[1][1]).not.toContain('codex,grok,hermes')
-  store.set('config', { ...store.config(), agents: ['codex', 'grok', 'hermes'] })
+  expect(execute.mock.calls[1][1]).toEqual(expect.arrayContaining(['--client', 'codex,grok,hermes,claude,workbuddy,cursor']))
+  store.set('config', { ...store.config(), agents: ['codex', 'grok', 'hermes'], agentsMode: 'explicit' })
   result()
   await synchronize(store, state, { offline: true })
   expect(execute.mock.calls[3][1]).toEqual(expect.arrayContaining(['--client', 'codex,grok,hermes']))
@@ -99,7 +98,7 @@ test('all six supported Agents can be authorized and are passed in one ordered c
 
 test('an authorized Agent with no graph rows does not prevent another Agent from being saved', async () => {
   const { store, state } = await profile()
-  store.set('config', { ...store.config(), agents: ['codex', 'grok'] })
+  store.set('config', { ...store.config(), agents: ['codex', 'grok'], agentsMode: 'explicit' })
   result()
   const synced = await synchronize(store, state, { offline: true })
   expect(synced.scanFailed).toBe(false)
@@ -120,6 +119,7 @@ test('a successful empty graph does not manufacture zero snapshots', async () =>
 
 test('unexpected upstream Agent is rejected before it can be saved', async () => {
   const { store, state } = await profile()
+  store.set('config', { ...store.config(), agents: ['codex'], agentsMode: 'explicit' })
   const grokOnly = structuredClone(graph)
   for (const day of grokOnly.contributions) for (const row of day.clients) row.client = 'grok'
   result(JSON.stringify(grokOnly))
@@ -131,7 +131,7 @@ test('unexpected upstream Agent is rejected before it can be saved', async () =>
 
 test('only authorized Agent roots are exposed to the CLI environment', async () => {
   const { store, state } = await profile()
-  store.set('config', { ...store.config(), agents: ['grok'] })
+  store.set('config', { ...store.config(), agents: ['grok'], agentsMode: 'explicit' })
   const grokOnly = structuredClone(graph)
   for (const day of grokOnly.contributions) for (const row of day.clients) row.client = 'grok'
   result(JSON.stringify(grokOnly))
@@ -144,7 +144,7 @@ test('only authorized Agent roots are exposed to the CLI environment', async () 
 
 test('Claude, WorkBuddy and Cursor rely on --home and never receive extra root variables', async () => {
   const { store, state } = await profile()
-  store.set('config', { ...store.config(), agents: ['claude', 'workbuddy', 'cursor'] })
+  store.set('config', { ...store.config(), agents: ['claude', 'workbuddy', 'cursor'], agentsMode: 'explicit' })
   result(JSON.stringify({
     meta: { version: '4.23.0' }, summary: { totalTokens: 0, totalCost: 0 }, contributions: [],
   }))
@@ -161,7 +161,7 @@ test('Claude, WorkBuddy and Cursor rely on --home and never receive extra root v
 
 test('Cursor cache warnings are reduced to a fixed diagnostic without the cache path', async () => {
   const { store, state, home } = await profile()
-  store.set('config', { ...store.config(), agents: ['cursor'] })
+  store.set('config', { ...store.config(), agents: ['cursor'], agentsMode: 'explicit' })
   const cache = join(home, '.config/tokscale/cursor-cache/usage*.json')
   result(JSON.stringify({
     meta: { version: '4.23.0' }, summary: { totalTokens: 0, totalCost: 0 }, contributions: [],
@@ -174,7 +174,7 @@ test('Cursor cache warnings are reduced to a fixed diagnostic without the cache 
 
 test('an empty Cursor cache keeps the prior rollup and creates no zero snapshot', async () => {
   const { store, state } = await profile()
-  store.set('config', { ...store.config(), agents: ['cursor'] })
+  store.set('config', { ...store.config(), agents: ['cursor'], agentsMode: 'explicit' })
   const cursorGraph = structuredClone(graph)
   for (const day of cursorGraph.contributions) for (const row of day.clients) row.client = 'cursor'
   result(JSON.stringify(cursorGraph))

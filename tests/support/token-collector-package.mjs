@@ -111,12 +111,15 @@ try {
     child.stdin.end(secret)
   })
   const scanned = JSON.parse((await run(process.execPath, [cli, 'sync', '--offline', '--state-dir', state])).stdout)
-  assert.equal(scanned.pending, 1); assert.equal(scanned.scanFailed, false)
+  const defaultAgents = initialVersion === '0.1.5' ? ['codex'] : ['codex', 'grok', 'hermes', 'claude', 'workbuddy', 'cursor']
+  assert.equal(scanned.pending, initialVersion === '0.1.5' ? 1 : 4); assert.equal(scanned.scanFailed, false)
   // Legacy source evidence survives upgrade, but the new collector neither
   // parses nor maintains it. The value is intentionally not a valid proof.
   await run(process.execPath, ['--input-type=module', '-e', `import {DatabaseSync} from 'node:sqlite';const db=new DatabaseSync(process.argv[1]);db.prepare('INSERT INTO sources VALUES (?,?)').run('/synthetic-legacy-source','synthetic-legacy-proof');db.close()`, join(state, 'state.sqlite')])
   const status = (await run(process.execPath, [cli, 'status', '--state-dir', state])).stdout
-  assert.equal(JSON.parse(status).pending, 1); assert(!status.includes(secret)); assert(!status.includes(home))
+  assert.equal(JSON.parse(status).pending, initialVersion === '0.1.5' ? 1 : 4); assert(!status.includes(secret)); assert(!status.includes(home))
+  assert.deepEqual(JSON.parse(status).agents, defaultAgents)
+  if (initialVersion !== '0.1.5') assert.equal(JSON.parse(status).agentsMode, 'all')
   if (initialVersion === '0.1.5') {
     assert.deepEqual(JSON.parse(status).agents, ['codex'])
     // An installed release expands scope only through the explicit command;
@@ -133,9 +136,9 @@ try {
     assert.equal(JSON.parse((await run(process.execPath, [cli, 'status', '--state-dir', state])).stdout).agents.join(','), 'codex,grok')
   }
   if (initialVersion === '0.1.6') {
-    assert.deepEqual(JSON.parse(status).agents, ['codex'])
-    const added = JSON.parse((await run(process.execPath, [cli, 'sources', 'add', '--agents', 'grok,claude,workbuddy', '--state-dir', state])).stdout)
-    assert.deepEqual(added, { agents: ['codex', 'grok', 'claude', 'workbuddy'], added: ['grok', 'claude', 'workbuddy'] })
+    assert.deepEqual(JSON.parse(status).agents, ['codex', 'grok', 'hermes', 'claude', 'workbuddy', 'cursor'])
+    const narrowed = JSON.parse((await run(process.execPath, [cli, 'sources', 'set', '--agents', 'codex,grok,claude,workbuddy', '--state-dir', state])).stdout)
+    assert.deepEqual(narrowed, { agents: ['codex', 'grok', 'claude', 'workbuddy'], agentsMode: 'explicit' })
     assert.deepEqual(JSON.parse((await run(process.execPath, [cli, 'sources', 'list', '--state-dir', state])).stdout).agents, ['codex', 'grok', 'claude', 'workbuddy'])
     const combined = JSON.parse((await run(process.execPath, [cli, 'sync', '--offline', '--state-dir', state])).stdout)
     assert.equal(combined.scanFailed, false); assert.equal(combined.pending, 4)
@@ -147,15 +150,13 @@ try {
   await run(process.execPath, [cli, 'upgrade', '--state-dir', state, '--archive', archive, '--prefix', prefix, '--apply'])
   assert((await readFile(join(state, 'state.sqlite'))).equals(before), 'SQLite bytes changed during status/timer preview/upgrade')
   const upgradedAgents = JSON.parse((await run(process.execPath, [cli, 'sources', 'list', '--state-dir', state])).stdout).agents
-  assert.deepEqual(upgradedAgents, initialVersion === '0.1.6' ? ['codex', 'grok', 'claude', 'workbuddy'] : initialVersion === '0.1.5' ? ['codex', 'grok'] : ['codex'])
+  assert.deepEqual(upgradedAgents, initialVersion === '0.1.6' ? ['codex', 'grok', 'claude', 'workbuddy'] : initialVersion === '0.1.5' ? ['codex', 'grok', 'hermes', 'claude', 'workbuddy', 'cursor'] : ['codex'])
   if (initialVersion === '0.1.5') {
-    // Upgrading itself must not expand sources; the installed 0.1.6 CLI then
-    // accepts the new clients only through the explicit command.
-    const addedAfterUpgrade = JSON.parse((await run(process.execPath, [cli, 'sources', 'add', '--agents', 'claude,workbuddy', '--state-dir', state])).stdout)
-    assert.deepEqual(addedAfterUpgrade, { agents: ['codex', 'grok', 'claude', 'workbuddy'], added: ['claude', 'workbuddy'] })
+    // The user requested every installation to expand to all supported
+    // sources. Legacy state without a mode therefore becomes all on upgrade.
     const upgradedScan = JSON.parse((await run(process.execPath, [cli, 'sync', '--offline', '--state-dir', state])).stdout)
     // Two immutable tasks from 0.1.5 remain, and the statisticsVersion bump
-    // allocates four new tasks for the four authorized sources.
+    // allocates four new tasks for the four synthetic sources.
     assert.equal(upgradedScan.scanFailed, false); assert.equal(upgradedScan.pending, 6)
     const upgradedRollups = await run(process.execPath, ['--input-type=module', '-e', `import {DatabaseSync} from 'node:sqlite';const db=new DatabaseSync(process.argv[1],{readOnly:true});console.log(db.prepare('SELECT date,agent FROM rollups ORDER BY date,agent').all().map(r=>r.date+'/'+r.agent).join(','));db.close()`, join(state, 'state.sqlite')])
     assert.equal(upgradedRollups.stdout.trim(), '2026-11-15/claude,2026-11-15/codex,2026-11-15/grok,2026-11-15/workbuddy')
@@ -193,5 +194,5 @@ try {
   assert.equal((await stat(join(state, 'state.sqlite'))).mode & 0o777, 0o600)
   const tokscale = JSON.parse(await readFile(join(prefix, 'node_modules/@tokscale/cli/package.json'), 'utf8'))
   assert.equal(tokscale.version, '4.23.0')
-  console.log(JSON.stringify({ packedFiles: result.files.length, archiveSha256: createHash('sha256').update(await readFile(archive)).digest('hex'), package: `${expected.name}@${expected.version}`, runtimeTokscale: tokscale.version, platform: process.platform, systemIdentity: 'real read-only probe stable; value not logged', outsideRepository: true, actualScan: '12 Codex, 24 Grok, 190 Claude and 42 WorkBuddy tokens before/after upgrade; Cursor was not authorized in the package scan', agents: 'legacy default codex; sources add idempotent; explicit codex+grok+claude+workbuddy produced separate rollups', upgrade: { from: initialVersion, to: expected.version, sqlitePreserved: true }, costResidues: 'three independent repeated-sum scenarios accepted; significant errors rejected', warnings: 'accepted/redacted; Cursor cache warning covered by API test; legacy source proof preserved without use', timer: 'plan only; no system timer installed' }))
+  console.log(JSON.stringify({ packedFiles: result.files.length, archiveSha256: createHash('sha256').update(await readFile(archive)).digest('hex'), package: `${expected.name}@${expected.version}`, runtimeTokscale: tokscale.version, platform: process.platform, systemIdentity: 'real read-only probe stable; value not logged', outsideRepository: true, actualScan: '12 Codex, 24 Grok, 190 Claude and 42 WorkBuddy tokens before/after upgrade; Cursor cache absent', agents: 'default all six sources; explicit narrowing via --agents or sources set; add remains idempotent', upgrade: { from: initialVersion, to: expected.version, sqlitePreserved: true }, costResidues: 'three independent repeated-sum scenarios accepted; significant errors rejected', warnings: 'accepted/redacted; Cursor cache warning covered by API test; legacy source proof preserved without use', timer: 'plan only; no system timer installed' }))
 } finally { await rm(work, { recursive: true, force: true }) }

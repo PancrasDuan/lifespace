@@ -1,11 +1,11 @@
 {
   "archive": "test-results/token235/onboarding-0.1.6/lifespace-token-collector-0.1.6.tgz",
   "version": "0.1.6",
-  "sha256": "9677c8181855e4a1045ccaa445162a1a6dccc4c400bfdb85cbff53238783311d",
-  "bytes": 26996,
+  "sha256": "31a2fc931440896daeac3c2d15cdcfa4c433c9d80916cb4e8b0cd1c576a49e05",
+  "bytes": 27321,
   "files": 13,
   "runtime": "Node>=24.22.1<25; CI24.22.1; macOS/Linux; @tokscale/cli4.23.0 and zod4.6.7 unchanged",
-  "sourceSha256": "8a3a2fcfa35c5b08df3c948e2b405fb6c0abc4123360ec3addc6027da664b642",
+  "sourceSha256": "f5db738f292594359c8fd525c9de0cdf8a89686f25d8faf852a0372acd21d46d",
   "sourceFiles": [
     "src/shared/token-backend-contract.ts",
     "src/shared/token-usage-contract.ts",
@@ -74,5 +74,5 @@
     }
   ],
   "reason": "Add explicit multi-Agent collection for Claude Code, WorkBuddy and Cursor while retaining Codex-only defaults, explicit source authorization and legacy state compatibility",
-  "verification": "0.1.6 archive 13 files/26,996 bytes and 14-source digest matched;local typecheck/build/API/browser/collector-evidence/package gates passed;the 0.1.5-to-0.1.6 gate kept SQLite bytes unchanged and preserved two old immutable tasks, then explicitly added claude/workbuddy and produced four agent rollups on Linux synthetic sources;CI package gate does not exercise the previous archive;final CI/two-axis review and real-device onboarding pending"
+  "verification": "0.1.6 archive 13 files/27,321 bytes and 14-source digest matched;local typecheck/build/API/browser/collector-evidence/package gates passed;legacy 0.1.5 state without a source mode expands to all six sources on upgrade, preserving old immutable tasks and producing four synthetic agent rollups;CI package gate does not exercise the previous archive;final CI/two-axis review and real-device onboarding pending"
 }

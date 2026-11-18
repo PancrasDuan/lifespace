@@ -12,12 +12,21 @@ export type Agent = z.infer<typeof agentSchema>
 export const agentsSchema = z.array(agentSchema).min(1).max(6).superRefine((value, ctx) => {
   if (new Set(value).size !== value.length) ctx.addIssue({ code: 'custom', message: 'Agent 来源不能重复' })
 })
+export const agentsModeSchema = z.enum(['all', 'explicit'])
 const configObjectSchema = z.strictObject({
   deviceId: z.string(), server: z.string(), sourceHome: z.string(), hours: hoursSchema, loopback: z.boolean(),
-  // Optional only for reading state written before multi-Agent support.
+  // Optional only for reading state written before source modes existed.
   agents: agentsSchema.optional(),
+  agentsMode: agentsModeSchema.optional(),
 })
-export const configSchema = configObjectSchema.transform(value => ({ ...value, agents: value.agents ?? ['codex'] }))
+export const configSchema = configObjectSchema.transform(value => {
+  // 0.1.6 and earlier stored only an array. Existing installations now expand
+  // to every supported source; only an explicitly narrowed list stays narrow.
+  if (value.agentsMode === 'explicit') {
+    return { ...value, agents: value.agents ?? [...supportedAgents], agentsMode: 'explicit' as const }
+  }
+  return { ...value, agents: [...supportedAgents], agentsMode: 'all' as const }
+})
 export type Config = z.infer<typeof configSchema>
 export const credentialSchema = z.strictObject({ deviceId: z.string(), generation: z.string().regex(/^[1-9]\d{0,18}$/), uploadToken: z.string().regex(/^[A-Za-z0-9_-]{43}$/),
   upload: z.strictObject({ url: z.string(), publishableKey: z.string().regex(/^sb_publishable_[A-Za-z0-9_-]+$/), header: z.literal('X-LifeSpace-Device-Token') }) })
@@ -137,6 +146,7 @@ export class Store {
     const configured = this.get('config') !== undefined
     return { configured, authorized: this.credential() !== undefined, authorization: this.get('authorization') ?? 'not_started',
       agents: configured ? this.config().agents : null,
+      agentsMode: configured ? this.config().agentsMode : null,
       rollups: Number(this.db.prepare('SELECT count(*) n FROM rollups').get()!.n), pending: this.tasks().length,
       errors: [...new Set(this.tasks().map(t => t.error).filter(Boolean))], scan: this.get('scan') ?? null, heartbeat: this.get('heartbeat') ?? null,
       price: this.get('price') ?? null, schedule: this.get('schedule') ?? null }

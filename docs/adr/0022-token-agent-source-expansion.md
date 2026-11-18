@@ -8,6 +8,6 @@ Cursor 不提供本地会话，数据来自 Tokscale 自己的 Cursor API 缓存
 
 放弃的选项：在 `sync` 中自动执行 `cursor login`/`cursor sync` 会引入静默联网、OAuth 状态和额外凭据处理，且 `cursor sync` 明确拒绝 `--home`，无法保证只作用于显式来源；直接读取 Cursor 本地会话不符合固定 Tokscale 的职责边界；不接入 Cursor 则不能满足本次来源范围。代价是 Cursor 在缓存未准备时没有数据，且真实有效缓存尚未在本机验证。
 
-默认来源仍只有 `codex`，旧状态库缺少 `agents` 时按 `['codex']` 读取；新来源必须通过 `init --agents` 或 `sources add --agents` 显式授权。`init --replace`、普通 `upgrade` 和 `sync` 不扩大来源，沿用 #233 的决定。`agentsSchema` 上限从 3 调整为 6，但 agent 命名正则、数据库 `(date, agent)` 主键、上传 RPC、鉴权和账户隔离不变，无迁移。统计口径版本升为 `tokscale-multi-agent-2`，使新增来源与旧口径可追溯；旧快照仍保留，只有实际授权并成功扫描后才产生新内容。
+默认来源为全部六个，只有显式 `--agents` 或 `sources set --agents` 才收窄；旧状态库缺少 `agents` 或 `agentsMode` 时同样按全部读取，因此已有安装升级后扩展到全部。`sources add --agents` 只追加到显式列表，`init --replace`、普通 `upgrade` 和 `sync` 不改变已有模式。`agentsSchema` 上限从 3 调整为 6，但 agent 命名正则、数据库 `(date, agent)` 主键、上传 RPC、鉴权和账户隔离不变，无迁移。统计口径版本升为 `tokscale-multi-agent-2`，使新增来源与旧口径可追溯；旧快照仍保留，只有实际授权并成功扫描后才产生新内容。
 
 验证边界：Claude 合成会话和 WorkBuddy 合成 SQLite 已通过固定 4.23.0 实跑；Cursor 只验证了缓存缺失/损坏的 graph 行为和诊断脱敏，没有 Cursor 账号，因此有效缓存结构、真实数据、页面四方对账和真实设备验收仍未完成。合成检查不能替代这些验收。

@@ -6,7 +6,7 @@ import { dirname, isAbsolute, join } from 'node:path'
 import { promisify } from 'node:util'
 import { z } from 'zod'
 import { adaptTokscaleGraph, tokscaleVersion, type TokenCollectionContext } from './tokscale-adapter.ts'
-import { agentsSchema } from './store.ts'
+import { agentsSchema, supportedAgents } from './store.ts'
 
 const exec = promisify(execFile)
 const cliEntry = join(dirname(createRequire(import.meta.url).resolve('@tokscale/cli/package.json')), 'bin.js')
@@ -14,7 +14,7 @@ const absolutePath = z.string().min(1).refine(isAbsolute, '必须使用绝对路
 const optionsSchema = z.strictObject({
   homeDir: absolutePath, configDir: absolutePath,
   since: z.iso.date().optional(), until: z.iso.date().optional(),
-  agents: agentsSchema.default(['codex']),
+  agents: agentsSchema.default([...supportedAgents]),
 }).refine(value => !value.since || !value.until || value.since <= value.until, '日期范围倒置')
 export type TokscaleOptions = z.input<typeof optionsSchema>
 
