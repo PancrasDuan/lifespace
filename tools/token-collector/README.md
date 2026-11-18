@@ -40,6 +40,6 @@ SQLite 持有进程运行锁，无超时抢锁；已有活进程返回 `COLLECTO
 
 升级只接受本地明确指定的发行 `.tgz` 与安装 prefix，默认展示命令，加 `--apply` 执行本地 npm 安装（不运行 lifecycle scripts、不操作状态数据库）。不在同步时拉取 latest。发行维护者固定上游版本后跑统计输出、持久化、实际链路和包安装门禁，再发布下一份采集器；用户安装新包之前可备份私有状态目录。代码回退可重装原包并恢复 timer；不删除 SQLite、设备身份或未确认任务。
 
-已有0.1.5安装用同一CLI执行 `upgrade --archive /absolute/lifespace-token-collector-0.1.6.tgz --prefix /absolute/installation --apply`，保持原 `--state-dir`。0.1.5 写入的状态不含来源模式，升级后必须先运行 `init --replace` 重建配置并完成一次浏览器批准；旧来源列表不会被继承，未传 `--agents` 即采集全部六个，需要收窄就显式传 `--agents`。重新 init 会重新登记设备，触发一次按新来源的全量扫描与重传；服务端按内容指纹去重，相同内容不会重复计数。之后先手动同步并核对 `scanFailed=false`、实际回执与最终价格／hash／版本，再安装或恢复已获准的timer。旧队列可能在新扫描失败时仍成功上传，因此 `uploaded>0`／`pending=0` 不单独证明最新扫描成功。
+已有0.1.5安装用同一CLI执行 `upgrade --archive /absolute/lifespace-token-collector-0.1.6.tgz --prefix /absolute/installation --apply`，保持原 `--state-dir`。0.1.5 写入的状态不含来源模式，升级后必须先运行 `init --replace` 重建配置并完成一次浏览器批准；旧来源列表不会被继承，未传 `--agents` 即采集全部六个，需要收窄就显式传 `--agents`。重新 init 会重新登记设备，触发一次按新来源的全量扫描与重传；服务端对同内容返回 `unchanged`：只更新 generation/revision/received_at 等元数据，不重写 metrics、cost 或模型行，因此相同内容不会重复计入用量。之后先手动同步并核对 `scanFailed=false`、实际回执与最终价格／hash／版本，再安装或恢复已获准的timer。旧队列可能在新扫描失败时仍成功上传，因此 `uploaded>0`／`pending=0` 不单独证明最新扫描成功。
 
 Linux 合成来源、实际 SQLite/Tokscale、隔离 TLS/Worker/PostgREST/PostgreSQL 与仓库外安装由本阶段测试覆盖；macOS ioreg/launchd、用户真实来源、真实双设备和托管 Supabase HTTPS 网关仍需要最终集成验收。

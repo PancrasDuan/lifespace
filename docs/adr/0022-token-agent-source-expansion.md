@@ -8,6 +8,6 @@ Cursor 不提供本地会话，数据来自 Tokscale 自己的 Cursor API 缓存
 
 放弃的选项：在 `sync` 中自动执行 `cursor login`/`cursor sync` 会引入静默联网、OAuth 状态和额外凭据处理，且 `cursor sync` 明确拒绝 `--home`，无法保证只作用于显式来源；直接读取 Cursor 本地会话不符合固定 Tokscale 的职责边界；不接入 Cursor 则不能满足本次来源范围。代价是 Cursor 在缓存未准备时没有数据，且真实有效缓存尚未在本机验证。
 
-默认来源为全部六个，只有显式 `--agents` 或 `sources set --agents` 才收窄。0.1.5 及更早写入的状态不含来源模式，**不做运行时兼容**：`status` 只读并显示 `reinitRequired`，其余有状态命令返回 `REINIT_REQUIRED`，要求操作者用 `init --replace` 重建配置。这样升级不会静默扩大任何已有授权，也沿用 #233 的边界。重新 `init` 不继承旧来源列表：未传 `--agents` 即全部六个，传了则按传入列表收窄；之后 `sources add --agents` 只追加到显式列表，普通 `upgrade` 与 `sync` 不改变已有模式。`agentsSchema` 上限从 3 调整为 6，但 agent 命名正则、数据库 `(date, agent)` 主键、上传 RPC、鉴权和账户隔离不变，无迁移。统计口径版本升为 `tokscale-multi-agent-2`，使新增来源与旧口径可追溯；旧快照仍保留，重新 init 后按新来源重扫重传，服务端按内容指纹去重，相同内容不会重复计数。
+默认来源为全部六个，只有显式 `--agents` 或 `sources set --agents` 才收窄。0.1.5 及更早写入的状态不含来源模式，**不做运行时兼容**：`status` 只读并显示 `reinitRequired`，其余有状态命令返回 `REINIT_REQUIRED`，要求操作者用 `init --replace` 重建配置。这样升级不会静默扩大任何已有授权，也沿用 #233 的边界。重新 `init` 不继承旧来源列表：未传 `--agents` 即全部六个，传了则按传入列表收窄；之后 `sources add --agents` 只追加到显式列表，普通 `upgrade` 与 `sync` 不改变已有模式。`agentsSchema` 上限从 3 调整为 6，但 agent 命名正则、数据库 `(date, agent)` 主键、上传 RPC、鉴权和账户隔离不变，无迁移。统计口径版本升为 `tokscale-multi-agent-2`，使新增来源与旧口径可追溯；旧快照仍保留，重新 init 后按新来源重扫重传，服务端对同内容返回 `unchanged`，只更新 generation/revision/received_at 等元数据，不重写 metrics、cost 或模型行，因此相同内容不会重复计入用量。
 
 验证边界：Claude 合成会话和 WorkBuddy 合成 SQLite 已通过固定 4.23.0 实跑；Cursor 只验证了缓存缺失/损坏的 graph 行为和诊断脱敏，没有 Cursor 账号，因此有效缓存结构、真实数据、页面四方对账和真实设备验收仍未完成。合成检查不能替代这些验收。
