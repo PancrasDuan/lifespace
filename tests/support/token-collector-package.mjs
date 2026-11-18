@@ -43,7 +43,7 @@ try {
     assert.match(initialHelp, /collector 0\.1\.5/)
   }
   if (initialVersion === '0.1.6') {
-    assert.match(initialHelp, /sources add --agents claude,workbuddy,cursor/)
+    assert.match(initialHelp, /sources set --agents codex,grok/)
     assert.match(initialHelp, /collector 0\.1\.6/)
   }
   // Exercise the real OS identity probe without printing its value. Synthetic
