@@ -91,8 +91,8 @@ function modelListRows(count: number) {
   return [{ ...source, models, metrics: { input: total, output: 0, total, cacheRead: 0 }, cost: { currency: 'USD', apiEstimate: null, coverage: 'unknown' as const } }]
 }
 
-for (const count of [0, 4, 10, 14]) {
-  test(`model composition previews at most ten of ${count} models; dialog retains all`, async ({ page, context }) => {
+for (const count of [0, 4, 5, 6, 14]) {
+  test(`model composition previews at most five of ${count} models; dialog retains all`, async ({ page, context }) => {
     const rows = modelListRows(count)
     await context.route('**/api/token/summary?*', async route => {
       const query = new URL(route.request().url()).searchParams
@@ -109,9 +109,9 @@ for (const count of [0, 4, 10, 14]) {
     const close = dialog.getByRole('button', { name: '关闭完整模型列表' })
     const dropdown = page.getByLabel('模型', { exact: true })
     await page.goto('/token')
-    await expect(panel.locator('.model-list-note')).toContainText(`共 ${count} 项`)
-    await expect(panel.locator('.model-row')).toHaveCount(Math.min(count, 10))
-    await expect(panel.locator('.model-name')).toHaveText(expected.slice(0, 10).map(model => model.modelId))
+    await expect(panel.locator('.model-list-note')).toHaveText(`Token 占比 · ${count > 5 ? '前 5 / ' : ''}共 ${count} 项`)
+    await expect(panel.locator('.model-row')).toHaveCount(Math.min(count, 5))
+    await expect(panel.locator('.model-name')).toHaveText(expected.slice(0, 5).map(model => model.modelId))
     await expect(page.getByTestId('token-total')).toHaveAttribute('data-value', count ? String(total) : '')
     await expect(dropdown.locator('option')).toHaveCount(count + 1)
     if (!count) await expect(panel).toContainText('暂无模型数据')
@@ -130,7 +130,7 @@ for (const count of [0, 4, 10, 14]) {
     if (!count) await expect(dialog).toContainText('暂无模型数据')
     if (count) {
       const shares = expected.map(model => `${(model.metrics.total / total * 100).toFixed(1)}%`)
-      await expect(panel.locator('.model-share')).toHaveText(shares.slice(0, 10))
+      await expect(panel.locator('.model-share')).toHaveText(shares.slice(0, 5))
       await expect(dialog.locator('.model-share')).toHaveText(shares)
       await expect(dialog.locator('.model-row').last()).toContainText('费用未知')
       await expect(dialog.locator('.model-row').first()).toContainText('计价未核实')
@@ -191,7 +191,7 @@ for (const count of [0, 4, 10, 14]) {
     await expect(dialog).toBeHidden()
     await expect(opener).toBeFocused()
     await expect(dropdown).toHaveValue('')
-    await expect(panel.locator('.model-row')).toHaveCount(10)
+    await expect(panel.locator('.model-row')).toHaveCount(5)
     await dropdown.selectOption(JSON.stringify(last.modelId))
     await expect(panel.locator('.model-row')).toHaveCount(1)
     await panel.getByRole('button', { name: '清除模型筛选', exact: true }).click()
@@ -201,7 +201,7 @@ for (const count of [0, 4, 10, 14]) {
     await page.getByLabel('Agent', { exact: true }).selectOption(rows[0].agent)
     await page.getByLabel('设备', { exact: true }).selectOption(rows[0].deviceId)
     await page.getByLabel('时间范围', { exact: true }).selectOption('1')
-    await expect(panel.locator('.model-row')).toHaveCount(10)
+    await expect(panel.locator('.model-row')).toHaveCount(5)
     await opener.click()
     await expect(dialog.locator('.model-row')).toHaveCount(count)
     await page.keyboard.press('Escape')

@@ -102,7 +102,7 @@ export function TokenDashboard() {
   </>
 }
 
-const MODEL_PREVIEW_LIMIT = 10
+const MODEL_PREVIEW_LIMIT = 5
 
 type ModelSummary = TokenDashboardSummary['models'][number]
 
