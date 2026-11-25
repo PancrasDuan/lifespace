@@ -1,9 +1,9 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { ArrowRight, Check, ChevronDown, RotateCcw } from 'lucide-react'
+import { ArrowRight, Check, ChevronDown, RotateCcw, X } from 'lucide-react'
 import type { TokenDashboardSummary } from '../shared/token-backend-contract'
 import { beijingToday, periodRange, periods, type Period } from './dates'
 import { readSummary, readUsage, readDevices, type Query } from './api'
-import { useResource } from './useResource'
+import { useResource, type Resource } from './useResource'
 import { compact, fullCount, rate, money, coverageLabel, costText, modelName, modelColor } from './format'
 import { TokenTrend } from './TokenTrend'
 import { TokenCalendar } from './TokenCalendar'
@@ -71,7 +71,6 @@ export function TokenDashboard() {
     else details.current?.setAttribute('hidden', 'until-found')
   }, [expanded])
   const daily = current.data?.daily ?? []
-  const models = [...(current.data?.models ?? [])].sort((a, b) => (b.metrics.total ?? -1) - (a.metrics.total ?? -1))
   return <>
     <section aria-labelledby="page-title">
       <div className="page-heading"><h1 id="page-title" tabIndex={-1}>Token 用量</h1></div>
@@ -93,17 +92,76 @@ export function TokenDashboard() {
     </section>
     <div className="analysis-grid">
       <TokenTrend current={current.data} previous={previous.data} usage={usage} colors={modelColors} range={range} selectedDate={selectedDate} selectDate={selectDate} clearFilters={reset} retry={retry} />
-      <section className="panel model-panel" aria-labelledby="models-title"><div className="panel-heading"><h2 id="models-title">模型构成</h2><span className="small-note">Token 占比</span></div><div className="model-list">{models.length ? models.map((model, index) => {
-        const key = JSON.stringify(model.modelId), color = modelColors.get(key) ?? modelColor(index)
-        const share = typeof model.metrics.total === 'number' && typeof totals?.metrics.total === 'number' && totals.metrics.total > 0 ? model.metrics.total / totals.metrics.total * 100 : null
-        return <button type="button" className="model-row" key={key} aria-pressed={modelKey === key} aria-label={`${modelKey === key ? '取消筛选' : '筛选'}${modelName(model.modelId)}`} onClick={() => setModel(modelKey === key ? '' : key)}><span className="model-row-heading"><span className="model-name"><i style={{ background: color }} />{modelName(model.modelId)}</span><span className="model-row-action"><span className="model-share">{share === null ? '—' : `${share.toFixed(1)}%`}</span>{modelKey === key ? <Check size={13} /> : <ArrowRight size={13} />}</span></span><span className="model-row-values"><strong title={fullCount(model.metrics.total)}>{compact(model.metrics.total)}</strong><span title={costText(model.costs)}>{model.costs.map(cost => cost.apiEstimate === null ? '费用未知' : money(cost.apiEstimate, cost.currency)).join(' · ')}{model.costs.some(cost => typeof cost.apiEstimate === 'string' && cost.coverage !== 'complete') && <small className="model-cost-coverage">{model.costs.map(cost => coverageLabel[cost.coverage]).filter(Boolean).join(' · ')}</small>}</span></span><span className="share-track"><span style={{ inlineSize: `${Math.min(100, share ?? 0)}%`, background: color }} /></span></button>
-      }) : <div className="chart-empty"><strong>{current.loading ? '正在读取模型…' : current.error ? '模型暂不可用' : '暂无模型数据'}</strong></div>}</div>{modelKey && <button type="button" className="text-button" onClick={() => setModel('')}>查看全部模型<ArrowRight size={13} /></button>}<Feedback resource={{ ...catalogue, loading: false }} retry={retry} /></section>
+      <ModelComposition current={current} catalogue={catalogue} modelColors={modelColors} modelKey={modelKey} setModel={setModel} retry={retry} />
     </div>
     <TokenCalendar today={today} resource={annual} selectedDate={selectedDate} selectDate={selectDate} retry={retry} />
     <div className="bottom-grid">
       <TokenDevices resource={devices} deviceId={deviceId} refresh={retry} />
       <section className="panel daily-panel" aria-labelledby="daily-title"><h2 id="daily-title"><button type="button" className="daily-toggle" aria-expanded={expanded} aria-controls="token-daily-details" onClick={() => setExpanded(value => !value)}><ChevronDown className="disclosure-icon" size={16} /><span>日统计明细</span><span className="small-note">{daily.length} 天</span></button></h2><div id="token-daily-details" ref={details} tabIndex={expanded ? 0 : -1} className="table-scroll" role="region" aria-label="每日统计表"><div className="table-inner"><Feedback resource={usage} retry={retry} label="正在读取完整明细…" />{usage.data && <><table><thead><tr><th scope="col">日期</th><th scope="col">总 Token</th><th scope="col">缓存命中</th><th scope="col">API 估算</th></tr></thead><tbody>{[...daily].reverse().map(day => <tr key={day.date}><th scope="row">{day.date.replaceAll('-', '/')}</th><td>{fullCount(day.metrics.total)}</td><td>{rate(day.metrics)}</td><td title={costText(day.costs)}>{day.costs.map(cost => `${money(cost.apiEstimate, cost.currency)}${coverageLabel[cost.coverage] ? `（${coverageLabel[cost.coverage]}）` : ''}`).join('；')}</td></tr>)}{!daily.length && <tr><td colSpan={4}>当前筛选下没有记录</td></tr>}</tbody></table><p className="small-note">已读取 {usage.data.length} 份设备日汇总{usage.data.length !== current.data?.rowCount ? ' · 同步中数据已变化，请刷新核对' : ''}</p></>}</div></div></section>
     </div>
+  </>
+}
+
+const MODEL_PREVIEW_LIMIT = 10
+
+type ModelSummary = TokenDashboardSummary['models'][number]
+
+function ModelRowContent({ model, color, share, selected, filterable = false }: { model: ModelSummary; color: string; share: number | null; selected: boolean; filterable?: boolean }) {
+  return <>
+    <span className="model-row-heading">
+      <span className="model-name"><i style={{ background: color }} />{modelName(model.modelId)}</span>
+      <span className="model-row-action"><span className="model-share">{share === null ? '—' : `${share.toFixed(1)}%`}</span>{selected ? <Check size={13} aria-hidden="true" /> : filterable && <ArrowRight size={13} aria-hidden="true" />}</span>
+    </span>
+    <span className="model-row-values"><strong title={fullCount(model.metrics.total)}>{compact(model.metrics.total)}</strong><span title={costText(model.costs)}>{model.costs.map(cost => cost.apiEstimate === null ? '费用未知' : money(cost.apiEstimate, cost.currency)).join(' · ')}{model.costs.some(cost => typeof cost.apiEstimate === 'string' && cost.coverage !== 'complete') && <small className="model-cost-coverage">{model.costs.map(cost => coverageLabel[cost.coverage]).filter(Boolean).join(' · ')}</small>}</span></span>
+    <span className="share-track"><span style={{ inlineSize: `${Math.min(100, share ?? 0)}%`, background: color }} /></span>
+  </>
+}
+
+function ModelComposition({ current, catalogue, modelColors, modelKey, setModel, retry }: {
+  current: Resource<TokenDashboardSummary>; catalogue: Resource<TokenDashboardSummary>; modelColors: Map<string, string>; modelKey: string; setModel: (key: string) => void; retry: () => void
+}) {
+  const dialog = useRef<HTMLDialogElement>(null)
+  const opener = useRef<HTMLButtonElement>(null)
+  const [listOpen, setListOpen] = useState(false)
+  const total = current.data?.rowCount ? current.data.totals.metrics.total : undefined
+  const rows = [...(current.data?.models ?? [])].sort((a, b) => (b.metrics.total ?? -1) - (a.metrics.total ?? -1)).map((model, index) => {
+    const key = JSON.stringify(model.modelId), color = modelColors.get(key) ?? modelColor(index)
+    const share = typeof model.metrics.total === 'number' && typeof total === 'number' && total > 0 ? model.metrics.total / total * 100 : null
+    return { key, model, color, share, selected: modelKey === key }
+  })
+  const empty = <div className="chart-empty"><strong>{current.loading ? '正在读取模型…' : current.error !== undefined ? '模型暂不可用' : '暂无模型数据'}</strong></div>
+  const open = () => {
+    // Keep the actual invoker focused even when the user clicks the card background.
+    opener.current?.focus({ preventScroll: true })
+    dialog.current?.showModal()
+    setListOpen(true)
+  }
+  return <>
+    <section className="panel model-panel" aria-labelledby="models-title" onClick={event => {
+      if (!(event.target instanceof Element) || !event.target.closest('button')) open()
+    }}>
+      <div className="panel-heading">
+        <h2 id="models-title">模型构成</h2>
+        <button ref={opener} type="button" className="text-button model-list-open" aria-haspopup="dialog" onClick={open}>查看完整列表<ArrowRight size={13} aria-hidden="true" /></button>
+      </div>
+      <p className="small-note model-list-note">Token 占比{current.data && ` · ${rows.length > MODEL_PREVIEW_LIMIT ? `前 ${MODEL_PREVIEW_LIMIT} / ` : ''}共 ${rows.length} 项`}</p>
+      <div className="model-list">{rows.length ? rows.slice(0, MODEL_PREVIEW_LIMIT).map(({ key, ...row }) => <div className={`model-row${row.selected ? ' model-row-selected' : ''}`} key={key}><ModelRowContent {...row} /></div>) : empty}</div>
+      {modelKey && <button type="button" className="text-button model-clear" onClick={() => setModel('')}>清除模型筛选<ArrowRight size={13} aria-hidden="true" /></button>}
+      <Feedback resource={{ ...catalogue, loading: false }} retry={retry} />
+    </section>
+    <dialog ref={dialog} className="model-dialog" aria-labelledby="model-dialog-title" onClose={() => setListOpen(dialog.current?.open ?? false)}>
+      <header className="model-dialog-heading">
+        <div><h1 id="model-dialog-title">完整模型列表</h1><p className="small-note">Token 占比{current.data && ` · 共 ${rows.length} 项`}{rows.length > 0 && ' · 点击模型筛选'}</p></div>
+        <form method="dialog"><button type="submit" className="button model-dialog-close" aria-label="关闭完整模型列表" autoFocus><X size={18} aria-hidden="true" /></button></form>
+      </header>
+      {listOpen && <div className="model-dialog-list" aria-busy={current.loading}>
+        {rows.length ? rows.map(({ key, ...row }) => <button type="button" className="model-row" key={key} aria-pressed={row.selected} aria-label={`${row.selected ? '取消筛选' : '筛选'}${modelName(row.model.modelId)}`} aria-description={`${fullCount(row.model.metrics.total)} Token · 占比 ${row.share === null ? '未知' : `${row.share.toFixed(1)}%`} · ${costText(row.model.costs)}`} onClick={() => {
+          dialog.current?.close()
+          setModel(row.selected ? '' : key)
+        }}><ModelRowContent {...row} filterable /></button>) : empty}
+        {current.error !== undefined && <Feedback resource={current} retry={retry} />}
+      </div>}
+    </dialog>
   </>
 }
 

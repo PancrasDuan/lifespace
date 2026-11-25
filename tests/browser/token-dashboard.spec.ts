@@ -59,9 +59,15 @@ test('period/model/device filters, full pagination, independent year and chart c
   await page.getByRole('button', { name: '模型堆叠', exact: true }).click()
   await expect(page.locator('.plot rect')).not.toHaveCount(0)
   await page.getByRole('button', { name: '费用', exact: true }).click()
-  await page.getByRole('button', { name: '筛选GPT-5 mini', exact: true }).click()
-  await expect(page.getByRole('button', { name: '取消筛选GPT-5 mini', exact: true })).toHaveAttribute('aria-pressed', 'true')
-  await expect(page.getByRole('button', { name: '取消筛选GPT-5 mini', exact: true }).locator('.model-name i')).toHaveCSS('background-color', 'rgb(168, 121, 67)')
+  await page.getByRole('button', { name: '查看完整列表', exact: true }).click()
+  const dialog = page.getByRole('dialog', { name: '完整模型列表' })
+  await dialog.getByRole('button', { name: '筛选GPT-5 mini', exact: true }).click()
+  await expect(dialog).toBeHidden()
+  await expect(page.getByLabel('模型', { exact: true })).toHaveValue(JSON.stringify('GPT-5 mini'))
+  await page.getByRole('button', { name: '查看完整列表', exact: true }).click()
+  await expect(dialog.getByRole('button', { name: '取消筛选GPT-5 mini', exact: true })).toHaveAttribute('aria-pressed', 'true')
+  await expect(dialog.getByRole('button', { name: '取消筛选GPT-5 mini', exact: true }).locator('.model-name i')).toHaveCSS('background-color', 'rgb(168, 121, 67)')
+  await page.keyboard.press('Escape')
   await page.getByLabel('设备', { exact: true }).selectOption('linux')
   await expect(page.getByText('暂无用量', { exact: true })).toBeVisible()
   await expect(page.getByLabel('模型', { exact: true }).locator('option')).toHaveCount(5)
@@ -72,6 +78,140 @@ test('period/model/device filters, full pagination, independent year and chart c
   expect(queries.some(url => url.searchParams.get('startDate') === '2026-11-02' && url.searchParams.get('endDate') === '2026-11-08')).toBe(true)
   expect(queries.some(url => url.searchParams.get('startDate') === '2026-01-01' && url.searchParams.get('endDate') === '2026-12-31' && url.searchParams.has('modelKey'))).toBe(true)
 })
+
+// Deliberately send ascending totals, so neither the preview nor the dialog can rely on API order.
+function modelListRows(count: number) {
+  if (!count) return []
+  const source = fixtureRows.find(row => row.date === fixedToday)!
+  const models = Array.from({ length: count }, (_, index) => {
+    const total = (index + 1) * 1000
+    return { modelId: index === 0 ? 'long-model-'.repeat(18) : `sample-model-${index + 1}`, providerId: null, metrics: { input: total, output: 0, total, cacheRead: 0 }, cost: { currency: 'USD', apiEstimate: index === 0 ? null : '0', coverage: index === 0 ? 'unknown' as const : 'unverified' as const } }
+  })
+  const total = models.reduce((sum, model) => sum + model.metrics.total, 0)
+  return [{ ...source, models, metrics: { input: total, output: 0, total, cacheRead: 0 }, cost: { currency: 'USD', apiEstimate: null, coverage: 'unknown' as const } }]
+}
+
+for (const count of [0, 4, 10, 14]) {
+  test(`model composition previews at most ten of ${count} models; dialog retains all`, async ({ page, context }) => {
+    const rows = modelListRows(count)
+    await context.route('**/api/token/summary?*', async route => {
+      const query = new URL(route.request().url()).searchParams
+      await route.fulfill({ json: tokenDashboardSummarySchema.parse(summarize(selectRows(query, rows), query.has('modelKey'))) })
+    })
+    await context.route('**/api/token/usage?*', async route => {
+      const query = new URL(route.request().url()).searchParams
+      await route.fulfill({ json: { timeZone: 'Asia/Shanghai', scope: query.has('modelKey') ? 'model' : 'main', rows: selectRows(query, rows), nextCursor: null } })
+    })
+    const expected = [...(rows[0]?.models ?? [])].reverse()
+    const total = rows[0]?.metrics.total ?? 0
+    const panel = page.locator('.model-panel'), opener = panel.getByRole('button', { name: '查看完整列表', exact: true })
+    const dialog = page.getByRole('dialog', { name: '完整模型列表' })
+    const close = dialog.getByRole('button', { name: '关闭完整模型列表' })
+    const dropdown = page.getByLabel('模型', { exact: true })
+    await page.goto('/token')
+    await expect(panel.locator('.model-list-note')).toContainText(`共 ${count} 项`)
+    await expect(panel.locator('.model-row')).toHaveCount(Math.min(count, 10))
+    await expect(panel.locator('.model-name')).toHaveText(expected.slice(0, 10).map(model => model.modelId))
+    await expect(page.getByTestId('token-total')).toHaveAttribute('data-value', count ? String(total) : '')
+    await expect(dropdown.locator('option')).toHaveCount(count + 1)
+    if (!count) await expect(panel).toContainText('暂无模型数据')
+    if (count) await panel.locator('.model-row').first().click()
+    else await panel.locator('.chart-empty').click()
+    await expect(dialog).toBeVisible()
+    await expect(close).toBeFocused()
+    await expect(dialog.locator('.model-row')).toHaveCount(count)
+    await expect(dialog.locator('.model-name')).toHaveText(expected.map(model => model.modelId))
+    if (count) {
+      await page.keyboard.press('Tab')
+      await expect(dialog.locator('.model-row').first()).toBeFocused()
+      await page.keyboard.press('Shift+Tab')
+      await expect(close).toBeFocused()
+    }
+    if (!count) await expect(dialog).toContainText('暂无模型数据')
+    if (count) {
+      const shares = expected.map(model => `${(model.metrics.total / total * 100).toFixed(1)}%`)
+      await expect(panel.locator('.model-share')).toHaveText(shares.slice(0, 10))
+      await expect(dialog.locator('.model-share')).toHaveText(shares)
+      await expect(dialog.locator('.model-row').last()).toContainText('费用未知')
+      await expect(dialog.locator('.model-row').first()).toContainText('计价未核实')
+    }
+    await close.click()
+    await expect(dialog).toBeHidden()
+    await expect(opener).toBeFocused()
+    await opener.press('Enter')
+    await expect(dialog).toBeVisible()
+    await page.keyboard.press('Escape')
+    await expect(dialog).toBeHidden()
+    await expect(opener).toBeFocused()
+    await opener.press('Space')
+    await expect(dialog).toBeVisible()
+    await page.keyboard.press('Escape')
+    if (count !== 14) return
+    await page.getByRole('button', { name: '模型堆叠', exact: true }).click()
+    await expect(page.locator('.chart-legend .model-key')).toHaveCount(count)
+    await expect(page.locator('.plot rect')).toHaveCount(count)
+    await expect(page.locator('.inspection .detail-model')).toHaveCount(count)
+    const last = expected.at(-1)!
+    await expect(dropdown.locator('option', { hasText: last.modelId })).toHaveCount(1)
+    await mkdir('.cache/issue238', { recursive: true })
+    for (const width of [1440, 1024, 768, 390, 320]) {
+      await page.setViewportSize({ width, height: width <= 390 ? 520 : 1000 })
+      await opener.scrollIntoViewIfNeeded()
+      await captureTokenPage(page, `.cache/issue238/model-preview-${width}.png`)
+      await opener.click()
+      await expect(dialog.locator('.model-row')).toHaveCount(count)
+      await expect(close).toBeInViewport()
+      const box = (await dialog.boundingBox())!
+      expect(box.x).toBeGreaterThanOrEqual(0)
+      expect(box.x + box.width).toBeLessThanOrEqual(width)
+      expect(box.y).toBeGreaterThanOrEqual(0)
+      expect(box.y + box.height).toBeLessThanOrEqual(page.viewportSize()!.height)
+      const list = dialog.locator('.model-dialog-list')
+      expect(await list.evaluate(el => el.scrollHeight > el.clientHeight && el.scrollWidth <= el.clientWidth)).toBe(true)
+      await captureTokenViewport(page, `.cache/issue238/model-dialog-${width}.png`)
+      const lastButton = dialog.getByRole('button', { name: `筛选${last.modelId}`, exact: true })
+      await lastButton.scrollIntoViewIfNeeded()
+      await expect(lastButton).toBeInViewport()
+      expect(await lastButton.evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true)
+      await expect(close).toBeInViewport()
+      await captureTokenViewport(page, `.cache/issue238/model-dialog-last-${width}.png`)
+      await page.keyboard.press('Escape')
+      await expect(opener).toBeFocused()
+    }
+    await opener.click()
+    await dialog.getByRole('button', { name: `筛选${last.modelId}`, exact: true }).press('Enter')
+    await expect(dialog).toBeHidden()
+    await expect(opener).toBeFocused()
+    await expect(dropdown).toHaveValue(JSON.stringify(last.modelId))
+    await expect(page.getByTestId('token-total')).toHaveAttribute('data-value', '1000')
+    await expect(panel.locator('.model-row')).toHaveCount(1)
+    await opener.click()
+    await expect(dialog.locator('.model-row')).toHaveCount(1)
+    await dialog.getByRole('button', { name: `取消筛选${last.modelId}`, exact: true }).press('Space')
+    await expect(dialog).toBeHidden()
+    await expect(opener).toBeFocused()
+    await expect(dropdown).toHaveValue('')
+    await expect(panel.locator('.model-row')).toHaveCount(10)
+    await dropdown.selectOption(JSON.stringify(last.modelId))
+    await expect(panel.locator('.model-row')).toHaveCount(1)
+    await panel.getByRole('button', { name: '清除模型筛选', exact: true }).click()
+    await expect(dialog).toBeHidden()
+    await expect(dropdown).toHaveValue('')
+    await expect(page.getByTestId('token-total')).toHaveAttribute('data-value', String(total))
+    await page.getByLabel('Agent', { exact: true }).selectOption(rows[0].agent)
+    await page.getByLabel('设备', { exact: true }).selectOption(rows[0].deviceId)
+    await page.getByLabel('时间范围', { exact: true }).selectOption('1')
+    await expect(panel.locator('.model-row')).toHaveCount(10)
+    await opener.click()
+    await expect(dialog.locator('.model-row')).toHaveCount(count)
+    await page.keyboard.press('Escape')
+    await page.getByLabel('Agent', { exact: true }).selectOption(rows[0].agent === 'codex' ? 'claude' : 'codex')
+    await expect(panel).toContainText('暂无模型数据')
+    await opener.click()
+    await expect(dialog).toContainText('暂无模型数据')
+    await expect(dialog.locator('.model-row')).toHaveCount(0)
+  })
+}
 
 test('agent options name all six sources and filter by client id', async ({ page }) => {
   const queries: URL[] = []
@@ -118,6 +258,29 @@ test('calendar hover, persistence, focus, arrows, Escape and findable detail sem
 
 test.describe('touch', () => {
  test.use({ hasTouch: true })
+ test('model dialog opens by touch and reports loading before the response', async ({ page, context }) => {
+  let release = () => {}
+  const pending = new Promise<void>(resolve => { release = resolve })
+  await context.route('**/api/token/summary?*', async route => {
+    const query = new URL(route.request().url()).searchParams
+    await pending
+    await route.fulfill({ json: summarize(selectRows(query), query.has('modelKey')) })
+  })
+  await page.setViewportSize({ width: 390, height: 520 })
+  await page.goto('/token')
+  const panel = page.locator('.model-panel'), dialog = page.getByRole('dialog', { name: '完整模型列表' })
+  try {
+    await expect(panel).toContainText('正在读取模型…')
+    await panel.locator('.chart-empty').tap()
+    await expect(dialog).toContainText('正在读取模型…')
+    await expect(dialog.locator('.model-row')).toHaveCount(0)
+  } finally { release() }
+  await expect(dialog.locator('.model-row')).toHaveCount(4)
+  await dialog.getByRole('button', { name: '关闭完整模型列表' }).tap()
+  await expect(dialog).toBeHidden()
+  await expect(panel.getByRole('button', { name: '查看完整列表' })).toBeFocused()
+ })
+
  test('phone tap tooltip, viewport placement and narrow-height navigation', async ({ page }) => {
   await page.goto('/token')
   await page.setViewportSize({ width: 390, height: 520 })
@@ -141,6 +304,11 @@ test('failed query, too-broad range, empty/zero/unknown and retry', async ({ pag
   })
   await page.goto('/token')
   await expect(page.getByText('查询范围过大，请缩短时间或选择设备、Agent 后重试。').first()).toBeVisible()
+  await page.getByRole('button', { name: '查看完整列表' }).click()
+  const dialog = page.getByRole('dialog', { name: '完整模型列表' })
+  await expect(dialog).toContainText('模型暂不可用')
+  await expect(dialog.locator('.model-row')).toHaveCount(0)
+  await page.keyboard.press('Escape')
   failing = false
   await page.getByRole('button', { name: '重试', exact: true }).first().click()
   await expect(page.getByText('暂无用量', { exact: true })).toBeVisible()
