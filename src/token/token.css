@@ -112,10 +112,13 @@
 .token-page .chart-empty { min-block-size: 225px; display: grid; align-content: center; justify-items: center; text-align: center; gap: 9px; color: var(--muted); font-size: 12px; }
 .token-page .chart-empty strong { font-size: 14px; color: var(--ink); font-weight: 550; }
 .token-page .chart-empty button { margin-block-start: 4px; }
-.token-page .inspection { display: flex; flex-wrap: wrap; gap: 6px 11px; align-items: center; min-block-size: 36px; padding-block: 6px 10px; color: var(--muted); font-size: 11px; }
-.token-page .inspection strong { color: var(--ink); font-weight: 600; }
-.token-page .inspection .cursor-key { inline-size: 6px; block-size: 6px; background: var(--copper); border-radius: 50%; }
-.token-page .trend-hint { inline-size: min(480px, 100%); margin-block-start: 6px; padding: 12px 14px; background: #304d39; color: #f9fcf6; border-radius: 10px; box-shadow: 0 8px 24px #203d2526; font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
+.token-page .inspection { display: flex; flex-wrap: nowrap; gap: 6px 11px; align-items: center; min-block-size: 36px; padding-block: 6px 10px; color: var(--muted); font-size: 11px; }
+.token-page .inspection strong { color: var(--ink); font-weight: 600; white-space: nowrap; }
+.token-page .inspection strong:last-child { min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; }
+.token-page .inspection .cursor-key { inline-size: 6px; block-size: 6px; background: var(--copper); border-radius: 50%; flex: none; }
+.token-page .trend-hint { position: absolute; inset: auto; margin: 0; border: 0; inline-size: min(300px, 100%); max-block-size: calc(100dvh - 16px); overflow: auto; overscroll-behavior: contain; z-index: 30; padding: 12px 14px; background: #304d39; color: #f9fcf6; border-radius: 10px; box-shadow: 0 8px 24px #203d2526; font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
+.token-page .trend-hint[popover] { position: fixed; }
+.token-page .trend-hint-open { position: relative; z-index: 2; }
 .token-page .trend-hint-heading { display: grid; gap: 3px; padding-block-end: 7px; }
 .token-page .trend-hint-heading span, .token-page .trend-hint p { color: #d5e4ce; }
 .token-page .trend-hint-heading strong { font-size: 14px; font-weight: 600; }
@@ -126,9 +129,6 @@
 .token-page .trend-refresh { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .token-page .trend-refresh p { flex: 1 1 130px; }
 .token-page .trend-hint .token-feedback, .token-page .trend-hint .token-loading, .token-page .trend-hint .token-feedback p { color: #f9fcf6; }
-@container trend (min-width: 480px) {
- .token-page .trend-models { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 20px; }
-}
 .token-page .trend-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; border-block-start: 1px solid var(--line); padding-block: 16px 18px; }
 .token-page .trend-summary>div { display: grid; gap: 5px; }
 .token-page .trend-summary span { font-size: 11px; color: var(--muted); }
