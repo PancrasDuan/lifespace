@@ -1,10 +1,10 @@
-import type { TokenDashboardPage } from '../shared/token-backend-contract'
+import type { TokenDashboardPage, TokenDashboardSummary } from '../shared/token-backend-contract'
 import { sumTokenCounts, sumTokenCosts, type TokenModel } from '../shared/token-usage-contract'
 import { modelName } from './format'
 
 export type TrendMetric = 'tokens' | 'cost'
 
-function summarize(parts: TokenModel[]) {
+function summarize(parts: Pick<TokenModel, 'metrics' | 'cost'>[]) {
   const currencies = [...new Set(parts.map(item => item.cost.currency))]
   return {
     total: sumTokenCounts(parts.map(item => item.metrics.total)),
@@ -32,5 +32,15 @@ export function trendModels(rows: TokenDashboardPage['rows'], date: string, metr
   models.sort((a, b) => (metric === 'tokens' ? (b.total ?? -1) - (a.total ?? -1) : compareEstimates(estimate(b), estimate(a))) || JSON.stringify(a.modelId).localeCompare(JSON.stringify(b.modelId)))
   const entries = models.slice(0, 5).map(model => ({ key: JSON.stringify(model.modelId), name: modelName(model.modelId), total: model.total, costs: model.costs }))
   if (models.length > 5) entries.push({ key: 'other', name: '其他', ...summarize(models.slice(5).flatMap(model => model.parts)) })
-  return { entries, incomplete: dayRows.some(row => row.modelCoverage !== 'complete') }
+  return { entries, incomplete: dayRows.some(row => row.modelCoverage !== 'complete'), main: dayRows.length ? summarize(dayRows) : undefined }
+}
+
+// Summary and paginated usage are independent reads; the same row count does not prove the same totals.
+export function matchesTrendDay(day: TokenDashboardSummary['daily'][number] | undefined, main: ReturnType<typeof summarize> | undefined, metric: TrendMetric) {
+  if (!day || !main) return !day && !main
+  if (metric === 'tokens') return day.metrics.total === main.total
+  return day.costs.length === main.costs.length && day.costs.every(cost => {
+    const other = main.costs.find(item => item.currency === cost.currency)
+    return other?.apiEstimate === cost.apiEstimate && other?.actual === cost.actual && other?.unclassified === cost.unclassified && other?.coverage === cost.coverage
+  })
 }

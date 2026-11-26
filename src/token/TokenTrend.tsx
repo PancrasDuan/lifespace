@@ -5,9 +5,9 @@ import type { Resource } from './useResource'
 import { datesBetween, shortDate, longDate, periodRange } from './dates'
 import { compact, fullCount, estimateValue, costText, money, coverageLabel } from './format'
 import { Feedback } from './Feedback'
-import { trendModels, type TrendMetric } from './trendModels'
+import { matchesTrendDay, trendModels, type TrendMetric } from './trendModels'
 
-type Props = { current: Resource<TokenDashboardSummary>; usage: Resource<TokenDashboardPage['rows']>; range: ReturnType<typeof periodRange>; selectedDate: string; selectDate: (date: string) => void; clearFilters: () => void; retryUsage: () => void }
+type Props = { current: Resource<TokenDashboardSummary>; usage: Resource<TokenDashboardPage['rows']>; range: ReturnType<typeof periodRange>; selectedDate: string; selectDate: (date: string) => void; clearFilters: () => void; retryUsage: () => void; refresh: () => void }
 
 function estimateText(costs: TokenCost[]) {
   return costs.length ? costs.map(cost => `${money(cost.apiEstimate, cost.currency)}${coverageLabel[cost.coverage] ? ` · ${coverageLabel[cost.coverage]}` : ''}`).join('；') : '未报告'
@@ -26,7 +26,7 @@ function costTick(amount: number, currency?: string) {
   return prefix + label
 }
 
-export function TokenTrend({ current: resource, usage, range, selectedDate, selectDate, clearFilters, retryUsage }: Props) {
+export function TokenTrend({ current: resource, usage, range, selectedDate, selectDate, clearFilters, retryUsage, refresh }: Props) {
   const current = resource.data
   const [metric, setMetric] = useState<TrendMetric>('tokens')
   const [hint, setHint] = useState<'pointer' | 'keyboard' | 'tap'>()
@@ -79,7 +79,9 @@ export function TokenTrend({ current: resource, usage, range, selectedDate, sele
   const total = selected ? metric === 'tokens' ? `${fullCount(selected.metrics.total)} Token` : estimateText(selected.costs) : '没有记录'
   const details = breakdown.entries.map(model => ({ ...model, amount: metric === 'tokens' ? fullCount(model.total) : estimateText(model.costs) }))
   const modelNote = breakdown.incomplete ? '模型分类不完整，仅显示已报告子统计' : ''
-  const detailStatus = incomparable ? '费用币种不同，无法比较模型' : usage.loading || usage.error !== undefined ? '' : [details.map(model => `${model.name} ${model.amount}`).join('；') || '暂无模型明细', modelNote].filter(Boolean).join('；')
+  const changed = !!usage.data && (usage.data.length !== current?.rowCount || !matchesTrendDay(selected, breakdown.main, metric))
+  const changeMessage = '同步中数据已变化，请刷新核对'
+  const detailStatus = changed ? changeMessage : incomparable ? '费用币种不同，无法比较模型' : usage.loading || usage.error !== undefined ? '' : [details.map(model => `${model.name} ${model.amount}`).join('；') || '暂无模型明细', modelNote].filter(Boolean).join('；')
   const peak = current?.daily.reduce<TokenDashboardSummary['daily'][number] | undefined>((best, day) => typeof day.metrics.total === 'number' && day.metrics.total > (best?.metrics.total ?? -1) ? day : best, undefined)
   const active = current?.daily.filter(day => typeof day.metrics.total === 'number' && day.metrics.total > 0).length
   const selectPointer = (clientX: number, mode: 'pointer' | 'tap') => {
@@ -114,15 +116,14 @@ export function TokenTrend({ current: resource, usage, range, selectedDate, sele
       <figcaption id="token-chart-description" className="sr-only">移动指针、轻触或按左右方向键查看每日总量和模型明细。日统计明细提供每日总量表格。</figcaption>
       {showHint && <div className="trend-hint" style={{ marginInlineStart: hintOffset }} role="region" aria-label="当日模型明细">
         <div className="trend-hint-heading"><span>{date.replaceAll('-', '/')}</span><strong title={metric === 'cost' ? estimateTitle(selected?.costs ?? []) : undefined}>{total}</strong></div>
-        {selected && <>{incomparable ? <p>费用币种不同，无法比较模型</p> : usage.loading || usage.error !== undefined ? <Feedback resource={usage} retry={retryUsage} label="正在读取完整模型明细…" /> : <>
+        {changed ? <div className="trend-refresh"><p>{changeMessage}</p><button type="button" className="button" onClick={refresh}>刷新统计</button></div> : selected && <>{incomparable ? <p>费用币种不同，无法比较模型</p> : usage.loading || usage.error !== undefined ? <Feedback resource={usage} retry={retryUsage} label="正在读取完整模型明细…" /> : <>
           {details.length ? <dl className="trend-models">{details.map(model => <div className="detail-model" key={model.key}><dt>{model.name}</dt><dd title={metric === 'cost' ? estimateTitle(model.costs) : undefined}>{model.amount}</dd></div>)}</dl> : <p>暂无模型明细</p>}
           {modelNote && <p>{modelNote}</p>}
-          {usage.data && usage.data.length !== current?.rowCount && <p>同步中数据已变化，请刷新核对</p>}
         </>}</>}
       </div>}
     </figure>
     <div className="inspection">{(available || selected || showHint) && <><span className="cursor-key" /><strong>{longDate(date)}</strong><strong title={total}>{selected && metric === 'tokens' ? `${compact(selected.metrics.total)} Token` : total}</strong></>}</div>
-    <div className="sr-only" role="status" aria-atomic="true">{showHint && hint === 'keyboard' && `${longDate(date)}，${total}${selected && detailStatus ? `；${detailStatus}` : ''}`}</div>
+    <div className="sr-only" role="status" aria-atomic="true">{showHint && hint === 'keyboard' && `${longDate(date)}，${total}${(selected || changed) && detailStatus ? `；${detailStatus}` : ''}`}</div>
     <div className="trend-summary"><div><span>日均用量</span><strong>{current?.rowCount && typeof current.totals.metrics.total === 'number' ? `${compact(current.totals.metrics.total / range.days)} Token` : '—'}</strong></div><div><span>单日峰值</span><strong>{peak ? `${compact(peak.metrics.total)} · ${shortDate(peak.date)}` : '—'}</strong></div><div><span>活跃天数</span><strong>{current?.rowCount ? `${active} / ${range.days} 天` : '—'}</strong></div></div>
   </section>
 }

@@ -789,3 +789,39 @@ test('keyboard keeps date inspection when every daily API estimate is unknown', 
   await plot.press('Escape')
   await expect(hint).toBeHidden()
 })
+
+test('same-count usage update after retry cannot show model ranks against stale daily totals', async ({ page, context }) => {
+  const rows = trendRows()
+  const updatedModels = rows[0].models.map((model, index) => index === 0 ? { ...model, metrics: { input: 4000, output: 0, total: 4000, cacheRead: 0 }, cost: { ...model.cost, apiEstimate: '2' } } : model)
+  const updated = [{ ...rows[0], models: updatedModels, metrics: { input: rows[0].metrics.input + 1000, output: 0, total: rows[0].metrics.total + 1000, cacheRead: 0 }, cost: sumTokenCosts(updatedModels.map(model => model.cost), 'USD') }, ...rows.slice(1)]
+  let summaryRows = rows, usageRows = rows, fail = true
+  await context.route('**/api/token/summary?*', route => {
+    const query = new URL(route.request().url()).searchParams
+    return route.fulfill({ json: summarize(selectRows(query, summaryRows), query.has('modelKey')) })
+  })
+  await context.route('**/api/token/usage?*', route => {
+    if (fail) return route.fulfill({ status: 503, json: { error: { code: 'TOKEN_UNAVAILABLE' } } })
+    const query = new URL(route.request().url()).searchParams
+    return route.fulfill({ json: { timeZone: 'Asia/Shanghai', scope: 'main', rows: selectRows(query, usageRows), nextCursor: null } })
+  })
+  await page.goto('/token')
+  const plot = page.locator('.plot'), hint = page.locator('.trend-hint'), bar = plot.locator(`[data-trend-date="${fixedToday}"]`)
+  await bar.hover()
+  await expect(hint.getByRole('button', { name: '重试' })).toBeVisible()
+  fail = false; usageRows = updated
+  await hint.getByRole('button', { name: '重试' }).click()
+  await bar.hover()
+  await expect(hint.locator('.trend-hint-heading strong')).toHaveText('42,000 Token')
+  await expect(hint).toContainText('同步中数据已变化，请刷新核对')
+  await expect(hint.locator('dt')).toHaveCount(0)
+  await page.getByRole('button', { name: '费用', exact: true }).click()
+  await bar.hover()
+  await expect(hint).toContainText('同步中数据已变化，请刷新核对')
+  await expect(hint.locator('dt')).toHaveCount(0)
+  summaryRows = updated
+  await hint.getByRole('button', { name: '刷新统计' }).click()
+  await bar.hover()
+  await expect(hint.locator('.trend-hint-heading strong')).toHaveText('$38.00 · 可计价部分')
+  await expect(hint.locator('dt')).toHaveCount(6)
+  await expect(hint).not.toContainText('同步中数据已变化')
+})
