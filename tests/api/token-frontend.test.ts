@@ -3,7 +3,8 @@ import { readFile } from 'node:fs/promises'
 import { beijingToday, periodRange, datesBetween } from '../../src/token/dates'
 import { compact, fullCount, money, rate, costText } from '../../src/token/format'
 import { selectRows, summarize, fixtureRows } from '../fixtures/token-dashboard/fixture'
-import { tokenUsageContentSchema } from '../../src/shared/token-usage-contract'
+import { trendModels } from '../../src/token/trendModels'
+import { tokenUsageContentSchema, type TokenModel } from '../../src/shared/token-usage-contract'
 
 describe('Token frontend date and display contract', () => {
   test.each([
@@ -50,5 +51,25 @@ describe('Token Agent display contract', () => {
     expect(source).toContain("useState(['codex', 'grok', 'hermes', 'claude', 'workbuddy', 'cursor'])")
     expect(source).not.toContain('尚未接入')
     expect(source).toContain("agentName(agent)")
+  })
+})
+
+describe('Daily trend model aggregation', () => {
+  test('decimal ranks are exact, model identity merges across devices, unknown is not zero', () => {
+    const row = fixtureRows[0]
+    const model = (modelId: string | null, total: number | null | undefined, apiEstimate: string | null | undefined): TokenModel => ({
+      modelId, providerId: null, metrics: { total }, cost: { currency: 'USD', apiEstimate, coverage: apiEstimate == null ? 'unknown' : 'unverified' },
+    })
+    const models = [model('A', 2, '1.000000000000000001'), model('B', 3, '1.000000000000000002'), model(null, 0, '0'), model('missing', undefined, undefined), model('unknown', null, null), model('C', 10, '4'), model('D', 9, '3')]
+    const rows = [{ ...row, models, modelCoverage: 'partial' as const }, { ...row, deviceId: 'other-device', agent: 'claude', models: [model('A', 2, '0.000000000000000001')] }, { ...row, date: '2026-11-15', models: [model('Z', 999, '999')] }]
+    const tokens = trendModels(rows, row.date, 'tokens', 'USD')
+    expect(tokens.entries.map(item => [item.name, item.total])).toEqual([['C', 10], ['D', 9], ['A', 4], ['B', 3], ['未知模型', 0], ['其他', undefined]])
+    expect(tokens.incomplete).toBe(true)
+    const costs = trendModels(rows, row.date, 'cost', 'USD')
+    expect(costs.entries.map(item => item.name)).toEqual(['C', 'D', 'A', 'B', '未知模型', '其他'])
+    expect(costs.entries[2].costs[0].apiEstimate).toBe('1.000000000000000002')
+    expect(costs.entries[5].costs[0]).toMatchObject({ apiEstimate: null, coverage: 'unknown' })
+    const exact = trendModels([{ ...row, models: models.slice(0, 2) }], row.date, 'cost', 'USD')
+    expect(exact.entries.map(item => item.name)).toEqual(['B', 'A'])
   })
 })

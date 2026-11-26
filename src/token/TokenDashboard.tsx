@@ -26,8 +26,10 @@ export function TokenDashboard() {
   const [deviceId, setDevice] = useState('')
   const [modelKey, setModel] = useState('')
   const [version, setVersion] = useState(0)
+  const [usageVersion, setUsageVersion] = useState(0)
   const [selectedDate, selectDate] = useState(today)
   const retry = () => setVersion(value => value + 1)
+  const retryUsage = () => setUsageVersion(value => value + 1)
   const range = periodRange(period, today)
   const query: Query = { startDate: range.startDate, endDate: today, ...(agent ? { agent } : {}), ...(deviceId ? { deviceId } : {}), ...(modelKey ? { modelKey } : {}) }
   const key = JSON.stringify(query) + version
@@ -37,7 +39,7 @@ export function TokenDashboard() {
   const annual = useResource(JSON.stringify(annualQuery) + version, (owner, signal) => readSummary(owner, annualQuery, signal))
   // Options are queried outside the model/device/Agent filters. Their identities do not vanish on selection.
   const catalogue = useResource(`${range.startDate}:${today}:catalogue:${version}`, (owner, signal) => readSummary(owner, { startDate: range.startDate, endDate: today }, signal))
-  const usage = useResource(`${key}:usage`, (owner, signal) => readUsage(owner, query, signal))
+  const usage = useResource(`${key}:usage:${usageVersion}`, (owner, signal) => readUsage(owner, query, signal))
   const devices = useResource(`devices:${version}`, readDevices)
   const modelOptions = useMemo(() => {
     const values = new Map<string, string>()
@@ -91,7 +93,7 @@ export function TokenDashboard() {
       </div>
     </section>
     <div className="analysis-grid">
-      <TokenTrend current={current.data} previous={previous.data} usage={usage} colors={modelColors} range={range} selectedDate={selectedDate} selectDate={selectDate} clearFilters={reset} retry={retry} />
+      <TokenTrend current={current} usage={usage} range={range} selectedDate={selectedDate} selectDate={selectDate} clearFilters={reset} retryUsage={retryUsage} refresh={retry} />
       <ModelComposition current={current} catalogue={catalogue} modelColors={modelColors} modelKey={modelKey} setModel={setModel} retry={retry} />
     </div>
     <TokenCalendar today={today} resource={annual} selectedDate={selectedDate} selectDate={selectDate} retry={retry} />

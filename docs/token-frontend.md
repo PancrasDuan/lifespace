@@ -29,3 +29,9 @@
 Modern Web Guidance 本 session search/retrieve：interest-triggered-tooltips、css-layout、responsive-design、search-hidden-content、accordion、capture-location-agnostic-data、forms。日历按能力使用 hint/auto/manual fixed fallback，hover/focus/tap 都可查看，浮层不抢焦点、不重复播报完整日期名；beforematch 同步标题内 button 的 aria-expanded。现有系统字体、精确固定字号、筛选即更新和小型紧凑控件遵从用户已批准原型。未使用 legacy-scan。
 
 验证包括 mock 的同样本视觉/错误/竞态和真实本地 PostgreSQL/PostgREST/TLS/Worker/SQLite/Tokscale/React DOM；两类证据分别报告。测试网关只模拟 Auth user 和 apikey 角色映射，浏览器 API 代理实际调用 Worker 和数据库，不编造响应。它不等于托管 Supabase 网关、真实 macOS/Linux 双设备或生产验收。最终 SHA、截图、独立视觉/双轴结论及 CI 以阶段报告和 PR 为准。
+
+## #241 每日趋势局部更新
+
+正式趋势区固定使用当前周期的日主汇总 SVG 柱图：Token（默认）或单币种 API 等价估算（费用）。无常驻趋势图例、曲线和模型堆叠切换；上一周期比较只保留在顶部指标带。主汇总决定柱高，未知/未报告和无匹配记录不制造零柱；已知零显示基线标记。鼠标悬停、触屏轻触或左右键查日，日历同步选中日期。在柱图下方展示当日日期、指标总量及按所选指标排序的前五个模型；使用分页读取的同日子统计、跨设备与 Agent 按模型合计，超过五项才合计真实剩余模型为「其他」。缺失及部分分类明确标注，不把主量差额当作模型或额外用量。费用排名使用精确十进制金额，显示沿用现有舍入/覆盖标签，提示标题可查看原始 API 估算小数；不同币种不换汇或相加。全部费用未知时仍可通过键盘查日，不绘制未知柱。明细加载/失败及单独重试不阻塞主量柱。分页结果按同日主汇总与当前指标对账；记录数或当日总量/费用不一致时显示同步变化提示，刷新统计前不展示可能不一致的排名。图下提示按柱中心定位并参与布局，展开时后续内容自然下移，不遮挡任何柱与轴。
+
+#241 同样本视觉基线为 main `836063da`，原型参考仅约束范围外界面；本地截图使用 `TOKEN_TREND_SCREENSHOTS=.cache/issue241/after` 运行 Token 浏览器回归，修改前截图保存在 `.cache/issue241/before`（合成 fixture）。PR 中记录最终固定提交、双轴评审及生产验收。
