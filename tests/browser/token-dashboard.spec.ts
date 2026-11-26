@@ -626,7 +626,8 @@ test('daily bars use main totals and show date-specific top five plus exact othe
   await captureTokenViewport(page, '.cache/issue241/floating/desktop-token-hint.png')
   await hint.hover()
   await expect(modelNames).toHaveText(['A', 'B', 'C', 'D', 'E', '其他'])
-  const detailBox = (await hint.boundingBox())!
+  const detailBox = (await hint.boundingBox())!, chartBox = (await plot.boundingBox())!
+  expect(detailBox.y >= chartBox.y + chartBox.height || detailBox.y + detailBox.height <= chartBox.y).toBe(true)
   expect(detailBox.x).toBeGreaterThanOrEqual(0)
   expect(detailBox.y).toBeGreaterThanOrEqual(0)
   expect(detailBox.x + detailBox.width).toBeLessThanOrEqual(1440)
@@ -729,7 +730,8 @@ test.describe('trend touch', () => {
     const panelHeight = (await trend.boundingBox())!.height
     await bar.tap()
     await expect(hint.locator('dt')).toHaveText(['A', 'B', 'C', 'D', 'E', '其他'])
-    const hintBox = (await hint.boundingBox())!
+    const hintBox = (await hint.boundingBox())!, plotBox = (await plot.boundingBox())!
+    expect(hintBox.y >= plotBox.y + plotBox.height || hintBox.y + hintBox.height <= plotBox.y).toBe(true)
     expect(hintBox.x).toBeGreaterThanOrEqual(0)
     expect(hintBox.x + hintBox.width).toBeLessThanOrEqual(320)
     expect(hintBox.y).toBeGreaterThanOrEqual(0)
@@ -737,6 +739,11 @@ test.describe('trend touch', () => {
     expect((await trend.boundingBox())!.height).toBeCloseTo(panelHeight, 1)
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
     await captureTokenViewport(page, '.cache/issue241/floating/touch-320-hint.png')
+    await bar.tap()
+    await expect(hint.locator('dt')).toHaveText(['A', 'B', 'C', 'D', 'E', '其他'])
+    expect((await trend.boundingBox())!.height).toBeCloseTo(panelHeight, 1)
+    // With the short viewport, the remaining rows must be reachable inside the popup.
+    expect(await hint.evaluate(el => { el.scrollTop = el.scrollHeight; return el.scrollTop })).toBeGreaterThan(0)
     await page.getByRole('button', { name: '费用', exact: true }).tap()
     const costPanelHeight = (await trend.boundingBox())!.height
     await plot.locator(`[data-trend-date="${fixedToday}"]`).tap()

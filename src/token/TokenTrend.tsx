@@ -34,18 +34,14 @@ export function TokenTrend({ current: resource, usage, range, selectedDate, sele
   const figure = useRef<HTMLElement>(null)
   const tooltip = useRef<HTMLDivElement>(null)
   const hideTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
-  const [popover] = useState<'hint' | 'manual' | undefined>(() => {
-    const probe = document.createElement('div')
-    if (typeof probe.showPopover !== 'function') return undefined
-    probe.setAttribute('popover', 'hint')
-    return probe.popover === 'hint' ? 'hint' : 'manual'
-  })
+  // The SVG uses its own pointer/keyboard state; manual top layer avoids native light-dismiss on a repeat tap of the same day.
+  const [popover] = useState<'manual' | undefined>(() => typeof document.createElement('div').showPopover === 'function' ? 'manual' : undefined)
   const cancelHide = () => clearTimeout(hideTimer.current)
   const delayHide = () => {
     if (hint !== 'pointer') return
     cancelHide()
     hideTimer.current = setTimeout(() => {
-      if (!figure.current?.matches(':hover') && !tooltip.current?.matches(':hover')) setHint(undefined)
+      if (!figure.current?.matches(':hover') && !tooltip.current?.matches(':hover') && !figure.current?.contains(document.activeElement)) setHint(undefined)
     }, 180)
   }
   useEffect(() => () => clearTimeout(hideTimer.current), [])
@@ -125,24 +121,16 @@ export function TokenTrend({ current: resource, usage, range, selectedDate, sele
       element.style.inlineSize = `${hintWidth}px`
       element.style.maxBlockSize = `${innerHeight - gap * 2}px`
       const center = region.left + dayX * region.width / width
-      const bar = chart.querySelector('.trend-bar-selected')?.getBoundingClientRect()
-      const centerY = Math.max(gap, Math.min(innerHeight - gap, bar ? (bar.top + bar.bottom) / 2 : (region.top + region.bottom) / 2))
-      const clampX = (value: number) => Math.max(gap, region.left, Math.min(viewportWidth - hintWidth - gap, region.right - hintWidth, value))
-      let x = clampX(center - hintWidth / 2), y: number
+      // Keep the popup outside the chart vertically, including short mobile viewports.
+      // If it cannot fit at full height, scroll its content rather than cover the plot or grow the card.
+      const x = Math.max(gap, region.left, Math.min(viewportWidth - hintWidth - gap, region.right - hintWidth, center - hintWidth / 2))
       const hintHeight = element.getBoundingClientRect().height
-      const above = region.top - gap * 2, below = innerHeight - region.bottom - gap * 2
-      if (below >= hintHeight) y = region.bottom + gap
-      else if (above >= hintHeight) y = region.top - gap - hintHeight
-      else if (Math.max(region.right - center, center - region.left) >= hintWidth + gap * 2) {
-        x = clampX(region.right - center >= hintWidth + gap * 2 ? center + gap * 2 : center - hintWidth - gap * 2)
-        y = Math.max(gap, Math.min(innerHeight - hintHeight - gap, centerY - hintHeight / 2))
-      } else {
-        // Short, narrow viewports: keep the selected column reachable and scroll only the hint if needed.
-        const down = innerHeight - centerY >= centerY
-        const space = Math.max(0, (down ? innerHeight - centerY : centerY) - gap * 2)
-        element.style.maxBlockSize = `${space}px`
-        y = down ? centerY + gap : centerY - gap - element.getBoundingClientRect().height
-      }
+      const above = Math.max(0, region.top - gap * 2), below = Math.max(0, innerHeight - region.bottom - gap * 2)
+      const down = below >= hintHeight || (above < hintHeight && below > 0 && below >= above - 24)
+      const space = down ? below : above
+      if (space <= 0) { setHint(undefined); return }
+      element.style.maxBlockSize = `${space}px`
+      const y = down ? region.bottom + gap : region.top - gap - element.getBoundingClientRect().height
       element.style.left = `${popover ? x : x - parent.left}px`
       element.style.top = `${popover ? y : y - parent.top}px`
     }
