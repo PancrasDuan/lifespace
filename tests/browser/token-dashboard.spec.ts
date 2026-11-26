@@ -466,6 +466,8 @@ test('long identities, large counts and tiny unverified fees remain readable', a
   await page.locator('.plot').focus(); await page.keyboard.press('End')
   await expect(page.locator('.trend-hint .detail-model')).toContainText('<$0.01')
   await expect(page.locator('.trend-hint .detail-model')).toContainText('计价未核实')
+  await expect(page.locator('.trend-hint .detail-model dd')).toHaveAttribute('title', /USD 0\.00000000001/)
+  await expect(page.locator('.trend-hint-heading strong')).toHaveAttribute('title', /USD 0\.00000000001/)
   for (const width of [1440, 390, 320]) {
     await page.setViewportSize({ width, height: 844 })
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
@@ -652,6 +654,12 @@ test('daily bars use main totals and show date-specific top five plus exact othe
   await expect(amounts).toHaveText(['$0.00'])
   await plot.press('Escape')
   await expect(hint).toBeHidden()
+  await page.getByLabel('时间范围', { exact: true }).selectOption('7')
+  await expect(plot.locator('.date-label').last()).toHaveText('11/15')
+  const lastTick = (await plot.locator('.date-label').last().boundingBox())!, lastBar = (await bar(fixedToday).boundingBox())!
+  expect(Math.abs(lastTick.x + lastTick.width / 2 - lastBar.x - lastBar.width / 2)).toBeLessThan(1)
+  const firstTick = (await plot.locator('.date-label').first().boundingBox())!, firstGrid = (await plot.locator('.chart-grid').first().boundingBox())!
+  expect(Math.abs(firstTick.x + firstTick.width / 2 - firstGrid.x - firstGrid.width / 14)).toBeLessThan(1)
   await page.getByLabel('时间范围', { exact: true }).selectOption('1')
   await expect(plot.locator('.trend-bar')).toHaveCount(1)
   await bar(fixedToday).hover()
@@ -718,6 +726,15 @@ test.describe('trend touch', () => {
     await expect(hint.locator('dt')).toHaveText(['A', 'G', 'F', 'E', 'D', '其他'])
     await page.locator('.trend-panel h2').tap()
     await expect(hint).toBeHidden()
+    await plot.scrollIntoViewIfNeeded()
+    const swipeBox = (await plot.boundingBox())!, beforeSwipe = await page.evaluate(() => scrollY)
+    const cdp = await context.newCDPSession(page)
+    const x = swipeBox.x + swipeBox.width / 2, y = swipeBox.y + swipeBox.height / 2
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y }] })
+    for (let step = 1; step <= 5; step++) await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x, y: y - 20 * step }] })
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })
+    await expect.poll(() => page.evaluate(() => scrollY)).toBeGreaterThan(beforeSwipe)
+    await cdp.detach()
   })
 })
 
@@ -727,6 +744,8 @@ test('trend keeps the daily main bar while model pages load, fail and retry', as
   let release = () => {}
   const pending = new Promise<void>(resolve => { release = resolve })
   let fail = true
+  let summaryRequests = 0
+  page.on('request', request => { if (request.url().includes('/api/token/summary?')) summaryRequests++ })
   await context.route('**/api/token/usage?*', async route => {
     if (fail) {
       await pending
@@ -742,9 +761,31 @@ test('trend keeps the daily main bar while model pages load, fail and retry', as
   release()
   await expect(hint.getByRole('button', { name: '重试' })).toBeVisible()
   await expect(plot.locator('.trend-bar')).toHaveCount(3)
+  const summaryRequestsBeforeRetry = summaryRequests
   fail = false
   await hint.getByRole('button', { name: '重试' }).click()
   await expect(plot.locator('.trend-bar')).toHaveCount(3)
   await plot.locator(`[data-trend-date="${fixedToday}"]`).hover()
   await expect(hint.locator('dt')).toHaveCount(6)
+  expect(summaryRequests).toBe(summaryRequestsBeforeRetry)
+})
+
+test('keyboard keeps date inspection when every daily API estimate is unknown', async ({ page, context }) => {
+  const rows = trendRows().map(row => ({ ...row, cost: { currency: 'USD', apiEstimate: null, coverage: 'unknown' as const }, models: row.models.map(model => ({ ...model, cost: { currency: 'USD', apiEstimate: null, coverage: 'unknown' as const } })) }))
+  await mockTrendRows(context, rows)
+  await page.goto('/token')
+  const plot = page.locator('.plot'), hint = page.locator('.trend-hint')
+  await page.getByRole('button', { name: '费用', exact: true }).click()
+  await expect(plot).toContainText('API 估算未知')
+  await expect(plot.locator('.trend-bar')).toHaveCount(0)
+  await plot.focus()
+  await plot.press('End')
+  await expect(hint.locator('.trend-hint-heading strong')).toHaveText('未知 · 费用未知')
+  await expect(page.locator(`[data-date="${fixedToday}"]`)).toHaveAttribute('aria-pressed', 'true')
+  await plot.press('ArrowLeft')
+  await expect(hint).toContainText('2026/11/14')
+  await expect(hint.locator('dt')).toHaveCount(2)
+  await expect(page.locator('[data-date="2026-11-14"]')).toHaveAttribute('aria-pressed', 'true')
+  await plot.press('Escape')
+  await expect(hint).toBeHidden()
 })

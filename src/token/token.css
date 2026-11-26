@@ -120,7 +120,7 @@
 .token-page .trend-hint-heading span, .token-page .trend-hint p { color: #d5e4ce; }
 .token-page .trend-hint-heading strong { font-size: 14px; font-weight: 600; }
 .token-page .trend-models { margin: 0; border-block-start: 1px solid #d5e4ce40; padding-block-start: 5px; }
-.token-page .trend-models .detail-model { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: baseline; gap: 8px; padding-block: 3px; }
+.token-page .trend-models .detail-model { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); align-items: baseline; gap: 8px; padding-block: 3px; }
 .token-page .trend-models dd { margin: 0; text-align: end; font-variant-numeric: tabular-nums; }
 .token-page .trend-hint p { margin-block-start: 6px; font-size: 11px; }
 .token-page .trend-hint .token-feedback, .token-page .trend-hint .token-loading, .token-page .trend-hint .token-feedback p { color: #f9fcf6; }
