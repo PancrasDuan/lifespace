@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { TokenDashboardPage, TokenDashboardSummary } from '../shared/token-backend-contract'
 import type { TokenCost } from '../shared/token-usage-contract'
 import type { Resource } from './useResource'
@@ -32,6 +32,19 @@ export function TokenTrend({ current: resource, usage, range, selectedDate, sele
   const [hint, setHint] = useState<'pointer' | 'keyboard' | 'tap'>()
   const plot = useRef<HTMLDivElement>(null)
   const figure = useRef<HTMLElement>(null)
+  const tooltip = useRef<HTMLDivElement>(null)
+  const hideTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  // The SVG uses its own pointer/keyboard state; manual top layer avoids native light-dismiss on a repeat tap of the same day.
+  const [popover] = useState<'manual' | undefined>(() => typeof document.createElement('div').showPopover === 'function' ? 'manual' : undefined)
+  const cancelHide = () => clearTimeout(hideTimer.current)
+  const delayHide = () => {
+    if (hint !== 'pointer') return
+    cancelHide()
+    hideTimer.current = setTimeout(() => {
+      if (!figure.current?.matches(':hover') && !tooltip.current?.matches(':hover') && !figure.current?.contains(document.activeElement)) setHint(undefined)
+    }, 180)
+  }
+  useEffect(() => () => clearTimeout(hideTimer.current), [])
   const [width, setWidth] = useState(600)
   useEffect(() => {
     if (!plot.current) return
@@ -42,7 +55,7 @@ export function TokenTrend({ current: resource, usage, range, selectedDate, sele
   useEffect(() => { setHint(undefined) }, [current])
   useEffect(() => {
     if (!hint) return
-    const escape = (event: KeyboardEvent) => { if (event.key === 'Escape') setHint(undefined) }
+    const escape = (event: KeyboardEvent) => { if (event.key === 'Escape') { if (tooltip.current?.contains(document.activeElement)) plot.current?.focus({ preventScroll: true }); setHint(undefined) } }
     const outside = (event: PointerEvent) => { if (event.target instanceof Node && !figure.current?.contains(event.target)) setHint(undefined) }
     document.addEventListener('keydown', escape)
     document.addEventListener('pointerdown', outside)
@@ -87,6 +100,7 @@ export function TokenTrend({ current: resource, usage, range, selectedDate, sele
   const selectPointer = (clientX: number, mode: 'pointer' | 'tap') => {
     if (!plot.current || !available) return
     const local = clientX - plot.current.getBoundingClientRect().left
+    cancelHide()
     setHint(mode)
     selectDate(days[Math.max(0, Math.min(days.length - 1, Math.floor((local - left) / slot)))])
   }
@@ -94,14 +108,45 @@ export function TokenTrend({ current: resource, usage, range, selectedDate, sele
   const tickCount = Math.min(days.length, tickCapacity >= 5 ? 5 : tickCapacity >= 3 ? 3 : 2)
   const tickIndices = tickCount === 1 ? [0] : Array.from({ length: tickCount }, (_, i) => Math.floor((days.length - 1) * i / (tickCount - 1)))
   const showHint = canInspect && hint !== undefined
-  const hintWidth = Math.min(width, 480)
-  const hintOffset = Math.max(0, Math.min(width - hintWidth, x(index) - hintWidth / 2))
-  return <section className="panel trend-panel" aria-labelledby="trend-title">
-    <div className="panel-heading"><div><h2 id="trend-title">每日用量趋势</h2>{metric === 'cost' && <p>{[...currencies].join(' / ')}{currencies.size > 0 && ' · '}API 等价估算{coverage && ` · ${coverage}`}</p>}</div><div className="segmented" role="group" aria-label="趋势指标"><button type="button" aria-pressed={metric === 'tokens'} onClick={() => { setMetric('tokens'); setHint(undefined) }}>Token</button><button type="button" aria-pressed={metric === 'cost'} onClick={() => { setMetric('cost'); setHint(undefined) }}>费用</button></div></div>
-    <figure className="chart-figure" ref={figure} onPointerLeave={() => { if (hint === 'pointer') setHint(undefined) }} onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget)) setHint(undefined) }}>
-      <div className="plot" ref={plot} tabIndex={canInspect ? 0 : -1} role="group" aria-label="每日用量柱状图，左右方向键查看日期" aria-describedby="token-chart-description" onFocus={event => { if (canInspect && event.target === event.currentTarget && event.currentTarget.matches(':focus-visible')) setHint('keyboard') }} onPointerMove={event => { if (event.pointerType !== 'touch') selectPointer(event.clientX, 'pointer') }} onClick={event => { if (!(event.target instanceof Element && event.target.closest('button'))) selectPointer(event.clientX, 'tap') }} onKeyDown={event => {
+  const dayX = x(index)
+  useLayoutEffect(() => {
+    const element = tooltip.current, chart = plot.current, anchor = figure.current
+    if (!showHint || !element || !chart || !anchor) return
+    if (popover && !element.matches(':popover-open')) element.showPopover()
+    const position = () => {
+      const region = chart.getBoundingClientRect(), parent = anchor.getBoundingClientRect()
+      if (region.bottom <= 0 || region.top >= innerHeight) { setHint(undefined); return }
+      const gap = 8, viewportWidth = document.documentElement.clientWidth
+      const hintWidth = Math.min(300, region.width, viewportWidth - gap * 2)
+      element.style.inlineSize = `${hintWidth}px`
+      element.style.maxBlockSize = `${innerHeight - gap * 2}px`
+      const center = region.left + dayX * region.width / width
+      // Keep the popup outside the chart vertically, including short mobile viewports.
+      // If it cannot fit at full height, scroll its content rather than cover the plot or grow the card.
+      const x = Math.max(gap, region.left, Math.min(viewportWidth - hintWidth - gap, region.right - hintWidth, center - hintWidth / 2))
+      const hintHeight = element.getBoundingClientRect().height
+      const above = Math.max(0, region.top - gap * 2), below = Math.max(0, innerHeight - region.bottom - gap * 2)
+      const down = below >= hintHeight || (above < hintHeight && below > 0 && below >= above - 24)
+      const space = down ? below : above
+      if (space <= 0) { setHint(undefined); return }
+      element.style.maxBlockSize = `${space}px`
+      const y = down ? region.bottom + gap : region.top - gap - element.getBoundingClientRect().height
+      element.style.left = `${popover ? x : x - parent.left}px`
+      element.style.top = `${popover ? y : y - parent.top}px`
+    }
+    position()
+    const observer = new ResizeObserver(position)
+    observer.observe(element); observer.observe(chart)
+    const scroll = (event: Event) => { if (!(event.target instanceof Node && element.contains(event.target))) position() }
+    document.addEventListener('scroll', scroll, true); window.addEventListener('resize', position)
+    return () => { observer.disconnect(); document.removeEventListener('scroll', scroll, true); window.removeEventListener('resize', position) }
+  }, [showHint, popover, dayX, width])
+  return <section className={`panel trend-panel${showHint && !popover ? ' trend-hint-open' : ''}`} aria-labelledby="trend-title">
+    <div className="panel-heading"><div><h2 id="trend-title">每日用量趋势</h2>{metric === 'cost' && <p>{[...currencies].join(' / ')}{currencies.size > 0 && ' · '}API 等价估算{coverage && ` · ${coverage}`}</p>}</div><div className="segmented" role="group" aria-label="趋势指标"><button type="button" aria-pressed={metric === 'tokens'} onClick={() => { cancelHide(); setMetric('tokens'); setHint(undefined) }}>Token</button><button type="button" aria-pressed={metric === 'cost'} onClick={() => { cancelHide(); setMetric('cost'); setHint(undefined) }}>费用</button></div></div>
+    <figure className="chart-figure" ref={figure} onPointerEnter={cancelHide} onPointerLeave={delayHide} onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget)) setHint(undefined) }}>
+      <div className="plot" ref={plot} tabIndex={canInspect ? 0 : -1} role="group" aria-label="每日用量柱状图，左右方向键查看日期" aria-describedby="token-chart-description" onFocus={event => { if (canInspect && event.target === event.currentTarget && event.currentTarget.matches(':focus-visible')) { cancelHide(); setHint('keyboard') } }} onPointerMove={event => { if (event.pointerType !== 'touch') selectPointer(event.clientX, 'pointer') }} onClick={event => { if (!(event.target instanceof Element && event.target.closest('button'))) selectPointer(event.clientX, 'tap') }} onKeyDown={event => {
         if (!canInspect || event.target !== event.currentTarget || !['ArrowLeft', 'ArrowRight', 'Home', 'End', 'Enter', ' '].includes(event.key)) return
-        event.preventDefault(); setHint('keyboard')
+        event.preventDefault(); cancelHide(); setHint('keyboard')
         if (event.key === 'Enter' || event.key === ' ') return
         selectDate(days[event.key === 'Home' ? 0 : event.key === 'End' ? days.length - 1 : Math.max(0, Math.min(days.length - 1, index + (event.key === 'ArrowRight' ? 1 : -1)))])
       }}>
@@ -114,7 +159,7 @@ export function TokenTrend({ current: resource, usage, range, selectedDate, sele
           </svg>}
       </div>
       <figcaption id="token-chart-description" className="sr-only">移动指针、轻触或按左右方向键查看每日总量和模型明细。日统计明细提供每日总量表格。</figcaption>
-      {showHint && <div className="trend-hint" style={{ marginInlineStart: hintOffset }} role="region" aria-label="当日模型明细">
+      {showHint && <div className="trend-hint" ref={tooltip} popover={popover} tabIndex={0} role="region" aria-label="当日模型明细" onPointerEnter={cancelHide} onPointerLeave={delayHide} onToggle={event => { if (event.newState === 'closed') setHint(undefined) }}>
         <div className="trend-hint-heading"><span>{date.replaceAll('-', '/')}</span><strong title={metric === 'cost' ? estimateTitle(selected?.costs ?? []) : undefined}>{total}</strong></div>
         {changed ? <div className="trend-refresh"><p>{changeMessage}</p><button type="button" className="button" onClick={refresh}>刷新统计</button></div> : selected && <>{incomparable ? <p>费用币种不同，无法比较模型</p> : usage.loading || usage.error !== undefined ? <Feedback resource={usage} retry={retryUsage} label="正在读取完整模型明细…" /> : <>
           {details.length ? <dl className="trend-models">{details.map(model => <div className="detail-model" key={model.key}><dt>{model.name}</dt><dd title={metric === 'cost' ? estimateTitle(model.costs) : undefined}>{model.amount}</dd></div>)}</dl> : <p>暂无模型明细</p>}
@@ -122,7 +167,7 @@ export function TokenTrend({ current: resource, usage, range, selectedDate, sele
         </>}</>}
       </div>}
     </figure>
-    <div className="inspection">{(available || selected || showHint) && <><span className="cursor-key" /><strong>{longDate(date)}</strong><strong title={total}>{selected && metric === 'tokens' ? `${compact(selected.metrics.total)} Token` : total}</strong></>}</div>
+    <div className="inspection">{(available || selected) && <><span className="cursor-key" /><strong>{longDate(date)}</strong><strong title={total}>{selected && metric === 'tokens' ? `${compact(selected.metrics.total)} Token` : total}</strong></>}</div>
     <div className="sr-only" role="status" aria-atomic="true">{showHint && hint === 'keyboard' && `${longDate(date)}，${total}${(selected || changed) && detailStatus ? `；${detailStatus}` : ''}`}</div>
     <div className="trend-summary"><div><span>日均用量</span><strong>{current?.rowCount && typeof current.totals.metrics.total === 'number' ? `${compact(current.totals.metrics.total / range.days)} Token` : '—'}</strong></div><div><span>单日峰值</span><strong>{peak ? `${compact(peak.metrics.total)} · ${shortDate(peak.date)}` : '—'}</strong></div><div><span>活跃天数</span><strong>{current?.rowCount ? `${active} / ${range.days} 天` : '—'}</strong></div></div>
   </section>
