@@ -91,7 +91,7 @@ export function TokenDashboard() {
       </div>
     </section>
     <div className="analysis-grid">
-      <TokenTrend current={current.data} previous={previous.data} usage={usage} colors={modelColors} range={range} selectedDate={selectedDate} selectDate={selectDate} clearFilters={reset} retry={retry} />
+      <TokenTrend current={current} usage={usage} range={range} selectedDate={selectedDate} selectDate={selectDate} clearFilters={reset} retry={retry} />
       <ModelComposition current={current} catalogue={catalogue} modelColors={modelColors} modelKey={modelKey} setModel={setModel} retry={retry} />
     </div>
     <TokenCalendar today={today} resource={annual} selectedDate={selectedDate} selectDate={selectDate} retry={retry} />

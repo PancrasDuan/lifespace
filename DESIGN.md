@@ -58,7 +58,6 @@ components:
   button-secondary: {"backgroundColor": "{colors.surface}", "textColor": "#3d5845", "rounded": "{rounded.button}", "padding": "9px 15px"}
   button-reset: {"backgroundColor": "transparent", "textColor": "#52694d", "padding": "7px 4px"}
   button-text: {"backgroundColor": "transparent", "textColor": "{colors.accent}", "padding": "8px 0"}
-  button-chart-view: {"backgroundColor": "transparent", "textColor": "#657b60", "rounded": "{rounded.segment}", "padding": "5px"}
   filter-select: {"backgroundColor": "{colors.surface}", "textColor": "{colors.muted}", "rounded": "{rounded.control}", "padding": "8px 26px 8px 11px"}
   panel-standard: {"backgroundColor": "{colors.surface}", "rounded": "{rounded.panel}", "padding": "22px 23px"}
   segmented-button: {"backgroundColor": "transparent", "textColor": "#52694d", "rounded": "{rounded.segment}", "padding": "5px 11px"}
@@ -74,9 +73,9 @@ components:
 
 ## Colors
 
-森林绿用于文字、当前周期和选中控件；灰绿虚线用于上一周期；暖棕用于日期指针；模型依次使用森林绿、青绿、暖棕与灰绿；日历使用既定五阶强度。薄荷／奶油渐变浅底上放白色细边框面板。
+森林绿用于文字、日柱和选中控件；灰绿用于次要信息；暖棕用于选中日柱与日期指针；模型依次使用森林绿、青绿、暖棕与灰绿；日历使用既定五阶强度。薄荷／奶油渐变浅底上放白色细边框面板。
 
-**The Semantic Series Rule.** 比较线、当前线、日期选择和模型色各有含义，不能因状态切换混淆。
+**The Semantic Series Rule.** 日柱总量、日期选择和模型构成色各有含义，不能因指标切换混淆。
 
 ## Typography
 
@@ -98,6 +97,7 @@ components:
 
 ## Components
 
+- 趋势图（#241）：仅 Token / 费用两项，单日主汇总实心柱、暖棕选中日；移除趋势常驻图例和上一周期折线，保留指标带周期对比。日期悬停、轻触或键盘查看时，在柱图下方显示对齐该日的深绿明细提示（宽屏两列、窄屏一列），避免遮挡柱与轴；仅显示当日所选指标的前五个模型和剩余已报告模型「其他」。
 - 日期提示：hover/focus/tap打开，支持hint Popover、auto及manual fixed回退；可移入阅读，Escape/外部激活关闭，完整日期名预先存在，不抢焦点或重复live播报。
 - 明细：h2内button配近旁箭头，aria-expanded、hidden=until-found和beforematch同步；不支持beforematch时初始展开。表内显示真实摘要，完整分页读取状态明确。
 - 模型：行内箭头、hover、选中勾选和恢复入口。未知费用仍保留Token统计。

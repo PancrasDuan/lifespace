@@ -22,3 +22,7 @@ FORM: Code implementation of the approved prototype. User authorized the existin
 FINISH: Fresh independent review of actual final screenshots and interaction evidence, plus fixed-SHA standards/spec reviews. Earlier prototype reviews do not cover this surface. Evidence at 1440/1024/768/390/320px and a narrow-height touch state. Unreviewed is unfinished.
 
 No export, page-local section nav, 3D, permanent calendar detail row, daily preview, repetitive intro or footer. Preserve timezone and unknown/partial/unverified cost semantics. All API calls use the existing verified browser session. Device upload credentials and collector modules never enter the browser.
+
+# #241 局部更新
+
+趋势图的新版视觉依据为 #241 及 `836063daaf0ad9dec5f220f5d8f4772b0afae6f6` 的正式界面同样本截图；原型仅作为未授权区域依据。Token（默认）/费用单日主量柱，不再显示折线、图形切换或图例；悬停、轻触和键盘查日时在图下展示当日模型排名前五及真实剩余「其他」。费用仍为单币种 API 等价估算，保留覆盖状态；模型构成、指标带周期对比、日历和设备等布局/行为不变。

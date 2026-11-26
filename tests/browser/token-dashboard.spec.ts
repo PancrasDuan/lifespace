@@ -1,6 +1,8 @@
 import { test, expect } from './authenticated-test'
 import { fixtureDevices, selectRows, summarize, fixedToday, fixtureRows } from '../fixtures/token-dashboard/fixture'
-import { tokenDashboardSummarySchema } from '../../src/shared/token-backend-contract'
+import type { BrowserContext } from '@playwright/test'
+import { sumTokenCosts } from '../../src/shared/token-usage-contract'
+import { tokenDashboardSummarySchema, type TokenDashboardPage } from '../../src/shared/token-backend-contract'
 import { mkdir } from 'node:fs/promises'
 import { captureTokenPage, captureTokenViewport } from '../support/capture-token-page'
 
@@ -25,7 +27,8 @@ test.beforeEach(async ({ page, context }) => {
 test('approved prototype: five widths, same data; no global overflow or runtime error', async ({ page }) => {
   const errors: string[] = []
   page.on('pageerror', error => errors.push(error.message))
-  await mkdir('.impeccable/review/token-frontend', { recursive: true })
+  const screenshotDir = process.env.TOKEN_TREND_SCREENSHOTS ?? '.impeccable/review/token-frontend'
+  await mkdir(screenshotDir, { recursive: true })
   await page.goto('/token')
   await expect(page.getByTestId('token-total')).toHaveAttribute('data-value', '51938778')
   await expect(page.locator('.device-text strong').filter({ hasText: 'studio-linux' })).toBeVisible()
@@ -39,7 +42,13 @@ test('approved prototype: five widths, same data; no global overflow or runtime 
     for (let index = 1; index < labels.length; index++) expect(labels[index].left - labels[index - 1].right).toBeGreaterThanOrEqual(4)
     if (width === 320) expect(labels).toHaveLength(3)
     if (width === 390 || width === 1440) expect(labels).toHaveLength(5)
-    await captureTokenPage(page, `.impeccable/review/token-frontend/${width === 1440 ? 'desktop' : width === 390 ? 'mobile' : `width-${width}`}.png`)
+    await captureTokenPage(page, `${screenshotDir}/${width === 1440 ? 'desktop' : width === 390 ? 'mobile' : `width-${width}`}.png`)
+    if (process.env.TOKEN_TREND_SCREENSHOTS && (width === 1440 || width === 390)) {
+      await page.getByRole('button', { name: '费用', exact: true }).click()
+      await expect(page.locator('.plot .trend-bar')).not.toHaveCount(0)
+      await captureTokenPage(page, `${screenshotDir}/${width === 1440 ? 'desktop' : 'mobile'}-cost.png`)
+      await page.getByRole('button', { name: 'Token', exact: true }).click()
+    }
   }
   expect(errors).toEqual([])
 })
@@ -56,8 +65,9 @@ test('period/model/device filters, full pagination, independent year and chart c
   await expect(page.locator('#token-daily-details')).toHaveAttribute('hidden', 'until-found')
   await page.locator('#token-daily-details').dispatchEvent('beforematch')
   await expect(page.getByRole('button', { name: '日统计明细' })).toHaveAttribute('aria-expanded', 'true')
-  await page.getByRole('button', { name: '模型堆叠', exact: true }).click()
-  await expect(page.locator('.plot rect')).not.toHaveCount(0)
+  await expect(page.locator('.plot .trend-bar')).not.toHaveCount(0)
+  await expect(page.locator('.trend-panel .segmented button')).toHaveText(['Token', '费用'])
+  await expect(page.locator('.trend-panel .chart-legend, .trend-panel .chart-view, .plot path')).toHaveCount(0)
   await page.getByRole('button', { name: '费用', exact: true }).click()
   await page.getByRole('button', { name: '查看完整列表', exact: true }).click()
   const dialog = page.getByRole('dialog', { name: '完整模型列表' })
@@ -147,10 +157,11 @@ for (const count of [0, 4, 5, 6, 14]) {
     await expect(dialog).toBeVisible()
     await page.keyboard.press('Escape')
     if (count !== 14) return
-    await page.getByRole('button', { name: '模型堆叠', exact: true }).click()
-    await expect(page.locator('.chart-legend .model-key')).toHaveCount(count)
-    await expect(page.locator('.plot rect')).toHaveCount(count)
-    await expect(page.locator('.inspection .detail-model')).toHaveCount(count)
+    await expect(page.locator('.plot .trend-bar')).toHaveCount(1)
+    await page.locator('.plot').focus()
+    await page.keyboard.press('End')
+    await expect(page.locator('.trend-hint .detail-model')).toHaveCount(6)
+    await page.keyboard.press('Escape')
     const last = expected.at(-1)!
     await expect(dropdown.locator('option', { hasText: last.modelId })).toHaveCount(1)
     await mkdir('.cache/issue238', { recursive: true })
@@ -452,10 +463,9 @@ test('long identities, large counts and tiny unverified fees remain readable', a
   await expect(page.locator('.metric-band')).toContainText('<$0.01')
   await expect(page.locator('.metric-band')).toContainText('计价未核实')
   await page.getByRole('button', { name: '费用', exact: true }).click()
-  await page.getByRole('button', { name: '模型堆叠', exact: true }).click()
   await page.locator('.plot').focus(); await page.keyboard.press('End')
-  await expect(page.locator('.inspection .detail-model')).toContainText('<$0.01')
-  await expect(page.locator('.inspection .detail-model')).toContainText('计价未核实')
+  await expect(page.locator('.trend-hint .detail-model')).toContainText('<$0.01')
+  await expect(page.locator('.trend-hint .detail-model')).toContainText('计价未核实')
   for (const width of [1440, 390, 320]) {
     await page.setViewportSize({ width, height: 844 })
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
@@ -561,4 +571,180 @@ test('empty device enrollment command wraps at both phone widths', async ({ page
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
     await captureTokenViewport(page, `.impeccable/review/token-frontend/device-empty-${width}.png`)
   }
+})
+
+// Day-specific ranks deliberately differ from the period rank and from the cost rank.
+// Split the top model across devices and Agents, on separate mocked usage pages.
+function trendRows() {
+  const source = fixtureRows.find(row => row.date === fixedToday)!
+  const row = (date: string, deviceId: string, agent: string, entries: [string, number, string | null][]) => {
+    const models = entries.map(([modelId, total, apiEstimate]) => ({ modelId, providerId: null, metrics: { input: total, output: 0, total, cacheRead: 0 }, cost: { currency: 'USD', apiEstimate, coverage: apiEstimate === null ? 'unknown' as const : 'complete' as const } }))
+    const total = models.reduce((sum, model) => sum + model.metrics.total, 0)
+    return { ...source, date, deviceId, agent, models, metrics: { input: total, output: 0, total, cacheRead: 0 }, cost: sumTokenCosts(models.map(model => model.cost), 'USD') }
+  }
+  return [
+    row(fixedToday, 'mac', 'codex', [['A', 3000, '1'], ['B', 8000, '2'], ['C', 7000, '3'], ['D', 6000, '4'], ['E', 5000, '5'], ['F', 4000, '6'], ['G', 2000, '7'], ['H', 1000, null]]),
+    row(fixedToday, 'linux', 'claude', [['A', 6000, '9']]),
+    row('2026-11-14', 'mac', 'codex', [['H', 12000, '2'], ['F', 1000, '1']]),
+    row('2026-11-12', 'mac', 'codex', [['zero', 0, '0']]),
+  ]
+}
+
+async function mockTrendRows(context: BrowserContext, rows: TokenDashboardPage['rows']) {
+  await context.route('**/api/token/summary?*', route => {
+    const query = new URL(route.request().url()).searchParams
+    return route.fulfill({ json: tokenDashboardSummarySchema.parse(summarize(selectRows(query, rows), query.has('modelKey'))) })
+  })
+  await context.route('**/api/token/usage?*', route => {
+    const query = new URL(route.request().url()).searchParams, selected = selectRows(query, rows)
+    const offset = Number(query.get('after') ?? 0)
+    return route.fulfill({ json: { timeZone: 'Asia/Shanghai', scope: query.has('modelKey') ? 'model' : 'main', rows: selected.slice(offset, offset + 1), nextCursor: offset + 1 < selected.length ? String(offset + 1) : null } })
+  })
+}
+
+test('daily bars use main totals and show date-specific top five plus exact other for both metrics', async ({ page, context }) => {
+  await mockTrendRows(context, trendRows())
+  await page.setViewportSize({ width: 1440, height: 1000 })
+  await page.goto('/token')
+  const trend = page.locator('.trend-panel'), plot = trend.locator('.plot'), hint = trend.getByRole('region', { name: '当日模型明细' })
+  const modelNames = hint.locator('dt'), amounts = hint.locator('dd')
+  const bar = (date: string) => plot.locator(`[data-trend-date="${date}"]`)
+  await expect(trend.getByRole('button', { name: 'Token', exact: true })).toHaveAttribute('aria-pressed', 'true')
+  await expect(plot.locator('.trend-bar')).toHaveCount(3)
+  await expect(hint).toBeHidden()
+  await bar(fixedToday).hover()
+  await expect(hint).toContainText('2026/11/15')
+  await expect(hint.locator('.trend-hint-heading strong')).toHaveText('42,000 Token')
+  await expect(modelNames).toHaveText(['A', 'B', 'C', 'D', 'E', '其他'])
+  await expect(amounts).toHaveText(['9,000', '8,000', '7,000', '6,000', '5,000', '7,000'])
+  await expect(page.locator(`[data-date="${fixedToday}"]`)).toHaveAttribute('aria-pressed', 'true')
+  await mkdir('.cache/issue241/after', { recursive: true })
+  await captureTokenViewport(page, '.cache/issue241/after/desktop-token-hint.png')
+  await hint.hover()
+  await expect(modelNames).toHaveText(['A', 'B', 'C', 'D', 'E', '其他'])
+  const detailBox = (await hint.boundingBox())!, chartBox = (await plot.boundingBox())!
+  expect(detailBox.y).toBeGreaterThanOrEqual(chartBox.y + chartBox.height)
+  expect(detailBox.x).toBeGreaterThanOrEqual(chartBox.x)
+  expect(detailBox.x + detailBox.width).toBeLessThanOrEqual(chartBox.x + chartBox.width + 1)
+  await trend.locator('h2').hover()
+  await expect(hint).toBeHidden()
+  await bar('2026-11-14').hover()
+  await expect(modelNames).toHaveText(['H', 'F'])
+  await expect(page.locator('[data-date="2026-11-14"]')).toHaveAttribute('aria-pressed', 'true')
+  await trend.getByRole('button', { name: '费用', exact: true }).click()
+  await expect(trend.getByRole('button', { name: '费用', exact: true })).toHaveAttribute('aria-pressed', 'true')
+  await bar(fixedToday).hover()
+  await expect(modelNames).toHaveText(['A', 'G', 'F', 'E', 'D', '其他'])
+  await expect(amounts).toHaveText(['$10.00', '$7.00', '$6.00', '$5.00', '$4.00', '$5.00 · 可计价部分'])
+  await expect(hint.locator('.trend-hint-heading strong')).toHaveText('$37.00 · 可计价部分')
+  await captureTokenViewport(page, '.cache/issue241/after/desktop-cost-hint.png')
+  await page.keyboard.press('Escape')
+  await expect(hint).toBeHidden()
+  await plot.focus()
+  await plot.press('End')
+  await expect(modelNames).toHaveText(['A', 'G', 'F', 'E', 'D', '其他'])
+  await plot.press('ArrowLeft')
+  await expect(modelNames).toHaveText(['H', 'F'])
+  await plot.press('ArrowLeft')
+  await expect(hint).toContainText('没有记录')
+  await expect(modelNames).toHaveCount(0)
+  await plot.press('ArrowLeft')
+  await expect(amounts).toHaveText(['$0.00'])
+  await plot.press('Escape')
+  await expect(hint).toBeHidden()
+  await page.getByLabel('时间范围', { exact: true }).selectOption('1')
+  await expect(plot.locator('.trend-bar')).toHaveCount(1)
+  await bar(fixedToday).hover()
+  await expect(modelNames).toHaveCount(6)
+  const barBox = (await bar(fixedToday).boundingBox())!, gridBox = (await plot.locator('.chart-grid').first().boundingBox())!
+  expect(Math.abs(barBox.x + barBox.width / 2 - (gridBox.x + gridBox.width / 2))).toBeLessThan(2)
+})
+
+for (const count of [4, 5, 6]) {
+  test(`trend hover groups ${count} models without an empty other bucket`, async ({ page, context }) => {
+    await mockTrendRows(context, modelListRows(count))
+    await page.goto('/token')
+    const plot = page.locator('.plot'), hint = page.locator('.trend-hint')
+    await plot.locator('.trend-bar').hover()
+    await expect(hint.locator('dt')).toHaveText([...Array.from({ length: Math.min(count, 5) }, (_, i) => count - i).map(i => i === 1 ? 'long-model-'.repeat(18) : `sample-model-${i}`), ...(count > 5 ? ['其他'] : [])])
+    if (count > 5) await expect(hint.locator('dd').last()).toHaveText('1,000')
+  })
+}
+
+test('partial model coverage, unknown fee and mixed currencies stay distinct from other', async ({ page, context }) => {
+  const [source] = trendRows()
+  const partial = { ...source, modelCoverage: 'partial' as const, models: source.models.slice(0, 2), metrics: { input: 42000, output: 0, total: 42000, cacheRead: 0 } }
+  const missing = { ...source, date: '2026-11-14', modelCoverage: 'missing' as const, models: [], cost: { currency: 'USD', apiEstimate: null, coverage: 'unknown' as const } }
+  await mockTrendRows(context, [partial, missing])
+  await page.goto('/token')
+  const plot = page.locator('.plot'), hint = page.locator('.trend-hint')
+  await plot.locator(`[data-trend-date="${fixedToday}"]`).hover()
+  await expect(hint.locator('.trend-hint-heading strong')).toHaveText('42,000 Token')
+  await expect(hint.locator('dt')).toHaveText(['B', 'A'])
+  await expect(hint).toContainText('模型分类不完整')
+  await plot.locator('[data-trend-date="2026-11-14"]').hover()
+  await expect(hint).toContainText('暂无模型明细')
+  await page.getByRole('button', { name: '费用', exact: true }).click()
+  await plot.focus(); await plot.press('End'); await plot.press('ArrowLeft')
+  await expect(hint).toContainText('未知')
+  await expect(plot.locator('[data-trend-date="2026-11-14"]')).toHaveCount(0)
+  await mockTrendRows(context, [partial, { ...missing, cost: { currency: 'EUR', apiEstimate: '1', coverage: 'complete' } }])
+  await page.reload()
+  await page.getByRole('button', { name: '费用', exact: true }).click()
+  await expect(plot).toContainText('费用币种不同')
+  await expect(plot.locator('.trend-bar')).toHaveCount(0)
+  await plot.getByRole('button', { name: '查看 Token 用量' }).click()
+  await expect(plot.locator('.trend-bar')).toHaveCount(2)
+})
+
+test.describe('trend touch', () => {
+  test.use({ hasTouch: true })
+  test('tap opens detail at narrow width and leaves vertical scrolling available', async ({ page, context }) => {
+    await mockTrendRows(context, trendRows())
+    await page.setViewportSize({ width: 320, height: 520 })
+    await page.goto('/token')
+    const plot = page.locator('.plot'), hint = page.locator('.trend-hint')
+    await plot.locator(`[data-trend-date="${fixedToday}"]`).tap()
+    await expect(hint.locator('dt')).toHaveText(['A', 'B', 'C', 'D', 'E', '其他'])
+    await hint.scrollIntoViewIfNeeded()
+    const hintBox = (await hint.boundingBox())!, plotBox = (await plot.boundingBox())!
+    expect(hintBox.x).toBeGreaterThanOrEqual(0)
+    expect(hintBox.x + hintBox.width).toBeLessThanOrEqual(320)
+    expect(hintBox.y).toBeGreaterThanOrEqual(plotBox.y + plotBox.height)
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+    await captureTokenViewport(page, '.cache/issue241/after/touch-320-hint.png')
+    await page.getByRole('button', { name: '费用', exact: true }).tap()
+    await plot.locator(`[data-trend-date="${fixedToday}"]`).tap()
+    await expect(hint.locator('dt')).toHaveText(['A', 'G', 'F', 'E', 'D', '其他'])
+    await page.locator('.trend-panel h2').tap()
+    await expect(hint).toBeHidden()
+  })
+})
+
+test('trend keeps the daily main bar while model pages load, fail and retry', async ({ page, context }) => {
+  const rows = trendRows()
+  await mockTrendRows(context, rows)
+  let release = () => {}
+  const pending = new Promise<void>(resolve => { release = resolve })
+  let fail = true
+  await context.route('**/api/token/usage?*', async route => {
+    if (fail) {
+      await pending
+      await route.fulfill({ status: 503, json: { error: { code: 'TOKEN_UNAVAILABLE' } } })
+    } else await route.fallback()
+  })
+  await page.goto('/token')
+  const plot = page.locator('.plot'), hint = page.locator('.trend-hint')
+  await plot.locator(`[data-trend-date="${fixedToday}"]`).hover()
+  await expect(hint).toContainText('正在读取完整模型明细')
+  await expect(hint).toContainText('42,000 Token')
+  await expect(hint.locator('dt')).toHaveCount(0)
+  release()
+  await expect(hint.getByRole('button', { name: '重试' })).toBeVisible()
+  await expect(plot.locator('.trend-bar')).toHaveCount(3)
+  fail = false
+  await hint.getByRole('button', { name: '重试' }).click()
+  await expect(plot.locator('.trend-bar')).toHaveCount(3)
+  await plot.locator(`[data-trend-date="${fixedToday}"]`).hover()
+  await expect(hint.locator('dt')).toHaveCount(6)
 })
